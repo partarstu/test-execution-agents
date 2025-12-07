@@ -15,27 +15,74 @@
  */
 package org.tarik.ta.core.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Represents the result of the test execution.
  */
-public record TestExecutionResult(String testCaseName,
-                                  @NotNull TestExecutionStatus testExecutionStatus,
-                                  @NotNull List<PreconditionResult> preconditionResults,
-                                  @NotNull List<TestStepResult> stepResults,
-                                  @JsonIgnore @Nullable BufferedImage screenshot,
-                                  @Nullable Instant executionStartTimestamp,
-                                  @Nullable Instant executionEndTimestamp,
-                                  @Nullable String generalErrorMessage) {
-    public enum TestExecutionStatus {
-        PASSED, FAILED, ERROR
+public class TestExecutionResult {
+    private final String testCaseName;
+    private final @NotNull TestExecutionStatus testExecutionStatus;
+    private final @NotNull List<PreconditionResult> preconditionResults;
+    private final @NotNull List<TestStepResult> stepResults;
+    private final @Nullable Instant executionStartTimestamp;
+    private final @Nullable Instant executionEndTimestamp;
+    private final @Nullable String generalErrorMessage;
+
+    public TestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus, @NotNull List<PreconditionResult> preconditionResults, @NotNull List<TestStepResult> stepResults, @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp, @Nullable String generalErrorMessage) {
+        this.testCaseName = testCaseName;
+        this.testExecutionStatus = testExecutionStatus;
+        this.preconditionResults = preconditionResults;
+        this.stepResults = stepResults;
+        this.executionStartTimestamp = executionStartTimestamp;
+        this.executionEndTimestamp = executionEndTimestamp;
+        this.generalErrorMessage = generalErrorMessage;
+    }
+
+    public String testCaseName() {
+        return testCaseName;
+    }
+
+    public @NotNull TestExecutionStatus testExecutionStatus() {
+        return testExecutionStatus;
+    }
+
+    public @NotNull List<PreconditionResult> preconditionResults() {
+        return preconditionResults;
+    }
+
+    public @NotNull List<TestStepResult> stepResults() {
+        return stepResults;
+    }
+
+    public @Nullable Instant executionStartTimestamp() {
+        return executionStartTimestamp;
+    }
+
+    public @Nullable Instant executionEndTimestamp() {
+        return executionEndTimestamp;
+    }
+
+    public @Nullable String generalErrorMessage() {
+        return generalErrorMessage;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TestExecutionResult that = (TestExecutionResult) o;
+        return Objects.equals(testCaseName, that.testCaseName) && testExecutionStatus == that.testExecutionStatus && Objects.equals(preconditionResults, that.preconditionResults) && Objects.equals(stepResults, that.stepResults) && Objects.equals(executionStartTimestamp, that.executionStartTimestamp) && Objects.equals(executionEndTimestamp, that.executionEndTimestamp) && Objects.equals(generalErrorMessage, that.generalErrorMessage);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(testCaseName, testExecutionStatus, preconditionResults, stepResults, executionStartTimestamp, executionEndTimestamp, generalErrorMessage);
     }
 
     @Override
@@ -50,7 +97,7 @@ public record TestExecutionResult(String testCaseName,
         sb.append("Start Time: ").append(executionStartTimestamp != null ? executionStartTimestamp.toString() : "N/A").append("\n");
         sb.append("End Time: ").append(executionEndTimestamp != null ? executionEndTimestamp.toString() : "N/A").append("\n");
         sb.append("============================================================\n");
-        
+
         if (!preconditionResults.isEmpty()) {
             sb.append("Preconditions:\n");
             for (int i = 0; i < preconditionResults.size(); i++) {
@@ -64,7 +111,7 @@ public record TestExecutionResult(String testCaseName,
             }
             sb.append("------------------------------------------------------------\n");
         }
-        
+
         sb.append("Steps:\n");
 
         if (stepResults.isEmpty()) {
@@ -82,5 +129,9 @@ public record TestExecutionResult(String testCaseName,
         sb.append("====================== End of Test =======================");
 
         return sb.toString();
+    }
+
+    public enum TestExecutionStatus {
+        PASSED, FAILED, ERROR
     }
 }

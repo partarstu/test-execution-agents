@@ -29,6 +29,8 @@ import io.a2a.spec.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.dto.TestExecutionResult;
+import org.tarik.ta.dto.UiTestExecutionResult;
+import org.tarik.ta.dto.UiTestStepResult;
 import org.tarik.ta.core.utils.CoreUtils;
 
 import java.util.Collection;
@@ -123,15 +125,15 @@ public record UiAgentExecutor() implements AgentExecutor {
 
     private static void addScreenshots(TestExecutionResult result, List<Part<?>> parts) {
         result.stepResults().stream()
-                .filter(r -> r.screenshot() != null)
+                .filter(r -> ((UiTestStepResult) r).screenshot() != null)
                 .map(r -> new FileWithBytes(
                         "image/png",
                         "Screenshot for the test step %s".formatted(r.testStep().stepDescription()),
-                        convertImageToBase64(r.screenshot(), "png"))
+                        convertImageToBase64(((UiTestStepResult) r).screenshot(), "png"))
                 )
                 .map(FilePart::new)
                 .forEach(parts::add);
-        ofNullable(result.screenshot()).ifPresent(screenshot ->
+        ofNullable(((UiTestExecutionResult) result).screenshot()).ifPresent(screenshot ->
                 parts.add(new FilePart(new FileWithBytes("image/png",
                         "General screenshot for the test case %s.png".formatted(result.testCaseName()),
                         convertImageToBase64(screenshot, "png")))));

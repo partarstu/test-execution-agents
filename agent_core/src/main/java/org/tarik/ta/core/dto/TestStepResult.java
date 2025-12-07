@@ -15,23 +15,69 @@
  */
 package org.tarik.ta.core.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.awt.image.BufferedImage;
 import java.time.Instant;
+import java.util.Objects;
 
 /**
  * Represents the result of a single test step execution.
  */
-public record TestStepResult(@NotNull TestStep testStep,
-                             TestStepResultStatus executionStatus,
-                             @Nullable String errorMessage,
-                             @Nullable String actualResult,
-                             @Nullable @JsonIgnore BufferedImage screenshot,
-                             @Nullable Instant executionStartTimestamp,
-                             @Nullable Instant executionEndTimestamp) {
+public class TestStepResult {
+    private final @NotNull TestStep testStep;
+    private final TestStepResultStatus executionStatus;
+    private final @Nullable String errorMessage;
+    private final @Nullable String actualResult;
+    private final @Nullable Instant executionStartTimestamp;
+    private final @Nullable Instant executionEndTimestamp;
+
+    public TestStepResult(@NotNull TestStep testStep, TestStepResultStatus executionStatus, @Nullable String errorMessage, @Nullable String actualResult, @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
+        this.testStep = testStep;
+        this.executionStatus = executionStatus;
+        this.errorMessage = errorMessage;
+        this.actualResult = actualResult;
+        this.executionStartTimestamp = executionStartTimestamp;
+        this.executionEndTimestamp = executionEndTimestamp;
+    }
+
+    public @NotNull TestStep testStep() {
+        return testStep;
+    }
+
+    public TestStepResultStatus executionStatus() {
+        return executionStatus;
+    }
+
+    public @Nullable String errorMessage() {
+        return errorMessage;
+    }
+
+    public @Nullable String actualResult() {
+        return actualResult;
+    }
+
+    public @Nullable Instant executionStartTimestamp() {
+        return executionStartTimestamp;
+    }
+
+    public @Nullable Instant executionEndTimestamp() {
+        return executionEndTimestamp;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TestStepResult that = (TestStepResult) o;
+        return Objects.equals(testStep, that.testStep) && executionStatus == that.executionStatus && Objects.equals(errorMessage, that.errorMessage) && Objects.equals(actualResult, that.actualResult) && Objects.equals(executionStartTimestamp, that.executionStartTimestamp) && Objects.equals(executionEndTimestamp, that.executionEndTimestamp);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(testStep, executionStatus, errorMessage, actualResult, executionStartTimestamp, executionEndTimestamp);
+    }
+
     /**
      * Provides a human-friendly string representation of the TestStepResult instance.
      * The output is formatted for console readability.
@@ -49,8 +95,6 @@ public record TestStepResult(@NotNull TestStep testStep,
             sb.append("  - Error: ").append(errorMessage).append("\n");
         }
 
-        boolean screenshotExists = screenshot != null;
-        sb.append("  - Screenshot: ").append(screenshotExists ? "Available" : "Not Available").append("\n");
         sb.append("  - Start Time: ").append(executionStartTimestamp != null ? executionStartTimestamp.toString() : "N/A")
                 .append("\n");
         sb.append("  - End Time: ").append(executionEndTimestamp != null ? executionEndTimestamp.toString() : "N/A");
@@ -58,7 +102,7 @@ public record TestStepResult(@NotNull TestStep testStep,
         return sb.toString();
     }
 
-    public enum TestStepResultStatus{
+    public enum TestStepResultStatus {
         SUCCESS, FAILURE, ERROR
     }
 }

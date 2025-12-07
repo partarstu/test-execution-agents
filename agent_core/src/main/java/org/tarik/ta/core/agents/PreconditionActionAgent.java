@@ -15,6 +15,9 @@
  */
 package org.tarik.ta.core.agents;
 
+import dev.langchain4j.service.Result;
+import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.V;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
@@ -24,6 +27,9 @@ import org.tarik.ta.core.error.RetryPolicy;
  */
 public interface PreconditionActionAgent extends BaseAiAgent<EmptyExecutionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
+
+    @UserMessage("Execute the precondition: {{precondition}}. Shared data: {{sharedData}}")
+    Result<EmptyExecutionResult> execute(@V("precondition") String precondition, @V("sharedData") String sharedData);
 
     @Override
     default String getAgentTaskDescription() {

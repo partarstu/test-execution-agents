@@ -27,6 +27,9 @@ import org.tarik.ta.core.agents.PreconditionActionAgent;
 import org.tarik.ta.core.agents.PreconditionVerificationAgent;
 import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.*;
+import org.tarik.ta.dto.UiPreconditionResult;
+import org.tarik.ta.dto.UiTestStepResult;
+import org.tarik.ta.dto.UiTestExecutionResult;
 import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.error.ErrorCategory;
 import org.tarik.ta.core.error.RetryPolicy;
@@ -87,7 +90,7 @@ public class Agent {
                 if (hasPreconditionFailures(context)) {
                     var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
                     return getFailedTestExecutionResult(context, testExecutionStartTimestamp, failedPrecondition.errorMessage(),
-                            failedPrecondition.screenshot());
+                            ((UiPreconditionResult) failedPrecondition).screenshot());
                 }
             }
 
@@ -97,13 +100,13 @@ public class Agent {
                 var lastStep = context.getTestStepExecutionHistory().getLast();
                 if (lastStep.executionStatus() == TestStepResultStatus.FAILURE) {
                     return getFailedTestExecutionResult(context, testExecutionStartTimestamp, lastStep.errorMessage(),
-                            lastStep.screenshot());
+                            ((UiTestStepResult) lastStep).screenshot());
                 } else {
                     return getTestExecutionResultWithError(context, testExecutionStartTimestamp, lastStep.errorMessage(),
-                            lastStep.screenshot());
+                            ((UiTestStepResult) lastStep).screenshot());
                 }
             } else {
-                return new TestExecutionResult(testCase.name(), PASSED, context.getPreconditionExecutionHistory(),
+                return new UiTestExecutionResult(testCase.name(), PASSED, context.getPreconditionExecutionHistory(),
                         context.getTestStepExecutionHistory(), null, testExecutionStartTimestamp, now(),
                         null);
             }
@@ -171,7 +174,7 @@ public class Agent {
                 if (!preconditionExecutionResult.success()) {
                     var errorMessage = "Failure while executing precondition '%s'. Root cause: %s"
                             .formatted(precondition, preconditionExecutionResult.message());
-                    context.addPreconditionResult(new PreconditionResult(precondition, false, errorMessage, captureScreen(),
+                    context.addPreconditionResult(new UiPreconditionResult(precondition, false, errorMessage, captureScreen(),
                             executionStartTimestamp, now()));
                     return;
                 }
@@ -189,7 +192,7 @@ public class Agent {
                 if (!verificationExecutionResult.success()) {
                     var errorMessage = "Error while verifying precondition '%s'. Root cause: %s"
                             .formatted(precondition, verificationExecutionResult.message());
-                    context.addPreconditionResult(new PreconditionResult(precondition, false, errorMessage,
+                    context.addPreconditionResult(new UiPreconditionResult(precondition, false, errorMessage,
                             context.getVisualState().screenshot(), executionStartTimestamp, now()));
                     return;
                 }
@@ -197,17 +200,17 @@ public class Agent {
                 var verificationResult = verificationExecutionResult.resultPayload();
                 if (verificationResult == null) {
                     var errorMessage = "Precondition verification failed. Got no verification result from the model.";
-                    context.addPreconditionResult(new PreconditionResult(precondition, false, errorMessage,
+                    context.addPreconditionResult(new UiPreconditionResult(precondition, false, errorMessage,
                             context.getVisualState().screenshot(), executionStartTimestamp, now()));
                     return;
                 }
                 if (!verificationResult.success()) {
                     var errorMessage = "Precondition verification failed. %s".formatted(verificationResult.message());
-                    context.addPreconditionResult(new PreconditionResult(precondition, false, errorMessage,
+                    context.addPreconditionResult(new UiPreconditionResult(precondition, false, errorMessage,
                             context.getVisualState().screenshot(), executionStartTimestamp, now()));
                     return;
                 }
-                context.addPreconditionResult(new PreconditionResult(precondition, true, null, null, executionStartTimestamp, now()));
+                context.addPreconditionResult(new UiPreconditionResult(precondition, true, null, null, executionStartTimestamp, now()));
                 LOG.info("Precondition '{}' is met.", precondition);
             }
             LOG.info("All preconditions are met for test case: {}", context.getTestCase().name());
@@ -277,7 +280,7 @@ public class Agent {
                                 }
                                 LOG.info("Verification execution complete.");
                                 var actualResult = verificationResult != null ? verificationResult.message() : "Verification successful";
-                                context.addStepResult(new TestStepResult(testStep, SUCCESS, null, actualResult, null,
+                                context.addStepResult(new UiTestStepResult(testStep, SUCCESS, null, actualResult, null,
                                         executionStartTimestamp, now()));
                                 return true;
                             }
@@ -295,7 +298,7 @@ public class Agent {
                         return;
                     }
                 } else {
-                    context.addStepResult(new TestStepResult(testStep, SUCCESS, null, "No verification required",
+                    context.addStepResult(new UiTestStepResult(testStep, SUCCESS, null, "No verification required",
                             null, executionStartTimestamp, now()));
                 }
             } catch (Exception e) {
@@ -380,7 +383,7 @@ public class Agent {
                                                                     Instant testExecutionStartTimestamp, String errorMessage,
                                                                     BufferedImage screenshot) {
         LOG.error(errorMessage);
-        return new TestExecutionResult(context.getTestCase().name(), FAILED, context.getPreconditionExecutionHistory(),
+        return new UiTestExecutionResult(context.getTestCase().name(), FAILED, context.getPreconditionExecutionHistory(),
                 context.getTestStepExecutionHistory(),
                 screenshot,
                 testExecutionStartTimestamp, now(), errorMessage);
@@ -391,7 +394,7 @@ public class Agent {
                                                                        Instant testExecutionStartTimestamp, String errorMessage,
                                                                        BufferedImage screenshot) {
         LOG.error(errorMessage);
-        return new TestExecutionResult(context.getTestCase().name(), TestExecutionResult.TestExecutionStatus.ERROR,
+        return new UiTestExecutionResult(context.getTestCase().name(), TestExecutionResult.TestExecutionStatus.ERROR,
                 context.getPreconditionExecutionHistory(), context.getTestStepExecutionHistory(), screenshot, testExecutionStartTimestamp,
                 now(), errorMessage);
     }
@@ -399,7 +402,7 @@ public class Agent {
     private static void addFailedTestStep(TestExecutionContext context, TestStep testStep, String errorMessage,
                                           String actualResult, Instant executionStartTimestamp,
                                           Instant executionEndTimestamp, BufferedImage screenshot, TestStepResultStatus status) {
-        context.addStepResult(new TestStepResult(testStep, status, errorMessage, actualResult, screenshot,
+        context.addStepResult(new UiTestStepResult(testStep, status, errorMessage, actualResult, screenshot,
                 executionStartTimestamp, executionEndTimestamp));
     }
 
