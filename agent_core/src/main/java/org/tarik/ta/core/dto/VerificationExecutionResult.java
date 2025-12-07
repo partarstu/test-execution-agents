@@ -30,7 +30,7 @@ public record VerificationExecutionResult (
         boolean success,
         @Description("contains a detailed description of the failure, if the verification failed. If the verification " +
                 "succeeded, this field should contain the justification of the positive verification result, i.e. the explicit " +
-                "description of the actual visual state and why this state means that the verification result is successful.")
+                "description of the actual state and why this state means that the verification result is successful.")
         String message) implements FinalResult<VerificationExecutionResult> {
     private static final Logger LOG = LoggerFactory.getLogger(VerificationExecutionResult.class);
 

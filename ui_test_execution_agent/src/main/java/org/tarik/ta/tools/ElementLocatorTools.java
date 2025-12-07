@@ -16,8 +16,6 @@
 */
 package org.tarik.ta.tools;
 
-import org.tarik.ta.core.utils.CoreImageUtils;
-
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.apache.commons.math3.ml.clustering.Cluster;
@@ -28,8 +26,8 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.agents.ElementBoundingBoxAgent;
-import org.tarik.ta.agents.ElementSelectionAgent;
+import org.tarik.ta.agents.UiElementBoundingBoxAgent;
+import org.tarik.ta.agents.UiElementSelectionAgent;
 import org.tarik.ta.agents.PageDescriptionAgent;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.dto.*;
@@ -97,23 +95,23 @@ public class ElementLocatorTools extends AbstractTools {
 
     private final UiElementRetriever elementRetriever;
     private final PageDescriptionAgent pageDescriptionAgent;
-    private final ElementBoundingBoxAgent elementBoundingBoxAgent;
-    private final ElementSelectionAgent elementSelectionAgent;
+    private final UiElementBoundingBoxAgent uiElementBoundingBoxAgent;
+    private final UiElementSelectionAgent uiElementSelectionAgent;
 
     public ElementLocatorTools() {
         super();
         this.elementRetriever = RetrieverFactory.getUiElementRetriever();
         this.pageDescriptionAgent = createPageDescriptionAgent();
-        this.elementBoundingBoxAgent = createElementBoundingBoxAgent();
-        this.elementSelectionAgent = createElementSelectionAgent();
+        this.uiElementBoundingBoxAgent = createElementBoundingBoxAgent();
+        this.uiElementSelectionAgent = createElementSelectionAgent();
     }
 
     public ElementLocatorTools(UiStateCheckAgent uiStateCheckAgent) {
         super(uiStateCheckAgent);
         this.elementRetriever = RetrieverFactory.getUiElementRetriever();
         this.pageDescriptionAgent = createPageDescriptionAgent();
-        this.elementBoundingBoxAgent = createElementBoundingBoxAgent();
-        this.elementSelectionAgent = createElementSelectionAgent();
+        this.uiElementBoundingBoxAgent = createElementBoundingBoxAgent();
+        this.uiElementSelectionAgent = createElementSelectionAgent();
     }
 
     @Tool(value = "Locates the UI element on the screen based on its description and returns its coordinates.")
@@ -171,22 +169,22 @@ public class ElementLocatorTools extends AbstractTools {
                 .build();
     }
 
-    private ElementBoundingBoxAgent createElementBoundingBoxAgent() {
+    private UiElementBoundingBoxAgent createElementBoundingBoxAgent() {
         var model = getModel(AgentConfig.getElementBoundingBoxAgentModelName(), AgentConfig.getElementBoundingBoxAgentModelProvider());
         var prompt = PromptUtils.loadSystemPrompt("element_locator/bounding_box", AgentConfig.getElementBoundingBoxAgentPromptVersion(),
                 "element_bounding_box_prompt.txt");
-        return builder(ElementBoundingBoxAgent.class)
+        return builder(UiElementBoundingBoxAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .tools(new BoundingBoxes(List.of()))
                 .build();
     }
 
-    private ElementSelectionAgent createElementSelectionAgent() {
+    private UiElementSelectionAgent createElementSelectionAgent() {
         var model = getModel(AgentConfig.getElementSelectionAgentModelName(), AgentConfig.getElementSelectionAgentModelProvider());
         var prompt = PromptUtils.loadSystemPrompt("element_locator/selection", AgentConfig.getElementSelectionAgentPromptVersion(),
                 "find_best_matching_ui_element_id.txt");
-        return builder(ElementSelectionAgent.class)
+        return builder(UiElementSelectionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .tools(new UiElementIdentificationResult(false, "", ""))
@@ -546,8 +544,8 @@ public class ElementLocatorTools extends AbstractTools {
             var prompt = formatElementBoundingBoxPrompt(element, elementTestData);
             try (var executor = newVirtualThreadPerTaskExecutor()) {
                 List<Callable<List<BoundingBox>>> tasks = range(0, VISUAL_GROUNDING_MODEL_VOTE_COUNT)
-                        .mapToObj(i -> (Callable<List<BoundingBox>>) () -> elementBoundingBoxAgent.executeAndGetResult(
-                                () -> elementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend))
+                        .mapToObj(i -> (Callable<List<BoundingBox>>) () -> uiElementBoundingBoxAgent.executeAndGetResult(
+                                () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend))
                         ).resultPayload().boundingBoxes())
                         .toList();
                 List<Rectangle> allBoundingBoxes = executor.invokeAll(tasks).stream()
@@ -686,8 +684,8 @@ public class ElementLocatorTools extends AbstractTools {
             var boundingBoxColorName = CommonUtils.getColorName(BOUNDING_BOX_COLOR).toLowerCase();
 
             List<Callable<UiElementIdentificationResult>> tasks = range(0, VALIDATION_MODEL_VOTE_COUNT)
-                    .mapToObj(i -> (Callable<UiElementIdentificationResult>) () -> elementSelectionAgent.executeAndGetResult(
-                            () -> elementSelectionAgent.selectBestElement(boundingBoxColorName, prompt,
+                    .mapToObj(i -> (Callable<UiElementIdentificationResult>) () -> uiElementSelectionAgent.executeAndGetResult(
+                            () -> uiElementSelectionAgent.selectBestElement(boundingBoxColorName, prompt,
                                     singleImageContent(resultingScreenshot))
                     ).resultPayload())
                     .toList();

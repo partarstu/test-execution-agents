@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.tarik.ta.core.agents.PreconditionVerificationAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.tools.AgentExecutionResult;
 import org.tarik.ta.utils.CommonUtils;

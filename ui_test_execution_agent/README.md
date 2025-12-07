@@ -42,7 +42,8 @@ a part of this framework for executing a sample test case inside Google Cloud.
       `config.properties`.
 
 * **Budget Management:**
-    * The [BudgetManager](src/main/java/org/tarik/ta/manager/BudgetManager.java) provides comprehensive execution control:
+    * The [BudgetManager](../agent_core/src/main/java/org/tarik/ta/core/manager/BudgetManager.java) provides comprehensive execution
+      control:
         * **Time Budget:** Configurable maximum execution time for the test case execution(`agent.execution.time.budget.seconds`).
         * **Token Budget:** Limits total token consumption across all models during test case execution (`agent.token.budget`).
         * **Tool Call Budget:** Limits max tool calls for each agent in attended (`agent.tool.calls.budget.attended`) and unattended (
@@ -57,15 +58,15 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * Supports waiting for verification completion within configurable timeouts and providing the verification result.
 
 * **Enhanced Error Handling:**
-    * Structured error handling with [ErrorCategory](src/main/java/org/tarik/ta/error/ErrorCategory.java) enum:
+    * Structured error handling with [ErrorCategory](../agent_core/src/main/java/org/tarik/ta/core/error/ErrorCategory.java) enum:
         * `TERMINATION_BY_USER`: User-initiated interruption (no retry).
         * `VERIFICATION_FAILED`: Verification failures (retryable).
         * `TRANSIENT_TOOL_ERROR`: Temporary failures like network issues (exponential backoff retry).
         * `NON_RETRYABLE_ERROR`: Fatal errors (no retry).
         * `TIMEOUT`: Execution timeouts (bounded retry if budget allows).
-    * [RetryPolicy](src/main/java/org/tarik/ta/error/RetryPolicy.java) for configurable retry behavior:
+    * [RetryPolicy](../agent_core/src/main/java/org/tarik/ta/core/error/RetryPolicy.java) for configurable retry behavior:
         * Maximum retries, initial delay, max delay, backoff multiplier, and total timeout.
-    * [RetryState](src/main/java/org/tarik/ta/error/RetryState.java) for tracking retry attempts and elapsed time.
+    * [RetryState](../agent_core/src/main/java/org/tarik/ta/core/error/RetryState.java) for tracking retry attempts and elapsed time.
 
 * **Element Location Prefetching:**
     * Configurable UI element location prefetching (`prefetching.enabled`) for improved performance in unattended mode.
@@ -91,7 +92,8 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * Model name: `<agent>.model.name` (e.g., `precondition.agent.model.name`)
         * Model provider: `<agent>.model.provider` (e.g., `precondition.agent.model.provider`)
         * Prompt version: `<agent>.prompt.version` (e.g., `precondition.agent.prompt.version`)
-    * Uses structured prompts stored in versioned directories under `src/main/resources/prompt_templates/system/agents/`.
+    * Uses structured prompts stored in versioned directories under `src/main/resources/prompt_templates/system/agents/` and
+      `../agent_core/src/main/resources/prompt_templates/system/agents/`.
     * Includes options for model logging (`model.logging.enabled`) and outputting the model's thinking process (`thinking.output.enabled`).
 
 * **RAG:**
@@ -127,13 +129,13 @@ a part of this framework for executing a sample test case inside Google Cloud.
 * **GUI Interaction Tools:**
     * Provides a set of [tools](src/main/java/org/tarik/ta/tools) for interacting with the GUI using Java's `Robot` class.
     * [MouseTools](src/main/java/org/tarik/ta/tools/MouseTools.java) offer actions for working with the mouse (clicks, hover,
-      click-and-drag, etc.). These tools typically locate the target UI element first,
-      using [ElementLocator](src/main/java/org/tarik/ta/tools/ElementLocator.java).
+      click-and-drag, etc.).
     * [KeyboardTools](src/main/java/org/tarik/ta/tools/KeyboardTools.java) provide actions for working with the keyboard (typing text into
-      specific elements,
-      clearing data from input fields, pressing single keys or key combinations, etc.).
+      specific elements, clearing data from input fields, pressing single keys or key combinations, etc.).
     * [CommonTools](src/main/java/org/tarik/ta/tools/CommonTools.java) include common actions like waiting for a specified duration and
       opening the Chrome browser.
+    * [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java ) provides the whole logic for locating a specific
+      UI element on the screen based on its description.
 
 * **Attended and Unattended Modes:**
     * Supports two execution modes controlled by the `unattended.mode` flag in `config.properties`.
@@ -156,25 +158,23 @@ a part of this framework for executing a sample test case inside Google Cloud.
 
 The test execution process, orchestrated by the `Agent` class, follows these steps:
 
-1. **Test Case Processing:** The agent loads the test case defined in a JSON file (e.g., [this one](src/test/resources/use_case.json)).
-   This file contains the overall test case name, optional `preconditions` (natural language description of the required state before
-   execution), and a list of `TestStep`s. Each `TestStep` includes a `stepDescription` (natural language
-   instruction), optional `testData` (inputs for the step), and `expectedResults` (natural language description of the expected state after
+1. **Test Case Processing:** The agent parses the received message (task), extracts the required information and converts it into a test
+   case object. This file contains the overall test case name, optional `preconditions` (natural language description of the required state
+   before execution), and a list of `TestStep`s. Each `TestStep` includes a `stepDescription` (natural language instruction), optional
+   `testData` (inputs for the step), and `expectedResults` (natural language description of the expected state after
    the step).
-2. **Precondition Verification:** If preconditions are defined, the agent verifies them against the current UI state using a vision model.
-   If preconditions are not met, the test case execution fails.
-3. **Test Case Execution Plan Generation:** The agent generates a `TestCaseExecutionPlan` using an instruction model, outlining the specific
-   tool calls and arguments for each `TestStep`.
-4. **Step Iteration:** The agent iterates through each `TestStep` sequentially, executing the planned tool calls.
-5. **Action Processing (for each Action step):**
-    * **Tool Execution:** The appropriate tool method with the arguments provided by the execution plan is invoked.
+2. **Precondition Execution and Verification:** If preconditions are defined, the agent executes and verifies them against the current UI
+   state using a vision model. If preconditions are not met, the test case execution fails.
+3. **Step Iteration:** The agent iterates through each `TestStep` sequentially, executing each test step.
+4. **Test Step Action:**
     * **Element Location (if required by the tool):** If the requested tool needs to interact with a specific UI element (e.g., clicking an
-      element), the element is located using the [ElementLocator](src/main/java/org/tarik/ta/tools/ElementLocator.java) class based on the
-      element's description (provided as a parameter for the tool). (See "UI Element Location Workflow" below for details).
+      element), the element is located using the [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java) class
+      based on the element's description (provided as a parameter for the tool). (See "UI Element Location Workflow" below for details).
+    * **Tool Execution:** The appropriate sequence of tools with the arguments provided by the agent is invoked.
     * **Retry/Rerun Logic:** If a tool execution reports that retrying makes sense (e.g., an element was not found on the screen), the
       agent retries the execution after a short delay, up to a configured timeout (`test.step.execution.retry.timeout.millis`). If the
       error persists after the deadline, the test case execution is marked as `ERROR`.
-6. **Verification Processing (for each Verification step):**
+5. **Test Step Expected Results Verification:**
     * **Delay:** A short delay (`action.verification.delay.millis`) is introduced to allow the UI state to change after the preceding
       action.
     * **Screenshot:** A screenshot of the current screen is taken.
@@ -185,15 +185,15 @@ The test execution process, orchestrated by the `Agent` class, follows these ste
     * **Retry Logic:** If the verification fails, the agent retries the verification process after a short interval (
       `test.step.execution.retry.interval.millis`) until a timeout (`verification.retry.timeout.millis`) is reached. If it still fails after
       the deadline, the test case execution is marked as `FAILED`.
-7. **Completion/Termination:** Execution continues until all steps are processed successfully or an interruption (error, verification
+6. **Completion/Termination:** Execution continues until all steps are processed successfully or an interruption (error, verification
    failure, user termination) occurs. The final `TestExecutionResult` (including `TestExecutionStatus` and detailed `TestStepResult` for
    each step) is returned.
 
 ### UI Element Location Workflow
 
-The [ElementLocator](src/main/java/org/tarik/ta/tools/ElementLocator.java) class is responsible for finding the coordinates of a target UI
-element based on its natural language description provided by the instruction model during an action step. This involves a combination of
-RAG, computer vision, analysis, and potentially user interaction (if run in attended mode):
+The [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java ) class is responsible for finding the coordinates
+of a target UI element based on its natural language description provided by the instruction model during an action step. This involves a
+combination of RAG, computer vision, analysis, and potentially user interaction (if run in attended mode):
 
 1. **RAG Retrieval:** The provided UI element's description is used to query the vector database, where the top N (`retriever.top.n`) most
    semantically similar `UiElement` records are retrieved based on their stored names, using embeddings generated by
@@ -211,9 +211,8 @@ RAG, computer vision, analysis, and potentially user interaction (if run in atte
             * The results from both the vision model and algorithmic matching are combined and analyzed to find common or best-fitting
               bounding boxes.
         * **Disambiguation (if needed):** If multiple candidate bounding boxes are found, the vision model is employed to select the single
-          best match that corresponds to the target element's
-          description and the description of surrounding elements (anchors), based on a screenshot showing all candidate bounding boxes
-          highlighted with distinctly colored labels.
+          best match that corresponds to the target element's description and the description of surrounding elements (anchors), based on a
+          screenshot showing all candidate bounding boxes highlighted with specific color and having unique ID labels.
     * **Low-Confidence/No Match(es) Found:** If no elements meet the `MIN_TARGET_RETRIEVAL_SCORE` or `MIN_PAGE_RELEVANCE_SCORE`, but some
       meet the
       `MIN_GENERAL_RETRIEVAL_SCORE`:
@@ -421,25 +420,6 @@ precondition.agent.prompt.version=v1.0.0
 
 ## How to Run
 
-### Standalone Mode
-
-Runs a single test case defined in a JSON file.
-
-1. Ensure the project is built (`mvn clean package`).
-2. Create a JSON file containing the test case (see [this one](src/test/resources/use_case.json) for an example).
-3. Run the `Agent` class directly using Maven Exec Plugin (add configuration to `pom.xml` if needed):
-   ```bash
-   mvn exec:java -Dexec.mainClass="org.tarik.ta.Agent" -Dexec.args="<path/to/your/testcase.json>"
-   ```
-   Or run the packaged JAR:
-   ```bash
-   java -jar target/<your-jar-name.jar> <path/to/your/testcase.json>
-   ```
-
-### Server Mode
-
-Starts a web server that listens for test case execution requests.
-
 1. Ensure the project is built.
 2. Run the `Server` class using Maven Exec Plugin:
    ```bash
@@ -450,9 +430,9 @@ Starts a web server that listens for test case execution requests.
    java -jar target/<your-jar-name.jar>
    ```
 3. The server will start listening on the configured port (default `8005`).
-4. Send a `POST` request to the root endpoint (`/`) with the test case JSON in the request body.
-5. The server will respond immediately with `200 OK` if it accepts the request (i.e., not already running a test case) or
-   `429 Too Many Requests` if it's busy. The test case execution runs asynchronously.
+4. Send a `POST` request to the root endpoint (`/`) with the correct A2A message.
+5. The server will respond with execution results after it's done processing if it accepts the request (i.e., not already running a
+   test case) or with `429 Too Many Requests` if it's busy. The test case execution synchronously.
 
 ## Deployment
 
@@ -571,19 +551,11 @@ The `build_and_run_docker.bat` script (for Windows) simplifies the process of bu
 
 Remember to use the VNC password you set in the Dockerfile when prompted.
 
-## Contributing
-
-Please refer to the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines on contributing to this project.
 
 ## TODOs
 
 * ~~Add public method comments and unit tests.~~ (Partially completed - unit tests added for many components)
 * Add public unit tests for at least 80% coverage.
-* Implement quorum of different models (vision experts) in order to get more accurate verification results.
-* Extend UiElement in DB so that it has info if it's bound to any test data, or is independent of it. In this way the element search
-  algorithm must take into account the specific test data and replace the element description/name/anchors template info with this data.
-  The visual similarity for pattern match must also be adapted (lowered) in such cases because element screenshot will contain specific
-  test data.
 
 ## Final Notes
 
@@ -604,14 +576,6 @@ Please refer to the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines on co
 * **Standalone Executable Size:** The standalone JAR file can be quite large (at least ~330 MB). This is primarily due to the automatic
   inclusion of the ONNX embedding model (`all-MiniLM-L6-v2`) as a dependency of LangChain4j, and the native OpenCV libraries required for
   visual element location.
-* **Bounding Box Colors:** When multiple visual matches are found for element disambiguation, the agent assigns different bounding box
-  color to each match in order to uniquely label the element. There are a limited number of predefined colors (`availableBoundingBoxColors`
-  field in [ElementLocator](src/main/java/org/tarik/ta/tools/ElementLocator.java)). If more visual matches are found than available colors,
-  an error will occur. This might happen if the `element.locator.visual.similarity.threshold` is too low or if there are many visually
-  similar elements on the screen (e.g., the same check-boxes for a list of items). You might need to use a different labelling method for
-  visual matches in this case (the primary approach during development of this project was to use numbers located outside the bounding box
-  as labels, which, however, proved to be less efficient compared to using different bounding box colors, but is still a good option if the
-  latter cannot be applied).
 * **Unit Tests:** The project now includes unit tests for many components including agents, DTOs, managers, and tools. All future
   contributions and pull requests to the `main` branch **should** include relevant unit tests. Contributing by adding new unit tests
   to existing code is, as always, welcome.

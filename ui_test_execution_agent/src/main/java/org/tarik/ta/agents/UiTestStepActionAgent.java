@@ -17,39 +17,30 @@ package org.tarik.ta.agents;
 
 import org.tarik.ta.core.agents.BaseAiAgent;
 
-import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.core.agents.TestStepActionAgent;
+import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
-import org.tarik.ta.core.dto.VerificationExecutionResult;
 
 /**
- * Agent responsible for verifying preconditions for UI tests.
+ * Agent responsible for executing test steps for UI tests.
  */
-public interface PreconditionVerificationAgent extends BaseAiAgent<VerificationExecutionResult> {
-    RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
-
+public interface UiTestStepActionAgent extends TestStepActionAgent {
     @UserMessage("""
-            The test case precondition is: {{precondition}}.
+            Execute the following test step action: {{testStep}}
+            
+            Data, related to the test step: {{testData}}
             
             Shared data: {{sharedData}}
             
-            Screenshot attached.
+            Interaction with the user is allowed: {{attendedMode}}
             """)
-    Result<String> verify(
-            @V("precondition") String precondition,
+    Result<String> execute(
+            @V("testStep") String testStep,
+            @V("testData") String testData,
             @V("sharedData") String sharedData,
-            @UserMessage ImageContent screenshot);
-
-    @Override
-    default String getAgentTaskDescription() {
-        return "Verifying precondition";
-    }
-
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
-    }
+            @V("attendedMode") boolean attendedMode);
 }

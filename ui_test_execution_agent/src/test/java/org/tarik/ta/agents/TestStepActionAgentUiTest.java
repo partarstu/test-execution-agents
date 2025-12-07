@@ -1,12 +1,13 @@
 package org.tarik.ta.agents;
 
 import dev.langchain4j.service.Result;
+import org.junit.jupiter.api.Test;
+import org.tarik.ta.core.dto.EmptyExecutionResult;
+import org.tarik.ta.core.tools.AgentExecutionResult;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.tarik.ta.core.dto.VerificationExecutionResult;
-import org.tarik.ta.core.tools.AgentExecutionResult;
 import org.tarik.ta.utils.CommonUtils;
 
 import java.awt.image.BufferedImage;
@@ -18,13 +19,13 @@ import static org.mockito.Mockito.*;
 import static org.tarik.ta.core.tools.AgentExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.tools.AgentExecutionResult.ExecutionStatus.SUCCESS;
 
-class TestStepVerificationAgentTest {
+class TestStepActionAgentUiTest {
 
     private MockedStatic<CommonUtils> commonUtilsMockedStatic;
 
     @BeforeEach
     void setUp() {
-        commonUtilsMockedStatic = mockStatic(CommonUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        commonUtilsMockedStatic = mockStatic(CommonUtils.class, CALLS_REAL_METHODS);
         commonUtilsMockedStatic.when(CommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
     }
 
@@ -33,32 +34,32 @@ class TestStepVerificationAgentTest {
         commonUtilsMockedStatic.close();
     }
 
+
+
     @Test
-    void shouldHandleSuccessfulVerification() {
-        TestStepVerificationAgent agent = mock(TestStepVerificationAgent.class);
+    void shouldHandleSuccessfulExecution() {
+        UiTestStepActionAgent agent = mock(UiTestStepActionAgent.class);
         doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
 
-        VerificationExecutionResult verificationResult = new VerificationExecutionResult(true, "Verified");
-
-        AgentExecutionResult<VerificationExecutionResult> result = agent.executeAndGetResult(() -> Result.<VerificationExecutionResult>builder().content(verificationResult).build());
+        AgentExecutionResult<EmptyExecutionResult> result = agent.executeAndGetResult(() -> Result.<EmptyExecutionResult>builder().content(new EmptyExecutionResult()).build());
 
         assertThat(result.executionStatus()).isEqualTo(SUCCESS);
         assertThat(result.success()).isTrue();
-        assertThat(result.resultPayload()).isEqualTo(verificationResult);
+        assertThat(result.message()).isEqualTo("Execution successful");
     }
 
     @Test
-    void shouldHandleFailedVerificationExecution() {
-        TestStepVerificationAgent agent = mock(TestStepVerificationAgent.class);
+    void shouldHandleFailedExecution() {
+        UiTestStepActionAgent agent = mock(UiTestStepActionAgent.class);
         doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
 
-        AgentExecutionResult<VerificationExecutionResult> result = agent.executeAndGetResult(() -> {
-            throw new RuntimeException("Verification error");
+        AgentExecutionResult<EmptyExecutionResult> result = agent.executeAndGetResult(() -> {
+            throw new RuntimeException("Action execution error");
         });
 
         assertThat(result.executionStatus()).isEqualTo(ERROR);
         assertThat(result.success()).isFalse();
-        assertThat(result.message()).isEqualTo("Verification error");
+        assertThat(result.message()).isEqualTo("Action execution error");
         assertThat(result.screenshot()).isNotNull();
     }
 }

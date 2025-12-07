@@ -1,7 +1,5 @@
-package org.tarik.ta.agents;
+package org.tarik.ta.core.agents;
 
-
-import org.tarik.ta.core.agents.BaseAiAgent;
 
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;

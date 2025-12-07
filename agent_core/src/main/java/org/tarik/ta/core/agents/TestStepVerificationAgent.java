@@ -13,40 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.agents;
+package org.tarik.ta.core.agents;
 
-import org.tarik.ta.core.agents.BaseAiAgent;
-
-import dev.langchain4j.data.message.ImageContent;
-import dev.langchain4j.service.Result;
-import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
 import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
+import org.tarik.ta.core.error.RetryPolicy;
 
 /**
- * Agent responsible for verifying test step expected results for UI tests.
+ * Agent responsible for verifying test step expected results.
  */
 public interface TestStepVerificationAgent extends BaseAiAgent<VerificationExecutionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
-
-    @UserMessage("""
-            Verify that: {{verificationDescription}}.
-            
-            The test case action executed before this verification: {{actionDescription}}.
-            The test data for this action was: {{actionTestData}}
-            
-            Shared data: {{sharedData}}
-            
-            The screenshot of the application under test is attached.
-            """)
-    Result<String> verify(
-            @V("verificationDescription") String verificationDescription,
-            @V("actionDescription") String actionDescription,
-            @V("actionTestData") String actionTestData,
-            @V("sharedData") String sharedData,
-            @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {

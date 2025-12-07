@@ -27,16 +27,16 @@ import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.tarik.ta.agents.PreconditionActionAgent;
-import org.tarik.ta.agents.PreconditionVerificationAgent;
+import org.tarik.ta.core.agents.PreconditionActionAgent;
+import org.tarik.ta.core.agents.PreconditionVerificationAgent;
 import org.tarik.ta.agents.TestCaseExtractionAgent;
-import org.tarik.ta.agents.TestStepActionAgent;
-import org.tarik.ta.agents.TestStepVerificationAgent;
+import org.tarik.ta.agents.UiTestStepActionAgent;
+import org.tarik.ta.agents.UiTestStepVerificationAgent;
 import org.tarik.ta.agents.UiElementDescriptionAgent;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.agents.PageDescriptionAgent;
-import org.tarik.ta.agents.ElementBoundingBoxAgent;
-import org.tarik.ta.agents.ElementSelectionAgent;
+import org.tarik.ta.agents.UiElementBoundingBoxAgent;
+import org.tarik.ta.agents.UiElementSelectionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus;
@@ -90,9 +90,9 @@ class AgentTest {
         @Mock
         private PreconditionVerificationAgent preconditionVerificationAgentMock;
         @Mock
-        private TestStepActionAgent testStepActionAgentMock;
+        private UiTestStepActionAgent uiTestStepActionAgentMock;
         @Mock
-        private TestStepVerificationAgent testStepVerificationAgentMock;
+        private UiTestStepVerificationAgent uiTestStepVerificationAgentMock;
         @Mock
         private UiStateCheckAgent uiStateCheckAgentMock;
         @Mock
@@ -100,9 +100,9 @@ class AgentTest {
         @Mock
         private PageDescriptionAgent pageDescriptionAgentMock;
         @Mock
-        private ElementBoundingBoxAgent elementBoundingBoxAgentMock;
+        private UiElementBoundingBoxAgent uiElementBoundingBoxAgentMock;
         @Mock
-        private ElementSelectionAgent elementSelectionAgentMock;
+        private UiElementSelectionAgent uiElementSelectionAgentMock;
 
         @Mock
         private AiServices<TestCaseExtractionAgent> testCaseExtractionAgentBuilder;
@@ -111,9 +111,9 @@ class AgentTest {
         @Mock
         private AiServices<PreconditionVerificationAgent> preconditionVerificationAgentBuilder;
         @Mock
-        private AiServices<TestStepActionAgent> testStepActionAgentBuilder;
+        private AiServices<UiTestStepActionAgent> testStepActionAgentBuilder;
         @Mock
-        private AiServices<TestStepVerificationAgent> testStepVerificationAgentBuilder;
+        private AiServices<UiTestStepVerificationAgent> testStepVerificationAgentBuilder;
         @Mock
         private AiServices<UiStateCheckAgent> toolVerificationAgentBuilder;
         @Mock
@@ -121,9 +121,9 @@ class AgentTest {
         @Mock
         private AiServices<PageDescriptionAgent> pageDescriptionAgentBuilder;
         @Mock
-        private AiServices<ElementBoundingBoxAgent> elementBoundingBoxAgentBuilder;
+        private AiServices<UiElementBoundingBoxAgent> elementBoundingBoxAgentBuilder;
         @Mock
-        private AiServices<ElementSelectionAgent> elementSelectionAgentBuilder;
+        private AiServices<UiElementSelectionAgent> elementSelectionAgentBuilder;
 
         // Static mocks
         private MockedStatic<ModelFactory> modelFactoryMockedStatic;
@@ -197,13 +197,13 @@ class AgentTest {
                                     if (TestCaseExtractionAgent.class.equals(argument)) return testCaseExtractionAgentBuilder;
                                     if (PreconditionActionAgent.class.equals(argument)) return preconditionActionAgentBuilder;
                                     if (PreconditionVerificationAgent.class.equals(argument)) return preconditionVerificationAgentBuilder;
-                                    if (TestStepActionAgent.class.equals(argument)) return testStepActionAgentBuilder;
-                                    if (TestStepVerificationAgent.class.equals(argument)) return testStepVerificationAgentBuilder;
+                                    if (UiTestStepActionAgent.class.equals(argument)) return testStepActionAgentBuilder;
+                                    if (UiTestStepVerificationAgent.class.equals(argument)) return testStepVerificationAgentBuilder;
                                     if (UiStateCheckAgent.class.equals(argument)) return toolVerificationAgentBuilder;
                                     if (UiElementDescriptionAgent.class.equals(argument)) return uiElementDescriptionAgentBuilder;
                                     if (PageDescriptionAgent.class.equals(argument)) return pageDescriptionAgentBuilder;
-                                    if (ElementBoundingBoxAgent.class.equals(argument)) return elementBoundingBoxAgentBuilder;
-                                    if (ElementSelectionAgent.class.equals(argument)) return elementSelectionAgentBuilder;
+                                    if (UiElementBoundingBoxAgent.class.equals(argument)) return elementBoundingBoxAgentBuilder;
+                                    if (UiElementSelectionAgent.class.equals(argument)) return elementSelectionAgentBuilder;
                                     throw new RuntimeException("Unexpected agent class requested: " + argument.getName());
                                 });
 
@@ -215,13 +215,13 @@ class AgentTest {
                 configureBuilder(testCaseExtractionAgentBuilder, testCaseExtractionAgentMock);
                 configureBuilder(preconditionActionAgentBuilder, preconditionActionAgentMock);
                 configureBuilder(preconditionVerificationAgentBuilder, preconditionVerificationAgentMock);
-                configureBuilder(testStepActionAgentBuilder, testStepActionAgentMock);
-                configureBuilder(testStepVerificationAgentBuilder, testStepVerificationAgentMock);
+                configureBuilder(testStepActionAgentBuilder, uiTestStepActionAgentMock);
+                configureBuilder(testStepVerificationAgentBuilder, uiTestStepVerificationAgentMock);
                 configureBuilder(toolVerificationAgentBuilder, uiStateCheckAgentMock);
                 configureBuilder(uiElementDescriptionAgentBuilder, uiElementDescriptionAgentMock);
                 configureBuilder(pageDescriptionAgentBuilder, pageDescriptionAgentMock);
-                configureBuilder(elementBoundingBoxAgentBuilder, elementBoundingBoxAgentMock);
-                configureBuilder(elementSelectionAgentBuilder, elementSelectionAgentMock);
+                configureBuilder(elementBoundingBoxAgentBuilder, uiElementBoundingBoxAgentMock);
+                configureBuilder(elementSelectionAgentBuilder, uiElementSelectionAgentMock);
         }
 
         private <T> void configureBuilder(AiServices<T> builder, T agent) {
@@ -255,11 +255,11 @@ class AgentTest {
 
                 doReturn(new AgentExecutionResult<>(SUCCESS, "Action executed", true, mockScreenshot, new EmptyExecutionResult(),
                                 Instant.now()))
-                                .when(testStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                                .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 doReturn(new AgentExecutionResult<>(SUCCESS, "Verification executed", true, mockScreenshot,
                                 new VerificationExecutionResult(true, "Verified"), Instant.now()))
-                                .when(testStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
+                                .when(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
                 // When
                 TestExecutionResult result = Agent.executeTestCase("test case message");
@@ -269,8 +269,8 @@ class AgentTest {
                 assertThat(result.stepResults()).hasSize(1);
                 assertThat(result.stepResults().getFirst().executionStatus()).isEqualTo(TestStepResultStatus.SUCCESS);
 
-                verify(testStepActionAgentMock).executeWithRetry(any(Supplier.class));
-                verify(testStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
+                verify(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                verify(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
         }
 
         @Test
@@ -284,15 +284,15 @@ class AgentTest {
 
                 doReturn(new AgentExecutionResult<>(SUCCESS, "Action executed", true, mockScreenshot, new EmptyExecutionResult(),
                                 Instant.now()))
-                                .when(testStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                                .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 // When
                 TestExecutionResult result = Agent.executeTestCase("test case message");
 
                 // Then
                 assertThat(result.testExecutionStatus()).isEqualTo(PASSED);
-                verify(testStepActionAgentMock).executeWithRetry(any(Supplier.class));
-                verifyNoInteractions(testStepVerificationAgentMock);
+                verify(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                verifyNoInteractions(uiTestStepVerificationAgentMock);
         }
 
         @Test
@@ -315,7 +315,7 @@ class AgentTest {
 
                 doReturn(new AgentExecutionResult<>(SUCCESS, "Action executed", true, mockScreenshot, new EmptyExecutionResult(),
                                 Instant.now()))
-                                .when(testStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                                .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 // When
                 TestExecutionResult result = Agent.executeTestCase("test case message");
@@ -324,7 +324,7 @@ class AgentTest {
                 assertThat(result.testExecutionStatus()).isEqualTo(PASSED);
                 verify(preconditionActionAgentMock).executeWithRetry(any(Supplier.class));
                 verify(preconditionVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
-                verify(testStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                verify(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
         }
 
         @Test
@@ -348,7 +348,7 @@ class AgentTest {
                 assertThat(result.generalErrorMessage()).contains("Failure while executing precondition");
                 verify(preconditionActionAgentMock).executeWithRetry(any(Supplier.class));
                 verifyNoInteractions(preconditionVerificationAgentMock);
-                verifyNoInteractions(testStepActionAgentMock);
+                verifyNoInteractions(uiTestStepActionAgentMock);
         }
 
         @Test
@@ -376,7 +376,7 @@ class AgentTest {
                 assertThat(result.generalErrorMessage()).contains("Precondition verification failed. Not Verified");
                 verify(preconditionActionAgentMock).executeWithRetry(any(Supplier.class));
                 verify(preconditionVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
-                verifyNoInteractions(testStepActionAgentMock);
+                verifyNoInteractions(uiTestStepActionAgentMock);
         }
 
         @Test
@@ -389,7 +389,7 @@ class AgentTest {
                 mockTestCaseExtraction(testCase);
 
                 doReturn(new AgentExecutionResult<>(ERROR, "Action failed", false, mockScreenshot, null, Instant.now()))
-                                .when(testStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                                .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 // When
                 TestExecutionResult result = Agent.executeTestCase("test case message");
@@ -397,8 +397,8 @@ class AgentTest {
                 // Then
                 assertThat(result.testExecutionStatus()).isEqualTo(TestExecutionStatus.ERROR);
                 assertThat(result.stepResults().getFirst().executionStatus()).isEqualTo(TestStepResultStatus.ERROR);
-                verify(testStepActionAgentMock).executeWithRetry(any(Supplier.class));
-                verifyNoInteractions(testStepVerificationAgentMock);
+                verify(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                verifyNoInteractions(uiTestStepVerificationAgentMock);
         }
 
         @Test
@@ -412,11 +412,11 @@ class AgentTest {
 
                 doReturn(new AgentExecutionResult<>(SUCCESS, "Action executed", true, mockScreenshot, new EmptyExecutionResult(),
                                 Instant.now()))
-                                .when(testStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                                .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 doReturn(new AgentExecutionResult<>(SUCCESS, "Verification executed", true, mockScreenshot,
                                 new VerificationExecutionResult(false, "Verification failed"), Instant.now()))
-                                .when(testStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
+                                .when(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
                 // When
                 TestExecutionResult result = Agent.executeTestCase("test case message");
@@ -424,8 +424,8 @@ class AgentTest {
                 // Then
                 assertThat(result.testExecutionStatus()).isEqualTo(FAILED);
                 assertThat(result.stepResults().getFirst().executionStatus()).isEqualTo(TestStepResultStatus.FAILURE);
-                verify(testStepActionAgentMock).executeWithRetry(any(Supplier.class));
-                verify(testStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
+                verify(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                verify(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
         }
 
         private void mockTestCaseExtraction(TestCase testCase) {

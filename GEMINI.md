@@ -78,7 +78,3 @@ working with agentic systems.
 * Test for expected exceptions with JUnit 5's `assertThrows(...)`.
 * Always examine existing tests within a module and the classes they cover to understand and conform to established patterns and
   conventions.
-
-## General style requirements
-
-* Use kebab-case for configuration property names in files like `application.properties` (e.g., `my-flag` instead of `my_flag`).

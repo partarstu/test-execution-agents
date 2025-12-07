@@ -10,7 +10,7 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>ui_test_execution_agent</artifactId>
+    <artifactId>ui-test-execution-agent</artifactId>
 
     <properties>
         <main.class>org.tarik.ta.Server</main.class>
@@ -19,7 +19,7 @@
     <dependencies>
         <dependency>
             <groupId>org.tarik.ta</groupId>
-            <artifactId>agent_core</artifactId>
+            <artifactId>agent-core</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
 

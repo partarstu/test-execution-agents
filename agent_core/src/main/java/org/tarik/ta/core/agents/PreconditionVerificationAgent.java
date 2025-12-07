@@ -13,35 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.agents;
+package org.tarik.ta.core.agents;
 
-import org.tarik.ta.core.agents.BaseAiAgent;
-
-import dev.langchain4j.service.Result;
-import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
 import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.core.dto.VerificationExecutionResult;
 
 /**
- * Agent responsible for executing preconditions for UI tests.
+ * Agent responsible for verifying executed test case preconditions.
  */
-public interface PreconditionActionAgent extends BaseAiAgent<EmptyExecutionResult> {
-    RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
-
-    @UserMessage("""
-            The precondition you need to execute: {{precondition}}.
-            
-            Shared data: {{sharedData}}
-            """)
-    Result<String> execute(
-            @V("precondition") String precondition,
-            @V("sharedData") String sharedData);
+public interface PreconditionVerificationAgent extends BaseAiAgent<VerificationExecutionResult> {
+    RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
 
     @Override
     default String getAgentTaskDescription() {
-        return "Executing precondition action";
+        return "Verifying precondition";
     }
 
     @Override

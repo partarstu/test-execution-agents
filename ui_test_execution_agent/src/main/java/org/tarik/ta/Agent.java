@@ -23,6 +23,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.*;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.core.agents.PreconditionActionAgent;
+import org.tarik.ta.core.agents.PreconditionVerificationAgent;
+import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.*;
 import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.error.ErrorCategory;
@@ -32,7 +35,6 @@ import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.core.model.VisualState;
-import org.tarik.ta.core.tools.AgentExecutionResult;
 import org.tarik.ta.exceptions.ElementLocationException;
 import org.tarik.ta.manager.VerificationManager;
 import org.tarik.ta.tools.*;
@@ -47,7 +49,6 @@ import static dev.langchain4j.service.AiServices.builder;
 import static java.lang.String.join;
 import static java.time.Instant.now;
 import static java.util.Optional.*;
-import org.tarik.ta.core.AgentConfig;
 import static org.tarik.ta.core.AgentConfig.*;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.FAILED;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
@@ -214,7 +215,7 @@ public class Agent {
     }
 
     private static void executeTestSteps(TestExecutionContext context,
-                                         TestStepActionAgent testStepActionAgent,
+                                         UiTestStepActionAgent uiTestStepActionAgent,
                                          VerificationManager verificationManager) {
         var testStepVerificationAgent = getTestStepVerificationAgent(new RetryState());
         for (TestStep testStep : context.getTestCase().testSteps()) {
@@ -224,8 +225,8 @@ public class Agent {
             try {
                 var executionStartTimestamp = now();
                 LOG.info("Executing test step: {}", actionInstruction);
-                var actionResult = testStepActionAgent.executeWithRetry(() -> {
-                            testStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(),
+                var actionResult = uiTestStepActionAgent.executeWithRetry(() -> {
+                            uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(),
                                     !isUnattendedMode());
                             return null;
                         }
@@ -317,40 +318,40 @@ public class Agent {
         return context.getTestStepExecutionHistory().stream().map(TestStepResult::executionStatus).anyMatch(s -> s != SUCCESS);
     }
 
-    private static TestStepVerificationAgent getTestStepVerificationAgent(RetryState retryState) {
+    private static UiTestStepVerificationAgent getTestStepVerificationAgent(RetryState retryState) {
         var testStepVerificationAgentModel = getModel(AgentConfig.getTestStepVerificationAgentModelName(),
                 AgentConfig.getTestStepVerificationAgentModelProvider());
         var testStepVerificationAgentPrompt = loadSystemPrompt("test_step/verifier",
                 AgentConfig.getTestStepVerificationAgentPromptVersion(), "verification_execution_prompt.txt");
-        return builder(TestStepVerificationAgent.class)
+        return builder(UiTestStepVerificationAgent.class)
                 .chatModel(testStepVerificationAgentModel.chatModel())
                 .systemMessageProvider(_ -> testStepVerificationAgentPrompt)
-                .toolExecutionErrorHandler(new DefaultErrorHandler(TestStepVerificationAgent.RETRY_POLICY, retryState))
+                .toolExecutionErrorHandler(new DefaultErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY, retryState))
                 .tools(new VerificationExecutionResult(false, ""))
                 .build();
     }
 
-    private static TestStepActionAgent getTestStepActionAgent(CommonTools commonTools, UserInteractionTools userInteractionTools,
-                                                              RetryState retryState) {
+    private static UiTestStepActionAgent getTestStepActionAgent(CommonTools commonTools, UserInteractionTools userInteractionTools,
+                                                                RetryState retryState) {
         var testStepActionAgentModel = getModel(AgentConfig.getTestStepActionAgentModelName(),
                 AgentConfig.getTestStepActionAgentModelProvider());
         var testStepActionAgentPrompt = loadSystemPrompt("test_step/executor",
                 AgentConfig.getTestStepActionAgentPromptVersion(), "test_step_action_agent_system_prompt.txt");
-        return builder(TestStepActionAgent.class)
+        return builder(UiTestStepActionAgent.class)
                 .chatModel(testStepActionAgentModel.chatModel())
                 .systemMessageProvider(_ -> testStepActionAgentPrompt)
                 .tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools, userInteractionTools,
                         new EmptyExecutionResult())
-                .toolExecutionErrorHandler(new DefaultErrorHandler(TestStepActionAgent.RETRY_POLICY, retryState))
+                .toolExecutionErrorHandler(new DefaultErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState))
                 .build();
     }
 
-    private static PreconditionVerificationAgent getPreconditionVerificationAgent(RetryState retryState) {
+    private static UiPreconditionVerificationAgent getPreconditionVerificationAgent(RetryState retryState) {
         var preconditionVerificationAgentModel = getModel(AgentConfig.getPreconditionVerificationAgentModelName(),
                 AgentConfig.getPreconditionVerificationAgentModelProvider());
         var preconditionVerificationAgentPrompt = loadSystemPrompt("precondition/verifier",
                 AgentConfig.getPreconditionVerificationAgentPromptVersion(), "precondition_verification_prompt.txt");
-        return builder(PreconditionVerificationAgent.class)
+        return builder(UiPreconditionVerificationAgent.class)
                 .chatModel(preconditionVerificationAgentModel.chatModel())
                 .systemMessageProvider(_ -> preconditionVerificationAgentPrompt)
                 .toolExecutionErrorHandler(new DefaultErrorHandler(PreconditionVerificationAgent.RETRY_POLICY, retryState))

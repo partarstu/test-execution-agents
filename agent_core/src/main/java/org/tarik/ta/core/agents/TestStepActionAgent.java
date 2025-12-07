@@ -13,37 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.agents;
+package org.tarik.ta.core.agents;
 
-import org.tarik.ta.core.agents.BaseAiAgent;
-
-import dev.langchain4j.service.Result;
-import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
 /**
- * Agent responsible for executing test steps for UI tests.
+ * Agent responsible for executing test steps.
  */
 public interface TestStepActionAgent extends BaseAiAgent<EmptyExecutionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
-
-    @UserMessage("""
-            Execute the following test step action: {{testStep}}
-            
-            Data, related to the test step: {{testData}}
-            
-            Shared data: {{sharedData}}
-            
-            Interaction with the user is allowed: {{attendedMode}}
-            """)
-    Result<String> execute(
-            @V("testStep") String testStep,
-            @V("testData") String testData,
-            @V("sharedData") String sharedData,
-            @V("attendedMode") boolean attendedMode);
 
     @Override
     default String getAgentTaskDescription() {
