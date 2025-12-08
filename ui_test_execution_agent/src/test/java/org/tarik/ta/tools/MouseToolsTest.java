@@ -26,11 +26,10 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.agents.UiStateCheckAgent;
-import org.tarik.ta.core.tools.AgentExecutionResult;
+import org.tarik.ta.core.dto.AgentExecutionResult;
 import org.tarik.ta.core.utils.CoreUtils;
 import org.tarik.ta.dto.UiStateCheckResult;
 import org.tarik.ta.utils.CommonUtils;
-import dev.langchain4j.service.Result;
 
 import java.awt.*;
 import java.awt.event.InputEvent;

@@ -4,7 +4,7 @@ import dev.langchain4j.service.Result;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.core.agents.PreconditionActionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
-import org.tarik.ta.core.tools.AgentExecutionResult;
+import org.tarik.ta.core.dto.AgentExecutionResult;
 
 import org.mockito.MockedStatic;
 import org.tarik.ta.utils.CommonUtils;
@@ -13,8 +13,8 @@ import java.awt.image.BufferedImage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
-import static org.tarik.ta.core.tools.AgentExecutionResult.ExecutionStatus.ERROR;
-import static org.tarik.ta.core.tools.AgentExecutionResult.ExecutionStatus.SUCCESS;
+import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
+import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 
 class PreconditionActionAgentTest {
@@ -29,10 +29,10 @@ class PreconditionActionAgentTest {
 
             AgentExecutionResult<EmptyExecutionResult> result = agent.executeAndGetResult(() -> Result.builder().content(new EmptyExecutionResult()).build());
 
-            assertThat(result.executionStatus()).isEqualTo(SUCCESS);
-            assertThat(result.success()).isTrue();
-            assertThat(result.message()).isEqualTo("Execution successful");
-            assertThat(result.resultPayload()).isNotNull();
+            assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
+            assertThat(result.isSuccess()).isTrue();
+            assertThat(result.getMessage()).isEqualTo("Execution successful");
+            assertThat(result.getResultPayload()).isNotNull();
         }
     }
 
@@ -49,9 +49,9 @@ class PreconditionActionAgentTest {
                 throw new RuntimeException("Simulated error");
             });
 
-            assertThat(result.executionStatus()).isEqualTo(ERROR);
-            assertThat(result.success()).isFalse();
-            assertThat(result.message()).isEqualTo("Simulated error");
+            assertThat(result.getExecutionStatus()).isEqualTo(ERROR);
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.getMessage()).isEqualTo("Simulated error");
             assertThat(result.screenshot()).isNotNull();
         }
     }

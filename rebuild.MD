@@ -176,7 +176,7 @@ The following classes/packages should be moved to `agent_core` with namespace `o
 
 | Current Location                                                             | New Location                                   | Notes                         |
 |------------------------------------------------------------------------------|------------------------------------------------|-------------------------------|
-| `org.tarik.ta.tools.AgentExecutionResult`                                    | `org.tarik.ta.core.tools.AgentExecutionResult` | Generic execution result      |
+| `org.tarik.ta.tools.AgentExecutionResult`                                    | `org.tarik.ta.core.dto.AgentExecutionResult` | Generic execution result      |
 | `org.tarik.ta.tools.AbstractTools`                                           | **STAY in ui_test_execution_agent**            | See Section 4.5 for rationale |
 | `org.tarik.ta.tools.CommonTools`                                             | **STAY in ui_test_execution_agent**            | See Section 4.5 for rationale |
 | `MouseTools`, `KeyboardTools`, `ElementLocatorTools`, `UserInteractionTools` | **STAY in ui_test_execution_agent**            | UI-specific tools             |

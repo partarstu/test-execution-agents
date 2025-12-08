@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.tarik.ta.core.dto.FinalResult;
 import org.tarik.ta.core.error.RetryPolicy;
-import org.tarik.ta.core.tools.AgentExecutionResult;
+import org.tarik.ta.core.dto.AgentExecutionResult;
 import org.tarik.ta.core.utils.CoreUtils;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -17,8 +17,8 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mockStatic;
-import static org.tarik.ta.core.tools.AgentExecutionResult.ExecutionStatus.ERROR;
-import static org.tarik.ta.core.tools.AgentExecutionResult.ExecutionStatus.SUCCESS;
+import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
+import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
 
 class BaseAiAgentRetryTest {
 
@@ -65,8 +65,8 @@ class BaseAiAgentRetryTest {
         AgentExecutionResult<TestResult> result = agent.executeWithRetry(action);
 
         // Then
-        assertThat(result.executionStatus()).isEqualTo(SUCCESS);
-        assertThat(result.resultPayload().value()).isEqualTo("Success");
+        assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
+        assertThat(result.getResultPayload().value()).isEqualTo("Success");
     }
 
     @Test
@@ -87,8 +87,8 @@ class BaseAiAgentRetryTest {
         var result = agent.executeWithRetry(action);
 
         // Then
-        assertThat(result.executionStatus()).isEqualTo(SUCCESS);
-        assertThat(result.resultPayload().value()).isEqualTo("Success");
+        assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
+        assertThat(result.getResultPayload().value()).isEqualTo("Success");
         assertThat(attempts.get()).isEqualTo(3);
     }
 
@@ -108,8 +108,8 @@ class BaseAiAgentRetryTest {
         AgentExecutionResult<TestResult> result = agent.executeWithRetry(action);
 
         // Then
-        assertThat(result.executionStatus()).isEqualTo(ERROR);
-        assertThat(result.message()).isEqualTo("Persistent error");
+        assertThat(result.getExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getMessage()).isEqualTo("Persistent error");
         assertThat(attempts.get()).isGreaterThan(2); // Initial + 2 retries = 3 attempts
     }
 
@@ -128,8 +128,8 @@ class BaseAiAgentRetryTest {
         AgentExecutionResult<TestResult> result = agent.executeWithRetry(action);
 
         // Then
-        assertThat(result.executionStatus()).isEqualTo(ERROR);
-        assertThat(result.message()).isEqualTo("Slow error");
+        assertThat(result.getExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getMessage()).isEqualTo("Slow error");
     }
 
     @Test
@@ -149,8 +149,8 @@ class BaseAiAgentRetryTest {
         AgentExecutionResult<TestResult> result = agent.executeWithRetry(action);
 
         // Then
-        assertThat(result.executionStatus()).isEqualTo(ERROR);
-        assertThat(result.message()).isEqualTo("Fatal error");
+        assertThat(result.getExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getMessage()).isEqualTo("Fatal error");
         assertThat(attempts.get()).isEqualTo(1); // Should not retry
     }
 
@@ -171,8 +171,8 @@ class BaseAiAgentRetryTest {
         AgentExecutionResult<TestResult> result = agent.executeWithRetry(action, res -> "Failed".equals(res.value()));
 
         // Then
-        assertThat(result.executionStatus()).isEqualTo(ERROR);
-        assertThat(result.message()).contains("Retry explicitly requested by the task");
+        assertThat(result.getExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getMessage()).contains("Retry explicitly requested by the task");
         assertThat(attempts.get()).isGreaterThan(1);
     }
 
@@ -194,8 +194,8 @@ class BaseAiAgentRetryTest {
         AgentExecutionResult<TestResult> result = agent.executeWithRetry(action, res -> "Failed".equals(res.value()));
 
         // Then
-        assertThat(result.executionStatus()).isEqualTo(SUCCESS);
-        assertThat(result.resultPayload().value()).isEqualTo("Success");
+        assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
+        assertThat(result.getResultPayload().value()).isEqualTo("Success");
         assertThat(attempts.get()).isEqualTo(3);
     }
 }

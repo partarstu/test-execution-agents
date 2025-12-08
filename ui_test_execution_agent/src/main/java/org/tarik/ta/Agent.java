@@ -60,7 +60,7 @@ import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.core.rag.RetrieverFactory.getUiElementRetriever;
-import static org.tarik.ta.core.tools.AgentExecutionResult.ExecutionStatus.VERIFICATION_FAILURE;
+import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.VERIFICATION_FAILURE;
 import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
 import static org.tarik.ta.core.utils.CoreUtils.sleepMillis;
 import static org.tarik.ta.core.utils.CoreUtils.isBlank;
@@ -125,7 +125,7 @@ public class Agent {
 
         try {
             var agent = getTestCaseExtractionAgent();
-            TestCase extractedTestCase = agent.executeAndGetResult(() -> agent.extractTestCase(message)).resultPayload();
+            TestCase extractedTestCase = agent.executeAndGetResult(() -> agent.extractTestCase(message)).getResultPayload();
             if (isTestCaseInvalid(extractedTestCase)) {
                 LOG.warn("Model could not extract a valid TestCase from the provided by the user message, original message: {}", message);
                 return empty();
@@ -171,9 +171,9 @@ public class Agent {
                 );
                 BudgetManager.resetToolCallUsage();
 
-                if (!preconditionExecutionResult.success()) {
+                if (!preconditionExecutionResult.isSuccess()) {
                     var errorMessage = "Failure while executing precondition '%s'. Root cause: %s"
-                            .formatted(precondition, preconditionExecutionResult.message());
+                            .formatted(precondition, preconditionExecutionResult.getMessage());
                     context.addPreconditionResult(new UiPreconditionResult(precondition, false, errorMessage, captureScreen(),
                             executionStartTimestamp, now()));
                     return;
@@ -189,15 +189,15 @@ public class Agent {
                         }, r -> r == null || !r.success());
                 BudgetManager.resetToolCallUsage();
 
-                if (!verificationExecutionResult.success()) {
+                if (!verificationExecutionResult.isSuccess()) {
                     var errorMessage = "Error while verifying precondition '%s'. Root cause: %s"
-                            .formatted(precondition, verificationExecutionResult.message());
+                            .formatted(precondition, verificationExecutionResult.getMessage());
                     context.addPreconditionResult(new UiPreconditionResult(precondition, false, errorMessage,
                             context.getVisualState().screenshot(), executionStartTimestamp, now()));
                     return;
                 }
 
-                var verificationResult = verificationExecutionResult.resultPayload();
+                var verificationResult = verificationExecutionResult.getResultPayload();
                 if (verificationResult == null) {
                     var errorMessage = "Precondition verification failed. Got no verification result from the model.";
                     context.addPreconditionResult(new UiPreconditionResult(precondition, false, errorMessage,
@@ -235,13 +235,13 @@ public class Agent {
                         }
                 );
                 BudgetManager.resetToolCallUsage();
-                if (!actionResult.success()) {
-                    if (actionResult.executionStatus() != VERIFICATION_FAILURE) {
+                if (!actionResult.isSuccess()) {
+                    if (actionResult.getExecutionStatus() != VERIFICATION_FAILURE) {
                         // Verification failure happens only if the current action was executed as a UI element location prefetch part,
                         // it means this test step shouldn't be reported because the execution is to be halted after verification
                         // failure for the previous step
                         var errorMessage = "Error while executing action '%s'. Root cause: %s"
-                                .formatted(actionInstruction, actionResult.message());
+                                .formatted(actionInstruction, actionResult.getMessage());
                         addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
                                 actionResult.screenshot(), ERROR);
                     }
@@ -263,14 +263,14 @@ public class Agent {
                             }, result -> result == null || !result.success());
                             BudgetManager.resetToolCallUsage();
 
-                            if (!verificationExecutionResult.success()) {
+                            if (!verificationExecutionResult.isSuccess()) {
                                 var errorMessage = "Failure while verifying test step '%s'. Root cause: %s"
-                                        .formatted(actionInstruction, verificationExecutionResult.message());
+                                        .formatted(actionInstruction, verificationExecutionResult.getMessage());
                                 addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
                                         context.getVisualState().screenshot(), ERROR);
                                 return false;
                             } else {
-                                VerificationExecutionResult verificationResult = verificationExecutionResult.resultPayload();
+                                VerificationExecutionResult verificationResult = verificationExecutionResult.getResultPayload();
                                 if (verificationResult != null && !verificationResult.success()) {
                                     var errorMessage = "Verification failed. %s".formatted(verificationResult.message());
                                     addFailedTestStep(context, testStep, errorMessage, verificationResult.message(),

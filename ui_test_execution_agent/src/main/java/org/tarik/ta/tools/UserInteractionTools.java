@@ -338,7 +338,7 @@ public class UserInteractionTools extends AbstractTools {
         var boundingBoxColorName = getColorName(BOUNDING_BOX_COLOR).toLowerCase();
         return uiElementDescriptionAgent.executeAndGetResult(() ->
                         uiElementDescriptionAgent.describeUiElement(elementDescription, boundingBoxColorName, screenshot))
-                .resultPayload();
+                .getResultPayload();
     }
 
     private void saveNewUiElementIntoDb(BufferedImage elementScreenshot, UiElementInfo uiElement) {

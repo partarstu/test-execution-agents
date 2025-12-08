@@ -15,25 +15,25 @@
  */
 package org.tarik.ta.agents;
 
-import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
+import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.agents.BaseAiAgent;
-import org.tarik.ta.core.agents.PreconditionVerificationAgent;
-import org.tarik.ta.core.dto.VerificationExecutionResult;
+import org.tarik.ta.core.agents.PreconditionActionAgent;
+import org.tarik.ta.core.dto.EmptyExecutionResult;
+import org.tarik.ta.core.error.RetryPolicy;
 
 /**
- * Agent responsible for verifying preconditions for UI tests.
+ * Agent responsible for executing test case preconditions.
  */
-public interface UiPreconditionVerificationAgent extends PreconditionVerificationAgent, BaseUiAgent<VerificationExecutionResult> {
+public interface UiPreconditionActionAgent extends PreconditionActionAgent, BaseUiAgent<EmptyExecutionResult> {
     @UserMessage("""
-            The test case precondition is: {{precondition}}.
+            The precondition you need to execute: {{precondition}}.
             
             Shared data: {{sharedData}}
             """)
-    Result<String> verify(
+    Result<String> execute(
             @V("precondition") String precondition,
-            @V("sharedData") String sharedData,
-            @UserMessage ImageContent screenshot);
+            @V("sharedData") String sharedData);
 }

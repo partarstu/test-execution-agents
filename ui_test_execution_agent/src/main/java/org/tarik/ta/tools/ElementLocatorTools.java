@@ -270,7 +270,7 @@ public class ElementLocatorTools extends AbstractTools {
     private String getPageDescriptionFromModel() {
         try {
             var pageDescriptionResult = pageDescriptionAgent.executeAndGetResult(() ->
-                    pageDescriptionAgent.describePage(singleImageContent(captureScreen()))).resultPayload();
+                    pageDescriptionAgent.describePage(singleImageContent(captureScreen()))).getResultPayload();
             return pageDescriptionResult.pageDescription();
         } catch (Exception e) {
             throw new RuntimeException("Failed to get page description from model", e);
@@ -546,7 +546,7 @@ public class ElementLocatorTools extends AbstractTools {
                 List<Callable<List<BoundingBox>>> tasks = range(0, VISUAL_GROUNDING_MODEL_VOTE_COUNT)
                         .mapToObj(i -> (Callable<List<BoundingBox>>) () -> uiElementBoundingBoxAgent.executeAndGetResult(
                                 () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend))
-                        ).resultPayload().boundingBoxes())
+                        ).getResultPayload().boundingBoxes())
                         .toList();
                 List<Rectangle> allBoundingBoxes = executor.invokeAll(tasks).stream()
                         .map(future -> getFutureResult(future, "getting bounding boxes from vision model"))
@@ -687,7 +687,7 @@ public class ElementLocatorTools extends AbstractTools {
                     .mapToObj(i -> (Callable<UiElementIdentificationResult>) () -> uiElementSelectionAgent.executeAndGetResult(
                             () -> uiElementSelectionAgent.selectBestElement(boundingBoxColorName, prompt,
                                     singleImageContent(resultingScreenshot))
-                    ).resultPayload())
+                    ).getResultPayload())
                     .toList();
             return executor.invokeAll(tasks).stream()
                     .map(future -> getFutureResult(future, "UI element identification by the model"))

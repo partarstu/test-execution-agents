@@ -16,8 +16,6 @@
 */
 package org.tarik.ta.tools;
 
-import org.tarik.ta.core.utils.PromptUtils;
-
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.tarik.ta.core.AgentConfig;
@@ -141,7 +139,7 @@ public class MouseTools extends AbstractTools {
             var actionDescription = "Clicked at location (%s, %s)".formatted(x, y);
             var checkResult = uiStateCheckAgent.executeAndGetResult(() ->
                     uiStateCheckAgent.verify(expectedStateDescription, actionDescription, "",
-                            singleImageContent(captureScreen()))).resultPayload();
+                            singleImageContent(captureScreen()))).getResultPayload();
             if (checkResult == null || !checkResult.success()) {
                 var waitDuration = getMaxActionExecutionDurationMillis();
                 long deadline = currentTimeMillis() + waitDuration;
@@ -153,7 +151,7 @@ public class MouseTools extends AbstractTools {
                     var screenshot = latestScreenshot.updateAndGet(_ -> captureScreen());
                     var result = uiStateCheckAgent.executeAndGetResult(() ->
                             uiStateCheckAgent.verify(expectedStateDescription, actionDescription, "",
-                                    singleImageContent(screenshot))).resultPayload();
+                                    singleImageContent(screenshot))).getResultPayload();
                     if (result != null && result.success()) {
                         return;
                     }
