@@ -32,3 +32,4 @@ Dockerfile_local
 /execution-videos
 /.vscode
 /**/log
+/**/*.log
