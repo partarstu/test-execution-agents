@@ -28,7 +28,7 @@ import org.tarik.ta.core.error.RetryPolicy;
 /**
  * Agent responsible for executing test steps for UI tests.
  */
-public interface UiTestStepActionAgent extends TestStepActionAgent {
+public interface UiTestStepActionAgent extends TestStepActionAgent, BaseUiAgent<EmptyExecutionResult> {
     @UserMessage("""
             Execute the following test step action: {{testStep}}
             

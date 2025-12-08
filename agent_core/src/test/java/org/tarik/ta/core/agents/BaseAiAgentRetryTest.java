@@ -49,6 +49,11 @@ class BaseAiAgentRetryTest {
         public RetryPolicy getRetryPolicy() {
             return retryPolicy;
         }
+
+        @Override
+        public String getAgentTaskDescription() {
+            return "Test Task";
+        }
     }
 
     private final TestAgent agent = new TestAgent();

@@ -19,14 +19,13 @@ import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.agents.TestStepVerificationAgent;
-import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.core.dto.VerificationExecutionResult;
 
 /**
  * Agent responsible for verifying test step expected results for UI tests.
  */
-public interface UiTestStepVerificationAgent extends TestStepVerificationAgent {
+public interface UiTestStepVerificationAgent extends TestStepVerificationAgent, BaseUiAgent<VerificationExecutionResult> {
     @UserMessage("""
             Verify that: {{verificationDescription}}.
             
