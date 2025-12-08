@@ -37,7 +37,7 @@ public class AbstractTools {
     }
 
     private static UiStateCheckAgent createUiStateCheckAgent() {
-        var prompt = loadSystemPrompt("tool/verifier", getUiStateCheckAgentPromptVersion(), "ui_state_checker_prompt.txt");
+        var prompt = loadSystemPrompt("common/ui_state_checker", getUiStateCheckAgentPromptVersion(), "ui_state_checker_prompt.txt");
         return AiServices.builder(UiStateCheckAgent.class)
                 .chatModel(getModel(getUiStateCheckAgentModelName(), getUiStateCheckAgentModelProvider()).chatModel())
                 .systemMessageProvider(_ -> prompt)

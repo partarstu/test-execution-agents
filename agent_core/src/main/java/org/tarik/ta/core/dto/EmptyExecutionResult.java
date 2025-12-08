@@ -22,7 +22,6 @@ import org.slf4j.LoggerFactory;
 
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
-
 @Description("Empty execution result")
 public record EmptyExecutionResult() implements FinalResult<EmptyExecutionResult> {
     private static final Logger LOG = LoggerFactory.getLogger(EmptyExecutionResult.class);
