@@ -28,6 +28,7 @@ import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.dto.AgentExecutionResult;
 import org.tarik.ta.core.utils.CoreUtils;
+import org.tarik.ta.dto.UiAgentExecutionResult;
 import org.tarik.ta.dto.UiStateCheckResult;
 import org.tarik.ta.utils.CommonUtils;
 
@@ -136,8 +137,10 @@ class MouseToolsTest {
 
         // To simulate that the state is not achieved before the first click
         when(uiStateCheckAgent.executeAndGetResult(any()))
-                .thenReturn(new AgentExecutionResult(AgentExecutionResult.ExecutionStatus.SUCCESS, "Initial state not met", true, null, new UiStateCheckResult(false, "Initial state not met"), java.time.Instant.now()))
-                .thenReturn(new AgentExecutionResult(AgentExecutionResult.ExecutionStatus.SUCCESS, "State achieved", true, null, new UiStateCheckResult(true, "State achieved"), java.time.Instant.now()));
+                .thenReturn(new UiAgentExecutionResult(AgentExecutionResult.ExecutionStatus.SUCCESS, "Initial state not met", true, new UiStateCheckResult(false, "Initial state not met"),
+                        null, java.time.Instant.now()))
+                .thenReturn(new UiAgentExecutionResult(AgentExecutionResult.ExecutionStatus.SUCCESS, "State achieved", true, new UiStateCheckResult(true, "State achieved"), null,
+                        java.time.Instant.now()));
 
         mouseTools.clickElementUntilStateAchieved(x, y, expectedState);
 
@@ -157,7 +160,8 @@ class MouseToolsTest {
         String expectedState = "State is not achieved";
 
         when(uiStateCheckAgent.executeAndGetResult(any()))
-                .thenReturn(new AgentExecutionResult(AgentExecutionResult.ExecutionStatus.SUCCESS, "State not met", true, null, new UiStateCheckResult(false, "State not met"), java.time.Instant.now()));
+                .thenReturn(new UiAgentExecutionResult(AgentExecutionResult.ExecutionStatus.SUCCESS, "State not met", true,
+                        new UiStateCheckResult(false, "State not met"), null, java.time.Instant.now()));
 
         org.junit.jupiter.api.Assertions.assertThrows(org.tarik.ta.core.exceptions.ToolExecutionException.class, () ->
             mouseTools.clickElementUntilStateAchieved(x, y, expectedState)

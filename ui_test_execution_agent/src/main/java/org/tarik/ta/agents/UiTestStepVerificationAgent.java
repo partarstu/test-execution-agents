@@ -19,13 +19,26 @@ import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.core.agents.TestStepVerificationAgent;
+import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
+import org.tarik.ta.core.error.RetryPolicy;
 
 /**
  * Agent responsible for verifying test step expected results for UI tests.
  */
-public interface UiTestStepVerificationAgent extends TestStepVerificationAgent, BaseUiAgent<VerificationExecutionResult> {
+public interface UiTestStepVerificationAgent extends BaseUiAgent<VerificationExecutionResult> {
+    RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
+
+    @Override
+    default String getAgentTaskDescription() {
+        return "Verifying test step actual results";
+    }
+
+    @Override
+    default RetryPolicy getRetryPolicy() {
+        return RETRY_POLICY;
+    }
+
     @UserMessage("""
             Verify that: {{verificationDescription}}.
             

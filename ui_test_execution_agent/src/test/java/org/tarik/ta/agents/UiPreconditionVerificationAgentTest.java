@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.tarik.ta.core.agents.PreconditionVerificationAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.dto.AgentExecutionResult;
 import org.tarik.ta.utils.CommonUtils;
@@ -18,7 +19,7 @@ import static org.mockito.Mockito.*;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
 
-class TestStepVerificationAgentUiTest {
+class UiPreconditionVerificationAgentTest {
 
     private MockedStatic<CommonUtils> commonUtilsMockedStatic;
 
@@ -35,12 +36,11 @@ class TestStepVerificationAgentUiTest {
 
     @Test
     void shouldHandleSuccessfulVerification() {
-        UiTestStepVerificationAgent agent = mock(UiTestStepVerificationAgent.class);
+        var agent = mock(UiPreconditionActionAgent.class);
         doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
+        var verificationResult = new VerificationExecutionResult(true, "Verified");
 
-        VerificationExecutionResult verificationResult = new VerificationExecutionResult(true, "Verified");
-
-        AgentExecutionResult<VerificationExecutionResult> result = agent.executeAndGetResult(() -> Result.<VerificationExecutionResult>builder().content(verificationResult).build());
+        var result = agent.executeAndGetResult(() -> Result.<VerificationExecutionResult>builder().content(verificationResult).build());
 
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
         assertThat(result.isSuccess()).isTrue();
@@ -49,10 +49,10 @@ class TestStepVerificationAgentUiTest {
 
     @Test
     void shouldHandleFailedVerificationExecution() {
-        UiTestStepVerificationAgent agent = mock(UiTestStepVerificationAgent.class);
+        UiPreconditionActionAgent agent = mock(UiPreconditionActionAgent.class);
         doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
 
-        AgentExecutionResult<VerificationExecutionResult> result = agent.executeAndGetResult(() -> {
+        var result = agent.executeAndGetResult(() -> {
             throw new RuntimeException("Verification error");
         });
 

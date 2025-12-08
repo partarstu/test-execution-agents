@@ -15,20 +15,29 @@
  */
 package org.tarik.ta.agents;
 
-import org.tarik.ta.core.agents.BaseAiAgent;
-
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.agents.TestStepActionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
 /**
  * Agent responsible for executing test steps for UI tests.
  */
-public interface UiTestStepActionAgent extends TestStepActionAgent, BaseUiAgent<EmptyExecutionResult> {
+public interface UiTestStepActionAgent extends BaseUiAgent<EmptyExecutionResult> {
+    RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
+
+    @Override
+    default String getAgentTaskDescription() {
+        return "Executing test step action";
+    }
+
+    @Override
+    default RetryPolicy getRetryPolicy() {
+        return RETRY_POLICY;
+    }
+
     @UserMessage("""
             Execute the following test step action: {{testStep}}
             

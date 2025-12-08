@@ -47,6 +47,7 @@ import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.model.GenAiModel;
 import org.tarik.ta.core.model.ModelFactory;
 import org.tarik.ta.core.dto.AgentExecutionResult;
+import org.tarik.ta.dto.UiAgentExecutionResult;
 import org.tarik.ta.utils.CommonUtils;
 import org.tarik.ta.core.utils.PromptUtils;
 import org.tarik.ta.core.utils.CoreUtils;
@@ -253,12 +254,12 @@ class AgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Action executed", true, mockScreenshot, new EmptyExecutionResult(),
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(), mockScreenshot,
                                 Instant.now()))
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Verification executed", true, mockScreenshot,
-                                new VerificationExecutionResult(true, "Verified"), Instant.now()))
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Verification executed", true,
+                                new VerificationExecutionResult(true, "Verified"), mockScreenshot, Instant.now()))
                                 .when(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
                 // When
@@ -282,7 +283,7 @@ class AgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Action executed", true, mockScreenshot, new EmptyExecutionResult(),
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(), mockScreenshot,
                                 Instant.now()))
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
@@ -305,15 +306,15 @@ class AgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Precondition executed", true, mockScreenshot,
-                                new EmptyExecutionResult(), Instant.now()))
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Precondition executed", true,
+                                new EmptyExecutionResult(), mockScreenshot, Instant.now()))
                                 .when(preconditionActionAgentMock).executeWithRetry(any(Supplier.class));
 
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Precondition verified", true, mockScreenshot,
-                                new VerificationExecutionResult(true, "Verified"), Instant.now()))
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Precondition verified", true,
+                                new VerificationExecutionResult(true, "Verified"), mockScreenshot, Instant.now()))
                                 .when(preconditionVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Action executed", true, mockScreenshot, new EmptyExecutionResult(),
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(), mockScreenshot,
                                 Instant.now()))
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
@@ -336,7 +337,7 @@ class AgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new AgentExecutionResult<>(ERROR, "Precondition failed", false, mockScreenshot, null,
+                doReturn(new UiAgentExecutionResult<>(ERROR, "Precondition failed", false, null, mockScreenshot,
                                 Instant.now()))
                                 .when(preconditionActionAgentMock).executeWithRetry(any(Supplier.class));
 
@@ -360,12 +361,12 @@ class AgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Precondition executed", true, mockScreenshot,
-                                new EmptyExecutionResult(), Instant.now()))
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Precondition executed", true,
+                                new EmptyExecutionResult(), mockScreenshot, Instant.now()))
                                 .when(preconditionActionAgentMock).executeWithRetry(any(Supplier.class));
 
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Precondition verified", true, mockScreenshot,
-                                new VerificationExecutionResult(false, "Not Verified"), Instant.now()))
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Precondition verified", true,
+                                new VerificationExecutionResult(false, "Not Verified"), mockScreenshot, Instant.now()))
                                 .when(preconditionVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
                 // When
@@ -388,7 +389,7 @@ class AgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new AgentExecutionResult<>(ERROR, "Action failed", false, mockScreenshot, null, Instant.now()))
+                doReturn(new UiAgentExecutionResult<>(ERROR, "Action failed", false, null, mockScreenshot, Instant.now()))
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 // When
@@ -410,12 +411,12 @@ class AgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Action executed", true, mockScreenshot, new EmptyExecutionResult(),
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(), mockScreenshot,
                                 Instant.now()))
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Verification executed", true, mockScreenshot,
-                                new VerificationExecutionResult(false, "Verification failed"), Instant.now()))
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Verification executed", true,
+                                new VerificationExecutionResult(false, "Verification failed"), mockScreenshot, Instant.now()))
                                 .when(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
                 // When
@@ -429,7 +430,7 @@ class AgentTest {
         }
 
         private void mockTestCaseExtraction(TestCase testCase) {
-                doReturn(new AgentExecutionResult<>(SUCCESS, "Test case extracted", true, mockScreenshot, testCase, Instant.now()))
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Test case extracted", true, testCase, mockScreenshot, Instant.now()))
                                 .when(testCaseExtractionAgentMock).executeAndGetResult(any(Supplier.class));
         }
 }

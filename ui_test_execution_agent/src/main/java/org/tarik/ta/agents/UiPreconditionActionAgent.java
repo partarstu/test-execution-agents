@@ -19,15 +19,15 @@ import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.agents.BaseAiAgent;
-import org.tarik.ta.core.agents.PreconditionActionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
 /**
  * Agent responsible for executing test case preconditions.
  */
-public interface UiPreconditionActionAgent extends PreconditionActionAgent, BaseUiAgent<EmptyExecutionResult> {
+public interface UiPreconditionActionAgent extends BaseUiAgent<EmptyExecutionResult> {
+    RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
+
     @UserMessage("""
             The precondition you need to execute: {{precondition}}.
             
@@ -36,4 +36,14 @@ public interface UiPreconditionActionAgent extends PreconditionActionAgent, Base
     Result<String> execute(
             @V("precondition") String precondition,
             @V("sharedData") String sharedData);
+
+    @Override
+    default String getAgentTaskDescription() {
+        return "Executing precondition action related to UI";
+    }
+
+    @Override
+    default RetryPolicy getRetryPolicy() {
+        return RETRY_POLICY;
+    }
 }

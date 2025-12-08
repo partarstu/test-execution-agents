@@ -158,7 +158,7 @@ public class Agent {
     }
 
     private static void executePreconditions(TestExecutionContext context,
-                                             PreconditionActionAgent preconditionActionAgent) {
+                                             UiPreconditionActionAgent preconditionActionAgent) {
         List<String> preconditions = context.getTestCase().preconditions();
         var preconditionVerificationAgent = getPreconditionVerificationAgent(new RetryState());
         if (preconditions != null && !preconditions.isEmpty()) {
@@ -363,13 +363,13 @@ public class Agent {
     }
 
 
-    private static PreconditionActionAgent getPreconditionActionAgent(CommonTools commonTools, UserInteractionTools userInteractionTools,
+    private static UiPreconditionActionAgent getPreconditionActionAgent(CommonTools commonTools, UserInteractionTools userInteractionTools,
                                                                       RetryState retryState) {
         var preconditionAgentModel = getModel(AgentConfig.getPreconditionActionAgentModelName(),
                 AgentConfig.getPreconditionActionAgentModelProvider());
         var preconditionAgentPrompt = loadSystemPrompt("precondition/executor",
                 AgentConfig.getPreconditionAgentPromptVersion(), "precondition_action_agent_system_prompt.txt");
-        return builder(PreconditionActionAgent.class)
+        return builder(UiPreconditionActionAgent.class)
                 .chatModel(preconditionAgentModel.chatModel())
                 .systemMessageProvider(_ -> preconditionAgentPrompt)
                 .toolExecutionErrorHandler(new DefaultErrorHandler(PreconditionActionAgent.RETRY_POLICY, retryState))

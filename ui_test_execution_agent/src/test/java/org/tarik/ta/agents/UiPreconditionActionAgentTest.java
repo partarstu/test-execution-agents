@@ -17,7 +17,7 @@ import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 
-class PreconditionActionAgentTest {
+class UiPreconditionActionAgentTest {
 
     @Test
     void shouldHandleSuccessfulExecution() {
@@ -43,9 +43,9 @@ class PreconditionActionAgentTest {
             commonUtilsMockedStatic.when(CommonUtils::captureScreen).thenReturn(mockImage);
             commonUtilsMockedStatic.when(() -> CommonUtils.captureScreen(anyBoolean())).thenReturn(mockImage);
 
-            PreconditionActionAgent agent = (_, _) -> null;
+            UiPreconditionActionAgent agent = (_, _) -> null;
 
-            AgentExecutionResult<EmptyExecutionResult> result = agent.executeAndGetResult(() -> {
+            var result = agent.executeAndGetResult(() -> {
                 throw new RuntimeException("Simulated error");
             });
 

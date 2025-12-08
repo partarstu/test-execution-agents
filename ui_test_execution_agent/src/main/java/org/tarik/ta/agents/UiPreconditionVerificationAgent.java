@@ -19,14 +19,16 @@ import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.core.agents.BaseAiAgent;
-import org.tarik.ta.core.agents.PreconditionVerificationAgent;
+import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
+import org.tarik.ta.core.error.RetryPolicy;
 
 /**
  * Agent responsible for verifying preconditions for UI tests.
  */
-public interface UiPreconditionVerificationAgent extends PreconditionVerificationAgent, BaseUiAgent<VerificationExecutionResult> {
+public interface UiPreconditionVerificationAgent extends BaseUiAgent<VerificationExecutionResult> {
+    RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
+
     @UserMessage("""
             The test case precondition is: {{precondition}}.
             
@@ -36,4 +38,14 @@ public interface UiPreconditionVerificationAgent extends PreconditionVerificatio
             @V("precondition") String precondition,
             @V("sharedData") String sharedData,
             @UserMessage ImageContent screenshot);
+
+    @Override
+    default String getAgentTaskDescription() {
+        return "Verifying precondition";
+    }
+
+    @Override
+    default RetryPolicy getRetryPolicy() {
+        return RETRY_POLICY;
+    }
 }
