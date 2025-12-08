@@ -27,8 +27,8 @@ import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.tarik.ta.core.agents.PreconditionActionAgent;
-import org.tarik.ta.core.agents.PreconditionVerificationAgent;
+import org.tarik.ta.agents.UiPreconditionActionAgent;
+import org.tarik.ta.agents.UiPreconditionVerificationAgent;
 import org.tarik.ta.agents.UiTestStepActionAgent;
 import org.tarik.ta.agents.UiTestStepVerificationAgent;
 import org.tarik.ta.agents.UiElementDescriptionAgent;
@@ -87,9 +87,9 @@ class AgentTest {
         @Mock
         private TestCaseExtractionAgent testCaseExtractionAgentMock;
         @Mock
-        private PreconditionActionAgent preconditionActionAgentMock;
+        private UiPreconditionActionAgent preconditionActionAgentMock;
         @Mock
-        private PreconditionVerificationAgent preconditionVerificationAgentMock;
+        private UiPreconditionVerificationAgent preconditionVerificationAgentMock;
         @Mock
         private UiTestStepActionAgent uiTestStepActionAgentMock;
         @Mock
@@ -108,9 +108,9 @@ class AgentTest {
         @Mock
         private AiServices<TestCaseExtractionAgent> testCaseExtractionAgentBuilder;
         @Mock
-        private AiServices<PreconditionActionAgent> preconditionActionAgentBuilder;
+        private AiServices<UiPreconditionActionAgent> preconditionActionAgentBuilder;
         @Mock
-        private AiServices<PreconditionVerificationAgent> preconditionVerificationAgentBuilder;
+        private AiServices<UiPreconditionVerificationAgent> preconditionVerificationAgentBuilder;
         @Mock
         private AiServices<UiTestStepActionAgent> testStepActionAgentBuilder;
         @Mock
@@ -129,6 +129,7 @@ class AgentTest {
         // Static mocks
         private MockedStatic<ModelFactory> modelFactoryMockedStatic;
         private MockedStatic<CommonUtils> commonUtilsMockedStatic;
+        private MockedStatic<CoreUtils> coreUtilsMockedStatic;
         private MockedStatic<AgentConfig> agentConfigMockedStatic;
         private MockedStatic<AiServices> aiServicesMockedStatic;
         private MockedStatic<RetrieverFactory> retrieverFactoryMockedStatic;
@@ -141,6 +142,7 @@ class AgentTest {
         void setUp() {
                 modelFactoryMockedStatic = mockStatic(ModelFactory.class);
                 commonUtilsMockedStatic = mockStatic(CommonUtils.class);
+                coreUtilsMockedStatic = mockStatic(CoreUtils.class);
                 agentConfigMockedStatic = mockStatic(AgentConfig.class);
                 aiServicesMockedStatic = mockStatic(AiServices.class);
                 retrieverFactoryMockedStatic = mockStatic(RetrieverFactory.class);
@@ -183,30 +185,25 @@ class AgentTest {
 
                 modelFactoryMockedStatic.when(() -> ModelFactory.getModel(any(), any())).thenReturn(mockModel);
 
-                // Common Utils
-                commonUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(anyString())).thenCallRealMethod();
-                commonUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(null)).thenReturn(false);
+                // Common Utils & Core Utils
+                coreUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(anyString())).thenCallRealMethod();
+                coreUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(null)).thenReturn(false);
                 commonUtilsMockedStatic.when(CommonUtils::captureScreen).thenReturn(mockScreenshot);
-                commonUtilsMockedStatic.when(() -> sleepMillis(anyInt())).thenAnswer(invocation -> null);
-                
+                coreUtilsMockedStatic.when(() -> sleepMillis(anyLong())).thenAnswer(invocation -> null);
+
                 promptUtilsMockedStatic.when(() -> loadSystemPrompt(any(), any(), any())).thenReturn("System Prompt");
 
                 // AiServices Mocking
-                aiServicesMockedStatic.when(() -> AiServices.builder(any(Class.class)))
-                                .thenAnswer(invocation -> {
-                                    Class<?> argument = invocation.getArgument(0);
-                                    if (TestCaseExtractionAgent.class.equals(argument)) return testCaseExtractionAgentBuilder;
-                                    if (PreconditionActionAgent.class.equals(argument)) return preconditionActionAgentBuilder;
-                                    if (PreconditionVerificationAgent.class.equals(argument)) return preconditionVerificationAgentBuilder;
-                                    if (UiTestStepActionAgent.class.equals(argument)) return testStepActionAgentBuilder;
-                                    if (UiTestStepVerificationAgent.class.equals(argument)) return testStepVerificationAgentBuilder;
-                                    if (UiStateCheckAgent.class.equals(argument)) return toolVerificationAgentBuilder;
-                                    if (UiElementDescriptionAgent.class.equals(argument)) return uiElementDescriptionAgentBuilder;
-                                    if (PageDescriptionAgent.class.equals(argument)) return pageDescriptionAgentBuilder;
-                                    if (UiElementBoundingBoxAgent.class.equals(argument)) return elementBoundingBoxAgentBuilder;
-                                    if (UiElementSelectionAgent.class.equals(argument)) return elementSelectionAgentBuilder;
-                                    throw new RuntimeException("Unexpected agent class requested: " + argument.getName());
-                                });
+                aiServicesMockedStatic.when(() -> AiServices.builder(TestCaseExtractionAgent.class)).thenReturn(testCaseExtractionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiPreconditionActionAgent.class)).thenReturn(preconditionActionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiPreconditionVerificationAgent.class)).thenReturn(preconditionVerificationAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiTestStepActionAgent.class)).thenReturn(testStepActionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiTestStepVerificationAgent.class)).thenReturn(testStepVerificationAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiStateCheckAgent.class)).thenReturn(toolVerificationAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiElementDescriptionAgent.class)).thenReturn(uiElementDescriptionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(PageDescriptionAgent.class)).thenReturn(pageDescriptionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiElementBoundingBoxAgent.class)).thenReturn(elementBoundingBoxAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiElementSelectionAgent.class)).thenReturn(elementSelectionAgentBuilder);
 
                 // Retriever Factory
                 retrieverFactoryMockedStatic.when(RetrieverFactory::getUiElementRetriever)
@@ -238,6 +235,7 @@ class AgentTest {
         void tearDown() {
                 modelFactoryMockedStatic.close();
                 commonUtilsMockedStatic.close();
+                coreUtilsMockedStatic.close();
                 agentConfigMockedStatic.close();
                 aiServicesMockedStatic.close();
                 retrieverFactoryMockedStatic.close();

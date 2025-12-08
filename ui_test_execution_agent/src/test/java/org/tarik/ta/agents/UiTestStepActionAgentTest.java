@@ -38,8 +38,7 @@ class UiTestStepActionAgentTest {
 
     @Test
     void shouldHandleSuccessfulExecution() {
-        UiTestStepActionAgent agent = mock(UiTestStepActionAgent.class);
-        doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
+        UiTestStepActionAgent agent = mock(UiTestStepActionAgent.class, CALLS_REAL_METHODS);
 
         AgentExecutionResult<EmptyExecutionResult> result = agent.executeAndGetResult(() -> Result.<EmptyExecutionResult>builder().content(new EmptyExecutionResult()).build());
 
@@ -50,8 +49,7 @@ class UiTestStepActionAgentTest {
 
     @Test
     void shouldHandleFailedExecution() {
-        UiTestStepActionAgent agent = mock(UiTestStepActionAgent.class);
-        doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
+        UiTestStepActionAgent agent = mock(UiTestStepActionAgent.class, CALLS_REAL_METHODS);
 
         var result = agent.executeAndGetResult(() -> {
             throw new RuntimeException("Action execution error");
