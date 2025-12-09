@@ -33,3 +33,4 @@ Dockerfile_local
 /.vscode
 /**/log
 /**/*.log
+/ui_test_execution_agent/log

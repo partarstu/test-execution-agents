@@ -5,7 +5,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.tarik.ta.core.agents.PreconditionVerificationAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.dto.AgentExecutionResult;
 import org.tarik.ta.utils.CommonUtils;
@@ -36,8 +35,10 @@ class UiPreconditionVerificationAgentTest {
 
     @Test
     void shouldHandleSuccessfulVerification() {
-        var agent = mock(UiPreconditionActionAgent.class);
+        var agent = mock(UiPreconditionVerificationAgent.class);
         doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
+        doCallRealMethod().when(agent).createSuccessResult(any());
+        doCallRealMethod().when(agent).extractResult(any());
         var verificationResult = new VerificationExecutionResult(true, "Verified");
 
         var result = agent.executeAndGetResult(() -> Result.<VerificationExecutionResult>builder().content(verificationResult).build());
@@ -49,8 +50,10 @@ class UiPreconditionVerificationAgentTest {
 
     @Test
     void shouldHandleFailedVerificationExecution() {
-        UiPreconditionActionAgent agent = mock(UiPreconditionActionAgent.class);
+        UiPreconditionVerificationAgent agent = mock(UiPreconditionVerificationAgent.class);
         doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
+        doCallRealMethod().when(agent).createErrorResult(any(), any(), any());
+        doCallRealMethod().when(agent).captureErrorScreenshot();
 
         var result = agent.executeAndGetResult(() -> {
             throw new RuntimeException("Verification error");

@@ -44,6 +44,7 @@ class KeyboardToolsTest {
 
     private Robot robot;
     private MockedStatic<CommonUtils> commonUtilsMockedStatic;
+    private MockedStatic<CoreUtils> coreUtilsMockedStatic;
     private MockedStatic<Toolkit> toolkitMockedStatic;
     private Clipboard clipboard;
     private KeyboardTools keyboardTools;
@@ -60,10 +61,12 @@ class KeyboardToolsTest {
 
         commonUtilsMockedStatic = mockStatic(CommonUtils.class);
         commonUtilsMockedStatic.when(CommonUtils::getRobot).thenReturn(robot);
-        commonUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(anyString())).thenCallRealMethod();
-        commonUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(null)).thenReturn(false);
-        commonUtilsMockedStatic.when(() -> CoreUtils.isBlank(anyString())).thenCallRealMethod();
-        commonUtilsMockedStatic.when(() -> CoreUtils.sleepMillis(anyInt())).thenAnswer(_ -> null);
+
+        coreUtilsMockedStatic = mockStatic(CoreUtils.class);
+        coreUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(anyString())).thenCallRealMethod();
+        coreUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(null)).thenReturn(false);
+        coreUtilsMockedStatic.when(() -> CoreUtils.isBlank(anyString())).thenCallRealMethod();
+        coreUtilsMockedStatic.when(() -> CoreUtils.sleepMillis(anyInt())).thenAnswer(_ -> null);
 
         Toolkit toolkit = mock(Toolkit.class);
         when(toolkit.getSystemClipboard()).thenReturn(clipboard);
@@ -75,6 +78,7 @@ class KeyboardToolsTest {
     @AfterEach
     void tearDown() {
         commonUtilsMockedStatic.close();
+        coreUtilsMockedStatic.close();
         toolkitMockedStatic.close();
     }
 

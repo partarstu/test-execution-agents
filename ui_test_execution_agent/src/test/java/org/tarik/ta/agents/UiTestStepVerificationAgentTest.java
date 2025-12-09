@@ -35,8 +35,7 @@ class UiTestStepVerificationAgentTest {
 
     @Test
     void shouldHandleSuccessfulVerification() {
-        UiTestStepVerificationAgent agent = mock(UiTestStepVerificationAgent.class);
-        doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
+        UiTestStepVerificationAgent agent = mock(UiTestStepVerificationAgent.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
 
         VerificationExecutionResult verificationResult = new VerificationExecutionResult(true, "Verified");
 
@@ -49,8 +48,7 @@ class UiTestStepVerificationAgentTest {
 
     @Test
     void shouldHandleFailedVerificationExecution() {
-        UiTestStepVerificationAgent agent = mock(UiTestStepVerificationAgent.class);
-        doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
+        UiTestStepVerificationAgent agent = mock(UiTestStepVerificationAgent.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
 
         var result = agent.executeAndGetResult(() -> {
             throw new RuntimeException("Verification error");

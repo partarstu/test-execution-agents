@@ -47,6 +47,7 @@ class MouseToolsTest {
 
     private Robot robot;
     private MockedStatic<CommonUtils> commonUtilsMockedStatic;
+    private MockedStatic<CoreUtils> coreUtilsMockedStatic;
     private MockedStatic<AgentConfig> agentConfigMockedStatic;
     private MouseTools mouseTools;
 
@@ -59,11 +60,13 @@ class MouseToolsTest {
         mouseTools = new MouseTools(uiStateCheckAgent);
         commonUtilsMockedStatic = mockStatic(CommonUtils.class);
         commonUtilsMockedStatic.when(CommonUtils::getRobot).thenReturn(robot);
-        commonUtilsMockedStatic.when(() -> CoreUtils.sleepMillis(anyInt())).thenAnswer(_ -> null);
         commonUtilsMockedStatic.when(CommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
         commonUtilsMockedStatic.when(CommonUtils::getMouseLocation).thenReturn(new Point(100, 100));
-        commonUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(anyString())).thenCallRealMethod();
-        commonUtilsMockedStatic.when(() -> CoreUtils.isBlank(anyString())).thenCallRealMethod();
+
+        coreUtilsMockedStatic = mockStatic(CoreUtils.class);
+        coreUtilsMockedStatic.when(() -> CoreUtils.sleepMillis(anyInt())).thenAnswer(_ -> null);
+        coreUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(anyString())).thenCallRealMethod();
+        coreUtilsMockedStatic.when(() -> CoreUtils.isBlank(anyString())).thenCallRealMethod();
 
         agentConfigMockedStatic = mockStatic(AgentConfig.class);
         agentConfigMockedStatic.when(AgentConfig::getActionVerificationDelayMillis).thenReturn(10);
@@ -73,6 +76,7 @@ class MouseToolsTest {
     @AfterEach
     void tearDown() {
         commonUtilsMockedStatic.close();
+        coreUtilsMockedStatic.close();
         agentConfigMockedStatic.close();
     }
 
