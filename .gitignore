@@ -1,0 +1,36 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### IntelliJ IDEA ###
+.idea/
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/libraries/
+*.iws
+*.iml
+*.ipr
+
+### General ###
+resized_image.png
+output.jpg
+test.jpg
+resized_image_cv.png
+test.json
+temp.png
+/**/screens
+processed_image_opencv.png
+new.jpg
+temp*.png
+/log
+.run
+dependency-reduced-pom.xml
+ManualTest.java
+config.properties.example
+Dockerfile_local
+/execution-videos
+/.vscode
+/**/log
+/**/*.log
+/ui_test_execution_agent/log
