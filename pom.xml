@@ -13,6 +13,7 @@
     <modules>
         <module>agent_core</module>
         <module>ui_test_execution_agent</module>
+        <module>api_test_execution_agent</module>
     </modules>
 
     <developers>
@@ -47,6 +48,9 @@
         <commons-math3.version>3.6.1</commons-math3.version>
         <a2a.sdk.version>0.3.0.Beta1</a2a.sdk.version>
         <jetbrains.annotations.version>24.1.0</jetbrains.annotations.version>
+        <restassured.version>5.5.0</restassured.version>
+        <opencsv.version>5.9</opencsv.version>
+        <swagger-request-validator.version>2.42.0</swagger-request-validator.version>
     </properties>
 
     <dependencyManagement>
@@ -192,6 +196,28 @@
                 <artifactId>assertj-core</artifactId>
                 <version>${assertj.version}</version>
                 <scope>test</scope>
+            </dependency>
+
+            <!-- API Testing -->
+            <dependency>
+                <groupId>io.rest-assured</groupId>
+                <artifactId>rest-assured</artifactId>
+                <version>${restassured.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.rest-assured</groupId>
+                <artifactId>json-schema-validator</artifactId>
+                <version>${restassured.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.opencsv</groupId>
+                <artifactId>opencsv</artifactId>
+                <version>${opencsv.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.atlassian.oai</groupId>
+                <artifactId>swagger-request-validator-restassured</artifactId>
+                <version>${swagger-request-validator.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
