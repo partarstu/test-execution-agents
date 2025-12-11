@@ -7,6 +7,11 @@ import org.tarik.ta.context.ApiContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.atlassian.oai.validator.OpenApiInteractionValidator;
+import com.atlassian.oai.validator.model.Request;
+import com.atlassian.oai.validator.model.SimpleResponse;
+import com.atlassian.oai.validator.report.ValidationReport;
+
 import java.io.File;
 import java.util.Optional;
 
@@ -75,6 +80,55 @@ public class ApiAssertionTools {
             return "Schema validation failed: " + e.getMessage();
         } catch (Exception e) {
             return "Error reading schema: " + e.getMessage();
+        }
+    }
+
+    @Tool("Validates the last response against an OpenAPI specification file.")
+    public String validateOpenApi(String specPath) {
+        Optional<Response> responseOpt = context.getLastResponse();
+        if (responseOpt.isEmpty()) return "Error: No response available.";
+
+        String method = (String) context.getVariable("_last_request_method");
+        String path = (String) context.getVariable("_last_request_path");
+
+        if (method == null || path == null) {
+            return "Error: Request method or path not found in context. validation requires a preceding request.";
+        }
+
+        try {
+            OpenApiInteractionValidator validator = OpenApiInteractionValidator
+                    .createFor(specPath)
+                    .build();
+
+            Response raResponse = responseOpt.get();
+            SimpleResponse.Builder builder = SimpleResponse.Builder.status(raResponse.statusCode());
+            raResponse.headers().forEach(h -> builder.withHeader(h.getName(), h.getValue()));
+            
+            // Check if body is empty or not
+            String body = raResponse.getBody().asString();
+            if (body != null && !body.isEmpty()) {
+                builder.withBody(body);
+            }
+            if (raResponse.getContentType() != null) {
+                builder.withContentType(raResponse.getContentType());
+            }
+            
+            com.atlassian.oai.validator.model.Response oaiResponse = builder.build();
+            Request.Method reqMethod = Request.Method.valueOf(method.toUpperCase());
+
+            ValidationReport report = validator.validateResponse(path, reqMethod, oaiResponse);
+
+            if (report.hasErrors()) {
+                StringBuilder sb = new StringBuilder("OpenAPI Validation Failed:\n");
+                report.getMessages().forEach(m -> sb.append("- ").append(m.getMessage()).append("\n"));
+                return sb.toString();
+            }
+
+            return "OpenAPI validation passed.";
+
+        } catch (Exception e) {
+            LOG.error("Error validating against OpenAPI", e);
+            return "Error validating against OpenAPI: " + e.getMessage();
         }
     }
 }

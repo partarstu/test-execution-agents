@@ -18,7 +18,7 @@ import static io.restassured.RestAssured.given;
 public class ApiRequestTools {
     private static final Logger LOG = LoggerFactory.getLogger(ApiRequestTools.class);
     private final ApiContext context;
-    private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\\\$\\\\{([^}]+)}");
+    private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
 
     public ApiRequestTools(ApiContext context) {
         this.context = context;
@@ -55,6 +55,11 @@ public class ApiRequestTools {
             LOG.info("Sending {} request to {}", method, resolvedUrl);
             Response response = request.request(method, resolvedUrl);
             context.setLastResponse(response);
+            context.setVariable("_last_request_method", method);
+            // extracting path from resolvedUrl might be tricky if it's full URL. 
+            // Ideally we want the path template or the actual path. 
+            // For validation, we often need the actual path.
+            context.setVariable("_last_request_path", resolvedUrl); 
 
             return "Request sent. Status: " + response.getStatusCode();
         } catch (Exception e) {
@@ -108,7 +113,7 @@ public class ApiRequestTools {
             case BASIC -> {
                 String[] parts = resolvedValue.split(":", 2);
                 if (parts.length == 2) {
-                    request.auth().basic(parts[0], parts[1]);
+                    request.auth().preemptive().basic(parts[0], parts[1]);
                 } else {
                     LOG.warn("Invalid Basic Auth value format. Expected 'user:pass'.");
                 }
