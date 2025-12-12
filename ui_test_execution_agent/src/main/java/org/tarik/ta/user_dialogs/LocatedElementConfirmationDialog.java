@@ -15,15 +15,13 @@
  */
 package org.tarik.ta.user_dialogs;
 
-import org.tarik.ta.core.utils.CoreImageUtils;
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
 import static org.tarik.ta.utils.BoundingBoxUtil.drawBoundingBox;
-import static org.tarik.ta.core.utils.CoreImageUtils.cloneImage;
-import static org.tarik.ta.core.utils.CoreImageUtils.toBufferedImage;
+import static org.tarik.ta.utils.ImageUtils.cloneImage;
+import static org.tarik.ta.utils.ImageUtils.toBufferedImage;
 
 public class LocatedElementConfirmationDialog extends AbstractDialog {
 

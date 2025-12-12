@@ -17,8 +17,10 @@
 package org.tarik.ta.dto;
 
 import dev.langchain4j.model.output.structured.Description;
-import org.tarik.ta.core.AgentConfig;
+
 import java.awt.*;
+
+import static org.tarik.ta.UiTestAgentConfig.isBoundingBoxAlreadyNormalized;
 
 @Description("a single bounding box with coordinates")
 public record BoundingBox(
@@ -27,7 +29,7 @@ public record BoundingBox(
         @Description("The x-coordinate of the bottom-right corner") int x2,
         @Description("The y-coordinate of the bottom-right corner") int y2) {
     public Rectangle getActualBoundingBox(int actualImageWidth, int actualImageHeight) {
-        if (AgentConfig.isBoundingBoxAlreadyNormalized()) {
+        if (isBoundingBoxAlreadyNormalized()) {
             // Coordinates are normalized between 0 and 1000
             var actualX1 = x1 * actualImageWidth / 1000;
             var actualY1 = y1 * actualImageHeight / 1000;

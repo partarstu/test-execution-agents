@@ -75,8 +75,6 @@ public class AgentConfig {
             "http://localhost:%s".formatted(START_PORT.value()), s -> s, false);
     private static final ConfigProperty<Boolean> DEBUG_MODE = loadProperty("debug.mode", "DEBUG_MODE", "false",
             Boolean::parseBoolean, false);
-    private static final ConfigProperty<String> SCREENSHOTS_SAVE_FOLDER = loadProperty("screenshots.save.folder",
-            "SCREENSHOTS_SAVE_FOLDER", "screens", s -> s, false);
 
     // RAG Config
     private static final ConfigProperty<RagDbProvider> VECTOR_DB_PROVIDER = getProperty("vector.db.provider",
@@ -157,6 +155,9 @@ public class AgentConfig {
     private static final ConfigProperty<Integer> ACTION_VERIFICATION_DELAY_MILLIS = loadPropertyAsInteger(
             "action.verification.delay.millis", "ACTION_VERIFICATION_DELAY_MILLIS", "1000", false);
 
+    private static final ConfigProperty<Integer> MAX_ACTION_EXECUTION_DURATION_MILLIS = loadPropertyAsInteger(
+            "max.action.execution.duration.millis", "MAX_ACTION_EXECUTION_DURATION_MILLIS", "15000", false);
+
     // -----------------------------------------------------
     // Main Config
     public static boolean isUnattendedMode() {
@@ -179,10 +180,6 @@ public class AgentConfig {
         return DEBUG_MODE.value();
     }
 
-    public static String getScreenshotsSaveFolder() {
-        return SCREENSHOTS_SAVE_FOLDER.value();
-    }
-
     // -----------------------------------------------------
     // RAG Config
     public static RagDbProvider getVectorDbProvider() {
@@ -199,7 +196,7 @@ public class AgentConfig {
 
     // -----------------------------------------------------
     // Model Config
-    private static ModelProvider getModelProvider(String s) {
+    protected static ModelProvider getModelProvider(String s) {
         return stream(ModelProvider.values())
                 .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
                 .findAny()
@@ -306,9 +303,6 @@ public class AgentConfig {
         return ACTION_VERIFICATION_DELAY_MILLIS.value();
     }
 
-    private static final ConfigProperty<Integer> MAX_ACTION_EXECUTION_DURATION_MILLIS = loadPropertyAsInteger(
-            "max.action.execution.duration.millis", "MAX_ACTION_EXECUTION_DURATION_MILLIS", "15000", false);
-
     public static int getMaxActionExecutionDurationMillis() {
         return MAX_ACTION_EXECUTION_DURATION_MILLIS.value();
     }
@@ -332,202 +326,7 @@ public class AgentConfig {
     }
 
     // -----------------------------------------------------
-    // Video Recording
-    private static final ConfigProperty<Boolean> SCREEN_RECORDING_ENABLED = loadProperty("screen.recording.active",
-            "SCREEN_RECORDING_ENABLED", "false", Boolean::parseBoolean, false);
-    private static final ConfigProperty<String> SCREEN_RECORDING_FOLDER = loadProperty("screen.recording.output.dir",
-            "SCREEN_RECORDING_FOLDER", "videos", s -> s, false);
-    private static final ConfigProperty<Integer> VIDEO_BITRATE = loadPropertyAsInteger("recording.bit.rate",
-            "VIDEO_BITRATE", "2000000", false);
-    private static final ConfigProperty<String> SCREEN_RECORDING_FORMAT = loadProperty("recording.file.format",
-            "SCREEN_RECORDING_FORMAT", "mp4", s -> s, false);
-    private static final ConfigProperty<Integer> SCREEN_RECORDING_FRAME_RATE = loadPropertyAsInteger("recording.fps",
-            "SCREEN_RECORDING_FRAME_RATE", "10", false);
-
-    public static boolean getScreenRecordingEnabled() {
-        return SCREEN_RECORDING_ENABLED.value();
-    }
-
-    public static String getScreenRecordingFolder() {
-        return SCREEN_RECORDING_FOLDER.value();
-    }
-
-    public static int getRecordingBitrate() {
-        return VIDEO_BITRATE.value();
-    }
-
-    public static String getRecordingFormat() {
-        return SCREEN_RECORDING_FORMAT.value();
-    }
-
-    public static int getRecordingFrameRate() {
-        if (SCREEN_RECORDING_FRAME_RATE.value() <= 0) {
-            throw new IllegalArgumentException("Video recording frame rate must be a positive integer.");
-        }
-        return SCREEN_RECORDING_FRAME_RATE.value();
-    }
-
-    // -----------------------------------------------------
-    // Element Config
-    private static final ConfigProperty<String> ELEMENT_BOUNDING_BOX_COLOR_NAME = getRequiredProperty(
-            "element.bounding.box.color", "BOUNDING_BOX_COLOR", false);
-
-    public static String getElementBoundingBoxColorName() {
-        return ELEMENT_BOUNDING_BOX_COLOR_NAME.value();
-    }
-
-    private static final ConfigProperty<Double> ELEMENT_RETRIEVAL_MIN_TARGET_SCORE = loadPropertyAsDouble(
-            "element.retrieval.min.target.score", "ELEMENT_RETRIEVAL_MIN_TARGET_SCORE", "0.85", false);
-
-    public static double getElementRetrievalMinTargetScore() {
-        return ELEMENT_RETRIEVAL_MIN_TARGET_SCORE.value();
-    }
-
-    private static final ConfigProperty<Double> ELEMENT_RETRIEVAL_MIN_GENERAL_SCORE = loadPropertyAsDouble(
-            "element.retrieval.min.general.score", "ELEMENT_RETRIEVAL_MIN_GENERAL_SCORE", "0.4", false);
-
-    public static double getElementRetrievalMinGeneralScore() {
-        return ELEMENT_RETRIEVAL_MIN_GENERAL_SCORE.value();
-    }
-
-    private static final ConfigProperty<Double> ELEMENT_RETRIEVAL_MIN_PAGE_RELEVANCE_SCORE = loadPropertyAsDouble(
-            "element.retrieval.min.page.relevance.score", "ELEMENT_RETRIEVAL_MIN_PAGE_RELEVANCE_SCORE", "0.5", false);
-
-    public static double getElementRetrievalMinPageRelevanceScore() {
-        return ELEMENT_RETRIEVAL_MIN_PAGE_RELEVANCE_SCORE.value();
-    }
-
-    private static final ConfigProperty<Double> ELEMENT_LOCATOR_VISUAL_SIMILARITY_THRESHOLD = loadPropertyAsDouble(
-            "element.locator.visual.similarity.threshold", "VISUAL_SIMILARITY_THRESHOLD", "0.8", false);
-
-    public static double getElementLocatorVisualSimilarityThreshold() {
-        return ELEMENT_LOCATOR_VISUAL_SIMILARITY_THRESHOLD.value();
-    }
-
-    private static final ConfigProperty<Integer> ELEMENT_LOCATOR_TOP_VISUAL_MATCHES = loadPropertyAsInteger(
-            "element.locator.top.visual.matches",
-            "TOP_VISUAL_MATCHES_TO_FIND",
-            "3", false);
-
-    public static int getElementLocatorTopVisualMatches() {
-        return ELEMENT_LOCATOR_TOP_VISUAL_MATCHES.value();
-    }
-
-    private static final ConfigProperty<Double> FOUND_MATCHES_DIMENSION_DEVIATION_RATIO = loadPropertyAsDouble(
-            "element.locator.found.matches.dimension.deviation.ratio", "FOUND_MATCHES_DIMENSION_DEVIATION_RATIO", "0.3",
-            false);
-
-    public static double getFoundMatchesDimensionDeviationRatio() {
-        return FOUND_MATCHES_DIMENSION_DEVIATION_RATIO.value();
-    }
-
-    private static final ConfigProperty<Integer> ELEMENT_LOCATOR_VISUAL_GROUNDING_VOTE_COUNT = loadPropertyAsInteger(
-            "element.locator.visual.grounding.model.vote.count", "VISUAL_GROUNDING_MODEL_VOTE_COUNT", "5", false);
-
-    public static int getElementLocatorVisualGroundingVoteCount() {
-        return ELEMENT_LOCATOR_VISUAL_GROUNDING_VOTE_COUNT.value();
-    }
-
-    private static final ConfigProperty<Integer> ELEMENT_LOCATOR_VALIDATION_VOTE_COUNT = loadPropertyAsInteger(
-            "element.locator.validation.model.vote.count", "VALIDATION_MODEL_VOTE_COUNT", "3", false);
-
-    public static int getElementLocatorValidationVoteCount() {
-        return ELEMENT_LOCATOR_VALIDATION_VOTE_COUNT.value();
-    }
-
-    private static final ConfigProperty<Double> BBOX_CLUSTERING_MIN_INTERSECTION_RATIO = loadPropertyAsDouble(
-            "element.locator.bbox.clustering.min.intersection.ratio", "BBOX_CLUSTERING_MIN_INTERSECTION_RATIO", "0.7",
-            false);
-
-    public static double getBboxClusteringMinIntersectionRatio() {
-        return BBOX_CLUSTERING_MIN_INTERSECTION_RATIO.value();
-    }
-
-    private static final ConfigProperty<Integer> ELEMENT_LOCATOR_ZOOM_SCALE_FACTOR = loadPropertyAsInteger(
-            "element.locator.zoom.scale.factor", "ELEMENT_LOCATOR_ZOOM_SCALE_FACTOR", "2", false);
-
-    public static int getElementLocatorZoomScaleFactor() {
-        return ELEMENT_LOCATOR_ZOOM_SCALE_FACTOR.value();
-    }
-
-    private static final ConfigProperty<Integer> BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS = loadPropertyAsInteger(
-            "bbox.screenshot.longest.allowed.dimension.pixels", "BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS",
-            "1568", false);
-
-    public static int getBboxScreenshotLongestAllowedDimensionPixels() {
-        return BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS.value();
-    }
-
-    private static final ConfigProperty<Double> BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS = loadPropertyAsDouble(
-            "bbox.screenshot.max.size.megapixels", "BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS", "1.15", false);
-
-    public static double getBboxScreenshotMaxSizeMegapixels() {
-        return BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS.value();
-    }
-
-    private static final ConfigProperty<Boolean> BOUNDING_BOX_ALREADY_NORMALIZED = loadProperty(
-            "bounding.box.already.normalized", "BOUNDING_BOX_ALREADY_NORMALIZED", "false", Boolean::parseBoolean,
-            false);
-
-    public static boolean isBoundingBoxAlreadyNormalized() {
-        return BOUNDING_BOX_ALREADY_NORMALIZED.value();
-    }
-
-    private static final ConfigProperty<Boolean> ALGORITHMIC_SEARCH_ENABLED = loadProperty(
-            "element.locator.algorithmic.search.enabled", "ALGORITHMIC_SEARCH_ENABLED", "true", Boolean::parseBoolean,
-            false);
-
-    public static boolean isAlgorithmicSearchEnabled() {
-        return ALGORITHMIC_SEARCH_ENABLED.value();
-    }
-
-    // -----------------------------------------------------
-    // User UI dialogs
-    private static final ConfigProperty<Integer> DIALOG_DEFAULT_HORIZONTAL_GAP = loadPropertyAsInteger(
-            "dialog.default.horizontal.gap", "DIALOG_DEFAULT_HORIZONTAL_GAP", "10", false);
-
-    public static int getDialogDefaultHorizontalGap() {
-        return DIALOG_DEFAULT_HORIZONTAL_GAP.value();
-    }
-
-    private static final ConfigProperty<Integer> DIALOG_DEFAULT_VERTICAL_GAP = loadPropertyAsInteger(
-            "dialog.default.vertical.gap", "DIALOG_DEFAULT_VERTICAL_GAP", "10", false);
-
-    public static int getDialogDefaultVerticalGap() {
-        return DIALOG_DEFAULT_VERTICAL_GAP.value();
-    }
-
-    private static final ConfigProperty<String> DIALOG_DEFAULT_FONT_TYPE = getProperty("dialog.default.font.type",
-            "DIALOG_DEFAULT_FONT_TYPE", "Dialog", s -> s, false);
-
-    public static String getDialogDefaultFontType() {
-        return DIALOG_DEFAULT_FONT_TYPE.value();
-    }
-
-    private static final ConfigProperty<Integer> DIALOG_DEFAULT_FONT_SIZE = loadPropertyAsInteger(
-            "dialog.default.font.size", "DIALOG_DEFAULT_FONT_SIZE", "13", false);
-
-    public static int getDialogDefaultFontSize() {
-        return DIALOG_DEFAULT_FONT_SIZE.value();
-    }
-
-    private static final ConfigProperty<Boolean> DIALOG_HOVER_AS_CLICK = loadProperty("dialog.hover.as.click",
-            "DIALOG_HOVER_AS_CLICK", "false", Boolean::parseBoolean, false);
-
-    public static boolean isDialogHoverAsClick() {
-        return DIALOG_HOVER_AS_CLICK.value();
-    }
-
-    // -----------------------------------------------------
     // Agent Specific Configs
-
-    // Prefetching
-    private static final ConfigProperty<Boolean> PREFETCHING_ENABLED = loadProperty("prefetching.enabled",
-            "PREFETCHING_ENABLED", "true", Boolean::parseBoolean, false);
-
-    public static boolean isElementLocationPrefetchingEnabled() {
-        return PREFETCHING_ENABLED.value() && isUnattendedMode();
-    }
 
     // Budgets
     private static final ConfigProperty<Integer> AGENT_TOKEN_BUDGET = loadPropertyAsInteger("agent.token.budget",
@@ -587,7 +386,7 @@ public class AgentConfig {
     }
 
     private static final ConfigProperty<ModelProvider> PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER = getProperty(
-            "precondition.verification.agent.model.provider", "PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER",
+            "precondition.verification.agent.model.provider", "precondition_VERIFICATION_AGENT_MODEL_PROVIDER",
             "google", AgentConfig::getModelProvider, false);
 
     public static ModelProvider getPreconditionVerificationAgentModelProvider() {
@@ -674,121 +473,6 @@ public class AgentConfig {
         return TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION.value();
     }
 
-    // UI Element Description Agent
-    private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME = loadProperty(
-            "ui.element.description.agent.model.name", "UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
-
-    public static String getUiElementDescriptionAgentModelName() {
-        return UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER = getProperty(
-            "ui.element.description.agent.model.provider", "UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getUiElementDescriptionAgentModelProvider() {
-        return UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION = loadProperty(
-            "ui.element.description.agent.prompt.version", "UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
-
-    public static String getUiElementDescriptionAgentPromptVersion() {
-        return UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION.value();
-    }
-
-    // UI State Check Agent
-    private static final ConfigProperty<String> UI_STATE_CHECK_AGENT_MODEL_NAME = loadProperty(
-            "ui.state.check.agent.model.name", "UI_STATE_CHECK_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
-
-    public static String getUiStateCheckAgentModelName() {
-        return UI_STATE_CHECK_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> UI_STATE_CHECK_AGENT_MODEL_PROVIDER = getProperty(
-            "ui.state.check.agent.model.provider", "UI_STATE_CHECK_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getUiStateCheckAgentModelProvider() {
-        return UI_STATE_CHECK_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> UI_STATE_CHECK_AGENT_PROMPT_VERSION = loadProperty(
-            "ui.state.check.agent.prompt.version", "UI_STATE_CHECK_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
-
-    public static String getUiStateCheckAgentPromptVersion() {
-        return UI_STATE_CHECK_AGENT_PROMPT_VERSION.value();
-    }
-
-    // Element Bounding Box Agent
-    private static final ConfigProperty<String> ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME = loadProperty(
-            "element.bounding.box.agent.model.name", "ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
-
-    public static String getElementBoundingBoxAgentModelName() {
-        return ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> ELEMENT_BOUNDING_BOX_AGENT_MODEL_PROVIDER = getProperty(
-            "element.bounding.box.agent.model.provider", "ELEMENT_BOUNDING_BOX_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getElementBoundingBoxAgentModelProvider() {
-        return ELEMENT_BOUNDING_BOX_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION = loadProperty(
-            "element.bounding.box.agent.prompt.version", "ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
-
-    public static String getElementBoundingBoxAgentPromptVersion() {
-        return ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION.value();
-    }
-
-    // Element Selection Agent
-    private static final ConfigProperty<String> ELEMENT_SELECTION_AGENT_MODEL_NAME = loadProperty(
-            "element.selection.agent.model.name", "ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
-
-    public static String getElementSelectionAgentModelName() {
-        return ELEMENT_SELECTION_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> ELEMENT_SELECTION_AGENT_MODEL_PROVIDER = getProperty(
-            "element.selection.agent.model.provider", "ELEMENT_SELECTION_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getElementSelectionAgentModelProvider() {
-        return ELEMENT_SELECTION_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> ELEMENT_SELECTION_AGENT_PROMPT_VERSION = loadProperty(
-            "element.selection.agent.prompt.version", "ELEMENT_SELECTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
-
-    public static String getElementSelectionAgentPromptVersion() {
-        return ELEMENT_SELECTION_AGENT_PROMPT_VERSION.value();
-    }
-
-    // Page Description Agent
-    private static final ConfigProperty<String> PAGE_DESCRIPTION_AGENT_MODEL_NAME = loadProperty(
-            "page.description.agent.model.name", "PAGE_DESCRIPTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
-
-    public static String getPageDescriptionAgentModelName() {
-        return PAGE_DESCRIPTION_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER = getProperty(
-            "page.description.agent.model.provider", "PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getPageDescriptionAgentModelProvider() {
-        return PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> PAGE_DESCRIPTION_AGENT_PROMPT_VERSION = loadProperty(
-            "page.description.agent.prompt.version", "PAGE_DESCRIPTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
-
-    public static String getPageDescriptionAgentPromptVersion() {
-        return PAGE_DESCRIPTION_AGENT_PROMPT_VERSION.value();
-    }
-
     // -----------------------------------------------------
     // Private methods
     private static Properties loadConfigPropertiesFromFile() {
@@ -807,13 +491,13 @@ public class AgentConfig {
         }
     }
 
-    private static <T> ConfigProperty<T> loadProperty(String key, String envVar, String defaultValue, Function<String, T> converter,
+    protected static <T> ConfigProperty<T> loadProperty(String key, String envVar, String defaultValue, Function<String, T> converter,
                                                       boolean isSecret) {
         var value = getProperty(key, envVar, defaultValue, isSecret);
         return new ConfigProperty<>(converter.apply(value), isSecret);
     }
 
-    private static Optional<String> getProperty(String key, String envVar, boolean isSecret) {
+    protected static Optional<String> getProperty(String key, String envVar, boolean isSecret) {
         var envVariableOptional = ofNullable(envVar)
                 .map(System::getenv)
                 .map(String::trim)
@@ -842,28 +526,28 @@ public class AgentConfig {
         }
     }
 
-    private static String getProperty(String key, String envVar, String defaultValue, boolean isSecret) {
+    protected static String getProperty(String key, String envVar, String defaultValue, boolean isSecret) {
         return getProperty(key, envVar, isSecret).orElseGet(() -> {
             LOG.info("Using default value for key '{}'", key);
             return defaultValue;
         });
     }
 
-    private static <T> ConfigProperty<T> getProperty(String key, String envVar, String defaultValue,
+    protected static <T> ConfigProperty<T> getProperty(String key, String envVar, String defaultValue,
                                                      Function<String, T> converter,
                                                      boolean isSecret) {
         String value = getProperty(key, envVar, defaultValue, isSecret);
         return new ConfigProperty<>(converter.apply(value), isSecret);
     }
 
-    private static ConfigProperty<String> getRequiredProperty(String key, String envVar, boolean isSecret) {
+    protected static ConfigProperty<String> getRequiredProperty(String key, String envVar, boolean isSecret) {
         String value = getProperty(key, envVar, isSecret).orElseThrow(
                 () -> new IllegalStateException(("The value of required property '%s' must be either " +
                         "present in the properties file, or in the environment variable '%s'").formatted(key, envVar)));
         return new ConfigProperty<>(value, isSecret);
     }
 
-    private static ConfigProperty<Integer> loadPropertyAsInteger(String propertyKey, String envVar, String defaultValue, boolean isSecret) {
+    protected static ConfigProperty<Integer> loadPropertyAsInteger(String propertyKey, String envVar, String defaultValue, boolean isSecret) {
         var configProperty = getProperty(propertyKey, envVar, defaultValue, s -> s, isSecret);
         Integer value = CoreUtils.parseStringAsInteger(configProperty.value())
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -872,7 +556,7 @@ public class AgentConfig {
         return new ConfigProperty<>(value, configProperty.isSecret());
     }
 
-    private static ConfigProperty<Double> loadPropertyAsDouble(String propertyKey, String envVar, String defaultValue, boolean isSecret) {
+    protected static ConfigProperty<Double> loadPropertyAsDouble(String propertyKey, String envVar, String defaultValue, boolean isSecret) {
         var configProperty = getProperty(propertyKey, envVar, defaultValue, s -> s, isSecret);
         Double value = CoreUtils.parseStringAsDouble(configProperty.value())
                 .orElseThrow(() -> new IllegalArgumentException(

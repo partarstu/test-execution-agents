@@ -23,7 +23,7 @@ import org.tarik.ta.dto.UiStateCheckResult;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 
 import static java.lang.String.format;
-import static org.tarik.ta.core.AgentConfig.*;
+import static org.tarik.ta.UiTestAgentConfig.*;
 import static org.tarik.ta.core.error.ErrorCategory.UNKNOWN;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;

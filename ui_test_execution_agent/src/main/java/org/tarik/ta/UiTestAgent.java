@@ -53,6 +53,7 @@ import static dev.langchain4j.service.AiServices.builder;
 import static java.lang.String.join;
 import static java.time.Instant.now;
 import static java.util.Optional.*;
+import static org.tarik.ta.UiTestAgentConfig.isElementLocationPrefetchingEnabled;
 import static org.tarik.ta.core.AgentConfig.*;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.FAILED;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
@@ -66,8 +67,8 @@ import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
 import static org.tarik.ta.core.utils.CoreUtils.sleepMillis;
 import static org.tarik.ta.core.utils.CoreUtils.isBlank;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
-import static org.tarik.ta.core.utils.PromptUtils.singleImageContent;
 import static org.tarik.ta.utils.CommonUtils.captureScreen;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
 public class UiTestAgent {
     private static final Logger LOG = LoggerFactory.getLogger(UiTestAgent.class);

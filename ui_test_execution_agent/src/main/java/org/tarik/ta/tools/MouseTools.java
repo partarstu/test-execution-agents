@@ -32,7 +32,7 @@ import static org.tarik.ta.core.error.ErrorCategory.TIMEOUT;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.utils.CommonUtils.*;
 import static org.tarik.ta.core.utils.CoreUtils.*;
-import static org.tarik.ta.core.utils.PromptUtils.singleImageContent;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
 public class MouseTools extends AbstractTools {
     private static final int MOUSE_ACTION_DELAY_MILLIS = 100;

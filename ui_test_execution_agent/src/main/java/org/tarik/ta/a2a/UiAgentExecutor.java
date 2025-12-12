@@ -27,7 +27,7 @@ import org.tarik.ta.dto.UiTestStepResult;
 import java.util.List;
 
 import static java.util.Optional.ofNullable;
-import static org.tarik.ta.core.utils.CoreImageUtils.convertImageToBase64;
+import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
 
 public class UiAgentExecutor extends AbstractAgentExecutor {
 

@@ -26,8 +26,8 @@ import java.util.function.BiFunction;
 
 import static java.lang.String.join;
 import static java.util.Objects.requireNonNull;
-import static org.tarik.ta.core.utils.CoreImageUtils.convertBase64ToImage;
-import static org.tarik.ta.core.utils.CoreImageUtils.convertImageToBase64;
+import static org.tarik.ta.utils.ImageUtils.convertBase64ToImage;
+import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
 import static org.tarik.ta.rag.model.UiElement.MetadataField.*;
 
 public class UiElement {

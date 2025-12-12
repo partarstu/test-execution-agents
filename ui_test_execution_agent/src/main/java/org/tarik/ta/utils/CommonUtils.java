@@ -15,11 +15,7 @@
  */
 package org.tarik.ta.utils;
 
-import org.tarik.ta.core.utils.CoreImageUtils;
-
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.AffineTransform;
@@ -28,15 +24,13 @@ import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment;
 import static java.util.Comparator.comparingInt;
-import static org.tarik.ta.core.utils.CoreImageUtils.toBufferedImage;
+import static org.tarik.ta.utils.ImageUtils.toBufferedImage;
 
 public class CommonUtils {
-    private static final Logger LOG = LoggerFactory.getLogger(CommonUtils.class);
     private static Robot robot;
 
     public static Object getStaticFieldValue(Field colorField) {

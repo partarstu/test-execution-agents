@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.core.utils;
+package org.tarik.ta.utils;
 
 import dev.langchain4j.data.image.Image;
+import dev.langchain4j.data.message.ImageContent;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -34,15 +36,17 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 
+import static dev.langchain4j.data.message.ImageContent.DetailLevel.HIGH;
 import static java.nio.file.Files.createDirectories;
 import static java.time.LocalDateTime.now;
 import static java.time.format.DateTimeFormatter.ofPattern;
 import static javax.imageio.ImageIO.write;
+import static org.tarik.ta.UiTestAgentConfig.getScreenshotsSaveFolder;
 
-import org.tarik.ta.core.AgentConfig;
 
-public class CoreImageUtils {
-    private static final Logger LOG = LoggerFactory.getLogger(CoreImageUtils.class);
+public class ImageUtils {
+    private static final Logger LOG = LoggerFactory.getLogger(ImageUtils.class);
+    private static final String DEFAULT_IMAGE_FORMAT = "png";
 
     public static Image getImage(String base64Image, String format) {
         return Image.builder()
@@ -127,11 +131,11 @@ public class CoreImageUtils {
         LocalDateTime now = now();
         DateTimeFormatter formatter = ofPattern("yyyy_MM_dd_HH_mm_ss_SSS");
         String timestamp = now.format(formatter);
-        var filePath = Paths.get(AgentConfig.getScreenshotsSaveFolder())
+        var filePath = Paths.get(getScreenshotsSaveFolder())
                 .resolve("%s_%s.png".formatted(timestamp, postfix)).toAbsolutePath();
         try {
             createDirectories(filePath.getParent());
-            write(resultingScreenshot, "png", filePath.toFile() );
+            write(resultingScreenshot, "png", filePath.toFile());
             LOG.info("Saved image {}", filePath.toAbsolutePath());
             return true;
         } catch (IOException e) {
@@ -157,5 +161,9 @@ public class CoreImageUtils {
         int newHeight = (int) (source.getHeight() * ratio);
         java.awt.Image scaledImage = source.getScaledInstance(newWidth, newHeight, java.awt.Image.SCALE_SMOOTH);
         return toBufferedImage(scaledImage, newWidth, newHeight);
+    }
+
+    public static ImageContent singleImageContent(BufferedImage image) {
+        return ImageContent.from(ImageUtils.getImage(image, DEFAULT_IMAGE_FORMAT), HIGH);
     }
 }

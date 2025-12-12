@@ -25,6 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.UiElementBoundingBoxAgent;
 import org.tarik.ta.agents.UiElementSelectionAgent;
 import org.tarik.ta.agents.PageDescriptionAgent;
@@ -72,24 +73,23 @@ import static org.tarik.ta.utils.CommonUtils.*;
 import static org.tarik.ta.core.utils.CoreUtils.*;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithORB;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithTemplateMatching;
-import static org.tarik.ta.core.utils.CoreImageUtils.*;
-import static org.tarik.ta.core.utils.PromptUtils.singleImageContent;
+import static org.tarik.ta.utils.ImageUtils.*;
 
 public class ElementLocatorTools extends AbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(ElementLocatorTools.class);
-    private static final double MIN_TARGET_RETRIEVAL_SCORE = AgentConfig.getElementRetrievalMinTargetScore();
-    private static final double MIN_PAGE_RELEVANCE_SCORE = AgentConfig.getElementRetrievalMinPageRelevanceScore();
-    private static final double MIN_GENERAL_RETRIEVAL_SCORE = AgentConfig.getElementRetrievalMinGeneralScore();
-    private static final String BOUNDING_BOX_COLOR_NAME = AgentConfig.getElementBoundingBoxColorName();
+    private static final double MIN_TARGET_RETRIEVAL_SCORE = UiTestAgentConfig.getElementRetrievalMinTargetScore();
+    private static final double MIN_PAGE_RELEVANCE_SCORE = UiTestAgentConfig.getElementRetrievalMinPageRelevanceScore();
+    private static final double MIN_GENERAL_RETRIEVAL_SCORE = UiTestAgentConfig.getElementRetrievalMinGeneralScore();
+    private static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
     private static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
     private static final int TOP_N_ELEMENTS_TO_RETRIEVE = AgentConfig.getRetrieverTopN();
-    private static final int VISUAL_GROUNDING_MODEL_VOTE_COUNT = AgentConfig.getElementLocatorVisualGroundingVoteCount();
-    private static final int VALIDATION_MODEL_VOTE_COUNT = AgentConfig.getElementLocatorValidationVoteCount();
-    private static final double BBOX_CLUSTERING_MIN_INTERSECTION_RATIO = AgentConfig.getBboxClusteringMinIntersectionRatio();
+    private static final int VISUAL_GROUNDING_MODEL_VOTE_COUNT = UiTestAgentConfig.getElementLocatorVisualGroundingVoteCount();
+    private static final int VALIDATION_MODEL_VOTE_COUNT = UiTestAgentConfig.getElementLocatorValidationVoteCount();
+    private static final double BBOX_CLUSTERING_MIN_INTERSECTION_RATIO = UiTestAgentConfig.getBboxClusteringMinIntersectionRatio();
     private static final double ZOOM_IN_EXTENSION_RATIO_PROPORTIONAL_TO_ELEMENT = 15.0;
     private static final int BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS =
-            AgentConfig.getBboxScreenshotLongestAllowedDimensionPixels();
-    private static final double BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS = AgentConfig.getBboxScreenshotMaxSizeMegapixels();
+            UiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels();
+    private static final double BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS = UiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels();
     private static final boolean DEBUG_MODE = AgentConfig.isDebugMode();
 
     private final UiElementRetriever elementRetriever;
@@ -158,8 +158,9 @@ public class ElementLocatorTools extends AbstractTools {
     }
 
     private PageDescriptionAgent createPageDescriptionAgent() {
-        var model = getModel(AgentConfig.getPageDescriptionAgentModelName(), AgentConfig.getPageDescriptionAgentModelProvider());
-        var prompt = PromptUtils.loadSystemPrompt("page_describer", AgentConfig.getPageDescriptionAgentPromptVersion(),
+        var model =
+                getModel(UiTestAgentConfig.getPageDescriptionAgentModelName(), UiTestAgentConfig.getPageDescriptionAgentModelProvider());
+        var prompt = PromptUtils.loadSystemPrompt("page_describer", UiTestAgentConfig.getPageDescriptionAgentPromptVersion(),
                 "page_description_prompt.txt");
         return builder(PageDescriptionAgent.class)
                 .chatModel(model.chatModel())
@@ -169,9 +170,11 @@ public class ElementLocatorTools extends AbstractTools {
     }
 
     private UiElementBoundingBoxAgent createElementBoundingBoxAgent() {
-        var model = getModel(AgentConfig.getElementBoundingBoxAgentModelName(), AgentConfig.getElementBoundingBoxAgentModelProvider());
-        var prompt = PromptUtils.loadSystemPrompt("element_locator/bounding_box", AgentConfig.getElementBoundingBoxAgentPromptVersion(),
-                "element_bounding_box_prompt.txt");
+        var model = getModel(UiTestAgentConfig.getElementBoundingBoxAgentModelName(),
+                UiTestAgentConfig.getElementBoundingBoxAgentModelProvider());
+        var prompt =
+                PromptUtils.loadSystemPrompt("element_locator/bounding_box", UiTestAgentConfig.getElementBoundingBoxAgentPromptVersion(),
+                        "element_bounding_box_prompt.txt");
         return builder(UiElementBoundingBoxAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
@@ -180,8 +183,9 @@ public class ElementLocatorTools extends AbstractTools {
     }
 
     private UiElementSelectionAgent createElementSelectionAgent() {
-        var model = getModel(AgentConfig.getElementSelectionAgentModelName(), AgentConfig.getElementSelectionAgentModelProvider());
-        var prompt = PromptUtils.loadSystemPrompt("element_locator/selection", AgentConfig.getElementSelectionAgentPromptVersion(),
+        var model =
+                getModel(UiTestAgentConfig.getElementSelectionAgentModelName(), UiTestAgentConfig.getElementSelectionAgentModelProvider());
+        var prompt = PromptUtils.loadSystemPrompt("element_locator/selection", UiTestAgentConfig.getElementSelectionAgentPromptVersion(),
                 "find_best_matching_ui_element_id.txt");
         return builder(UiElementSelectionAgent.class)
                 .chatModel(model.chatModel())
@@ -270,7 +274,7 @@ public class ElementLocatorTools extends AbstractTools {
         try {
             var pageDescriptionResult = pageDescriptionAgent.executeAndGetResult(() ->
                     pageDescriptionAgent.describePage(singleImageContent(captureScreen()))).getResultPayload();
-            return pageDescriptionResult.pageDescription();
+            return ofNullable(pageDescriptionResult).map(PageDescriptionResult::pageDescription).orElse("");
         } catch (Exception e) {
             throw new RuntimeException("Failed to get page description from model", e);
         }
@@ -339,7 +343,7 @@ public class ElementLocatorTools extends AbstractTools {
                     wholeScreenshot.getSubimage(zoomInExtendedRegion.x, zoomInExtendedRegion.y,
                             zoomInExtendedRegion.width, zoomInExtendedRegion.height));
             var scaleFactor = min(wholeScreenshot.getWidth() / ((double) zoomInImage.getWidth()),
-                    AgentConfig.getElementLocatorZoomScaleFactor());
+                    UiTestAgentConfig.getElementLocatorZoomScaleFactor());
             var zoomedInScreenshot = getScaledUpImage(zoomInImage, scaleFactor);
             var elementLocationResult = getUiElementLocationResult(elementRetrievedFromMemory,
                     elementTestData,
@@ -356,7 +360,7 @@ public class ElementLocatorTools extends AbstractTools {
                 return elementLocationResult;
             }
         } else {
-            boolean useAlgorithmicSearch = AgentConfig.isAlgorithmicSearchEnabled()
+            boolean useAlgorithmicSearch = UiTestAgentConfig.isAlgorithmicSearchEnabled()
                     && !(elementRetrievedFromMemory.isDataDependent());
             return getUiElementLocationResult(elementRetrievedFromMemory, elementTestData, wholeScreenshot,
                     elementScreenshot,
@@ -543,9 +547,10 @@ public class ElementLocatorTools extends AbstractTools {
             var prompt = formatElementBoundingBoxPrompt(element, elementTestData);
             try (var executor = newVirtualThreadPerTaskExecutor()) {
                 List<Callable<List<BoundingBox>>> tasks = range(0, VISUAL_GROUNDING_MODEL_VOTE_COUNT)
-                        .mapToObj(i -> (Callable<List<BoundingBox>>) () -> uiElementBoundingBoxAgent.executeAndGetResult(
-                                () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend))
-                        ).getResultPayload().boundingBoxes())
+                        .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> Objects.requireNonNull(
+                                uiElementBoundingBoxAgent.executeAndGetResult(
+                                        () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend))
+                                ).getResultPayload()).boundingBoxes())
                         .toList();
                 List<Rectangle> allBoundingBoxes = executor.invokeAll(tasks).stream()
                         .map(future -> getFutureResult(future, "getting bounding boxes from vision model"))
@@ -683,7 +688,7 @@ public class ElementLocatorTools extends AbstractTools {
             var boundingBoxColorName = CommonUtils.getColorName(BOUNDING_BOX_COLOR).toLowerCase();
 
             List<Callable<UiElementIdentificationResult>> tasks = range(0, VALIDATION_MODEL_VOTE_COUNT)
-                    .mapToObj(i -> (Callable<UiElementIdentificationResult>) () -> uiElementSelectionAgent.executeAndGetResult(
+                    .mapToObj(_ -> (Callable<UiElementIdentificationResult>) () -> uiElementSelectionAgent.executeAndGetResult(
                             () -> uiElementSelectionAgent.selectBestElement(boundingBoxColorName, prompt,
                                     singleImageContent(resultingScreenshot))
                     ).getResultPayload())

@@ -130,6 +130,7 @@ class UiTestAgentTest {
         private MockedStatic<CommonUtils> commonUtilsMockedStatic;
         private MockedStatic<CoreUtils> coreUtilsMockedStatic;
         private MockedStatic<AgentConfig> agentConfigMockedStatic;
+        private MockedStatic<UiTestAgentConfig> uiAgentConfigMockedStatic;
         private MockedStatic<AiServices> aiServicesMockedStatic;
         private MockedStatic<RetrieverFactory> retrieverFactoryMockedStatic;
         private MockedStatic<PromptUtils> promptUtilsMockedStatic;
@@ -143,6 +144,7 @@ class UiTestAgentTest {
                 commonUtilsMockedStatic = mockStatic(CommonUtils.class);
                 coreUtilsMockedStatic = mockStatic(CoreUtils.class);
                 agentConfigMockedStatic = mockStatic(AgentConfig.class);
+                uiAgentConfigMockedStatic = mockStatic(UiTestAgentConfig.class);
                 aiServicesMockedStatic = mockStatic(AiServices.class);
                 retrieverFactoryMockedStatic = mockStatic(RetrieverFactory.class);
                 screenRecorderMockedConstruction = mockConstruction(ScreenRecorder.class);
@@ -154,7 +156,7 @@ class UiTestAgentTest {
                 agentConfigMockedStatic.when(AgentConfig::getVerificationRetryTimeoutMillis).thenReturn(1000);
                 agentConfigMockedStatic.when(AgentConfig::getActionRetryPolicy).thenReturn(mock(RetryPolicy.class));
                 agentConfigMockedStatic.when(AgentConfig::getVerificationRetryPolicy).thenReturn(mock(RetryPolicy.class));
-                agentConfigMockedStatic.when(AgentConfig::isElementLocationPrefetchingEnabled).thenReturn(false);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::isElementLocationPrefetchingEnabled).thenReturn(false);
                 agentConfigMockedStatic.when(AgentConfig::isUnattendedMode).thenReturn(false);
                 agentConfigMockedStatic.when(AgentConfig::getTestCaseExtractionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
                 agentConfigMockedStatic.when(AgentConfig::getPreconditionActionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
@@ -168,15 +170,15 @@ class UiTestAgentTest {
                 agentConfigMockedStatic.when(AgentConfig::getTestStepVerificationAgentModelName).thenReturn("test-model");
                 agentConfigMockedStatic.when(AgentConfig::getPreconditionAgentPromptVersion).thenReturn("v1");
                 agentConfigMockedStatic.when(AgentConfig::getTestStepActionAgentPromptVersion).thenReturn("v1");
-                agentConfigMockedStatic.when(AgentConfig::getPageDescriptionAgentModelName).thenReturn("test-model");
-                agentConfigMockedStatic.when(AgentConfig::getElementBoundingBoxAgentModelName).thenReturn("test-model");
-                agentConfigMockedStatic.when(AgentConfig::getElementSelectionAgentModelName).thenReturn("test-model");
-                agentConfigMockedStatic.when(AgentConfig::getPageDescriptionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                agentConfigMockedStatic.when(AgentConfig::getElementBoundingBoxAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                agentConfigMockedStatic.when(AgentConfig::getElementSelectionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                agentConfigMockedStatic.when(AgentConfig::getPageDescriptionAgentPromptVersion).thenReturn("v1");
-                agentConfigMockedStatic.when(AgentConfig::getElementBoundingBoxAgentPromptVersion).thenReturn("v1");
-                agentConfigMockedStatic.when(AgentConfig::getElementSelectionAgentPromptVersion).thenReturn("v1");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentModelName).thenReturn("test-model");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentModelName).thenReturn("test-model");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentModelName).thenReturn("test-model");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentPromptVersion).thenReturn("v1");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentPromptVersion).thenReturn("v1");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentPromptVersion).thenReturn("v1");
                 agentConfigMockedStatic.when(AgentConfig::getPreconditionVerificationAgentPromptVersion).thenReturn("v1");
                 agentConfigMockedStatic.when(AgentConfig::getTestStepVerificationAgentPromptVersion).thenReturn("v1");
 
@@ -240,6 +242,7 @@ class UiTestAgentTest {
                 retrieverFactoryMockedStatic.close();
                 screenRecorderMockedConstruction.close();
                 promptUtilsMockedStatic.close();
+                uiAgentConfigMockedStatic.close();
         }
 
         @Test

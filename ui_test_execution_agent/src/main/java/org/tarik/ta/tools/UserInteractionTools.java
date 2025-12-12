@@ -25,6 +25,7 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.UiElementDescriptionAgent;
 import org.tarik.ta.dto.*;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
@@ -48,6 +49,7 @@ import static dev.langchain4j.service.AiServices.builder;
 import static java.lang.String.format;
 import static java.util.Comparator.comparingDouble;
 import static java.util.UUID.randomUUID;
+import static org.tarik.ta.UiTestAgentConfig.getElementRetrievalMinGeneralScore;
 import static org.tarik.ta.dto.ElementRefinementOperation.Operation.DONE;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
@@ -56,7 +58,7 @@ import static org.tarik.ta.rag.model.UiElement.Screenshot.fromBufferedImage;
 import org.tarik.ta.core.utils.PromptUtils;
 import static org.tarik.ta.utils.CommonUtils.*;
 import static org.tarik.ta.core.utils.CoreUtils.*;
-import static org.tarik.ta.core.utils.PromptUtils.singleImageContent;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
 /**
  * Default implementation of UserInteractionService that coordinates UI dialogs.
@@ -67,7 +69,7 @@ import static org.tarik.ta.core.utils.PromptUtils.singleImageContent;
 public class UserInteractionTools extends AbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(UserInteractionTools.class);
     private final UiElementRetriever uiElementRetriever;
-    private static final String BOUNDING_BOX_COLOR_NAME = AgentConfig.getElementBoundingBoxColorName();
+    private static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
     private static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
     private static final int USER_DIALOG_DISMISS_DELAY_MILLIS = 2000;
 
@@ -137,7 +139,7 @@ public class UserInteractionTools extends AbstractTools {
     public ElementRefinementResult promptUserToRefineExistingElements(
             @P("Initial description or hint about the element") String elementDescription) {
         List<UiElement> elementsToRefine = uiElementRetriever.retrieveUiElements(elementDescription, AgentConfig.getRetrieverTopN(),
-                        AgentConfig.getElementRetrievalMinGeneralScore())
+                        getElementRetrievalMinGeneralScore())
                 .stream()
                 .sorted(comparingDouble(RetrievedUiElementItem::mainScore).reversed())
                 .map(RetrievedUiElementItem::element)
@@ -414,9 +416,9 @@ public class UserInteractionTools extends AbstractTools {
     }
 
     private static UiElementDescriptionAgent getUiElementDescriptionAgent() {
-        var model = getModel(AgentConfig.getUiElementDescriptionAgentModelName(),
-                AgentConfig.getUiElementDescriptionAgentModelProvider());
-        var prompt = PromptUtils.loadSystemPrompt("element_describer", AgentConfig.getUiElementDescriptionAgentPromptVersion(),
+        var model = getModel(UiTestAgentConfig.getUiElementDescriptionAgentModelName(),
+                UiTestAgentConfig.getUiElementDescriptionAgentModelProvider());
+        var prompt = PromptUtils.loadSystemPrompt("element_describer", UiTestAgentConfig.getUiElementDescriptionAgentPromptVersion(),
                 "element_description_prompt.txt");
         return builder(UiElementDescriptionAgent.class)
                 .chatModel(model.chatModel())
