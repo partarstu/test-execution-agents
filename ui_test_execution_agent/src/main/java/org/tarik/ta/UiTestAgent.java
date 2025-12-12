@@ -37,7 +37,8 @@ import org.tarik.ta.core.error.RetryState;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.core.model.TestExecutionContext;
-import org.tarik.ta.core.model.VisualState;
+import org.tarik.ta.model.UiTestExecutionContext;
+import org.tarik.ta.model.VisualState;
 import org.tarik.ta.exceptions.ElementLocationException;
 import org.tarik.ta.manager.VerificationManager;
 import org.tarik.ta.tools.*;
@@ -59,7 +60,7 @@ import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.ERROR;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
-import static org.tarik.ta.core.rag.RetrieverFactory.getUiElementRetriever;
+import static org.tarik.ta.rag.RetrieverFactory.getUiElementRetriever;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.VERIFICATION_FAILURE;
 import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
 import static org.tarik.ta.core.utils.CoreUtils.sleepMillis;
@@ -68,8 +69,8 @@ import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 import static org.tarik.ta.core.utils.PromptUtils.singleImageContent;
 import static org.tarik.ta.utils.CommonUtils.captureScreen;
 
-public class Agent {
-    private static final Logger LOG = LoggerFactory.getLogger(Agent.class);
+public class UiTestAgent {
+    private static final Logger LOG = LoggerFactory.getLogger(UiTestAgent.class);
     protected static final int ACTION_VERIFICATION_DELAY_MILLIS = getActionVerificationDelayMillis();
 
     public static TestExecutionResult executeTestCase(String receivedMessage) {
@@ -81,7 +82,7 @@ public class Agent {
 
         try (VerificationManager verificationManager = new VerificationManager()) {
             var testExecutionStartTimestamp = now();
-            var context = new TestExecutionContext(testCase, new VisualState(captureScreen()));
+            var context = new UiTestExecutionContext(testCase, new VisualState(captureScreen()));
             var userInteractionTools = new UserInteractionTools(getUiElementRetriever());
             var commonTools = new CommonTools(verificationManager);
 
@@ -157,7 +158,7 @@ public class Agent {
                 .build();
     }
 
-    private static void executePreconditions(TestExecutionContext context,
+    private static void executePreconditions(UiTestExecutionContext context,
                                              UiPreconditionActionAgent preconditionActionAgent) {
         List<String> preconditions = context.getTestCase().preconditions();
         var preconditionVerificationAgent = getPreconditionVerificationAgent(new RetryState());
@@ -217,7 +218,7 @@ public class Agent {
         }
     }
 
-    private static void executeTestSteps(TestExecutionContext context,
+    private static void executeTestSteps(UiTestExecutionContext context,
                                          UiTestStepActionAgent uiTestStepActionAgent,
                                          VerificationManager verificationManager) {
         var testStepVerificationAgent = getTestStepVerificationAgent(new RetryState());

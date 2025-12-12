@@ -91,7 +91,7 @@
 18:24:37.104 [main] INFO  org.tarik.ta.core.AgentConfig - Using environment variable 'PAGE_DESCRIPTION_AGENT_MODEL_NAME' for key 'page.description.agent.model.name' with value 'gemini-2.5-flash'
 18:24:37.104 [main] INFO  org.tarik.ta.core.AgentConfig - Using environment variable 'PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER' for key 'page.description.agent.model.provider' with value 'google'
 18:24:37.104 [main] INFO  org.tarik.ta.core.AgentConfig - Using environment variable 'PAGE_DESCRIPTION_AGENT_PROMPT_VERSION' for key 'page.description.agent.prompt.version' with value 'v1.0.0'
-18:24:37.104 [main] INFO  org.tarik.ta.Agent - Attempting to extract TestCase instance from user message using AI model.
+18:24:37.104 [main] INFO  org.tarik.ta.ApiTestAgent - Attempting to extract TestCase instance from user message using AI model.
 18:24:37.242 [main] INFO  org.tarik.ta.core.utils.PromptUtils - Loading system prompt from: prompt_templates/system/agents/test_case_extractor/v1.0.0/test_case_extraction_prompt.txt
 18:24:37.294 [main] DEBUG o.t.t.c.model.ChatModelEventListener - Sending 2 messages to the model
 18:24:37.296 [main] DEBUG o.t.t.c.model.ChatModelEventListener - Sending a System Message:

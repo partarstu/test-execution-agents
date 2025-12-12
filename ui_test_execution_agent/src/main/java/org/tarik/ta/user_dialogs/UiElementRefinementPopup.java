@@ -15,11 +15,9 @@
  */
 package org.tarik.ta.user_dialogs;
 
-import org.tarik.ta.core.utils.CoreUtils;
-
 import org.jetbrains.annotations.NotNull;
 import org.tarik.ta.dto.ElementRefinementOperation;
-import org.tarik.ta.core.rag.model.UiElement;
+import org.tarik.ta.rag.model.UiElement;
 
 import javax.swing.*;
 import javax.swing.border.MatteBorder;

@@ -12,7 +12,6 @@ import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.core.model.TestExecutionContext;
-import org.tarik.ta.core.model.VisualState;
 import org.tarik.ta.tools.ApiAssertionTools;
 import org.tarik.ta.tools.ApiDataTools;
 import org.tarik.ta.tools.ApiRequestTools;
@@ -34,8 +33,8 @@ import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.core.utils.CoreUtils.isBlank;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
-public class Agent {
-    private static final Logger LOG = LoggerFactory.getLogger(Agent.class);
+public class ApiTestAgent {
+    private static final Logger LOG = LoggerFactory.getLogger(ApiTestAgent.class);
 
     public static TestExecutionResult executeTestCase(String receivedMessage) {
         Optional<TestCase> testCaseOpt = extractTestCase(receivedMessage);
@@ -47,7 +46,7 @@ public class Agent {
         LOG.info("Starting execution of the API test case '{}'", testCase.name());
         
         ApiContext apiContext = new ApiContext();
-        TestExecutionContext executionContext = new TestExecutionContext(testCase, new VisualState(null));
+        TestExecutionContext executionContext = new TestExecutionContext(testCase);
         
         ApiRequestTools requestTools = new ApiRequestTools(apiContext);
         ApiAssertionTools assertionTools = new ApiAssertionTools(apiContext);

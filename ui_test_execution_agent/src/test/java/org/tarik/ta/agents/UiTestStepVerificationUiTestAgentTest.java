@@ -33,7 +33,7 @@ import static org.mockito.Mockito.*;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
 
-class UiPreconditionVerificationAgentTest {
+class UiTestStepVerificationUiTestAgentTest {
 
     private MockedStatic<CommonUtils> commonUtilsMockedStatic;
 
@@ -50,13 +50,11 @@ class UiPreconditionVerificationAgentTest {
 
     @Test
     void shouldHandleSuccessfulVerification() {
-        var agent = mock(UiPreconditionVerificationAgent.class);
-        doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
-        doCallRealMethod().when(agent).createSuccessResult(any());
-        doCallRealMethod().when(agent).extractResult(any());
-        var verificationResult = new VerificationExecutionResult(true, "Verified");
+        UiTestStepVerificationAgent agent = mock(UiTestStepVerificationAgent.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
 
-        var result = agent.executeAndGetResult(() -> Result.<VerificationExecutionResult>builder().content(verificationResult).build());
+        VerificationExecutionResult verificationResult = new VerificationExecutionResult(true, "Verified");
+
+        AgentExecutionResult<VerificationExecutionResult> result = agent.executeAndGetResult(() -> Result.<VerificationExecutionResult>builder().content(verificationResult).build());
 
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
         assertThat(result.isSuccess()).isTrue();
@@ -65,10 +63,7 @@ class UiPreconditionVerificationAgentTest {
 
     @Test
     void shouldHandleFailedVerificationExecution() {
-        UiPreconditionVerificationAgent agent = mock(UiPreconditionVerificationAgent.class);
-        doCallRealMethod().when(agent).executeAndGetResult(any(Supplier.class));
-        doCallRealMethod().when(agent).createErrorResult(any(), any(), any());
-        doCallRealMethod().when(agent).captureErrorScreenshot();
+        UiTestStepVerificationAgent agent = mock(UiTestStepVerificationAgent.class, withSettings().defaultAnswer(CALLS_REAL_METHODS));
 
         var result = agent.executeAndGetResult(() -> {
             throw new RuntimeException("Verification error");

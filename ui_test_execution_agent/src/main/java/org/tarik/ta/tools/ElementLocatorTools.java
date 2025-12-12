@@ -33,10 +33,10 @@ import org.tarik.ta.dto.*;
 import org.tarik.ta.exceptions.ElementLocationException;
 import org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
-import org.tarik.ta.core.rag.RetrieverFactory;
-import org.tarik.ta.core.rag.UiElementRetriever;
-import org.tarik.ta.core.rag.UiElementRetriever.RetrievedUiElementItem;
-import org.tarik.ta.core.rag.model.UiElement;
+import org.tarik.ta.rag.RetrieverFactory;
+import org.tarik.ta.rag.UiElementRetriever;
+import org.tarik.ta.rag.UiElementRetriever.RetrievedUiElementItem;
+import org.tarik.ta.rag.model.UiElement;
 import org.tarik.ta.utils.CommonUtils;
 import org.tarik.ta.core.utils.PromptUtils;
 

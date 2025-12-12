@@ -32,7 +32,7 @@ import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 
-class UiPreconditionActionAgentTest {
+class UiPreconditionActionUiTestAgentTest {
 
     @Test
     void shouldHandleSuccessfulExecution() {

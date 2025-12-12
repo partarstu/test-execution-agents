@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.core.rag;
+package org.tarik.ta.rag;
 
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
@@ -22,7 +22,7 @@ import dev.langchain4j.store.embedding.*;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.core.rag.model.UiElement;
+import org.tarik.ta.rag.model.UiElement;
 
 import java.time.Duration;
 import java.util.Comparator;
@@ -31,7 +31,6 @@ import java.util.List;
 import static com.google.common.base.Preconditions.checkArgument;
 import static dev.langchain4j.store.embedding.CosineSimilarity.between;
 import static dev.langchain4j.store.embedding.RelevanceScore.fromCosineSimilarity;
-import static org.tarik.ta.core.rag.model.UiElement.fromTextSegment;
 import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
 
 public class ChromaRetriever implements UiElementRetriever {
@@ -84,7 +83,7 @@ public class ChromaRetriever implements UiElementRetriever {
         var resultingItems = result.matches().stream()
                 .sorted(Comparator.<EmbeddingMatch<TextSegment>>comparingDouble(EmbeddingMatch::score).reversed())
                 .map(match -> {
-                    var element = fromTextSegment(match.embedded());
+                    var element = UiElement.fromTextSegment(match.embedded());
                     var pageRelevanceScore = getPageRelevanceScore(actualPageDescription, element);
                     return new RetrievedUiElementItem(element, match.score(), pageRelevanceScore);
                 })

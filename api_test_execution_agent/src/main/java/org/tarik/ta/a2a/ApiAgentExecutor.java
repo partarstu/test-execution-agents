@@ -13,20 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.core.rag;
+package org.tarik.ta.a2a;
 
-import static org.tarik.ta.core.AgentConfig.getVectorDbProvider;
-import static org.tarik.ta.core.AgentConfig.getVectorDbUrl;
+import io.a2a.spec.Part;
+import org.tarik.ta.ApiTestAgent;
+import org.tarik.ta.core.a2a.AbstractAgentExecutor;
+import org.tarik.ta.core.dto.TestExecutionResult;
 
-public class RetrieverFactory {
-    public static UiElementRetriever getUiElementRetriever() {
-        return switch (getVectorDbProvider()) {
-            case CHROMA -> createChromaRetriever();
-        };
+import java.util.List;
+
+public class ApiAgentExecutor extends AbstractAgentExecutor {
+
+    @Override
+    protected TestExecutionResult executeTestCase(String message) {
+        return ApiTestAgent.executeTestCase(message);
     }
 
-    private static UiElementRetriever createChromaRetriever() {
-        var url = getVectorDbUrl();
-        return new ChromaRetriever(url);
+    @Override
+    protected void addSpecificArtifacts(TestExecutionResult result, List<Part<?>> parts) {
+        // No specific artifacts for API tests yet
     }
 }

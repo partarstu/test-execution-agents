@@ -46,14 +46,13 @@ import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.model.GenAiModel;
 import org.tarik.ta.core.model.ModelFactory;
-import org.tarik.ta.core.dto.AgentExecutionResult;
 import org.tarik.ta.dto.UiAgentExecutionResult;
 import org.tarik.ta.utils.CommonUtils;
 import org.tarik.ta.core.utils.PromptUtils;
 import org.tarik.ta.core.utils.CoreUtils;
 import org.tarik.ta.utils.ScreenRecorder;
-import org.tarik.ta.core.rag.RetrieverFactory;
-import org.tarik.ta.core.rag.UiElementRetriever;
+import org.tarik.ta.rag.RetrieverFactory;
+import org.tarik.ta.rag.UiElementRetriever;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.AgentConfig;
 
@@ -74,7 +73,7 @@ import static org.tarik.ta.core.utils.CoreUtils.sleepMillis;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
 @ExtendWith(MockitoExtension.class)
-class AgentTest {
+class UiTestAgentTest {
 
         private GenAiModel mockModel;
         @Mock
@@ -261,7 +260,7 @@ class AgentTest {
                                 .when(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
                 // When
-                TestExecutionResult result = Agent.executeTestCase("test case message");
+                TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
                 assertThat(result.testExecutionStatus()).isEqualTo(PASSED);
@@ -286,7 +285,7 @@ class AgentTest {
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 // When
-                TestExecutionResult result = Agent.executeTestCase("test case message");
+                TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
                 assertThat(result.testExecutionStatus()).isEqualTo(PASSED);
@@ -317,7 +316,7 @@ class AgentTest {
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 // When
-                TestExecutionResult result = Agent.executeTestCase("test case message");
+                TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
                 assertThat(result.testExecutionStatus()).isEqualTo(PASSED);
@@ -340,7 +339,7 @@ class AgentTest {
                                 .when(preconditionActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 // When
-                TestExecutionResult result = Agent.executeTestCase("test case message");
+                TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
                 assertThat(result.testExecutionStatus()).isEqualTo(FAILED);
@@ -368,7 +367,7 @@ class AgentTest {
                                 .when(preconditionVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
                 // When
-                TestExecutionResult result = Agent.executeTestCase("test case message");
+                TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
                 assertThat(result.testExecutionStatus()).isEqualTo(FAILED);
@@ -391,7 +390,7 @@ class AgentTest {
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 // When
-                TestExecutionResult result = Agent.executeTestCase("test case message");
+                TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
                 assertThat(result.testExecutionStatus()).isEqualTo(TestExecutionStatus.ERROR);
@@ -418,7 +417,7 @@ class AgentTest {
                                 .when(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
                 // When
-                TestExecutionResult result = Agent.executeTestCase("test case message");
+                TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
                 assertThat(result.testExecutionStatus()).isEqualTo(FAILED);

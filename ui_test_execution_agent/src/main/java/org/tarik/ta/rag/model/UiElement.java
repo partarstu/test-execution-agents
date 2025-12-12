@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.core.rag.model;
+package org.tarik.ta.rag.model;
 
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.segment.TextSegment;
@@ -28,7 +28,7 @@ import static java.lang.String.join;
 import static java.util.Objects.requireNonNull;
 import static org.tarik.ta.core.utils.CoreImageUtils.convertBase64ToImage;
 import static org.tarik.ta.core.utils.CoreImageUtils.convertImageToBase64;
-import static org.tarik.ta.core.rag.model.UiElement.MetadataField.*;
+import static org.tarik.ta.rag.model.UiElement.MetadataField.*;
 
 public class UiElement {
     private final UUID uuid;

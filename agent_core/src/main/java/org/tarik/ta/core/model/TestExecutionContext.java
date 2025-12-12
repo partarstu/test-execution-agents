@@ -32,14 +32,12 @@ public class TestExecutionContext {
     private final List<TestStepResult> testStepExecutionHistory;
     private final List<PreconditionResult> preconditionExecutionHistory;
     private final Map<String, Object> sharedData;
-    private VisualState visualState;
 
-    public TestExecutionContext(TestCase testCase, VisualState visualState) {
+    public TestExecutionContext(TestCase testCase) {
         this.testCase = testCase;
         this.testStepExecutionHistory = new ArrayList<>();
         this.preconditionExecutionHistory = new ArrayList<>();
         this.sharedData = new HashMap<>();
-        this.visualState = visualState;
     }
 
     public synchronized TestCase getTestCase() {
@@ -56,14 +54,6 @@ public class TestExecutionContext {
 
     public synchronized Map<String, Object> getSharedData() {
         return sharedData;
-    }
-
-    public synchronized VisualState getVisualState() {
-        return visualState;
-    }
-
-    public synchronized void setVisualState(VisualState visualState) {
-        this.visualState = visualState;
     }
 
     public synchronized void addStepResult(TestStepResult result) {

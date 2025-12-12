@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.core.rag;
+package org.tarik.ta.rag;
 
-import org.tarik.ta.core.rag.model.UiElement;
+import org.tarik.ta.rag.model.UiElement;
 
 import java.util.List;
 

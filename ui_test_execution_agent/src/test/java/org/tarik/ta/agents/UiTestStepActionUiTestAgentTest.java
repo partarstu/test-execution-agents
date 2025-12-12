@@ -34,7 +34,7 @@ import static org.mockito.Mockito.*;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
 
-class UiTestStepActionAgentTest {
+class UiTestStepActionUiTestAgentTest {
 
     private MockedStatic<CommonUtils> commonUtilsMockedStatic;
 
