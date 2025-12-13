@@ -24,42 +24,42 @@ import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
 /**
- * Agent responsible for executing API test step actions.
+ * Agent responsible for executing API test case preconditions.
  * <p>
- * This agent handles the execution of individual API test steps including:
+ * This agent handles setup operations such as:
  * <ul>
- * <li>Sending HTTP requests with various methods and authentication</li>
- * <li>Processing request/response data</li>
- * <li>Storing extracted values in context for later use</li>
- * <li>Handling data-driven test scenarios</li>
+ * <li>Creating test data via API calls</li>
+ * <li>Setting up authentication tokens</li>
+ * <li>Initializing session state</li>
+ * <li>Creating required resources before test execution</li>
  * </ul>
  */
-public interface ApiTestStepActionAgent extends BaseAiAgent<EmptyExecutionResult> {
+public interface ApiPreconditionActionAgent extends BaseAiAgent<EmptyExecutionResult> {
 
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
+    @UserMessage("""
+            Execute the following API precondition: {{precondition}}
+
+            Shared data from previous operations: {{sharedData}}
+
+            API context information: {{apiContextInfo}}
+
+            Use the available API tools to execute this precondition.
+            Store any values needed for later steps in context variables.
+            """)
+    Result<String> execute(
+            @V("precondition") String precondition,
+            @V("sharedData") String sharedData,
+            @V("apiContextInfo") String apiContextInfo);
+
     @Override
     default String getAgentTaskDescription() {
-        return "Executing API test step action";
+        return "Executing API precondition action";
     }
 
     @Override
     default RetryPolicy getRetryPolicy() {
         return RETRY_POLICY;
     }
-
-    @UserMessage("""
-            Execute the following API test step: {{testStep}}
-
-            Data related to the test step: {{testData}}
-
-            Shared data: {{sharedData}}
-
-            Interaction with the user is allowed: {{attendedMode}}
-            """)
-    Result<String> execute(
-            @V("testStep") String testStep,
-            @V("testData") String testData,
-            @V("sharedData") String sharedData,
-            @V("attendedMode") boolean attendedMode);
 }

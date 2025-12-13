@@ -39,7 +39,7 @@ public class ApiRequestTools {
 
             context.getBaseUri().ifPresent(request::baseUri);
             if (context.getProxyHost().isPresent()) {
-                request.proxy(context.getProxyHost().get(), context.getProxyPort().orElse(8080));
+                request.proxy(context.getProxyHost().get(), context.getPort().orElse(8080));
             }
 
             if (headers != null) {
