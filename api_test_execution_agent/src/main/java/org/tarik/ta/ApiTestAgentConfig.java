@@ -188,4 +188,42 @@ public class ApiTestAgentConfig extends AgentConfig {
     public static int getMaxResponseBodySizeKb() {
         return MAX_RESPONSE_BODY_SIZE_KB.value();
     }
+
+    // -----------------------------------------------------
+    // Authentication Configuration (Environment Variables)
+
+    private static final ConfigProperty<String> BASIC_AUTH_USERNAME_ENV = loadProperty("api.auth.basic.username.env",
+            "API_AUTH_BASIC_USERNAME_ENV", "API_USERNAME", s -> s, false);
+
+    public static String getBasicAuthUsernameEnv() {
+        return BASIC_AUTH_USERNAME_ENV.value();
+    }
+
+    private static final ConfigProperty<String> BASIC_AUTH_PASSWORD_ENV = loadProperty("api.auth.basic.password.env",
+            "API_AUTH_BASIC_PASSWORD_ENV", "API_PASSWORD", s -> s, false);
+
+    public static String getBasicAuthPasswordEnv() {
+        return BASIC_AUTH_PASSWORD_ENV.value();
+    }
+
+    private static final ConfigProperty<String> BEARER_TOKEN_ENV = loadProperty("api.auth.bearer.token.env",
+            "API_AUTH_BEARER_TOKEN_ENV", "API_TOKEN", s -> s, false);
+
+    public static String getBearerTokenEnv() {
+        return BEARER_TOKEN_ENV.value();
+    }
+
+    private static final ConfigProperty<String> API_KEY_NAME_ENV = loadProperty("api.auth.apikey.name.env",
+            "API_AUTH_APIKEY_NAME_ENV", "API_KEY_NAME", s -> s, false);
+
+    public static String getApiKeyNameEnv() {
+        return API_KEY_NAME_ENV.value();
+    }
+
+    private static final ConfigProperty<String> API_KEY_VALUE_ENV = loadProperty("api.auth.apikey.value.env",
+            "API_AUTH_APIKEY_VALUE_ENV", "API_KEY_VALUE", s -> s, false);
+
+    public static String getApiKeyValueEnv() {
+        return API_KEY_VALUE_ENV.value();
+    }
 }

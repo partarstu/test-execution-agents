@@ -33,15 +33,14 @@ public class ApiRequestTools extends org.tarik.ta.core.tools.AbstractTools {
         this.executionContext = executionContext;
     }
 
-    @Tool("Sends an HTTP request. 'headers' is a map of header names to values. 'authValue' depends on authType" +
-            " (e.g., 'user:pass' for BASIC, 'token' for BEARER, 'key=value' for API_KEY).")
+    @Tool("Sends an HTTP request. 'headers' is a map of header names to values. 'authValue' is not needed as it is " +
+            "configured via properties.")
     public String sendRequest(
             @P("HTTP method (GET, POST, PUT, DELETE, etc.)") String method,
             @P("The target URL") String url,
             @P("Optional headers map") Map<String, String> headers,
             @P("Request body (optional)") String body,
             @P("Authentication type (NONE, BASIC, BEARER, API_KEY)") AuthType authType,
-            @P("Authentication value") String authValue,
             @P("Authentication location for API_KEY (HEADER, QUERY)") String authLocation) {
         if (isBlank(method)) {
             throw new ToolExecutionException("Method cannot be null or empty", TRANSIENT_TOOL_ERROR);
@@ -53,7 +52,7 @@ public class ApiRequestTools extends org.tarik.ta.core.tools.AbstractTools {
         try {
             String resolvedUrl = resolveVariables(url);
             String resolvedBody = resolveVariables(body);
-            RequestSpecification request = given()                    .filter(context.getCookieFilter());
+            RequestSpecification request = given().filter(context.getCookieFilter());
             if (context.isRelaxedHttpsValidation()) {
                 request.relaxedHTTPSValidation();
             }
@@ -71,7 +70,7 @@ public class ApiRequestTools extends org.tarik.ta.core.tools.AbstractTools {
                 request.body(resolvedBody);
             }
 
-            applyAuth(request, authType, authValue, authLocation);
+            applyAuth(request, authType, authLocation);
 
             LOG.info("Sending {} request to {}", method, resolvedUrl);
             Response response = request.request(method, resolvedUrl);
@@ -133,35 +132,49 @@ public class ApiRequestTools extends org.tarik.ta.core.tools.AbstractTools {
         }
     }
 
-    private void applyAuth(RequestSpecification request, AuthType authType, String authValue, String authLocation) {
-        if (isBlank(authValue)) {
-            throw new ToolExecutionException("Auth value cannot be null or empty for auth type: " + authType, TRANSIENT_TOOL_ERROR);
+    private void applyAuth(RequestSpecification request, AuthType authType,
+            String authLocation) {
+        if (authType == AuthType.NONE) {
+            return;
         }
 
-        String resolvedValue = resolveVariables(authValue);
         switch (authType) {
             case BASIC -> {
-                String[] parts = resolvedValue.split(":", 2);
-                if (parts.length == 2) {
-                    request.auth().preemptive().basic(parts[0], parts[1]);
-                } else {
-                    LOG.warn("Invalid Basic Auth value format. Expected 'user:pass'.");
+                String usernameEnv = org.tarik.ta.ApiTestAgentConfig.getBasicAuthUsernameEnv();
+                String passwordEnv = org.tarik.ta.ApiTestAgentConfig.getBasicAuthPasswordEnv();
+                String username = CommonUtils.getEnvironmentVariable(usernameEnv);
+                String password = CommonUtils.getEnvironmentVariable(passwordEnv);
+
+                if (isBlank(username) || isBlank(password)) {
+                    throw new ToolExecutionException(
+                            "Username or password environment variables not set or empty for BASIC auth",
+                            TRANSIENT_TOOL_ERROR);
                 }
+                request.auth().preemptive().basic(username, password);
             }
-            case BEARER -> request.auth().oauth2(resolvedValue);
+            case BEARER -> {
+                String tokenEnv = org.tarik.ta.ApiTestAgentConfig.getBearerTokenEnv();
+                String token = CommonUtils.getEnvironmentVariable(tokenEnv);
+                if (isBlank(token)) {
+                    throw new ToolExecutionException("Bearer token environment variable not set or empty",
+                            TRANSIENT_TOOL_ERROR);
+                }
+                request.auth().oauth2(token);
+            }
             case API_KEY -> {
                 if (isBlank(authLocation)) {
                     throw new ToolExecutionException("Auth location cannot be null or empty for API_KEY auth type",
                             TRANSIENT_TOOL_ERROR);
                 }
-                // authValue expected as 'key=value'
-                String[] parts = resolvedValue.split("=", 2);
-                if (parts.length != 2) {
-                    LOG.warn("Invalid API Key value format. Expected 'keyName=value'.");
-                    return;
+                String keyNameEnv = org.tarik.ta.ApiTestAgentConfig.getApiKeyNameEnv();
+                String keyValueEnv = org.tarik.ta.ApiTestAgentConfig.getApiKeyValueEnv();
+                String key = CommonUtils.getEnvironmentVariable(keyNameEnv);
+                String value = CommonUtils.getEnvironmentVariable(keyValueEnv);
+
+                if (isBlank(key) || isBlank(value)) {
+                    throw new ToolExecutionException("API Key name or value environment variables not set or empty",
+                            TRANSIENT_TOOL_ERROR);
                 }
-                String key = parts[0];
-                String value = parts[1];
 
                 if ("QUERY".equalsIgnoreCase(authLocation)) {
                     request.queryParam(key, value);

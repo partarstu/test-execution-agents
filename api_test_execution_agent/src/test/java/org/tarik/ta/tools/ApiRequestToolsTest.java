@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.model.AuthType;
+import org.tarik.ta.core.model.TestExecutionContext;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,66 +20,81 @@ import static org.mockito.Mockito.when;
 
 class ApiRequestToolsTest {
 
-    private WireMockServer wireMockServer;
-    private ApiContext apiContext;
-    private ApiRequestTools apiRequestTools;
+        private WireMockServer wireMockServer;
+        private ApiContext apiContext;
+        private ApiRequestTools apiRequestTools;
+        private TestExecutionContext testExecutionContext;
+        private Map<String, Object> sharedData;
 
-    @BeforeEach
-    void setUp() {
-        wireMockServer = new WireMockServer(wireMockConfig().dynamicPort());
-        wireMockServer.start();
+        @BeforeEach
+        void setUp() {
+                wireMockServer = new WireMockServer(wireMockConfig().dynamicPort());
+                wireMockServer.start();
 
-        apiContext = Mockito.spy(new ApiContext());
-        apiContext.setBaseUri(wireMockServer.baseUrl());
+                apiContext = Mockito.spy(new ApiContext());
+                apiContext.setBaseUri(wireMockServer.baseUrl());
 
-        apiRequestTools = new ApiRequestTools(apiContext,
-                Mockito.mock(org.tarik.ta.core.model.TestExecutionContext.class));
-    }
+                sharedData = new HashMap<>();
+                testExecutionContext = Mockito.mock(TestExecutionContext.class);
+                when(testExecutionContext.getSharedData()).thenReturn(sharedData);
 
-    @AfterEach
-    void tearDown() {
-        wireMockServer.stop();
-    }
+                apiRequestTools = new ApiRequestTools(apiContext, testExecutionContext);
+        }
 
-    @Test
-    void testSendGetRequest() {
-        wireMockServer.stubFor(get(urlEqualTo("/test"))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withBody("Success")));
+        @AfterEach
+        void tearDown() {
+                wireMockServer.stop();
+        }
 
-        String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/test", null, null,
-                AuthType.NONE, null, null);
+        @Test
+        void testSendGetRequest() {
+                wireMockServer.stubFor(get(urlEqualTo("/test"))
+                                .willReturn(aResponse()
+                                                .withStatus(200)
+                                                .withBody("Success")));
 
-        assertThat(result).contains("Status: 200");
-        assertThat(apiContext.getLastResponse()).isPresent();
-        assertThat(apiContext.getLastResponse().get().getBody().asString()).isEqualTo("Success");
-    }
+                String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/test", null, null,
+                                AuthType.NONE, null);
 
-    @Test
-    void testSendGetRequestWithVariableSubstitution() {
-        wireMockServer.stubFor(get(urlEqualTo("/resource/123"))
-                .willReturn(aResponse()
-                        .withStatus(200)));
+                assertThat(result).contains("Status: 200");
+                assertThat(apiContext.getLastResponse()).isPresent();
+                assertThat(apiContext.getLastResponse().get().getBody().asString()).isEqualTo("Success");
+        }
 
-        apiContext.setVariable("id", "123");
+        @Test
+        void testSendGetRequestWithVariableSubstitution() {
+                wireMockServer.stubFor(get(urlEqualTo("/resource/123"))
+                                .willReturn(aResponse()
+                                                .withStatus(200)));
 
-        String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/resource/${id}", null, null,
-                AuthType.NONE, null, null);
+                sharedData.put("id", "123");
 
-        assertThat(result).contains("Status: 200");
-    }
+                String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/resource/${id}", null,
+                                null,
+                                AuthType.NONE, null);
 
-    @Test
-    void testSendPostRequestWithAuth() {
-        wireMockServer.stubFor(post(urlEqualTo("/login"))
-                .withHeader("Authorization", containing("Basic")) // simplified check
-                .willReturn(aResponse()
-                        .withStatus(201)));
+                assertThat(result).contains("Status: 200");
+        }
 
-        String result = apiRequestTools.sendRequest("POST", wireMockServer.baseUrl() + "/login", null, "{}",
-                AuthType.BASIC, "user:pass", null);
+        @Test
+        void testSendPostRequestWithAuth() {
+                wireMockServer.stubFor(post(urlEqualTo("/login"))
+                                .withHeader("Authorization", containing("Basic"))
+                                .willReturn(aResponse()
+                                                .withStatus(201)));
 
-        assertThat(result).contains("Status: 201");
-    }
+                System.setProperty("API_USERNAME", "user");
+                System.setProperty("API_PASSWORD", "pass");
+
+                try {
+                        String result = apiRequestTools.sendRequest("POST", wireMockServer.baseUrl() + "/login", null,
+                                        "{}",
+                                        AuthType.BASIC, null);
+
+                        assertThat(result).contains("Status: 201");
+                } finally {
+                        System.clearProperty("API_USERNAME");
+                        System.clearProperty("API_PASSWORD");
+                }
+        }
 }

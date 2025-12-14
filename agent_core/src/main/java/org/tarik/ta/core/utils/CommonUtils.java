@@ -45,7 +45,8 @@ import static java.util.Optional.ofNullable;
 public class CommonUtils {
     private static final Logger LOG = LoggerFactory.getLogger(CommonUtils.class);
 
-    public static Optional<String> getObjectPrettyPrinted(ObjectMapper mapper, Map<String, String> toolExecutionInfoByToolName) {
+    public static Optional<String> getObjectPrettyPrinted(ObjectMapper mapper,
+            Map<String, String> toolExecutionInfoByToolName) {
         try {
             return of(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(toolExecutionInfoByToolName));
         } catch (JsonProcessingException e) {
@@ -137,5 +138,16 @@ public class CommonUtils {
             }
             return empty();
         }
+    }
+
+    public static String getEnvironmentVariable(String name) {
+        if (isBlank(name)) {
+            return null;
+        }
+        String value = System.getenv(name);
+        if (value == null) {
+            value = System.getProperty(name);
+        }
+        return value;
     }
 }
