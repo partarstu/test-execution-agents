@@ -161,7 +161,7 @@ The API Test Execution Agent uses the following tools:
 - `validateOpenApi(specPath)` - Validates response against OpenAPI specification
 
 ### TestContextDataTools
-- `loadJsonData(filePath, className, variableName)` - Loads JSON data into context
+- `loadJsonData(filePath, variableName)` - Loads JSON data into context
 - `loadCsvData(filePath, className, variableName)` - Loads CSV data into context
 
 ## Implementation Status

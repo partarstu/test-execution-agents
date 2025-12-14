@@ -28,7 +28,7 @@ import java.util.Optional;
 import static java.util.Optional.ofNullable;
 import static javax.swing.JOptionPane.YES_OPTION;
 import static org.tarik.ta.utils.BoundingBoxUtil.drawBoundingBox;
-import static org.tarik.ta.utils.CommonUtils.captureScreen;
+import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.utils.ImageUtils.*;
 
 public class UiElementScreenshotCaptureWindow extends AbstractDialog {

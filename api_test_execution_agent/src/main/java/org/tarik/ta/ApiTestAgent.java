@@ -56,8 +56,8 @@ import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
-import static org.tarik.ta.core.utils.CoreUtils.isBlank;
-import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
+import static org.tarik.ta.core.utils.CommonUtils.isBlank;
+import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
 public class ApiTestAgent {

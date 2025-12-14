@@ -38,7 +38,7 @@ import org.tarik.ta.rag.RetrieverFactory;
 import org.tarik.ta.rag.UiElementRetriever;
 import org.tarik.ta.rag.UiElementRetriever.RetrievedUiElementItem;
 import org.tarik.ta.rag.model.UiElement;
-import org.tarik.ta.utils.CommonUtils;
+import org.tarik.ta.utils.UiCommonUtils;
 import org.tarik.ta.core.utils.PromptUtils;
 
 import java.awt.*;
@@ -69,8 +69,8 @@ import static org.tarik.ta.exceptions.ElementLocationException.ElementLocationSt
 import static org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus.SIMILAR_ELEMENTS_IN_DB_BUT_SCORE_TOO_LOW;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.utils.BoundingBoxUtil.*;
-import static org.tarik.ta.utils.CommonUtils.*;
-import static org.tarik.ta.core.utils.CoreUtils.*;
+import static org.tarik.ta.utils.UiCommonUtils.*;
+import static org.tarik.ta.core.utils.CommonUtils.*;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithORB;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithTemplateMatching;
 import static org.tarik.ta.utils.ImageUtils.*;
@@ -685,7 +685,7 @@ public class ElementLocatorTools extends UiAbstractTools {
             @NotNull List<String> boxIds) {
         try (var executor = newVirtualThreadPerTaskExecutor()) {
             var prompt = formatElementSelectionPrompt(uiElement, elementTestData, boxIds);
-            var boundingBoxColorName = CommonUtils.getColorName(BOUNDING_BOX_COLOR).toLowerCase();
+            var boundingBoxColorName = UiCommonUtils.getColorName(BOUNDING_BOX_COLOR).toLowerCase();
 
             List<Callable<UiElementIdentificationResult>> tasks = range(0, VALIDATION_MODEL_VOTE_COUNT)
                     .mapToObj(_ -> (Callable<UiElementIdentificationResult>) () -> uiElementSelectionAgent.executeAndGetResult(

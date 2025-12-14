@@ -31,7 +31,7 @@ import java.util.List;
 import static com.google.common.base.Preconditions.checkArgument;
 import static dev.langchain4j.store.embedding.CosineSimilarity.between;
 import static dev.langchain4j.store.embedding.RelevanceScore.fromCosineSimilarity;
-import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
+import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 
 public class ChromaRetriever implements UiElementRetriever {
     private static final Logger LOG = LoggerFactory.getLogger(ChromaRetriever.class);

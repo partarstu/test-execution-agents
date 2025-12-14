@@ -34,7 +34,7 @@ import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.*;
 import static org.tarik.ta.core.error.ErrorCategory.TERMINATION_BY_USER;
 import static org.tarik.ta.core.error.ErrorCategory.VERIFICATION_FAILED;
 import static org.tarik.ta.core.manager.BudgetManager.checkAllBudgets;
-import static org.tarik.ta.core.utils.CoreUtils.sleepMillis;
+import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 
 public interface GenericAiAgent<T extends FinalResult<T>, R extends AgentExecutionResult<T>> {
     Logger LOG = LoggerFactory.getLogger(GenericAiAgent.class);

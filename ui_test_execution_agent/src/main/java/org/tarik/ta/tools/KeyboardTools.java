@@ -33,8 +33,8 @@ import static java.lang.Character.isUpperCase;
 import static java.util.Arrays.stream;
 import static java.util.stream.IntStream.range;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
-import static org.tarik.ta.utils.CommonUtils.*;
-import static org.tarik.ta.core.utils.CoreUtils.*;
+import static org.tarik.ta.utils.UiCommonUtils.*;
+import static org.tarik.ta.core.utils.CommonUtils.*;
 
 public class KeyboardTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(KeyboardTools.class);

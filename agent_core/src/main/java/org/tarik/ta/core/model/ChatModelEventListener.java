@@ -29,8 +29,8 @@ import java.util.Map;
 import static java.util.Optional.ofNullable;
 import static org.tarik.ta.core.manager.BudgetManager.*;
 import static org.tarik.ta.core.manager.BudgetManager.getAccumulatedTotalTokens;
-import static org.tarik.ta.core.utils.CoreUtils.isBlank;
-import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
+import static org.tarik.ta.core.utils.CommonUtils.isBlank;
+import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 
 public class ChatModelEventListener implements ChatModelListener {
     private static final Logger LOG = LoggerFactory.getLogger(ChatModelEventListener.class);

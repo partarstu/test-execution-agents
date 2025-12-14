@@ -27,10 +27,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.dto.AgentExecutionResult;
-import org.tarik.ta.core.utils.CoreUtils;
+import org.tarik.ta.core.utils.CommonUtils;
 import org.tarik.ta.dto.UiAgentExecutionResult;
 import org.tarik.ta.dto.UiStateCheckResult;
-import org.tarik.ta.utils.CommonUtils;
+import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.*;
 import java.awt.event.InputEvent;
@@ -46,8 +46,8 @@ import static org.mockito.Mockito.*;
 class MouseToolsTest {
 
     private Robot robot;
-    private MockedStatic<CommonUtils> commonUtilsMockedStatic;
-    private MockedStatic<CoreUtils> coreUtilsMockedStatic;
+    private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
+    private MockedStatic<CommonUtils> coreUtilsMockedStatic;
     private MockedStatic<AgentConfig> agentConfigMockedStatic;
     private MouseTools mouseTools;
 
@@ -58,15 +58,15 @@ class MouseToolsTest {
     void setUp() {
         robot = mock(Robot.class);
         mouseTools = new MouseTools(uiStateCheckAgent);
-        commonUtilsMockedStatic = mockStatic(CommonUtils.class);
-        commonUtilsMockedStatic.when(CommonUtils::getRobot).thenReturn(robot);
-        commonUtilsMockedStatic.when(CommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
-        commonUtilsMockedStatic.when(CommonUtils::getMouseLocation).thenReturn(new Point(100, 100));
+        commonUtilsMockedStatic = mockStatic(UiCommonUtils.class);
+        commonUtilsMockedStatic.when(UiCommonUtils::getRobot).thenReturn(robot);
+        commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
+        commonUtilsMockedStatic.when(UiCommonUtils::getMouseLocation).thenReturn(new Point(100, 100));
 
-        coreUtilsMockedStatic = mockStatic(CoreUtils.class);
-        coreUtilsMockedStatic.when(() -> CoreUtils.sleepMillis(anyInt())).thenAnswer(_ -> null);
-        coreUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(anyString())).thenCallRealMethod();
-        coreUtilsMockedStatic.when(() -> CoreUtils.isBlank(anyString())).thenCallRealMethod();
+        coreUtilsMockedStatic = mockStatic(CommonUtils.class);
+        coreUtilsMockedStatic.when(() -> CommonUtils.sleepMillis(anyInt())).thenAnswer(_ -> null);
+        coreUtilsMockedStatic.when(() -> CommonUtils.isNotBlank(anyString())).thenCallRealMethod();
+        coreUtilsMockedStatic.when(() -> CommonUtils.isBlank(anyString())).thenCallRealMethod();
 
         agentConfigMockedStatic = mockStatic(AgentConfig.class);
         agentConfigMockedStatic.when(AgentConfig::getActionVerificationDelayMillis).thenReturn(10);

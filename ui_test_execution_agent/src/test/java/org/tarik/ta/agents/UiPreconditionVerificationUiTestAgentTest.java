@@ -21,8 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
-import org.tarik.ta.core.dto.AgentExecutionResult;
-import org.tarik.ta.utils.CommonUtils;
+import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.image.BufferedImage;
 import java.util.function.Supplier;
@@ -35,12 +34,12 @@ import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS
 
 class UiPreconditionVerificationUiTestAgentTest {
 
-    private MockedStatic<CommonUtils> commonUtilsMockedStatic;
+    private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
 
     @BeforeEach
     void setUp() {
-        commonUtilsMockedStatic = mockStatic(CommonUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-        commonUtilsMockedStatic.when(CommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
+        commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
     }
 
     @AfterEach

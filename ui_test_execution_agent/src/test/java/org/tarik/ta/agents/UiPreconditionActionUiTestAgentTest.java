@@ -22,7 +22,7 @@ import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.AgentExecutionResult;
 
 import org.mockito.MockedStatic;
-import org.tarik.ta.utils.CommonUtils;
+import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.image.BufferedImage;
 
@@ -36,9 +36,9 @@ class UiPreconditionActionUiTestAgentTest {
 
     @Test
     void shouldHandleSuccessfulExecution() {
-        try (MockedStatic<CommonUtils> commonUtilsMockedStatic = mockStatic(CommonUtils.class, CALLS_REAL_METHODS)) {
-            commonUtilsMockedStatic.when(CommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
-            commonUtilsMockedStatic.when(() -> CommonUtils.captureScreen(anyBoolean())).thenReturn(mock(BufferedImage.class));
+        try (MockedStatic<UiCommonUtils> commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS)) {
+            commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
+            commonUtilsMockedStatic.when(() -> UiCommonUtils.captureScreen(anyBoolean())).thenReturn(mock(BufferedImage.class));
 
             PreconditionActionAgent agent = (_, _) -> null;
 
@@ -53,10 +53,10 @@ class UiPreconditionActionUiTestAgentTest {
 
     @Test
     void shouldHandleFailedExecution() {
-        try (MockedStatic<CommonUtils> commonUtilsMockedStatic = mockStatic(CommonUtils.class, CALLS_REAL_METHODS)) {
+        try (MockedStatic<UiCommonUtils> commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS)) {
             BufferedImage mockImage = mock(BufferedImage.class);
-            commonUtilsMockedStatic.when(CommonUtils::captureScreen).thenReturn(mockImage);
-            commonUtilsMockedStatic.when(() -> CommonUtils.captureScreen(anyBoolean())).thenReturn(mockImage);
+            commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mockImage);
+            commonUtilsMockedStatic.when(() -> UiCommonUtils.captureScreen(anyBoolean())).thenReturn(mockImage);
 
             UiPreconditionActionAgent agent = (_, _) -> null;
 

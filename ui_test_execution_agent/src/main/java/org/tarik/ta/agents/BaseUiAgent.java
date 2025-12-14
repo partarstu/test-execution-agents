@@ -23,7 +23,7 @@ import org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus;
 import org.tarik.ta.core.dto.FinalResult;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.dto.UiAgentExecutionResult;
-import org.tarik.ta.utils.CommonUtils;
+import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.image.BufferedImage;
 
@@ -34,7 +34,7 @@ public interface BaseUiAgent<T extends FinalResult<T>> extends GenericAiAgent<T,
     Logger LOG = LoggerFactory.getLogger(BaseUiAgent.class);
 
     default BufferedImage captureErrorScreenshot() {
-        return CommonUtils.captureScreen();
+        return UiCommonUtils.captureScreen();
     }
 
     @Override

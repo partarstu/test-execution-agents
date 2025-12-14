@@ -30,12 +30,12 @@ import static java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment;
 import static java.util.Comparator.comparingInt;
 import static org.tarik.ta.utils.ImageUtils.toBufferedImage;
 
-public class CommonUtils {
+public class UiCommonUtils {
     private static Robot robot;
 
-    public static Object getStaticFieldValue(Field colorField) {
+    public static Object getStaticFieldValue(Field field) {
         try {
-            return colorField.get(null);
+            return field.get(null);
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }

@@ -19,7 +19,7 @@ package org.tarik.ta.core;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.error.RetryPolicy;
-import org.tarik.ta.core.utils.CoreUtils;
+import org.tarik.ta.core.utils.CommonUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -496,7 +496,7 @@ public class AgentConfig {
         var envVariableOptional = ofNullable(envVar)
                 .map(System::getenv)
                 .map(String::trim)
-                .filter(CoreUtils::isNotBlank);
+                .filter(CommonUtils::isNotBlank);
         if (envVariableOptional.isPresent()) {
             var message = "Using environment variable '%s' for key '%s'".formatted(envVar, key);
             if (!isSecret) {
@@ -507,7 +507,7 @@ public class AgentConfig {
         } else {
             var propertyFileValueOptional = ofNullable(properties.getProperty(key))
                     .map(String::trim)
-                    .filter(CoreUtils::isNotBlank);
+                    .filter(CommonUtils::isNotBlank);
             if (propertyFileValueOptional.isPresent()) {
                 var message = "Using property file value for key '%s'".formatted(key);
                 if (!isSecret) {
@@ -545,7 +545,7 @@ public class AgentConfig {
     protected static ConfigProperty<Integer> loadPropertyAsInteger(String propertyKey, String envVar,
             String defaultValue, boolean isSecret) {
         var configProperty = getProperty(propertyKey, envVar, defaultValue, s -> s, isSecret);
-        Integer value = CoreUtils.parseStringAsInteger(configProperty.value())
+        Integer value = CommonUtils.parseStringAsInteger(configProperty.value())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "The value of property '%s' is not a correct integer value:%s".formatted(propertyKey,
                                 configProperty.value())));
@@ -555,7 +555,7 @@ public class AgentConfig {
     protected static ConfigProperty<Double> loadPropertyAsDouble(String propertyKey, String envVar, String defaultValue,
             boolean isSecret) {
         var configProperty = getProperty(propertyKey, envVar, defaultValue, s -> s, isSecret);
-        Double value = CoreUtils.parseStringAsDouble(configProperty.value())
+        Double value = CommonUtils.parseStringAsDouble(configProperty.value())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "The value of property '%s' is not a correct double value:%s".formatted(propertyKey,
                                 configProperty.value())));

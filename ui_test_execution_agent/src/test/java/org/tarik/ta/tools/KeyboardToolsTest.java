@@ -26,8 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.tarik.ta.agents.UiStateCheckAgent;
-import org.tarik.ta.core.utils.CoreUtils;
-import org.tarik.ta.utils.CommonUtils;
+import org.tarik.ta.core.utils.CommonUtils;
+import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -43,8 +43,8 @@ import static org.mockito.Mockito.*;
 class KeyboardToolsTest {
 
     private Robot robot;
-    private MockedStatic<CommonUtils> commonUtilsMockedStatic;
-    private MockedStatic<CoreUtils> coreUtilsMockedStatic;
+    private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
+    private MockedStatic<CommonUtils> coreUtilsMockedStatic;
     private MockedStatic<Toolkit> toolkitMockedStatic;
     private Clipboard clipboard;
     private KeyboardTools keyboardTools;
@@ -59,14 +59,14 @@ class KeyboardToolsTest {
         uiStateCheckAgent = mock(UiStateCheckAgent.class);
         keyboardTools = new KeyboardTools(uiStateCheckAgent);
 
-        commonUtilsMockedStatic = mockStatic(CommonUtils.class);
-        commonUtilsMockedStatic.when(CommonUtils::getRobot).thenReturn(robot);
+        commonUtilsMockedStatic = mockStatic(UiCommonUtils.class);
+        commonUtilsMockedStatic.when(UiCommonUtils::getRobot).thenReturn(robot);
 
-        coreUtilsMockedStatic = mockStatic(CoreUtils.class);
-        coreUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(anyString())).thenCallRealMethod();
-        coreUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(null)).thenReturn(false);
-        coreUtilsMockedStatic.when(() -> CoreUtils.isBlank(anyString())).thenCallRealMethod();
-        coreUtilsMockedStatic.when(() -> CoreUtils.sleepMillis(anyInt())).thenAnswer(_ -> null);
+        coreUtilsMockedStatic = mockStatic(CommonUtils.class);
+        coreUtilsMockedStatic.when(() -> CommonUtils.isNotBlank(anyString())).thenCallRealMethod();
+        coreUtilsMockedStatic.when(() -> CommonUtils.isNotBlank(null)).thenReturn(false);
+        coreUtilsMockedStatic.when(() -> CommonUtils.isBlank(anyString())).thenCallRealMethod();
+        coreUtilsMockedStatic.when(() -> CommonUtils.sleepMillis(anyInt())).thenAnswer(_ -> null);
 
         Toolkit toolkit = mock(Toolkit.class);
         when(toolkit.getSystemClipboard()).thenReturn(clipboard);

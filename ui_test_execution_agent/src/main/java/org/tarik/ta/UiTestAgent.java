@@ -64,11 +64,11 @@ import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.rag.RetrieverFactory.getUiElementRetriever;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.VERIFICATION_FAILURE;
-import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
-import static org.tarik.ta.core.utils.CoreUtils.sleepMillis;
-import static org.tarik.ta.core.utils.CoreUtils.isBlank;
+import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
+import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
+import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
-import static org.tarik.ta.utils.CommonUtils.captureScreen;
+import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
 public class UiTestAgent {

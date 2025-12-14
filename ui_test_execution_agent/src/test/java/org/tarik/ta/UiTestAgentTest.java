@@ -47,9 +47,9 @@ import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.model.GenAiModel;
 import org.tarik.ta.core.model.ModelFactory;
 import org.tarik.ta.dto.UiAgentExecutionResult;
-import org.tarik.ta.utils.CommonUtils;
+import org.tarik.ta.utils.UiCommonUtils;
 import org.tarik.ta.core.utils.PromptUtils;
-import org.tarik.ta.core.utils.CoreUtils;
+import org.tarik.ta.core.utils.CommonUtils;
 import org.tarik.ta.utils.ScreenRecorder;
 import org.tarik.ta.rag.RetrieverFactory;
 import org.tarik.ta.rag.UiElementRetriever;
@@ -69,7 +69,7 @@ import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.FAIL
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
-import static org.tarik.ta.core.utils.CoreUtils.sleepMillis;
+import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
 @ExtendWith(MockitoExtension.class)
@@ -127,8 +127,8 @@ class UiTestAgentTest {
 
         // Static mocks
         private MockedStatic<ModelFactory> modelFactoryMockedStatic;
-        private MockedStatic<CommonUtils> commonUtilsMockedStatic;
-        private MockedStatic<CoreUtils> coreUtilsMockedStatic;
+        private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
+        private MockedStatic<CommonUtils> coreUtilsMockedStatic;
         private MockedStatic<AgentConfig> agentConfigMockedStatic;
         private MockedStatic<UiTestAgentConfig> uiAgentConfigMockedStatic;
         private MockedStatic<AiServices> aiServicesMockedStatic;
@@ -141,8 +141,8 @@ class UiTestAgentTest {
         @BeforeEach
         void setUp() {
                 modelFactoryMockedStatic = mockStatic(ModelFactory.class);
-                commonUtilsMockedStatic = mockStatic(CommonUtils.class);
-                coreUtilsMockedStatic = mockStatic(CoreUtils.class);
+                commonUtilsMockedStatic = mockStatic(UiCommonUtils.class);
+                coreUtilsMockedStatic = mockStatic(CommonUtils.class);
                 agentConfigMockedStatic = mockStatic(AgentConfig.class);
                 uiAgentConfigMockedStatic = mockStatic(UiTestAgentConfig.class);
                 aiServicesMockedStatic = mockStatic(AiServices.class);
@@ -206,9 +206,9 @@ class UiTestAgentTest {
                 modelFactoryMockedStatic.when(() -> ModelFactory.getModel(any(), any())).thenReturn(mockModel);
 
                 // Common Utils & Core Utils
-                coreUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(anyString())).thenCallRealMethod();
-                coreUtilsMockedStatic.when(() -> CoreUtils.isNotBlank(null)).thenReturn(false);
-                commonUtilsMockedStatic.when(CommonUtils::captureScreen).thenReturn(mockScreenshot);
+                coreUtilsMockedStatic.when(() -> CommonUtils.isNotBlank(anyString())).thenCallRealMethod();
+                coreUtilsMockedStatic.when(() -> CommonUtils.isNotBlank(null)).thenReturn(false);
+                commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mockScreenshot);
                 coreUtilsMockedStatic.when(() -> sleepMillis(anyLong())).thenAnswer(invocation -> null);
 
                 promptUtilsMockedStatic.when(() -> loadSystemPrompt(any(), any(), any())).thenReturn("System Prompt");

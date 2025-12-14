@@ -23,10 +23,9 @@ import org.tarik.ta.core.dto.AgentExecutionResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.mockito.MockedStatic;
-import org.tarik.ta.utils.CommonUtils;
+import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.image.BufferedImage;
-import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -36,12 +35,12 @@ import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS
 
 class UiTestStepActionUiTestAgentTest {
 
-    private MockedStatic<CommonUtils> commonUtilsMockedStatic;
+    private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
 
     @BeforeEach
     void setUp() {
-        commonUtilsMockedStatic = mockStatic(CommonUtils.class, CALLS_REAL_METHODS);
-        commonUtilsMockedStatic.when(CommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
+        commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS);
+        commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
     }
 
     @AfterEach

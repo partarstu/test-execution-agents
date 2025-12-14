@@ -30,8 +30,8 @@ import static java.lang.System.currentTimeMillis;
 import static org.tarik.ta.core.AgentConfig.getMaxActionExecutionDurationMillis;
 import static org.tarik.ta.core.error.ErrorCategory.TIMEOUT;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
-import static org.tarik.ta.utils.CommonUtils.*;
-import static org.tarik.ta.core.utils.CoreUtils.*;
+import static org.tarik.ta.utils.UiCommonUtils.*;
+import static org.tarik.ta.core.utils.CommonUtils.*;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
 public class MouseTools extends UiAbstractTools {

@@ -43,20 +43,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
-import static org.tarik.ta.utils.CommonUtils.getColorByName;
-import static org.tarik.ta.utils.CommonUtils.getColorName;
-import static org.tarik.ta.utils.CommonUtils.getMouseLocation;
-import static org.tarik.ta.utils.CommonUtils.getPhysicalBoundingBox;
-import static org.tarik.ta.utils.CommonUtils.getPhysicalScreenLocationCoordinates;
-import static org.tarik.ta.utils.CommonUtils.getScaledBoundingBox;
-import static org.tarik.ta.utils.CommonUtils.getScaledScreenLocationCoordinates;
-import static org.tarik.ta.utils.CommonUtils.getScreenSize;
-import static org.tarik.ta.utils.CommonUtils.getStaticFieldValue;
+import static org.tarik.ta.utils.UiCommonUtils.getColorByName;
+import static org.tarik.ta.utils.UiCommonUtils.getColorName;
+import static org.tarik.ta.utils.UiCommonUtils.getMouseLocation;
+import static org.tarik.ta.utils.UiCommonUtils.getPhysicalBoundingBox;
+import static org.tarik.ta.utils.UiCommonUtils.getPhysicalScreenLocationCoordinates;
+import static org.tarik.ta.utils.UiCommonUtils.getScaledBoundingBox;
+import static org.tarik.ta.utils.UiCommonUtils.getScaledScreenLocationCoordinates;
+import static org.tarik.ta.utils.UiCommonUtils.getScreenSize;
+import static org.tarik.ta.utils.UiCommonUtils.getStaticFieldValue;
 
 @SuppressWarnings("ALL")
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CommonUtils Tests")
-class CommonUtilsTest {
+class UiCommonUtilsTest {
     @Mock
     private Toolkit mockToolkit;
     @Mock

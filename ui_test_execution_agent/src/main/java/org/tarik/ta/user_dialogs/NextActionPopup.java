@@ -15,9 +15,7 @@
  */
 package org.tarik.ta.user_dialogs;
 
-import org.tarik.ta.core.utils.CoreUtils;
-
-import org.tarik.ta.utils.CommonUtils;
+import org.tarik.ta.core.utils.CommonUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -84,7 +82,7 @@ public class NextActionPopup extends AbstractDialog {
     }
 
     public static UserDecision displayAndGetUserDecision(Window owner, String message) {
-        String actualMessage = CoreUtils.isNotBlank(message) ? message : DEFAULT_INPUT_MESSAGE;
+        String actualMessage = CommonUtils.isNotBlank(message) ? message : DEFAULT_INPUT_MESSAGE;
         var popup = new NextActionPopup(owner, actualMessage);
         return popup.userDecision.get();
     }

@@ -42,8 +42,8 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
-public class CoreUtils {
-    private static final Logger LOG = LoggerFactory.getLogger(CoreUtils.class);
+public class CommonUtils {
+    private static final Logger LOG = LoggerFactory.getLogger(CommonUtils.class);
 
     public static Optional<String> getObjectPrettyPrinted(ObjectMapper mapper, Map<String, String> toolExecutionInfoByToolName) {
         try {

@@ -25,15 +25,15 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.tarik.ta.core.utils.CoreUtils.isBlank;
-import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
-import static org.tarik.ta.core.utils.CoreUtils.parseStringAsDouble;
-import static org.tarik.ta.core.utils.CoreUtils.parseStringAsInteger;
+import static org.tarik.ta.core.utils.CommonUtils.isBlank;
+import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
+import static org.tarik.ta.core.utils.CommonUtils.parseStringAsDouble;
+import static org.tarik.ta.core.utils.CommonUtils.parseStringAsInteger;
 
 @SuppressWarnings("ALL")
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CoreUtils Tests")
-class CoreUtilsTest {
+class CommonUtilsTest {
 
     @Test
     @DisplayName("parseStringAsInteger: Should parse valid integer string")

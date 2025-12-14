@@ -25,7 +25,7 @@ import io.a2a.spec.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.dto.TestExecutionResult;
-import org.tarik.ta.core.utils.CoreUtils;
+import org.tarik.ta.core.utils.CommonUtils;
 
 import java.util.Collection;
 import java.util.LinkedList;
@@ -148,7 +148,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                 .flatMap(Collection::stream)
                 .filter(p -> p instanceof TextPart)
                 .map(part -> ((TextPart) part).getText())
-                .filter(CoreUtils::isNotBlank)
+                .filter(CommonUtils::isNotBlank)
                 .map(String::trim)
                 .collect(joining("\n"))
                 .trim();

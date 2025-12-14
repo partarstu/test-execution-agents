@@ -56,8 +56,8 @@ import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.rag.model.UiElement.Screenshot.fromBufferedImage;
 
 import org.tarik.ta.core.utils.PromptUtils;
-import static org.tarik.ta.utils.CommonUtils.*;
-import static org.tarik.ta.core.utils.CoreUtils.*;
+import static org.tarik.ta.utils.UiCommonUtils.*;
+import static org.tarik.ta.core.utils.CommonUtils.*;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
 /**

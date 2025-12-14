@@ -24,7 +24,7 @@ import org.mockito.MockedStatic;
 import org.tarik.ta.core.dto.FinalResult;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.dto.AgentExecutionResult;
-import org.tarik.ta.core.utils.CoreUtils;
+import org.tarik.ta.core.utils.CommonUtils;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -37,12 +37,12 @@ import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS
 
 class BaseAiAgentRetryTest {
 
-    private MockedStatic<CoreUtils> CoreUtilsMockedStatic;
+    private MockedStatic<CommonUtils> CoreUtilsMockedStatic;
 
     @BeforeEach
     void setUp() {
-        CoreUtilsMockedStatic = mockStatic(CoreUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-        CoreUtilsMockedStatic.when(() -> CoreUtils.sleepMillis(anyInt())).thenAnswer(invocation -> null);
+        CoreUtilsMockedStatic = mockStatic(CommonUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        CoreUtilsMockedStatic.when(() -> CommonUtils.sleepMillis(anyInt())).thenAnswer(invocation -> null);
     }
 
     @AfterEach

@@ -35,7 +35,7 @@ import static java.awt.Desktop.getDesktop;
 import static java.awt.Desktop.isDesktopSupported;
 import static org.tarik.ta.core.AgentConfig.getVerificationRetryTimeoutMillis;
 import static org.tarik.ta.core.error.ErrorCategory.*;
-import static org.tarik.ta.core.utils.CoreUtils.*;
+import static org.tarik.ta.core.utils.CommonUtils.*;
 
 public class CommonTools extends UiAbstractTools {
     private static final int BROWSER_OPEN_TIME_SECONDS = 1;

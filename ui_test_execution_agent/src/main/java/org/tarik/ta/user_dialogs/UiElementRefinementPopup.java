@@ -29,7 +29,7 @@ import java.util.Optional;
 
 import static java.awt.Image.SCALE_AREA_AVERAGING;
 import static java.util.Optional.ofNullable;
-import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
+import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 
 public class UiElementRefinementPopup extends AbstractDialog {
     private static final String DIALOG_TITLE = "UI Elements Refinement";

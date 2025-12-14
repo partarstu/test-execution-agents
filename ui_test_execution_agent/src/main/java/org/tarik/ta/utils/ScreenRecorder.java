@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 import static java.awt.image.BufferedImage.TYPE_3BYTE_BGR;
 import static java.nio.file.Files.createDirectories;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.tarik.ta.utils.CommonUtils.getMouseLocation;
+import static org.tarik.ta.utils.UiCommonUtils.getMouseLocation;
 
 public class ScreenRecorder {
     private static final Logger LOG = LoggerFactory.getLogger(ScreenRecorder.class);

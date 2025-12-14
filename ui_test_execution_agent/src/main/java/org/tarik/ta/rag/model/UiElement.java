@@ -18,7 +18,7 @@ package org.tarik.ta.rag.model;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.segment.TextSegment;
 import org.jetbrains.annotations.NotNull;
-import org.tarik.ta.core.utils.CoreUtils;
+import org.tarik.ta.core.utils.CommonUtils;
 
 import java.awt.image.BufferedImage;
 import java.util.*;
@@ -91,7 +91,7 @@ public class UiElement {
     }
 
     public boolean isDataDependent() {
-        return dataAttributes.stream().anyMatch(CoreUtils::isNotBlank);
+        return dataAttributes.stream().anyMatch(CommonUtils::isNotBlank);
     }
 
     public enum MetadataField {
@@ -146,7 +146,7 @@ public class UiElement {
         var dataDependentAttributes = DATA_ATTRIBUTES.<String>getValueFromMetadata(metadata).stream()
                 .flatMap(v -> Arrays.stream(v.split(",")))
                 .map(String::trim)
-                .filter(CoreUtils::isNotBlank)
+                .filter(CommonUtils::isNotBlank)
                 .toList();
 
         return new UiElement(id, name, ownDescription, anchorsDescription, pageSummary,
