@@ -27,11 +27,12 @@ class ApiRequestToolsTest {
     void setUp() {
         wireMockServer = new WireMockServer(wireMockConfig().dynamicPort());
         wireMockServer.start();
-        
+
         apiContext = Mockito.spy(new ApiContext());
         apiContext.setBaseUri(wireMockServer.baseUrl());
-        
-        apiRequestTools = new ApiRequestTools(apiContext);
+
+        apiRequestTools = new ApiRequestTools(apiContext,
+                Mockito.mock(org.tarik.ta.core.model.TestExecutionContext.class));
     }
 
     @AfterEach
@@ -46,8 +47,9 @@ class ApiRequestToolsTest {
                         .withStatus(200)
                         .withBody("Success")));
 
-        String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/test", null, null, AuthType.NONE, null, null);
-        
+        String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/test", null, null,
+                AuthType.NONE, null, null);
+
         assertThat(result).contains("Status: 200");
         assertThat(apiContext.getLastResponse()).isPresent();
         assertThat(apiContext.getLastResponse().get().getBody().asString()).isEqualTo("Success");
@@ -61,8 +63,9 @@ class ApiRequestToolsTest {
 
         apiContext.setVariable("id", "123");
 
-        String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/resource/${id}", null, null, AuthType.NONE, null, null);
-        
+        String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/resource/${id}", null, null,
+                AuthType.NONE, null, null);
+
         assertThat(result).contains("Status: 200");
     }
 
@@ -73,8 +76,9 @@ class ApiRequestToolsTest {
                 .willReturn(aResponse()
                         .withStatus(201)));
 
-        String result = apiRequestTools.sendRequest("POST", wireMockServer.baseUrl() + "/login", null, "{}", AuthType.BASIC, "user:pass", null);
-        
+        String result = apiRequestTools.sendRequest("POST", wireMockServer.baseUrl() + "/login", null, "{}",
+                AuthType.BASIC, "user:pass", null);
+
         assertThat(result).contains("Status: 201");
     }
 }

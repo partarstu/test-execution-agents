@@ -9,7 +9,7 @@ You have access to tools for:
 
 When executing a precondition:
 1. Analyze the 'precondition' description to understand what needs to be set up.
-2. Use 'ApiDataTools' to load any required test data.
+2. Use 'TestContextDataTools' to load any required test data.
 3. Use 'ApiRequestTools' to perform the necessary API calls for setup.
 4. Store important values (tokens, IDs, etc.) in context variables using extraction.
 

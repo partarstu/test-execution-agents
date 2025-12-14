@@ -11,7 +11,7 @@ You have access to tools for:
 
 When executing a step:
 1. Analyze the 'testStep' description and 'testData'.
-2. Use 'ApiDataTools' to load data if requested.
+2. Use 'TestContextDataTools' to load data if requested.
 3. Use 'ApiRequestTools' to perform the HTTP action.
 4. Use 'ApiAssertionTools' to verify the results immediately after the request, if the step implies verification.
 5. Use 'ApiAssertionTools' to extract variables if needed for future steps.

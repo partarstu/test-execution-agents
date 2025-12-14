@@ -160,7 +160,7 @@ The API Test Execution Agent uses the following tools:
 - `validateSchema(schemaPath)` - Validates response against JSON Schema
 - `validateOpenApi(specPath)` - Validates response against OpenAPI specification
 
-### ApiDataTools
+### TestContextDataTools
 - `loadJsonData(filePath, className, variableName)` - Loads JSON data into context
 - `loadCsvData(filePath, className, variableName)` - Loads CSV data into context
 
@@ -170,7 +170,7 @@ The API Test Execution Agent uses the following tools:
 - [x] Core Components
     - [x] ApiContext
     - [x] ApiRequestTools
-    - [x] ApiDataTools
+    - [x] TestContextDataTools
     - [x] ApiAssertionTools
     - [x] ApiTestAgentConfig
 - [x] Agent Interfaces

@@ -6,6 +6,7 @@ import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
+import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.model.AuthType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,10 +22,12 @@ import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 public class ApiRequestTools extends org.tarik.ta.core.tools.AbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(ApiRequestTools.class);
     private final ApiContext context;
+    private final TestExecutionContext executionContext;
     private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
 
-    public ApiRequestTools(ApiContext context) {
+    public ApiRequestTools(ApiContext context, TestExecutionContext executionContext) {
         this.context = context;
+        this.executionContext = executionContext;
     }
 
     @Tool("Sends an HTTP request. 'headers' is a map of header names to values. 'authValue' depends on authType (e.g., 'user:pass' for BASIC, 'token' for BEARER, 'key=value' for API_KEY).")
@@ -176,6 +179,9 @@ public class ApiRequestTools extends org.tarik.ta.core.tools.AbstractTools {
         while (matcher.find()) {
             String varName = matcher.group(1);
             Object value = context.getVariable(varName);
+            if (value == null && executionContext != null) {
+                value = executionContext.getSharedData().get(varName);
+            }
             if (value != null) {
                 matcher.appendReplacement(sb, Matcher.quoteReplacement(value.toString()));
             } else {

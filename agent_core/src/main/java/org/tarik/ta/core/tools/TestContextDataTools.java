@@ -1,12 +1,12 @@
-package org.tarik.ta.tools;
+package org.tarik.ta.core.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.CollectionType;
 import com.opencsv.bean.CsvToBeanBuilder;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
-import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
+import org.tarik.ta.core.model.TestExecutionContext;
 
 import java.io.File;
 import java.io.FileReader;
@@ -14,15 +14,15 @@ import java.util.List;
 
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 
-public class ApiDataTools extends org.tarik.ta.core.tools.AbstractTools {
-    private final ApiContext context;
+public class TestContextDataTools extends AbstractTools {
+    private final TestExecutionContext context;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public ApiDataTools(ApiContext context) {
+    public TestContextDataTools(TestExecutionContext context) {
         this.context = context;
     }
 
-    @Tool("Loads JSON data from a file into a list of objects of the specified class, and stores it in a context variable.")
+    @Tool("Loads JSON data from a file into a list of objects of the specified class, and stores it in a shared context variable.")
     public String loadJsonData(
             @P("Path to the JSON file") String filePath,
             @P("Fully qualified class name") String className,
@@ -41,15 +41,14 @@ public class ApiDataTools extends org.tarik.ta.core.tools.AbstractTools {
             Class<?> clazz = Class.forName(className);
             CollectionType listType = objectMapper.getTypeFactory().constructCollectionType(List.class, clazz);
             List<?> data = objectMapper.readValue(new File(filePath), listType);
-
-            context.setVariable(variableName, data);
-            return "Loaded " + data.size() + " items into variable '" + variableName + "'";
+            context.setSharedData(variableName, data);
+            return "Loaded " + data.size() + " items into shared variable '" + variableName + "'";
         } catch (Exception e) {
             throw rethrowAsToolException(e, "loading JSON data from " + filePath);
         }
     }
 
-    @Tool("Loads CSV data from a file into a list of objects of the specified class, and stores it in a context variable.")
+    @Tool("Loads CSV data from a file into a list of objects of the specified class, and stores it in a shared context variable.")
     public String loadCsvData(
             @P("Path to the CSV file") String filePath,
             @P("Fully qualified class name") String className,
@@ -71,8 +70,8 @@ public class ApiDataTools extends org.tarik.ta.core.tools.AbstractTools {
                     .build()
                     .parse();
 
-            context.setVariable(variableName, data);
-            return "Loaded " + data.size() + " items into variable '" + variableName + "'";
+            context.setSharedData(variableName, data);
+            return "Loaded " + data.size() + " items into shared variable '" + variableName + "'";
         } catch (Exception e) {
             throw rethrowAsToolException(e, "loading CSV data from " + filePath);
         }
