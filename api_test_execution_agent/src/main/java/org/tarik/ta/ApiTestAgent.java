@@ -79,7 +79,7 @@ public class ApiTestAgent {
                         var apiContext = ApiContext.createFromConfig();
                         var executionContext = new TestExecutionContext(testCase);
                         var requestTools = new ApiRequestTools(apiContext, executionContext);
-                        var assertionTools = new ApiAssertionTools(apiContext);
+                        var assertionTools = new ApiAssertionTools(apiContext, executionContext);
                         var dataTools = new TestContextDataTools(executionContext);
 
                         if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
@@ -122,6 +122,7 @@ public class ApiTestAgent {
                         var preconditionActionAgent = getApiPreconditionActionAgent(requestTools, assertionTools,
                                         dataTools, new RetryState());
                         var preconditionVerificationAgent = getApiPreconditionVerificationAgent(apiContext,
+                                        executionContext,
                                         new RetryState());
                         LOG.info("Executing and verifying preconditions for test case: {}",
                                         executionContext.getTestCase().name());
@@ -130,8 +131,7 @@ public class ApiTestAgent {
                                 LOG.info("Executing precondition: {}", precondition);
                                 var preconditionExecutionResult = preconditionActionAgent
                                                 .executeWithRetry(() -> preconditionActionAgent.execute(precondition,
-                                                                executionContext.getSharedData().toString(),
-                                                                apiContext.toString()));
+                                                                executionContext.getSharedData().toString()));
                                 resetToolCallUsage();
 
                                 if (!preconditionExecutionResult.isSuccess()) {
@@ -158,8 +158,7 @@ public class ApiTestAgent {
                                                                                                 .getMessage(),
                                                                                 lastResponseStatus, lastResponseBody,
                                                                                 executionContext.getSharedData()
-                                                                                                .toString(),
-                                                                                apiContext.getVariables().toString()),
+                                                                                                .toString()),
                                                                 r -> r == null || !r.success());
                                 resetToolCallUsage();
 
@@ -202,7 +201,8 @@ public class ApiTestAgent {
                         ApiAssertionTools assertionTools, TestContextDataTools dataTools) {
                 var testStepActionAgent = getApiTestStepActionAgent(requestTools, assertionTools, dataTools,
                                 new RetryState());
-                var testStepVerificationAgent = getApiTestStepVerificationAgent(apiContext, new RetryState());
+                var testStepVerificationAgent = getApiTestStepVerificationAgent(apiContext, executionContext,
+                                new RetryState());
                 for (TestStep testStep : executionContext.getTestCase().testSteps()) {
                         var actionInstruction = testStep.stepDescription();
                         var testData = ofNullable(testStep.testData()).map(Object::toString).orElse("");
@@ -214,8 +214,7 @@ public class ApiTestAgent {
 
                                 var actionResult = testStepActionAgent.executeWithRetry(() -> {
                                         testStepActionAgent.execute(actionInstruction, testData,
-                                                        executionContext.getSharedData().toString(),
-                                                        false);
+                                                        executionContext.getSharedData().toString());
                                         return null;
                                 });
                                 resetToolCallUsage();
@@ -246,8 +245,7 @@ public class ApiTestAgent {
                                                         () -> testStepVerificationAgent.verify(verificationInstruction,
                                                                         actionInstruction, testData, lastResponseStatus,
                                                                         lastResponseBody, lastResponseHeaders,
-                                                                        executionContext.getSharedData().toString(),
-                                                                        apiContext.getVariables().toString()),
+                                                                        executionContext.getSharedData().toString()),
                                                         result -> result == null || !result.success());
                                         resetToolCallUsage();
 
@@ -410,6 +408,7 @@ public class ApiTestAgent {
         }
 
         private static ApiPreconditionVerificationAgent getApiPreconditionVerificationAgent(ApiContext apiContext,
+                        TestExecutionContext executionContext,
                         RetryState retryState) {
                 var model = getModel(getPreconditionVerificationAgentModelName(),
                                 getPreconditionVerificationAgentModelProvider());
@@ -420,13 +419,15 @@ public class ApiTestAgent {
                 return builder(ApiPreconditionVerificationAgent.class)
                                 .chatModel(model.chatModel())
                                 .systemMessageProvider(_ -> prompt)
-                                .tools(new ApiAssertionTools(apiContext), new VerificationExecutionResult(false, ""))
+                                .tools(new ApiAssertionTools(apiContext, executionContext),
+                                                new VerificationExecutionResult(false, ""))
                                 .toolExecutionErrorHandler(new DefaultErrorHandler(
                                                 ApiPreconditionVerificationAgent.RETRY_POLICY, retryState))
                                 .build();
         }
 
         private static ApiTestStepVerificationAgent getApiTestStepVerificationAgent(ApiContext apiContext,
+                        TestExecutionContext executionContext,
                         RetryState retryState) {
                 var model = getModel(getTestStepVerificationAgentModelName(),
                                 getTestStepVerificationAgentModelProvider());
@@ -436,7 +437,8 @@ public class ApiTestAgent {
                 return builder(ApiTestStepVerificationAgent.class)
                                 .chatModel(model.chatModel())
                                 .systemMessageProvider(_ -> prompt)
-                                .tools(new ApiAssertionTools(apiContext), new VerificationExecutionResult(false, ""))
+                                .tools(new ApiAssertionTools(apiContext, executionContext),
+                                                new VerificationExecutionResult(false, ""))
                                 .toolExecutionErrorHandler(new DefaultErrorHandler(
                                                 ApiTestStepVerificationAgent.RETRY_POLICY, retryState))
                                 .build();

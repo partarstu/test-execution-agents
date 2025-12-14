@@ -50,8 +50,6 @@ public interface ApiPreconditionVerificationAgent extends BaseAiAgent<Verificati
 
             Shared data: {{sharedData}}
 
-            Context variables: {{contextVariables}}
-
             Determine if the precondition was successful based on the API response and context state.
             """)
     Result<String> verify(
@@ -59,8 +57,7 @@ public interface ApiPreconditionVerificationAgent extends BaseAiAgent<Verificati
             @V("actionDescription") String actionDescription,
             @V("lastResponseStatus") String lastResponseStatus,
             @V("lastResponseBody") String lastResponseBody,
-            @V("sharedData") String sharedData,
-            @V("contextVariables") String contextVariables);
+            @V("sharedData") String sharedData);
 
     @Override
     default String getAgentTaskDescription() {

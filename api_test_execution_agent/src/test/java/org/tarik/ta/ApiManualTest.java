@@ -39,11 +39,7 @@ class ApiManualTest {
 
         // Step 1: Load Data
         String testDataPath = Paths.get("src", "test", "resources", "test-data.json").toAbsolutePath().toString();
-        var precondition = "Pet data are loaded from '" + testDataPath + "' file into variable 'petList' using ApiDataTools.loadJsonData.";
-
-        steps.add(new TestStep("Load pet data from '" + testDataPath + "' into variable 'petList' using ApiDataTools.loadJsonData.",
-                List.of(),
-                "Data is loaded successfully."));
+        var precondition = "Pet data is loaded from '" + testDataPath + "' file into variable as 'target pet'";
 
         // Step 2: Create Pet
         steps.add(new TestStep("Create a new pet by sending a POST request to '/pet'. Use the first item from the loaded pet list items " +
@@ -95,16 +91,12 @@ class ApiManualTest {
                 List.of("petId"),
                 "Request sent. Status: 404"));
 
-        TestCase testCase = new TestCase("Swagger Petstore End-to-End Flow",
-                List.of("The Swagger Petstore API is available at configured base URI"),
-                steps);
+        TestCase testCase = new TestCase("Swagger Petstore End-to-End Flow", List.of(precondition), steps);
 
         // When
-        TestExecutionResult actualResult = ApiTestAgent
-                .executeTestCase(new ObjectMapper().writeValueAsString(testCase));
+        TestExecutionResult actualResult = ApiTestAgent.executeTestCase(new ObjectMapper().writeValueAsString(testCase));
 
         // Then
-        assertThat(actualResult.testExecutionStatus())
-                .isEqualTo(TestExecutionResult.TestExecutionStatus.PASSED);
+        assertThat(actualResult.testExecutionStatus()).isEqualTo(TestExecutionResult.TestExecutionStatus.PASSED);
     }
 }

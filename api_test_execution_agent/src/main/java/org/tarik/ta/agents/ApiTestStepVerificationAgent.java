@@ -52,8 +52,6 @@ public interface ApiTestStepVerificationAgent extends BaseAiAgent<VerificationEx
 
             Shared data: {{sharedData}}
 
-            Context variables: {{contextVariables}}
-
             Use the assertion tools if needed to verify the expected results.
             Determine if the verification passed or failed based on the response and context.
             """)
@@ -64,8 +62,7 @@ public interface ApiTestStepVerificationAgent extends BaseAiAgent<VerificationEx
             @V("lastResponseStatus") String lastResponseStatus,
             @V("lastResponseBody") String lastResponseBody,
             @V("lastResponseHeaders") String lastResponseHeaders,
-            @V("sharedData") String sharedData,
-            @V("contextVariables") String contextVariables);
+            @V("sharedData") String sharedData);
 
     @Override
     default String getAgentTaskDescription() {

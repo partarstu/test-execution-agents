@@ -4,9 +4,7 @@ import io.restassured.filter.cookie.CookieFilter;
 import io.restassured.response.Response;
 import org.tarik.ta.ApiTestAgentConfig;
 
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Context to hold the state of the API session (cookies, variables, config).
@@ -23,10 +21,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ApiContext {
     private final CookieFilter cookieFilter = new CookieFilter();
-    private final Map<String, Object> variables = new ConcurrentHashMap<>();
     private Response lastResponse;
     private String baseUri;
-    private Integer port;
+    private Integer proxyPort;
     private String proxyHost;
     private boolean relaxedHttpsValidation = true;
 
@@ -52,25 +49,13 @@ public class ApiContext {
         ApiContext context = new ApiContext();
         ApiTestAgentConfig.getTargetBaseUri().ifPresent(context::setBaseUri);
         ApiTestAgentConfig.getProxyHost().ifPresent(context::setProxyHost);
-        context.setPort(ApiTestAgentConfig.getProxyPort());
+        context.setProxyPort(ApiTestAgentConfig.getProxyPort());
         context.setRelaxedHttpsValidation(ApiTestAgentConfig.getRelaxedHttpsValidation());
         return context;
     }
 
     public CookieFilter getCookieFilter() {
         return cookieFilter;
-    }
-
-    public void setVariable(String key, Object value) {
-        variables.put(key, value);
-    }
-
-    public Object getVariable(String key) {
-        return variables.get(key);
-    }
-
-    public Map<String, Object> getVariables() {
-        return variables;
     }
 
     public Optional<Response> getLastResponse() {
@@ -97,12 +82,12 @@ public class ApiContext {
         this.proxyHost = proxyHost;
     }
 
-    public Optional<Integer> getPort() {
-        return Optional.ofNullable(port);
+    public Optional<Integer> getProxyPort() {
+        return Optional.ofNullable(proxyPort);
     }
 
-    public void setPort(Integer port) {
-        this.port = port;
+    public void setProxyPort(Integer proxyPort) {
+        this.proxyPort = proxyPort;
     }
 
     public boolean isRelaxedHttpsValidation() {
@@ -118,7 +103,6 @@ public class ApiContext {
      * Note: Cookie filter state cannot be easily cleared.
      */
     public void clear() {
-        variables.clear();
         lastResponse = null;
     }
 }

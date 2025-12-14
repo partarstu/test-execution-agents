@@ -162,7 +162,7 @@ The API Test Execution Agent uses the following tools:
 
 ### TestContextDataTools
 - `loadJsonData(filePath, variableName)` - Loads JSON data into context
-- `loadCsvData(filePath, className, variableName)` - Loads CSV data into context
+- `loadCsvData(filePath, variableName)` - Loads CSV data into context
 
 ## Implementation Status
 - [x] Module Structure

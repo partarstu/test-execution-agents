@@ -43,15 +43,12 @@ public interface ApiPreconditionActionAgent extends BaseAiAgent<EmptyExecutionRe
 
             Shared data from previous operations: {{sharedData}}
 
-            API context information: {{apiContextInfo}}
-
             Use the available API tools to execute this precondition.
             Store any values needed for later steps in context variables.
             """)
     Result<String> execute(
             @V("precondition") String precondition,
-            @V("sharedData") String sharedData,
-            @V("apiContextInfo") String apiContextInfo);
+            @V("sharedData") String sharedData);
 
     @Override
     default String getAgentTaskDescription() {

@@ -54,12 +54,9 @@ public interface ApiTestStepActionAgent extends BaseAiAgent<EmptyExecutionResult
             Data related to the test step: {{testData}}
 
             Shared data: {{sharedData}}
-
-            Interaction with the user is allowed: {{attendedMode}}
             """)
     Result<String> execute(
             @V("testStep") String testStep,
             @V("testData") String testData,
-            @V("sharedData") String sharedData,
-            @V("attendedMode") boolean attendedMode);
+            @V("sharedData") String sharedData);
 }
