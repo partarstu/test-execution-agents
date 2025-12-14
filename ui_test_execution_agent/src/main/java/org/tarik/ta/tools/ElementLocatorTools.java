@@ -75,7 +75,7 @@ import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithORB;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithTemplateMatching;
 import static org.tarik.ta.utils.ImageUtils.*;
 
-public class ElementLocatorTools extends AbstractTools {
+public class ElementLocatorTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(ElementLocatorTools.class);
     private static final double MIN_TARGET_RETRIEVAL_SCORE = UiTestAgentConfig.getElementRetrievalMinTargetScore();
     private static final double MIN_PAGE_RELEVANCE_SCORE = UiTestAgentConfig.getElementRetrievalMinPageRelevanceScore();

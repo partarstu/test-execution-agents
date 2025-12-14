@@ -3,17 +3,18 @@ package org.tarik.ta.tools;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.CollectionType;
 import com.opencsv.bean.CsvToBeanBuilder;
+import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.tarik.ta.context.ApiContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.exceptions.ToolExecutionException;
 
 import java.io.File;
 import java.io.FileReader;
 import java.util.List;
 
-public class ApiDataTools {
-    private static final Logger LOG = LoggerFactory.getLogger(ApiDataTools.class);
+import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
+
+public class ApiDataTools extends org.tarik.ta.core.tools.AbstractTools {
     private final ApiContext context;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -22,7 +23,20 @@ public class ApiDataTools {
     }
 
     @Tool("Loads JSON data from a file into a list of objects of the specified class, and stores it in a context variable.")
-    public String loadJsonData(String filePath, String className, String variableName) {
+    public String loadJsonData(
+            @P("Path to the JSON file") String filePath,
+            @P("Fully qualified class name") String className,
+            @P("Variable name to store data") String variableName) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new ToolExecutionException("File path cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
+        if (className == null || className.isBlank()) {
+            throw new ToolExecutionException("Class name cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
+        if (variableName == null || variableName.isBlank()) {
+            throw new ToolExecutionException("Variable name cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
+
         try {
             Class<?> clazz = Class.forName(className);
             CollectionType listType = objectMapper.getTypeFactory().constructCollectionType(List.class, clazz);
@@ -31,13 +45,25 @@ public class ApiDataTools {
             context.setVariable(variableName, data);
             return "Loaded " + data.size() + " items into variable '" + variableName + "'";
         } catch (Exception e) {
-            LOG.error("Error loading JSON data from {}", filePath, e);
-            return "Error loading JSON data: " + e.getMessage();
+            throw rethrowAsToolException(e, "loading JSON data from " + filePath);
         }
     }
 
     @Tool("Loads CSV data from a file into a list of objects of the specified class, and stores it in a context variable.")
-    public String loadCsvData(String filePath, String className, String variableName) {
+    public String loadCsvData(
+            @P("Path to the CSV file") String filePath,
+            @P("Fully qualified class name") String className,
+            @P("Variable name to store data") String variableName) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new ToolExecutionException("File path cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
+        if (className == null || className.isBlank()) {
+            throw new ToolExecutionException("Class name cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
+        if (variableName == null || variableName.isBlank()) {
+            throw new ToolExecutionException("Variable name cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
+
         try {
             Class<?> clazz = Class.forName(className);
             List<?> data = new CsvToBeanBuilder<>(new FileReader(filePath))
@@ -48,8 +74,7 @@ public class ApiDataTools {
             context.setVariable(variableName, data);
             return "Loaded " + data.size() + " items into variable '" + variableName + "'";
         } catch (Exception e) {
-            LOG.error("Error loading CSV data from {}", filePath, e);
-            return "Error loading CSV data: " + e.getMessage();
+            throw rethrowAsToolException(e, "loading CSV data from " + filePath);
         }
     }
 }

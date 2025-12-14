@@ -15,8 +15,6 @@
  */
 package org.tarik.ta.tools;
 
-import org.tarik.ta.core.AgentConfig;
-
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.tarik.ta.agents.UiStateCheckAgent;
@@ -37,10 +35,9 @@ import static java.awt.Desktop.getDesktop;
 import static java.awt.Desktop.isDesktopSupported;
 import static org.tarik.ta.core.AgentConfig.getVerificationRetryTimeoutMillis;
 import static org.tarik.ta.core.error.ErrorCategory.*;
-import static org.tarik.ta.utils.CommonUtils.*;
 import static org.tarik.ta.core.utils.CoreUtils.*;
 
-public class CommonTools extends AbstractTools {
+public class CommonTools extends UiAbstractTools {
     private static final int BROWSER_OPEN_TIME_SECONDS = 1;
     private static final Logger LOG = LoggerFactory.getLogger(CommonTools.class);
     private static final String HTTP_PROTOCOL = "http://";

@@ -34,7 +34,7 @@ import static org.tarik.ta.utils.CommonUtils.*;
 import static org.tarik.ta.core.utils.CoreUtils.*;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
-public class MouseTools extends AbstractTools {
+public class MouseTools extends UiAbstractTools {
     private static final int MOUSE_ACTION_DELAY_MILLIS = 100;
     private static final int RETRIABLE_ACTION_DELAY_MILLIS = AgentConfig.getActionVerificationDelayMillis() * 2;
 

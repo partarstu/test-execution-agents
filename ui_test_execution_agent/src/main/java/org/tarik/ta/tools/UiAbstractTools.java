@@ -15,29 +15,25 @@
  */
 package org.tarik.ta.tools;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import dev.langchain4j.service.AiServices;
 import org.tarik.ta.dto.UiStateCheckResult;
-import org.tarik.ta.core.exceptions.ToolExecutionException;
 
-import static java.lang.String.format;
 import static org.tarik.ta.UiTestAgentConfig.*;
-import static org.tarik.ta.core.error.ErrorCategory.UNKNOWN;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
-public class AbstractTools {
-    private static final Logger LOG = LoggerFactory.getLogger(AbstractTools.class);
+public class UiAbstractTools {
+    public static final String AGENT_PATH = "common/ui_state_checker";
+    public static final String UI_STATE_CHECKER_PROMPT_FILE = "ui_state_checker_prompt.txt";
     protected final UiStateCheckAgent uiStateCheckAgent;
 
-    public AbstractTools() {
+    public UiAbstractTools() {
         this(createUiStateCheckAgent());
     }
 
     private static UiStateCheckAgent createUiStateCheckAgent() {
-        var prompt = loadSystemPrompt("common/ui_state_checker", getUiStateCheckAgentPromptVersion(), "ui_state_checker_prompt.txt");
+        var prompt = loadSystemPrompt(AGENT_PATH, getUiStateCheckAgentPromptVersion(), UI_STATE_CHECKER_PROMPT_FILE);
         return AiServices.builder(UiStateCheckAgent.class)
                 .chatModel(getModel(getUiStateCheckAgentModelName(), getUiStateCheckAgentModelProvider()).chatModel())
                 .systemMessageProvider(_ -> prompt)
@@ -46,16 +42,7 @@ public class AbstractTools {
                 .build();
     }
 
-    protected AbstractTools(UiStateCheckAgent uiStateCheckAgent) {
+    protected UiAbstractTools(UiStateCheckAgent uiStateCheckAgent) {
         this.uiStateCheckAgent = uiStateCheckAgent;
-    }
-
-    protected RuntimeException rethrowAsToolException(Exception e, String operationContext) {
-        if (e instanceof ToolExecutionException toolExecutionException) {
-            return toolExecutionException;
-        } else {
-            LOG.error("Error during {}", operationContext, e);
-            return new ToolExecutionException(format("Error while %s: %s", operationContext, e.getMessage()), UNKNOWN);
-        }
     }
 }

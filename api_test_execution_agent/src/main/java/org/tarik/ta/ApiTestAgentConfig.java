@@ -36,19 +36,19 @@ public class ApiTestAgentConfig extends AgentConfig {
     // -----------------------------------------------------
     // HTTP Client Configuration
 
-    private static final ConfigProperty<String> BASE_URI = loadProperty("api.base.uri",
+    private static final ConfigProperty<String> TARGET_BASE_URI = loadProperty("api.base.uri",
             "API_BASE_URI", "", s -> s, false);
 
-    public static Optional<String> getBaseUri() {
-        String value = BASE_URI.value();
+    public static Optional<String> getTargetBaseUri() {
+        String value = TARGET_BASE_URI.value();
         return value.isEmpty() ? Optional.empty() : Optional.of(value);
     }
 
-    private static final ConfigProperty<Integer> PORT = loadPropertyAsInteger("api.proxy.port",
+    private static final ConfigProperty<Integer> PROXY_PORT = loadPropertyAsInteger("api.proxy.port",
             "API_PROXY_PORT", "8080", false);
 
-    public static int getPort() {
-        return PORT.value();
+    public static int getProxyPort() {
+        return PROXY_PORT.value();
     }
 
     private static final ConfigProperty<String> PROXY_HOST = loadProperty("api.proxy.host",
@@ -150,114 +150,6 @@ public class ApiTestAgentConfig extends AgentConfig {
 
     public static int getRetryDelayMillis() {
         return RETRY_DELAY_MILLIS.value();
-    }
-
-    // -----------------------------------------------------
-    // API Precondition Action Agent Configuration
-
-    private static final ConfigProperty<String> PRECONDITION_ACTION_AGENT_MODEL_NAME = loadProperty(
-            "api.precondition.action.agent.model.name", "API_PRECONDITION_ACTION_AGENT_MODEL_NAME", "gemini-2.5-flash",
-            s -> s, false);
-
-    public static String getPreconditionActionAgentModelName() {
-        return PRECONDITION_ACTION_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> PRECONDITION_ACTION_AGENT_MODEL_PROVIDER = getProperty(
-            "api.precondition.action.agent.model.provider", "API_PRECONDITION_ACTION_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getPreconditionActionAgentModelProvider() {
-        return PRECONDITION_ACTION_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> PRECONDITION_ACTION_AGENT_PROMPT_VERSION = loadProperty(
-            "api.precondition.action.agent.prompt.version", "API_PRECONDITION_ACTION_AGENT_PROMPT_VERSION", "v1.0.0",
-            s -> s, false);
-
-    public static String getPreconditionActionAgentPromptVersion() {
-        return PRECONDITION_ACTION_AGENT_PROMPT_VERSION.value();
-    }
-
-    // -----------------------------------------------------
-    // API Precondition Verification Agent Configuration
-
-    private static final ConfigProperty<String> PRECONDITION_VERIFICATION_AGENT_MODEL_NAME = loadProperty(
-            "api.precondition.verification.agent.model.name", "API_PRECONDITION_VERIFICATION_AGENT_MODEL_NAME",
-            "gemini-2.5-flash", s -> s, false);
-
-    public static String getPreconditionVerificationAgentModelName() {
-        return PRECONDITION_VERIFICATION_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER = getProperty(
-            "api.precondition.verification.agent.model.provider", "API_PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER",
-            "google", AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getPreconditionVerificationAgentModelProvider() {
-        return PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION = loadProperty(
-            "api.precondition.verification.agent.prompt.version", "API_PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION",
-            "v1.0.0", s -> s, false);
-
-    public static String getPreconditionVerificationAgentPromptVersion() {
-        return PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION.value();
-    }
-
-    // -----------------------------------------------------
-    // API Test Step Action Agent Configuration
-
-    private static final ConfigProperty<String> TEST_STEP_ACTION_AGENT_MODEL_NAME = loadProperty(
-            "api.test.step.action.agent.model.name", "API_TEST_STEP_ACTION_AGENT_MODEL_NAME", "gemini-2.5-flash",
-            s -> s, false);
-
-    public static String getTestStepActionAgentModelName() {
-        return TEST_STEP_ACTION_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> TEST_STEP_ACTION_AGENT_MODEL_PROVIDER = getProperty(
-            "api.test.step.action.agent.model.provider", "API_TEST_STEP_ACTION_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getTestStepActionAgentModelProvider() {
-        return TEST_STEP_ACTION_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> TEST_STEP_ACTION_AGENT_PROMPT_VERSION = loadProperty(
-            "api.test.step.action.agent.prompt.version", "API_TEST_STEP_ACTION_AGENT_PROMPT_VERSION", "v1.0.0",
-            s -> s, false);
-
-    public static String getTestStepActionAgentPromptVersion() {
-        return TEST_STEP_ACTION_AGENT_PROMPT_VERSION.value();
-    }
-
-    // -----------------------------------------------------
-    // API Test Step Verification Agent Configuration
-
-    private static final ConfigProperty<String> TEST_STEP_VERIFICATION_AGENT_MODEL_NAME = loadProperty(
-            "api.test.step.verification.agent.model.name", "API_TEST_STEP_VERIFICATION_AGENT_MODEL_NAME",
-            "gemini-2.5-flash", s -> s, false);
-
-    public static String getTestStepVerificationAgentModelName() {
-        return TEST_STEP_VERIFICATION_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER = getProperty(
-            "api.test.step.verification.agent.model.provider", "API_TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER",
-            "google", AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getTestStepVerificationAgentModelProvider() {
-        return TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION = loadProperty(
-            "api.test.step.verification.agent.prompt.version", "API_TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION",
-            "v1.0.0", s -> s, false);
-
-    public static String getTestStepVerificationAgentPromptVersion() {
-        return TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION.value();
     }
 
     // -----------------------------------------------------

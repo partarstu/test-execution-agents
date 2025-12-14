@@ -17,7 +17,6 @@ package org.tarik.ta;
 
 import dev.langchain4j.service.tool.ToolErrorContext;
 import dev.langchain4j.service.tool.ToolErrorHandlerResult;
-import dev.langchain4j.service.tool.ToolExecutionErrorHandler;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +26,7 @@ import org.tarik.ta.core.agents.PreconditionActionAgent;
 import org.tarik.ta.core.agents.PreconditionVerificationAgent;
 import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.*;
+import org.tarik.ta.core.model.DefaultErrorHandler;
 import org.tarik.ta.dto.UiPreconditionResult;
 import org.tarik.ta.dto.UiTestStepResult;
 import org.tarik.ta.dto.UiTestExecutionResult;
@@ -331,7 +331,7 @@ public class UiTestAgent {
         return builder(UiTestStepVerificationAgent.class)
                 .chatModel(testStepVerificationAgentModel.chatModel())
                 .systemMessageProvider(_ -> testStepVerificationAgentPrompt)
-                .toolExecutionErrorHandler(new DefaultErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY, retryState))
+                .toolExecutionErrorHandler(new UiErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY, retryState))
                 .tools(new VerificationExecutionResult(false, ""))
                 .build();
     }
@@ -347,7 +347,7 @@ public class UiTestAgent {
                 .systemMessageProvider(_ -> testStepActionAgentPrompt)
                 .tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools, userInteractionTools,
                         new EmptyExecutionResult())
-                .toolExecutionErrorHandler(new DefaultErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState))
+                .toolExecutionErrorHandler(new UiErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState))
                 .build();
     }
 
@@ -359,7 +359,7 @@ public class UiTestAgent {
         return builder(UiPreconditionVerificationAgent.class)
                 .chatModel(preconditionVerificationAgentModel.chatModel())
                 .systemMessageProvider(_ -> preconditionVerificationAgentPrompt)
-                .toolExecutionErrorHandler(new DefaultErrorHandler(PreconditionVerificationAgent.RETRY_POLICY, retryState))
+                .toolExecutionErrorHandler(new UiErrorHandler(PreconditionVerificationAgent.RETRY_POLICY, retryState))
                 .tools(new VerificationExecutionResult(false, ""))
                 .build();
     }
@@ -374,7 +374,7 @@ public class UiTestAgent {
         return builder(UiPreconditionActionAgent.class)
                 .chatModel(preconditionAgentModel.chatModel())
                 .systemMessageProvider(_ -> preconditionAgentPrompt)
-                .toolExecutionErrorHandler(new DefaultErrorHandler(PreconditionActionAgent.RETRY_POLICY, retryState))
+                .toolExecutionErrorHandler(new UiErrorHandler(PreconditionActionAgent.RETRY_POLICY, retryState))
                 .tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools, userInteractionTools,
                         new EmptyExecutionResult())
                 .build();
@@ -408,39 +408,31 @@ public class UiTestAgent {
                 executionStartTimestamp, executionEndTimestamp));
     }
 
-    private record DefaultErrorHandler(RetryPolicy retryPolicy, RetryState retryState) implements ToolExecutionErrorHandler {
+    private static class UiErrorHandler extends DefaultErrorHandler {
         private static final List<ErrorCategory> terminalErrors =
                 List.of(NON_RETRYABLE_ERROR, TIMEOUT, TERMINATION_BY_USER, VERIFICATION_FAILED);
+
+        public UiErrorHandler(RetryPolicy retryPolicy, RetryState retryState) {
+            super(retryPolicy, retryState);
+        }
+
+        @Override
+        protected List<ErrorCategory> getTerminalErrors() {
+            return terminalErrors;
+        }
 
         @Override
         public ToolErrorHandlerResult handle(Throwable error, ToolErrorContext context) {
             if (error instanceof ElementLocationException elementLocationException) {
                 return handleRetryableToolError(elementLocationException.getMessage());
             } else if (error instanceof ToolExecutionException toolExecutionException) {
-                if (terminalErrors.contains(toolExecutionException.getErrorCategory())) {
+                if (getTerminalErrors().contains(toolExecutionException.getErrorCategory())) {
                     throw toolExecutionException;
                 } else {
                     return handleRetryableToolError(toolExecutionException.getMessage());
                 }
             } else {
                 throw new RuntimeException(error);
-            }
-        }
-
-        private ToolErrorHandlerResult handleRetryableToolError(String message) throws ToolExecutionException {
-            retryState.startIfNotStarted();
-            int attempts = retryState.incrementAttempts();
-            long elapsedTime = retryState.getElapsedTime();
-            boolean isTimeout = retryPolicy.timeoutMillis() > 0 && elapsedTime > retryPolicy.timeoutMillis();
-            boolean isMaxRetriesReached = attempts > retryPolicy.maxRetries();
-
-            if (isTimeout && isUnattendedMode()) {
-                throw new ToolExecutionException("Retry policy exceeded because of timeout. Original error: " + message, TIMEOUT);
-            } else if (isMaxRetriesReached && isUnattendedMode()) {
-                throw new ToolExecutionException("Retry policy exceeded because of max retries. Original error: " + message, TIMEOUT);
-            } else {
-                LOG.info("Passing the following tool execution error to the agent: '{}'", message);
-                return new ToolErrorHandlerResult(message);
             }
         }
     }

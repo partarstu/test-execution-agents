@@ -1,11 +1,11 @@
 package org.tarik.ta.tools;
 
+import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import io.restassured.module.jsv.JsonSchemaValidator;
 import io.restassured.response.Response;
 import org.tarik.ta.context.ApiContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.exceptions.ToolExecutionException;
 
 import com.atlassian.oai.validator.OpenApiInteractionValidator;
 import com.atlassian.oai.validator.model.Request;
@@ -15,8 +15,9 @@ import com.atlassian.oai.validator.report.ValidationReport;
 import java.io.File;
 import java.util.Optional;
 
-public class ApiAssertionTools {
-    private static final Logger LOG = LoggerFactory.getLogger(ApiAssertionTools.class);
+import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
+
+public class ApiAssertionTools extends org.tarik.ta.core.tools.AbstractTools {
     private final ApiContext context;
 
     public ApiAssertionTools(ApiContext context) {
@@ -24,22 +25,30 @@ public class ApiAssertionTools {
     }
 
     @Tool("Asserts that the last response status code matches the expected code.")
-    public String assertStatusCode(int expectedCode) {
+    public String assertStatusCode(@P("Expected HTTP status code") int expectedCode) {
         Optional<Response> responseOpt = context.getLastResponse();
-        if (responseOpt.isEmpty()) return "Error: No response available to assert.";
+        if (responseOpt.isEmpty())
+            throw new ToolExecutionException("No response available to assert.", TRANSIENT_TOOL_ERROR);
 
         try {
             responseOpt.get().then().statusCode(expectedCode);
             return "Assertion passed: Status code is " + expectedCode;
         } catch (AssertionError e) {
             return "Assertion failed: " + e.getMessage();
+        } catch (Exception e) {
+            throw rethrowAsToolException(e, "asserting status code");
         }
     }
 
     @Tool("Asserts that the JSON path in the last response matches the expected value.")
-    public String assertJsonPath(String jsonPath, String expectedValue) {
+    public String assertJsonPath(@P("JSON path expression") String jsonPath,
+            @P("Expected value") String expectedValue) {
+        if (jsonPath == null || jsonPath.isBlank()) {
+            throw new ToolExecutionException("JSON path cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
         Optional<Response> responseOpt = context.getLastResponse();
-        if (responseOpt.isEmpty()) return "Error: No response available to assert.";
+        if (responseOpt.isEmpty())
+            throw new ToolExecutionException("No response available to assert.", TRANSIENT_TOOL_ERROR);
 
         try {
             // Using string comparison for flexibility
@@ -50,28 +59,42 @@ public class ApiAssertionTools {
                 return "Assertion failed: " + jsonPath + " expected '" + expectedValue + "' but was '" + actual + "'";
             }
         } catch (Exception e) {
-            return "Assertion error: " + e.getMessage();
+            throw rethrowAsToolException(e, "asserting JSON path " + jsonPath);
         }
     }
 
     @Tool("Extracts a value from the last response using JSON path and stores it in a context variable.")
-    public String extractValue(String jsonPath, String variableName) {
+    public String extractValue(@P("JSON path expression") String jsonPath,
+            @P("Variable name to store value") String variableName) {
+        if (jsonPath == null || jsonPath.isBlank()) {
+            throw new ToolExecutionException("JSON path cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
+        if (variableName == null || variableName.isBlank()) {
+            throw new ToolExecutionException("Variable name cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
+
         Optional<Response> responseOpt = context.getLastResponse();
-        if (responseOpt.isEmpty()) return "Error: No response available.";
+        if (responseOpt.isEmpty())
+            throw new ToolExecutionException("No response available.", TRANSIENT_TOOL_ERROR);
 
         try {
             Object value = responseOpt.get().jsonPath().get(jsonPath);
             context.setVariable(variableName, value);
             return "Extracted value '" + value + "' to variable '" + variableName + "'";
         } catch (Exception e) {
-            return "Error extracting value: " + e.getMessage();
+            throw rethrowAsToolException(e, "extracting value from JSON path " + jsonPath);
         }
     }
 
     @Tool("Validates the last response body against a JSON Schema file.")
-    public String validateSchema(String schemaPath) {
+    public String validateSchema(@P("Path to the JSON schema file") String schemaPath) {
+        if (schemaPath == null || schemaPath.isBlank()) {
+            throw new ToolExecutionException("Schema path cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
+
         Optional<Response> responseOpt = context.getLastResponse();
-        if (responseOpt.isEmpty()) return "Error: No response available.";
+        if (responseOpt.isEmpty())
+            throw new ToolExecutionException("No response available.", TRANSIENT_TOOL_ERROR);
 
         try {
             responseOpt.get().then().body(JsonSchemaValidator.matchesJsonSchema(new File(schemaPath)));
@@ -79,20 +102,27 @@ public class ApiAssertionTools {
         } catch (AssertionError e) {
             return "Schema validation failed: " + e.getMessage();
         } catch (Exception e) {
-            return "Error reading schema: " + e.getMessage();
+            throw rethrowAsToolException(e, "validating schema against " + schemaPath);
         }
     }
 
     @Tool("Validates the last response against an OpenAPI specification file.")
-    public String validateOpenApi(String specPath) {
+    public String validateOpenApi(@P("Path to the OpenAPI spec file") String specPath) {
+        if (specPath == null || specPath.isBlank()) {
+            throw new ToolExecutionException("OpenAPI spec path cannot be null or empty", TRANSIENT_TOOL_ERROR);
+        }
+
         Optional<Response> responseOpt = context.getLastResponse();
-        if (responseOpt.isEmpty()) return "Error: No response available.";
+        if (responseOpt.isEmpty())
+            throw new ToolExecutionException("No response available.", TRANSIENT_TOOL_ERROR);
 
         String method = (String) context.getVariable("_last_request_method");
         String path = (String) context.getVariable("_last_request_path");
 
         if (method == null || path == null) {
-            return "Error: Request method or path not found in context. validation requires a preceding request.";
+            throw new ToolExecutionException(
+                    "Request method or path not found in context. Validation requires a preceding request.",
+                    TRANSIENT_TOOL_ERROR);
         }
 
         try {
@@ -103,7 +133,7 @@ public class ApiAssertionTools {
             Response raResponse = responseOpt.get();
             SimpleResponse.Builder builder = SimpleResponse.Builder.status(raResponse.statusCode());
             raResponse.headers().forEach(h -> builder.withHeader(h.getName(), h.getValue()));
-            
+
             // Check if body is empty or not
             String body = raResponse.getBody().asString();
             if (body != null && !body.isEmpty()) {
@@ -112,7 +142,7 @@ public class ApiAssertionTools {
             if (raResponse.getContentType() != null) {
                 builder.withContentType(raResponse.getContentType());
             }
-            
+
             com.atlassian.oai.validator.model.Response oaiResponse = builder.build();
             Request.Method reqMethod = Request.Method.valueOf(method.toUpperCase());
 
@@ -127,8 +157,7 @@ public class ApiAssertionTools {
             return "OpenAPI validation passed.";
 
         } catch (Exception e) {
-            LOG.error("Error validating against OpenAPI", e);
-            return "Error validating against OpenAPI: " + e.getMessage();
+            throw rethrowAsToolException(e, "validating against OpenAPI spec " + specPath);
         }
     }
 }

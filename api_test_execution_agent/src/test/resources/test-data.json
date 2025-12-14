@@ -1,0 +1,20 @@
+[
+  {
+    "id": 9223372036854000123,
+    "category": {
+      "id": 1,
+      "name": "Dogs"
+    },
+    "name": "Rex",
+    "photoUrls": [
+      "string"
+    ],
+    "tags": [
+      {
+        "id": 1,
+        "name": "friendly"
+      }
+    ],
+    "status": "available"
+  }
+]

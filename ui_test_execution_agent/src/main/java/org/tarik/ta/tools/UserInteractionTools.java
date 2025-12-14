@@ -66,7 +66,7 @@ import static org.tarik.ta.utils.ImageUtils.singleImageContent;
  * responses,
  * converting them to structured result objects.
  */
-public class UserInteractionTools extends AbstractTools {
+public class UserInteractionTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(UserInteractionTools.class);
     private final UiElementRetriever uiElementRetriever;
     private static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();

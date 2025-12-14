@@ -50,9 +50,9 @@ public class ApiContext {
      */
     public static ApiContext createFromConfig() {
         ApiContext context = new ApiContext();
-        ApiTestAgentConfig.getBaseUri().ifPresent(context::setBaseUri);
+        ApiTestAgentConfig.getTargetBaseUri().ifPresent(context::setBaseUri);
         ApiTestAgentConfig.getProxyHost().ifPresent(context::setProxyHost);
-        context.setPort(ApiTestAgentConfig.getPort());
+        context.setPort(ApiTestAgentConfig.getProxyPort());
         context.setRelaxedHttpsValidation(ApiTestAgentConfig.getRelaxedHttpsValidation());
         return context;
     }

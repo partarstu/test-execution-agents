@@ -36,7 +36,7 @@ import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.utils.CommonUtils.*;
 import static org.tarik.ta.core.utils.CoreUtils.*;
 
-public class KeyboardTools extends AbstractTools {
+public class KeyboardTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(KeyboardTools.class);
     private static final Map<String, Integer> actionableKeyCodeByNameMap = getActionableKeyCodesByName();
     private static final int MAX_KEY_INDEX = 120000;
