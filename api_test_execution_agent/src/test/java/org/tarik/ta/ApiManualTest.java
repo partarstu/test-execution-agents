@@ -39,6 +39,8 @@ class ApiManualTest {
 
         // Step 1: Load Data
         String testDataPath = Paths.get("src", "test", "resources", "test-data.json").toAbsolutePath().toString();
+        var precondition = "Pet data are loaded from '" + testDataPath + "' file into variable 'petList' using ApiDataTools.loadJsonData.";
+
         steps.add(new TestStep("Load pet data from '" + testDataPath + "' into variable 'petList' using ApiDataTools.loadJsonData.",
                 List.of(),
                 "Data is loaded successfully."));

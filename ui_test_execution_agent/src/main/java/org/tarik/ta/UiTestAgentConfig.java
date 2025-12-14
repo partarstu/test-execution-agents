@@ -27,6 +27,13 @@ public class UiTestAgentConfig extends AgentConfig {
         return SCREENSHOTS_SAVE_FOLDER.value();
     }
 
+    private static final ConfigProperty<Boolean> UNATTENDED_MODE = loadProperty("unattended.mode", "UNATTENDED_MODE",
+            "false", Boolean::parseBoolean, false);
+
+    public static boolean isUnattendedMode() {
+        return UNATTENDED_MODE.value();
+    }
+
     // -----------------------------------------------------
     // Video Recording
     private static final ConfigProperty<Boolean> SCREEN_RECORDING_ENABLED = loadProperty("screen.recording.active",
@@ -224,7 +231,8 @@ public class UiTestAgentConfig extends AgentConfig {
 
     // UI Element Description Agent
     private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME = loadProperty(
-            "ui.element.description.agent.model.name", "UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
+            "ui.element.description.agent.model.name", "UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME", "gemini-2.5-flash",
+            s -> s, false);
 
     public static String getUiElementDescriptionAgentModelName() {
         return UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME.value();
@@ -239,7 +247,8 @@ public class UiTestAgentConfig extends AgentConfig {
     }
 
     private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION = loadProperty(
-            "ui.element.description.agent.prompt.version", "UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
+            "ui.element.description.agent.prompt.version", "UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION", "v1.0.0",
+            s -> s, false);
 
     public static String getUiElementDescriptionAgentPromptVersion() {
         return UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION.value();
@@ -270,7 +279,8 @@ public class UiTestAgentConfig extends AgentConfig {
 
     // Element Bounding Box Agent
     private static final ConfigProperty<String> ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME = loadProperty(
-            "element.bounding.box.agent.model.name", "ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
+            "element.bounding.box.agent.model.name", "ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME", "gemini-2.5-flash",
+            s -> s, false);
 
     public static String getElementBoundingBoxAgentModelName() {
         return ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME.value();
@@ -285,7 +295,8 @@ public class UiTestAgentConfig extends AgentConfig {
     }
 
     private static final ConfigProperty<String> ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION = loadProperty(
-            "element.bounding.box.agent.prompt.version", "ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
+            "element.bounding.box.agent.prompt.version", "ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION", "v1.0.0", s -> s,
+            false);
 
     public static String getElementBoundingBoxAgentPromptVersion() {
         return ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION.value();
@@ -293,7 +304,8 @@ public class UiTestAgentConfig extends AgentConfig {
 
     // Element Selection Agent
     private static final ConfigProperty<String> ELEMENT_SELECTION_AGENT_MODEL_NAME = loadProperty(
-            "element.selection.agent.model.name", "ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
+            "element.selection.agent.model.name", "ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s,
+            false);
 
     public static String getElementSelectionAgentModelName() {
         return ELEMENT_SELECTION_AGENT_MODEL_NAME.value();
@@ -308,7 +320,8 @@ public class UiTestAgentConfig extends AgentConfig {
     }
 
     private static final ConfigProperty<String> ELEMENT_SELECTION_AGENT_PROMPT_VERSION = loadProperty(
-            "element.selection.agent.prompt.version", "ELEMENT_SELECTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
+            "element.selection.agent.prompt.version", "ELEMENT_SELECTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s,
+            false);
 
     public static String getElementSelectionAgentPromptVersion() {
         return ELEMENT_SELECTION_AGENT_PROMPT_VERSION.value();
@@ -316,7 +329,8 @@ public class UiTestAgentConfig extends AgentConfig {
 
     // Page Description Agent
     private static final ConfigProperty<String> PAGE_DESCRIPTION_AGENT_MODEL_NAME = loadProperty(
-            "page.description.agent.model.name", "PAGE_DESCRIPTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
+            "page.description.agent.model.name", "PAGE_DESCRIPTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s,
+            false);
 
     public static String getPageDescriptionAgentModelName() {
         return PAGE_DESCRIPTION_AGENT_MODEL_NAME.value();

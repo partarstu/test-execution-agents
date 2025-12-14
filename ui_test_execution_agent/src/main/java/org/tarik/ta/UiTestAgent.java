@@ -54,6 +54,7 @@ import static java.lang.String.join;
 import static java.time.Instant.now;
 import static java.util.Optional.*;
 import static org.tarik.ta.UiTestAgentConfig.isElementLocationPrefetchingEnabled;
+import static org.tarik.ta.UiTestAgentConfig.isUnattendedMode;
 import static org.tarik.ta.core.AgentConfig.*;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.FAILED;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
@@ -88,10 +89,12 @@ public class UiTestAgent {
             var commonTools = new CommonTools(verificationManager);
 
             if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
-                executePreconditions(context, getPreconditionActionAgent(commonTools, userInteractionTools, new RetryState()));
+                executePreconditions(context,
+                        getPreconditionActionAgent(commonTools, userInteractionTools, new RetryState()));
                 if (hasPreconditionFailures(context)) {
                     var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
-                    return getFailedTestExecutionResult(context, testExecutionStartTimestamp, failedPrecondition.errorMessage(),
+                    return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
+                            failedPrecondition.errorMessage(),
                             ((UiPreconditionResult) failedPrecondition).screenshot());
                 }
             }
@@ -104,7 +107,8 @@ public class UiTestAgent {
                     return getFailedTestExecutionResult(context, testExecutionStartTimestamp, lastStep.errorMessage(),
                             ((UiTestStepResult) lastStep).screenshot());
                 } else {
-                    return getTestExecutionResultWithError(context, testExecutionStartTimestamp, lastStep.errorMessage(),
+                    return getTestExecutionResultWithError(context, testExecutionStartTimestamp,
+                            lastStep.errorMessage(),
                             ((UiTestStepResult) lastStep).screenshot());
                 }
             } else {
@@ -127,9 +131,12 @@ public class UiTestAgent {
 
         try {
             var agent = getTestCaseExtractionAgent();
-            TestCase extractedTestCase = agent.executeAndGetResult(() -> agent.extractTestCase(message)).getResultPayload();
+            TestCase extractedTestCase = agent.executeAndGetResult(() -> agent.extractTestCase(message))
+                    .getResultPayload();
             if (isTestCaseInvalid(extractedTestCase)) {
-                LOG.warn("Model could not extract a valid TestCase from the provided by the user message, original message: {}", message);
+                LOG.warn(
+                        "Model could not extract a valid TestCase from the provided by the user message, original message: {}",
+                        message);
                 return empty();
             } else {
                 LOG.info("Successfully extracted TestCase: '{}'", extractedTestCase.name());
@@ -142,7 +149,8 @@ public class UiTestAgent {
     }
 
     private static boolean isTestCaseInvalid(TestCase extractedTestCase) {
-        return extractedTestCase == null || isBlank(extractedTestCase.name()) || extractedTestCase.testSteps() == null ||
+        return extractedTestCase == null || isBlank(extractedTestCase.name()) || extractedTestCase.testSteps() == null
+                ||
                 extractedTestCase.testSteps().isEmpty() ||
                 extractedTestCase.testSteps().stream().anyMatch(step -> isBlank(step.stepDescription()));
     }
@@ -160,7 +168,7 @@ public class UiTestAgent {
     }
 
     private static void executePreconditions(UiTestExecutionContext context,
-                                             UiPreconditionActionAgent preconditionActionAgent) {
+            UiPreconditionActionAgent preconditionActionAgent) {
         List<String> preconditions = context.getTestCase().preconditions();
         var preconditionVerificationAgent = getPreconditionVerificationAgent(new RetryState());
         if (preconditions != null && !preconditions.isEmpty()) {
@@ -168,16 +176,16 @@ public class UiTestAgent {
             for (String precondition : preconditions) {
                 var executionStartTimestamp = now();
                 LOG.info("Executing precondition: {}", precondition);
-                var preconditionExecutionResult = preconditionActionAgent.executeWithRetry(() ->
-                        preconditionActionAgent.execute(precondition, context.getSharedData().toString())
-                );
+                var preconditionExecutionResult = preconditionActionAgent.executeWithRetry(
+                        () -> preconditionActionAgent.execute(precondition, context.getSharedData().toString()));
                 BudgetManager.resetToolCallUsage();
 
                 if (!preconditionExecutionResult.isSuccess()) {
                     var errorMessage = "Failure while executing precondition '%s'. Root cause: %s"
                             .formatted(precondition, preconditionExecutionResult.getMessage());
-                    context.addPreconditionResult(new UiPreconditionResult(precondition, false, errorMessage, captureScreen(),
-                            executionStartTimestamp, now()));
+                    context.addPreconditionResult(
+                            new UiPreconditionResult(precondition, false, errorMessage, captureScreen(),
+                                    executionStartTimestamp, now()));
                     return;
                 }
                 LOG.info("Precondition execution complete.");
@@ -186,7 +194,8 @@ public class UiTestAgent {
                         .executeWithRetry(() -> {
                             var screenshot = captureScreen();
                             context.setVisualState(new VisualState(screenshot));
-                            return preconditionVerificationAgent.verify(precondition, context.getSharedData().toString(),
+                            return preconditionVerificationAgent.verify(precondition,
+                                    context.getSharedData().toString(),
                                     singleImageContent(screenshot));
                         }, r -> r == null || !r.success());
                 BudgetManager.resetToolCallUsage();
@@ -212,7 +221,8 @@ public class UiTestAgent {
                             context.getVisualState().screenshot(), executionStartTimestamp, now()));
                     return;
                 }
-                context.addPreconditionResult(new UiPreconditionResult(precondition, true, null, null, executionStartTimestamp, now()));
+                context.addPreconditionResult(
+                        new UiPreconditionResult(precondition, true, null, null, executionStartTimestamp, now()));
                 LOG.info("Precondition '{}' is met.", precondition);
             }
             LOG.info("All preconditions are met for test case: {}", context.getTestCase().name());
@@ -220,8 +230,8 @@ public class UiTestAgent {
     }
 
     private static void executeTestSteps(UiTestExecutionContext context,
-                                         UiTestStepActionAgent uiTestStepActionAgent,
-                                         VerificationManager verificationManager) {
+            UiTestStepActionAgent uiTestStepActionAgent,
+            VerificationManager verificationManager) {
         var testStepVerificationAgent = getTestStepVerificationAgent(new RetryState());
         for (TestStep testStep : context.getTestCase().testSteps()) {
             var actionInstruction = testStep.stepDescription();
@@ -231,16 +241,17 @@ public class UiTestAgent {
                 var executionStartTimestamp = now();
                 LOG.info("Executing test step: {}", actionInstruction);
                 var actionResult = uiTestStepActionAgent.executeWithRetry(() -> {
-                            uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(),
-                                    !isUnattendedMode());
-                            return null;
-                        }
-                );
+                    uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(),
+                            !isUnattendedMode());
+                    return null;
+                });
                 BudgetManager.resetToolCallUsage();
                 if (!actionResult.isSuccess()) {
                     if (actionResult.getExecutionStatus() != VERIFICATION_FAILURE) {
-                        // Verification failure happens only if the current action was executed as a UI element location prefetch part,
-                        // it means this test step shouldn't be reported because the execution is to be halted after verification
+                        // Verification failure happens only if the current action was executed as a UI
+                        // element location prefetch part,
+                        // it means this test step shouldn't be reported because the execution is to be
+                        // halted after verification
                         // failure for the previous step
                         var errorMessage = "Error while executing action '%s'. Root cause: %s"
                                 .formatted(actionInstruction, actionResult.getMessage());
@@ -261,7 +272,8 @@ public class UiTestAgent {
                                 var screenshot = captureScreen();
                                 context.setVisualState(new VisualState(screenshot));
                                 return testStepVerificationAgent.verify(verificationInstruction, actionInstruction,
-                                        testDataString, context.getSharedData().toString(), singleImageContent(screenshot));
+                                        testDataString, context.getSharedData().toString(),
+                                        singleImageContent(screenshot));
                             }, result -> result == null || !result.success());
                             BudgetManager.resetToolCallUsage();
 
@@ -272,23 +284,27 @@ public class UiTestAgent {
                                         context.getVisualState().screenshot(), ERROR);
                                 return false;
                             } else {
-                                VerificationExecutionResult verificationResult = verificationExecutionResult.getResultPayload();
+                                VerificationExecutionResult verificationResult = verificationExecutionResult
+                                        .getResultPayload();
                                 if (verificationResult != null && !verificationResult.success()) {
-                                    var errorMessage = "Verification failed. %s".formatted(verificationResult.message());
+                                    var errorMessage = "Verification failed. %s"
+                                            .formatted(verificationResult.message());
                                     addFailedTestStep(context, testStep, errorMessage, verificationResult.message(),
                                             executionStartTimestamp, now(), context.getVisualState().screenshot(),
                                             TestStepResultStatus.FAILURE);
                                     return false;
                                 }
                                 LOG.info("Verification execution complete.");
-                                var actualResult = verificationResult != null ? verificationResult.message() : "Verification successful";
+                                var actualResult = verificationResult != null ? verificationResult.message()
+                                        : "Verification successful";
                                 context.addStepResult(new UiTestStepResult(testStep, SUCCESS, null, actualResult, null,
                                         executionStartTimestamp, now()));
                                 return true;
                             }
                         } catch (Exception e) {
                             LOG.error("Unexpected error during async verification", e);
-                            addFailedTestStep(context, testStep, e.getMessage(), null, executionStartTimestamp, now(), captureScreen(),
+                            addFailedTestStep(context, testStep, e.getMessage(), null, executionStartTimestamp, now(),
+                                    captureScreen(),
                                     ERROR);
                             return false;
                         }
@@ -320,7 +336,8 @@ public class UiTestAgent {
     }
 
     private static boolean hasStepFailures(TestExecutionContext context) {
-        return context.getTestStepExecutionHistory().stream().map(TestStepResult::executionStatus).anyMatch(s -> s != SUCCESS);
+        return context.getTestStepExecutionHistory().stream().map(TestStepResult::executionStatus)
+                .anyMatch(s -> s != SUCCESS);
     }
 
     private static UiTestStepVerificationAgent getTestStepVerificationAgent(RetryState retryState) {
@@ -336,8 +353,9 @@ public class UiTestAgent {
                 .build();
     }
 
-    private static UiTestStepActionAgent getTestStepActionAgent(CommonTools commonTools, UserInteractionTools userInteractionTools,
-                                                                RetryState retryState) {
+    private static UiTestStepActionAgent getTestStepActionAgent(CommonTools commonTools,
+            UserInteractionTools userInteractionTools,
+            RetryState retryState) {
         var testStepActionAgentModel = getModel(AgentConfig.getTestStepActionAgentModelName(),
                 AgentConfig.getTestStepActionAgentModelProvider());
         var testStepActionAgentPrompt = loadSystemPrompt("test_step/executor",
@@ -345,7 +363,8 @@ public class UiTestAgent {
         return builder(UiTestStepActionAgent.class)
                 .chatModel(testStepActionAgentModel.chatModel())
                 .systemMessageProvider(_ -> testStepActionAgentPrompt)
-                .tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools, userInteractionTools,
+                .tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
+                        userInteractionTools,
                         new EmptyExecutionResult())
                 .toolExecutionErrorHandler(new UiErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState))
                 .build();
@@ -364,9 +383,9 @@ public class UiTestAgent {
                 .build();
     }
 
-
-    private static UiPreconditionActionAgent getPreconditionActionAgent(CommonTools commonTools, UserInteractionTools userInteractionTools,
-                                                                      RetryState retryState) {
+    private static UiPreconditionActionAgent getPreconditionActionAgent(CommonTools commonTools,
+            UserInteractionTools userInteractionTools,
+            RetryState retryState) {
         var preconditionAgentModel = getModel(AgentConfig.getPreconditionActionAgentModelName(),
                 AgentConfig.getPreconditionActionAgentModelProvider());
         var preconditionAgentPrompt = loadSystemPrompt("precondition/executor",
@@ -375,17 +394,19 @@ public class UiTestAgent {
                 .chatModel(preconditionAgentModel.chatModel())
                 .systemMessageProvider(_ -> preconditionAgentPrompt)
                 .toolExecutionErrorHandler(new UiErrorHandler(PreconditionActionAgent.RETRY_POLICY, retryState))
-                .tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools, userInteractionTools,
+                .tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
+                        userInteractionTools,
                         new EmptyExecutionResult())
                 .build();
     }
 
     @NotNull
     private static TestExecutionResult getFailedTestExecutionResult(TestExecutionContext context,
-                                                                    Instant testExecutionStartTimestamp, String errorMessage,
-                                                                    BufferedImage screenshot) {
+            Instant testExecutionStartTimestamp, String errorMessage,
+            BufferedImage screenshot) {
         LOG.error(errorMessage);
-        return new UiTestExecutionResult(context.getTestCase().name(), FAILED, context.getPreconditionExecutionHistory(),
+        return new UiTestExecutionResult(context.getTestCase().name(), FAILED,
+                context.getPreconditionExecutionHistory(),
                 context.getTestStepExecutionHistory(),
                 screenshot,
                 testExecutionStartTimestamp, now(), errorMessage);
@@ -393,27 +414,28 @@ public class UiTestAgent {
 
     @NotNull
     private static TestExecutionResult getTestExecutionResultWithError(TestExecutionContext context,
-                                                                       Instant testExecutionStartTimestamp, String errorMessage,
-                                                                       BufferedImage screenshot) {
+            Instant testExecutionStartTimestamp, String errorMessage,
+            BufferedImage screenshot) {
         LOG.error(errorMessage);
         return new UiTestExecutionResult(context.getTestCase().name(), TestExecutionResult.TestExecutionStatus.ERROR,
-                context.getPreconditionExecutionHistory(), context.getTestStepExecutionHistory(), screenshot, testExecutionStartTimestamp,
+                context.getPreconditionExecutionHistory(), context.getTestStepExecutionHistory(), screenshot,
+                testExecutionStartTimestamp,
                 now(), errorMessage);
     }
 
     private static void addFailedTestStep(TestExecutionContext context, TestStep testStep, String errorMessage,
-                                          String actualResult, Instant executionStartTimestamp,
-                                          Instant executionEndTimestamp, BufferedImage screenshot, TestStepResultStatus status) {
+            String actualResult, Instant executionStartTimestamp,
+            Instant executionEndTimestamp, BufferedImage screenshot, TestStepResultStatus status) {
         context.addStepResult(new UiTestStepResult(testStep, status, errorMessage, actualResult, screenshot,
                 executionStartTimestamp, executionEndTimestamp));
     }
 
     private static class UiErrorHandler extends DefaultErrorHandler {
-        private static final List<ErrorCategory> terminalErrors =
-                List.of(NON_RETRYABLE_ERROR, TIMEOUT, TERMINATION_BY_USER, VERIFICATION_FAILED);
+        private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT,
+                TERMINATION_BY_USER, VERIFICATION_FAILED);
 
         public UiErrorHandler(RetryPolicy retryPolicy, RetryState retryState) {
-            super(retryPolicy, retryState);
+            super(retryPolicy, retryState, isUnattendedMode());
         }
 
         @Override

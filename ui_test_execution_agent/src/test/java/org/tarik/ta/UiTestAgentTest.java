@@ -155,31 +155,50 @@ class UiTestAgentTest {
                                 .thenReturn(ACTION_VERIFICATION_DELAY_MILLIS);
                 agentConfigMockedStatic.when(AgentConfig::getVerificationRetryTimeoutMillis).thenReturn(1000);
                 agentConfigMockedStatic.when(AgentConfig::getActionRetryPolicy).thenReturn(mock(RetryPolicy.class));
-                agentConfigMockedStatic.when(AgentConfig::getVerificationRetryPolicy).thenReturn(mock(RetryPolicy.class));
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::isElementLocationPrefetchingEnabled).thenReturn(false);
-                agentConfigMockedStatic.when(AgentConfig::isUnattendedMode).thenReturn(false);
-                agentConfigMockedStatic.when(AgentConfig::getTestCaseExtractionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                agentConfigMockedStatic.when(AgentConfig::getPreconditionActionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                agentConfigMockedStatic.when(AgentConfig::getTestStepActionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                agentConfigMockedStatic.when(AgentConfig::getPreconditionVerificationAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                agentConfigMockedStatic.when(AgentConfig::getTestStepVerificationAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                agentConfigMockedStatic.when(AgentConfig::getVerificationRetryPolicy)
+                                .thenReturn(mock(RetryPolicy.class));
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::isElementLocationPrefetchingEnabled)
+                                .thenReturn(false);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::isUnattendedMode).thenReturn(false);
+                agentConfigMockedStatic.when(AgentConfig::getTestCaseExtractionAgentModelProvider)
+                                .thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                agentConfigMockedStatic.when(AgentConfig::getPreconditionActionAgentModelProvider)
+                                .thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                agentConfigMockedStatic.when(AgentConfig::getTestStepActionAgentModelProvider)
+                                .thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                agentConfigMockedStatic.when(AgentConfig::getPreconditionVerificationAgentModelProvider)
+                                .thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                agentConfigMockedStatic.when(AgentConfig::getTestStepVerificationAgentModelProvider)
+                                .thenReturn(AgentConfig.ModelProvider.GOOGLE);
                 agentConfigMockedStatic.when(AgentConfig::getTestCaseExtractionAgentModelName).thenReturn("test-model");
                 agentConfigMockedStatic.when(AgentConfig::getPreconditionActionAgentModelName).thenReturn("test-model");
                 agentConfigMockedStatic.when(AgentConfig::getTestStepActionAgentModelName).thenReturn("test-model");
-                agentConfigMockedStatic.when(AgentConfig::getPreconditionVerificationAgentModelName).thenReturn("test-model");
-                agentConfigMockedStatic.when(AgentConfig::getTestStepVerificationAgentModelName).thenReturn("test-model");
+                agentConfigMockedStatic.when(AgentConfig::getPreconditionVerificationAgentModelName)
+                                .thenReturn("test-model");
+                agentConfigMockedStatic.when(AgentConfig::getTestStepVerificationAgentModelName)
+                                .thenReturn("test-model");
                 agentConfigMockedStatic.when(AgentConfig::getPreconditionAgentPromptVersion).thenReturn("v1");
                 agentConfigMockedStatic.when(AgentConfig::getTestStepActionAgentPromptVersion).thenReturn("v1");
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentModelName).thenReturn("test-model");
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentModelName).thenReturn("test-model");
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentModelName).thenReturn("test-model");
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentPromptVersion).thenReturn("v1");
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentPromptVersion).thenReturn("v1");
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentPromptVersion).thenReturn("v1");
-                agentConfigMockedStatic.when(AgentConfig::getPreconditionVerificationAgentPromptVersion).thenReturn("v1");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentModelName)
+                                .thenReturn("test-model");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentModelName)
+                                .thenReturn("test-model");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentModelName)
+                                .thenReturn("test-model");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentModelProvider)
+                                .thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentModelProvider)
+                                .thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentModelProvider)
+                                .thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentPromptVersion)
+                                .thenReturn("v1");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentPromptVersion)
+                                .thenReturn("v1");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentPromptVersion)
+                                .thenReturn("v1");
+                agentConfigMockedStatic.when(AgentConfig::getPreconditionVerificationAgentPromptVersion)
+                                .thenReturn("v1");
                 agentConfigMockedStatic.when(AgentConfig::getTestStepVerificationAgentPromptVersion).thenReturn("v1");
 
                 mockModel = new GenAiModel(mockChatModel);
@@ -195,16 +214,26 @@ class UiTestAgentTest {
                 promptUtilsMockedStatic.when(() -> loadSystemPrompt(any(), any(), any())).thenReturn("System Prompt");
 
                 // AiServices Mocking
-                aiServicesMockedStatic.when(() -> AiServices.builder(TestCaseExtractionAgent.class)).thenReturn(testCaseExtractionAgentBuilder);
-                aiServicesMockedStatic.when(() -> AiServices.builder(UiPreconditionActionAgent.class)).thenReturn(preconditionActionAgentBuilder);
-                aiServicesMockedStatic.when(() -> AiServices.builder(UiPreconditionVerificationAgent.class)).thenReturn(preconditionVerificationAgentBuilder);
-                aiServicesMockedStatic.when(() -> AiServices.builder(UiTestStepActionAgent.class)).thenReturn(testStepActionAgentBuilder);
-                aiServicesMockedStatic.when(() -> AiServices.builder(UiTestStepVerificationAgent.class)).thenReturn(testStepVerificationAgentBuilder);
-                aiServicesMockedStatic.when(() -> AiServices.builder(UiStateCheckAgent.class)).thenReturn(toolVerificationAgentBuilder);
-                aiServicesMockedStatic.when(() -> AiServices.builder(UiElementDescriptionAgent.class)).thenReturn(uiElementDescriptionAgentBuilder);
-                aiServicesMockedStatic.when(() -> AiServices.builder(PageDescriptionAgent.class)).thenReturn(pageDescriptionAgentBuilder);
-                aiServicesMockedStatic.when(() -> AiServices.builder(UiElementBoundingBoxAgent.class)).thenReturn(elementBoundingBoxAgentBuilder);
-                aiServicesMockedStatic.when(() -> AiServices.builder(UiElementSelectionAgent.class)).thenReturn(elementSelectionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(TestCaseExtractionAgent.class))
+                                .thenReturn(testCaseExtractionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiPreconditionActionAgent.class))
+                                .thenReturn(preconditionActionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiPreconditionVerificationAgent.class))
+                                .thenReturn(preconditionVerificationAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiTestStepActionAgent.class))
+                                .thenReturn(testStepActionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiTestStepVerificationAgent.class))
+                                .thenReturn(testStepVerificationAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiStateCheckAgent.class))
+                                .thenReturn(toolVerificationAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiElementDescriptionAgent.class))
+                                .thenReturn(uiElementDescriptionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(PageDescriptionAgent.class))
+                                .thenReturn(pageDescriptionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiElementBoundingBoxAgent.class))
+                                .thenReturn(elementBoundingBoxAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(UiElementSelectionAgent.class))
+                                .thenReturn(elementSelectionAgentBuilder);
 
                 // Retriever Factory
                 retrieverFactoryMockedStatic.when(RetrieverFactory::getUiElementRetriever)
@@ -254,7 +283,8 @@ class UiTestAgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(), mockScreenshot,
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(),
+                                mockScreenshot,
                                 Instant.now()))
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
@@ -283,7 +313,8 @@ class UiTestAgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(), mockScreenshot,
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(),
+                                mockScreenshot,
                                 Instant.now()))
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
@@ -314,7 +345,8 @@ class UiTestAgentTest {
                                 new VerificationExecutionResult(true, "Verified"), mockScreenshot, Instant.now()))
                                 .when(preconditionVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
-                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(), mockScreenshot,
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(),
+                                mockScreenshot,
                                 Instant.now()))
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
@@ -333,7 +365,8 @@ class UiTestAgentTest {
         void preconditionExecutionFails() {
                 // Given
                 String precondition = "Precondition 1";
-                TestCase testCase = new TestCase("Precondition Fail", List.of(precondition), List.of(new TestStep("Dummy Step", null, null)));
+                TestCase testCase = new TestCase("Precondition Fail", List.of(precondition),
+                                List.of(new TestStep("Dummy Step", null, null)));
 
                 mockTestCaseExtraction(testCase);
 
@@ -357,7 +390,8 @@ class UiTestAgentTest {
         void preconditionVerificationFails() {
                 // Given
                 String precondition = "Precondition 1";
-                TestCase testCase = new TestCase("Precondition Verify Fail", List.of(precondition), List.of(new TestStep("Dummy Step", null, null)));
+                TestCase testCase = new TestCase("Precondition Verify Fail", List.of(precondition),
+                                List.of(new TestStep("Dummy Step", null, null)));
 
                 mockTestCaseExtraction(testCase);
 
@@ -389,7 +423,8 @@ class UiTestAgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new UiAgentExecutionResult<>(ERROR, "Action failed", false, null, mockScreenshot, Instant.now()))
+                doReturn(new UiAgentExecutionResult<>(ERROR, "Action failed", false, null, mockScreenshot,
+                                Instant.now()))
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 // When
@@ -411,12 +446,14 @@ class UiTestAgentTest {
 
                 mockTestCaseExtraction(testCase);
 
-                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(), mockScreenshot,
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(),
+                                mockScreenshot,
                                 Instant.now()))
                                 .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 doReturn(new UiAgentExecutionResult<>(SUCCESS, "Verification executed", true,
-                                new VerificationExecutionResult(false, "Verification failed"), mockScreenshot, Instant.now()))
+                                new VerificationExecutionResult(false, "Verification failed"), mockScreenshot,
+                                Instant.now()))
                                 .when(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
 
                 // When
@@ -430,7 +467,8 @@ class UiTestAgentTest {
         }
 
         private void mockTestCaseExtraction(TestCase testCase) {
-                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Test case extracted", true, testCase, mockScreenshot, Instant.now()))
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Test case extracted", true, testCase, mockScreenshot,
+                                Instant.now()))
                                 .when(testCaseExtractionAgentMock).executeAndGetResult(any(Supplier.class));
         }
 }

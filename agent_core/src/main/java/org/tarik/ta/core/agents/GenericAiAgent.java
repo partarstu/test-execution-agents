@@ -29,8 +29,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.lang.System.currentTimeMillis;
-import static java.time.Instant.now;
-import static org.tarik.ta.core.AgentConfig.isUnattendedMode;
+
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.*;
 import static org.tarik.ta.core.error.ErrorCategory.TERMINATION_BY_USER;
 import static org.tarik.ta.core.error.ErrorCategory.VERIFICATION_FAILED;
@@ -40,10 +39,8 @@ import static org.tarik.ta.core.utils.CoreUtils.sleepMillis;
 public interface GenericAiAgent<T extends FinalResult<T>, R extends AgentExecutionResult<T>> {
     Logger LOG = LoggerFactory.getLogger(GenericAiAgent.class);
 
-    static void checkBudgetIfUnattended() {
-        if (isUnattendedMode()) {
-            checkAllBudgets();
-        }
+    default void checkBudget() {
+        checkAllBudgets();
     }
 
     R createSuccessResult(T result);
@@ -56,7 +53,7 @@ public interface GenericAiAgent<T extends FinalResult<T>, R extends AgentExecuti
 
     @NotNull
     default R executeAndGetResult(Supplier<Result<?>> action) {
-        checkBudgetIfUnattended();
+        checkBudget();
         try {
             Result<?> resultWrapper = action.get();
             T result = extractResult(resultWrapper);
@@ -76,13 +73,14 @@ public interface GenericAiAgent<T extends FinalResult<T>, R extends AgentExecuti
 
         while (true) {
             attempt++;
-            checkBudgetIfUnattended();
+            checkBudget();
             try {
                 Result<?> resultWrapper = action.get();
                 T result = extractResult(resultWrapper);
 
                 if (retryCondition != null && retryCondition.test(result)) {
-                    String message = "Retry explicitly requested by the task because it has the following result: " + result;
+                    String message = "Retry explicitly requested by the task because it has the following result: "
+                            + result;
                     R errorResult = handleRetry(attempt, startTime, policy, message, taskDescription);
                     if (errorResult != null) {
                         return errorResult;
@@ -144,20 +142,22 @@ public interface GenericAiAgent<T extends FinalResult<T>, R extends AgentExecuti
 
     @Nullable
     default R handleRetry(int attempt, long startTime, RetryPolicy policy, String message,
-                                                String taskDescription) {
+            String taskDescription) {
         long elapsedTime = currentTimeMillis() - startTime;
         boolean isTimeout = policy.timeoutMillis() > 0 && elapsedTime > policy.timeoutMillis();
         boolean isMaxRetriesReached = attempt > policy.maxRetries();
 
         if (isTimeout || isMaxRetriesReached) {
-            LOG.error("Operation for task '{}' failed after {} attempts (elapsed: {}ms). Last error: {}", taskDescription, attempt,
+            LOG.error("Operation for task '{}' failed after {} attempts (elapsed: {}ms). Last error: {}",
+                    taskDescription, attempt,
                     elapsedTime, message);
             return createErrorResult(ERROR, message, null);
         }
 
         long delayMillis = (long) (policy.initialDelayMillis() * Math.pow(policy.backoffMultiplier(), attempt - 1));
         delayMillis = Math.min(delayMillis, policy.maxDelayMillis());
-        LOG.warn("Attempt {} for task '{}' failed: {}. Retrying in {}ms...", attempt, taskDescription, message, delayMillis);
+        LOG.warn("Attempt {} for task '{}' failed: {}. Retrying in {}ms...", attempt, taskDescription, message,
+                delayMillis);
         sleepMillis((int) delayMillis);
         return null;
     }

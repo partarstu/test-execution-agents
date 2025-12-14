@@ -68,8 +68,6 @@ public class AgentConfig {
 
     // Main Config
     private static final ConfigProperty<Integer> START_PORT = loadPropertyAsInteger("port", "PORT", "7070", false);
-    private static final ConfigProperty<Boolean> UNATTENDED_MODE = loadProperty("unattended.mode", "UNATTENDED_MODE",
-            "false", Boolean::parseBoolean, false);
     private static final ConfigProperty<String> HOST = getRequiredProperty("host", "AGENT_HOST", false);
     private static final ConfigProperty<String> EXTERNAL_URL = loadProperty("external.url", "EXTERNAL_URL",
             "http://localhost:%s".formatted(START_PORT.value()), s -> s, false);
@@ -132,7 +130,8 @@ public class AgentConfig {
             "GROQ_ENDPOINT", false);
 
     // Anthropic API Config
-    private static final ConfigProperty<AnthropicApiProvider> ANTHROPIC_API_PROVIDER = getProperty("anthropic.api.provider",
+    private static final ConfigProperty<AnthropicApiProvider> ANTHROPIC_API_PROVIDER = getProperty(
+            "anthropic.api.provider",
             "ANTHROPIC_API_PROVIDER", "anthropic_api", s -> stream(AnthropicApiProvider.values())
                     .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
                     .findAny()
@@ -160,10 +159,6 @@ public class AgentConfig {
 
     // -----------------------------------------------------
     // Main Config
-    public static boolean isUnattendedMode() {
-        return UNATTENDED_MODE.value();
-    }
-
     public static int getStartPort() {
         return START_PORT.value();
     }
@@ -336,14 +331,11 @@ public class AgentConfig {
         return AGENT_TOKEN_BUDGET.value();
     }
 
-    private static final ConfigProperty<Integer> AGENT_TOOL_CALLS_BUDGET_ATTENDED = loadPropertyAsInteger(
-            "agent.tool.calls.budget.attended", "AGENT_TOOL_CALLS_BUDGET_ATTENDED", "100", false);
-
-    private static final ConfigProperty<Integer> AGENT_TOOL_CALLS_BUDGET_UNATTENDED = loadPropertyAsInteger(
+    private static final ConfigProperty<Integer> AGENT_TOOL_CALLS_BUDGET = loadPropertyAsInteger(
             "agent.tool.calls.budget.unattended", "AGENT_TOOL_CALLS_BUDGET_UNATTENDED", "5", false);
 
     public static int getAgentToolCallsBudget() {
-        return isUnattendedMode() ? AGENT_TOOL_CALLS_BUDGET_UNATTENDED.value() : AGENT_TOOL_CALLS_BUDGET_ATTENDED.value();
+        return AGENT_TOOL_CALLS_BUDGET.value();
     }
 
     private static final ConfigProperty<Integer> AGENT_EXECUTION_TIME_BUDGET_SECONDS = loadPropertyAsInteger(
@@ -452,7 +444,8 @@ public class AgentConfig {
 
     // Test Case Extraction Agent
     private static final ConfigProperty<String> TEST_CASE_EXTRACTION_AGENT_MODEL_NAME = loadProperty(
-            "test.case.extraction.agent.model.name", "TEST_CASE_EXTRACTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
+            "test.case.extraction.agent.model.name", "TEST_CASE_EXTRACTION_AGENT_MODEL_NAME", "gemini-2.5-flash",
+            s -> s, false);
 
     public static String getTestCaseExtractionAgentModelName() {
         return TEST_CASE_EXTRACTION_AGENT_MODEL_NAME.value();
@@ -467,7 +460,8 @@ public class AgentConfig {
     }
 
     private static final ConfigProperty<String> TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION = loadProperty(
-            "test.case.extraction.agent.prompt.version", "TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
+            "test.case.extraction.agent.prompt.version", "TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s,
+            false);
 
     public static String getTestCaseExtractionAgentPromptVersion() {
         return TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION.value();
@@ -491,8 +485,9 @@ public class AgentConfig {
         }
     }
 
-    protected static <T> ConfigProperty<T> loadProperty(String key, String envVar, String defaultValue, Function<String, T> converter,
-                                                      boolean isSecret) {
+    protected static <T> ConfigProperty<T> loadProperty(String key, String envVar, String defaultValue,
+            Function<String, T> converter,
+            boolean isSecret) {
         var value = getProperty(key, envVar, defaultValue, isSecret);
         return new ConfigProperty<>(converter.apply(value), isSecret);
     }
@@ -534,8 +529,8 @@ public class AgentConfig {
     }
 
     protected static <T> ConfigProperty<T> getProperty(String key, String envVar, String defaultValue,
-                                                     Function<String, T> converter,
-                                                     boolean isSecret) {
+            Function<String, T> converter,
+            boolean isSecret) {
         String value = getProperty(key, envVar, defaultValue, isSecret);
         return new ConfigProperty<>(converter.apply(value), isSecret);
     }
@@ -547,7 +542,8 @@ public class AgentConfig {
         return new ConfigProperty<>(value, isSecret);
     }
 
-    protected static ConfigProperty<Integer> loadPropertyAsInteger(String propertyKey, String envVar, String defaultValue, boolean isSecret) {
+    protected static ConfigProperty<Integer> loadPropertyAsInteger(String propertyKey, String envVar,
+            String defaultValue, boolean isSecret) {
         var configProperty = getProperty(propertyKey, envVar, defaultValue, s -> s, isSecret);
         Integer value = CoreUtils.parseStringAsInteger(configProperty.value())
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -556,7 +552,8 @@ public class AgentConfig {
         return new ConfigProperty<>(value, configProperty.isSecret());
     }
 
-    protected static ConfigProperty<Double> loadPropertyAsDouble(String propertyKey, String envVar, String defaultValue, boolean isSecret) {
+    protected static ConfigProperty<Double> loadPropertyAsDouble(String propertyKey, String envVar, String defaultValue,
+            boolean isSecret) {
         var configProperty = getProperty(propertyKey, envVar, defaultValue, s -> s, isSecret);
         Double value = CoreUtils.parseStringAsDouble(configProperty.value())
                 .orElseThrow(() -> new IllegalArgumentException(

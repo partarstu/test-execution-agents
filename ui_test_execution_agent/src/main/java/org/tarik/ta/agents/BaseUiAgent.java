@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.agents.GenericAiAgent;
 import org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus;
 import org.tarik.ta.core.dto.FinalResult;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.dto.UiAgentExecutionResult;
 import org.tarik.ta.utils.CommonUtils;
 
@@ -44,5 +45,12 @@ public interface BaseUiAgent<T extends FinalResult<T>> extends GenericAiAgent<T,
     @Override
     default UiAgentExecutionResult<T> createErrorResult(ExecutionStatus status, String message, @Nullable Throwable t) {
         return new UiAgentExecutionResult<>(status, message, false, null, captureErrorScreenshot(), now());
+    }
+
+    @Override
+    default void checkBudget() {
+        if (UiTestAgentConfig.isUnattendedMode()) {
+            GenericAiAgent.super.checkBudget();
+        }
     }
 }

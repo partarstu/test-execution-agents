@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import static io.javalin.Javalin.create;
 import static org.tarik.ta.core.AgentConfig.getStartPort;
-import static org.tarik.ta.core.AgentConfig.isUnattendedMode;
+import static org.tarik.ta.UiTestAgentConfig.isUnattendedMode;
 
 public class Server {
     private static final Logger LOG = LoggerFactory.getLogger(Server.class);
@@ -39,7 +39,8 @@ public class Server {
         int port = getStartPort();
         String host = AgentConfig.getHost();
         AgentExecutor executor = new UiAgentExecutor();
-        AgentExecutionResource agentExecutionResource = new AgentExecutionResource(executor, AgentCardProducer.agentCard());
+        AgentExecutionResource agentExecutionResource = new AgentExecutionResource(executor,
+                AgentCardProducer.agentCard());
 
         create(config -> {
             config.http.maxRequestSize = MAX_REQUEST_SIZE;
@@ -49,6 +50,7 @@ public class Server {
                 .get(AGENT_CARD_PATH, agentExecutionResource::getAgentCard)
                 .start(host, port);
 
-        LOG.info("Agent server started on host {} and port {} in {} mode", host, port, UNATTENDED_MODE ? "unattended" : "attended");
+        LOG.info("Agent server started on host {} and port {} in {} mode", host, port,
+                UNATTENDED_MODE ? "unattended" : "attended");
     }
 }

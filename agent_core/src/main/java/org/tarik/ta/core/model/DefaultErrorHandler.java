@@ -13,18 +13,24 @@ import org.tarik.ta.core.exceptions.ToolExecutionException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.tarik.ta.core.AgentConfig.isUnattendedMode;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 
 public class DefaultErrorHandler implements ToolExecutionErrorHandler {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultErrorHandler.class);
-    private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT, VERIFICATION_FAILED);
+    private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT,
+            VERIFICATION_FAILED);
     private final RetryPolicy retryPolicy;
     private final RetryState retryState;
+    private final boolean failOnTimeout;
 
     public DefaultErrorHandler(RetryPolicy retryPolicy, RetryState retryState) {
+        this(retryPolicy, retryState, true);
+    }
+
+    public DefaultErrorHandler(RetryPolicy retryPolicy, RetryState retryState, boolean failOnTimeout) {
         this.retryPolicy = retryPolicy;
         this.retryState = retryState;
+        this.failOnTimeout = failOnTimeout;
     }
 
     protected List<ErrorCategory> getTerminalErrors() {
@@ -52,11 +58,11 @@ public class DefaultErrorHandler implements ToolExecutionErrorHandler {
                 && elapsedTime > retryPolicy.timeoutMillis();
         boolean isMaxRetriesReached = attempts > retryPolicy.maxRetries();
 
-        if (isTimeout && isUnattendedMode()) {
+        if (isTimeout && failOnTimeout) {
             throw new ToolExecutionException(
                     "Retry policy exceeded because of timeout. Original error: " + message,
                     TIMEOUT);
-        } else if (isMaxRetriesReached && isUnattendedMode()) {
+        } else if (isMaxRetriesReached && failOnTimeout) {
             throw new ToolExecutionException(
                     "Retry policy exceeded because of max retries. Original error: "
                             + message,

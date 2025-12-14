@@ -215,7 +215,7 @@ public class ApiTestAgent {
                                 var actionResult = testStepActionAgent.executeWithRetry(() -> {
                                         testStepActionAgent.execute(actionInstruction, testData,
                                                         executionContext.getSharedData().toString(),
-                                                        !isUnattendedMode());
+                                                        false);
                                         return null;
                                 });
                                 resetToolCallUsage();
