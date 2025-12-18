@@ -182,4 +182,75 @@ class CommonUtilsTest {
     void isNotBlankNotBlank() {
         assertTrue(isNotBlank("abc"));
     }
+
+    @Test
+    void getObjectPrettyPrinted_ShouldReturnPrettyJson() {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        java.util.Map<String, String> map = java.util.Map.of("key", "value");
+        Optional<String> result = CommonUtils.getObjectPrettyPrinted(mapper, map);
+        assertTrue(result.isPresent());
+        assertTrue(result.get().contains("\"key\" : \"value\""));
+    }
+
+    @Test
+    void getObjectPrettyPrinted_ShouldReturnEmptyOnException() throws com.fasterxml.jackson.core.JsonProcessingException {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = org.mockito.Mockito.mock(com.fasterxml.jackson.databind.ObjectMapper.class);
+        com.fasterxml.jackson.databind.ObjectWriter writer = org.mockito.Mockito.mock(com.fasterxml.jackson.databind.ObjectWriter.class);
+        
+        org.mockito.Mockito.when(mapper.writerWithDefaultPrettyPrinter()).thenReturn(writer);
+        org.mockito.Mockito.when(writer.writeValueAsString(org.mockito.ArgumentMatchers.any())).thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("Error") {});
+        
+        Optional<String> result = CommonUtils.getObjectPrettyPrinted(mapper, java.util.Map.of());
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void deleteFile_ShouldDeleteFile(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) throws java.io.IOException {
+        java.io.File file = tempDir.resolve("test.txt").toFile();
+        assertTrue(file.createNewFile());
+        CommonUtils.deleteFile(file);
+        assertFalse(file.exists());
+    }
+
+    @Test
+    void deleteFolderContents_ShouldDeleteContents(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) throws java.io.IOException {
+        java.nio.file.Path subDir = tempDir.resolve("subdir");
+        java.nio.file.Files.createDirectory(subDir);
+        java.nio.file.Files.createFile(subDir.resolve("file.txt"));
+        
+        CommonUtils.deleteFolderContents(tempDir);
+        
+        assertTrue(java.nio.file.Files.exists(tempDir));
+        try (java.util.stream.Stream<java.nio.file.Path> entries = java.nio.file.Files.list(tempDir)) {
+             assertEquals(0, entries.count());
+        }
+    }
+
+    @Test
+    void getFutureResult_ShouldReturnResult() throws java.util.concurrent.ExecutionException, InterruptedException {
+        java.util.concurrent.Future<String> future = org.mockito.Mockito.mock(java.util.concurrent.Future.class);
+        org.mockito.Mockito.when(future.get()).thenReturn("result");
+        
+        Optional<String> result = CommonUtils.getFutureResult(future, "task");
+        assertTrue(result.isPresent());
+        assertEquals("result", result.get());
+    }
+
+    @Test
+    void getFutureResult_ShouldReturnEmptyOnException() throws java.util.concurrent.ExecutionException, InterruptedException {
+        java.util.concurrent.Future<String> future = org.mockito.Mockito.mock(java.util.concurrent.Future.class);
+        org.mockito.Mockito.when(future.get()).thenThrow(new java.util.concurrent.ExecutionException(new RuntimeException("Error")));
+        
+        Optional<String> result = CommonUtils.getFutureResult(future, "task");
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void getEnvironmentVariable_ShouldReturnValue() {
+        // Can't easily set env vars in Java, but we can test property fallback if env is missing
+        String key = "TEST_PROP_KEY_" + System.currentTimeMillis();
+        System.setProperty(key, "test_value");
+        assertEquals("test_value", CommonUtils.getEnvironmentVariable(key));
+        System.clearProperty(key);
+    }
 }

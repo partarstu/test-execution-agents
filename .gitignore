@@ -35,3 +35,4 @@ Dockerfile_local
 /**/*.log
 /ui_test_execution_agent/log
 .venv
+/ui_test_execution_agent/log

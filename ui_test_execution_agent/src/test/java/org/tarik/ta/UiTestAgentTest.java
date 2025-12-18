@@ -466,6 +466,32 @@ class UiTestAgentTest {
                 verify(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
         }
 
+        @Test
+        @DisplayName("Execution result contains SystemInfo and logs")
+        void executionResultContainsSystemInfoAndLogs() {
+                // Given
+                TestStep step = new TestStep("Action", null, null);
+                TestCase testCase = new TestCase("System Info Test", null, List.of(step));
+
+                mockTestCaseExtraction(testCase);
+
+                doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(),
+                        mockScreenshot,
+                        Instant.now()))
+                        .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
+
+                // When
+                org.tarik.ta.dto.UiTestExecutionResult result = (org.tarik.ta.dto.UiTestExecutionResult) UiTestAgent.executeTestCase("test case message");
+
+                // Then
+                assertThat(result.testExecutionStatus()).isEqualTo(PASSED);
+                assertThat(result.systemInfo()).isNotNull();
+                assertThat(result.systemInfo().device()).isNotNull();
+                assertThat(result.systemInfo().osVersion()).isNotBlank();
+                assertThat(result.logs()).isNotNull();
+                assertThat(result.logs()).isNotEmpty(); // Should contain at least start/end logs
+        }
+
         private void mockTestCaseExtraction(TestCase testCase) {
                 doReturn(new UiAgentExecutionResult<>(SUCCESS, "Test case extracted", true, testCase, mockScreenshot,
                                 Instant.now()))

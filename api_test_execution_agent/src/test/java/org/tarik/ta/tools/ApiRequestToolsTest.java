@@ -76,25 +76,95 @@ class ApiRequestToolsTest {
                 assertThat(result).contains("Status: 200");
         }
 
-        @Test
-        void testSendPostRequestWithAuth() {
+            @Test
+            void testSendPostRequestWithAuth() {
                 wireMockServer.stubFor(post(urlEqualTo("/login"))
-                                .withHeader("Authorization", containing("Basic"))
-                                .willReturn(aResponse()
-                                                .withStatus(201)));
-
+                        .withHeader("Authorization", containing("Basic"))
+                        .willReturn(aResponse()
+                                .withStatus(201)));
+        
                 System.setProperty("API_USERNAME", "user");
                 System.setProperty("API_PASSWORD", "pass");
-
+        
                 try {
-                        String result = apiRequestTools.sendRequest("POST", wireMockServer.baseUrl() + "/login", null,
-                                        "{}",
-                                        AuthType.BASIC, null);
-
-                        assertThat(result).contains("Status: 201");
+                    String result = apiRequestTools.sendRequest("POST", wireMockServer.baseUrl() + "/login", null,
+                            "{}",
+                            AuthType.BASIC, null);
+        
+                    assertThat(result).contains("Status: 201");
                 } finally {
-                        System.clearProperty("API_USERNAME");
-                        System.clearProperty("API_PASSWORD");
+                    System.clearProperty("API_USERNAME");
+                    System.clearProperty("API_PASSWORD");
                 }
+            }
+        
+            @Test
+            void testSendPutRequest() {
+                wireMockServer.stubFor(put(urlEqualTo("/update"))
+                        .withRequestBody(equalToJson("{\"key\":\"value\"}"))
+                        .willReturn(aResponse().withStatus(200)));
+        
+                String result = apiRequestTools.sendRequest("PUT", wireMockServer.baseUrl() + "/update", null,
+                        "{\"key\":\"value\"}", AuthType.NONE, null);
+        
+                assertThat(result).contains("Status: 200");
+            }
+        
+            @Test
+            void testSendDeleteRequest() {
+                wireMockServer.stubFor(delete(urlEqualTo("/delete"))
+                        .willReturn(aResponse().withStatus(204)));
+        
+                String result = apiRequestTools.sendRequest("DELETE", wireMockServer.baseUrl() + "/delete", null,
+                        null, AuthType.NONE, null);
+        
+                assertThat(result).contains("Status: 204");
+            }
+        
+                @Test
+                void testSendRequestWithHeadersAndQueryParams() {
+                    wireMockServer.stubFor(get(urlPathEqualTo("/search"))
+                            .withHeader("X-Custom", equalTo("customVal"))
+                            .withQueryParam("q", equalTo("term"))
+                            .willReturn(aResponse().withStatus(200)));
+            
+                    Map<String, String> headers = new HashMap<>();
+                    headers.put("X-Custom", "customVal");
+                    
+                    String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/search?q=term", headers,
+                            null, AuthType.NONE, null);
+            
+                    assertThat(result).contains("Status: 200");
+                }        
+                    @Test
+                    void testBearerAuth() {
+                        wireMockServer.stubFor(get(urlEqualTo("/protected"))
+                                .withHeader("Authorization", equalTo("Bearer mytoken"))
+                                .willReturn(aResponse().withStatus(200)));
+                
+                        System.setProperty("API_TOKEN", "mytoken");
+                        try {
+                            String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/protected", null,
+                                    null, AuthType.BEARER, null);
+                            assertThat(result).contains("Status: 200");
+                        } finally {
+                            System.clearProperty("API_TOKEN");
+                        }
+                    }    @Test
+    void testApiKeyAuth() {
+        wireMockServer.stubFor(get(urlEqualTo("/protected"))
+                .withHeader("X-API-KEY", equalTo("mykey"))
+                .willReturn(aResponse().withStatus(200)));
+
+        System.setProperty("API_KEY_NAME", "X-API-KEY");
+        System.setProperty("API_KEY_VALUE", "mykey");
+        try {
+            String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/protected", null,
+                    null, AuthType.API_KEY, "HEADER");
+            assertThat(result).contains("Status: 200");
+        } finally {
+            System.clearProperty("API_KEY_NAME");
+            System.clearProperty("API_KEY_VALUE");
         }
-}
+    }
+        }
