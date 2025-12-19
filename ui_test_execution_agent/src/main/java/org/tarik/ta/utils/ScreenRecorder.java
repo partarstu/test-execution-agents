@@ -46,6 +46,7 @@ public class ScreenRecorder {
     private ScheduledExecutorService executorService;
     private final Robot robot;
     private final Java2DFrameConverter converter;
+    private String currentRecordingPath;
 
     public ScreenRecorder() {
         this.recordingEnabled = UiTestAgentConfig.getScreenRecordingEnabled();
@@ -80,6 +81,7 @@ public class ScreenRecorder {
         String format = UiTestAgentConfig.getRecordingFormat();
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
         String fileName = Paths.get(folder, "test_run_" + timestamp + "." + format).toString();
+        this.currentRecordingPath = fileName;
 
         try {
             Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
@@ -141,5 +143,9 @@ public class ScreenRecorder {
         } catch (Exception e) {
             LOG.error("Failed to stop video recording", e);
         }
+    }
+
+    public String getCurrentRecordingPath() {
+        return currentRecordingPath;
     }
 }

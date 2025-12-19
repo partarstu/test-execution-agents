@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.core.dto;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -25,6 +26,7 @@ import java.util.Objects;
 /**
  * Represents the result of the test execution.
  */
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class TestExecutionResult {
     private final String testCaseName;
     private final @NotNull TestExecutionStatus testExecutionStatus;

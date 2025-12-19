@@ -63,7 +63,8 @@ public class ModelFactory {
                             .includeThoughts(OUTPUT_THOUGHTS)
                             .thinkingBudget(GEMINI_THINKING_BUDGET)
                             .build())
-                    .returnThinking(OUTPUT_THOUGHTS)
+                    .returnThinking(true)
+                    .sendThinking(true)
                     .listeners(List.of(new ChatModelEventListener()))
                     .build();
 

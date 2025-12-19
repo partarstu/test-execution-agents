@@ -103,7 +103,7 @@ public class BudgetManager {
     }
 
     public static void checkTimeBudget() {
-        long elapsedSeconds = Duration.between(now(), startTime.get()).getSeconds();
+        long elapsedSeconds = Duration.between(startTime.get(), now()).getSeconds();
         if (TIME_BUDGET_SECONDS > 0 && elapsedSeconds > TIME_BUDGET_SECONDS) {
             throw new RuntimeException("Execution time budget exceeded: " + elapsedSeconds + "s > " + TIME_BUDGET_SECONDS + "s");
         }

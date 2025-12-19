@@ -167,4 +167,22 @@ class ApiRequestToolsTest {
             System.clearProperty("API_KEY_VALUE");
         }
     }
+
+    @Test
+    void testUploadFile() {
+        wireMockServer.stubFor(post(urlEqualTo("/upload"))
+                .withHeader("Content-Type", containing("multipart/form-data"))
+                .willReturn(aResponse().withStatus(201)));
+
+        // Use a resource file
+        String filePath = getClass().getClassLoader().getResource("pet-image.png").getPath();
+        // Fix for Windows path if needed (leading slash issue)
+        if (System.getProperty("os.name").toLowerCase().contains("win") && filePath.startsWith("/")) {
+            filePath = filePath.substring(1);
+        }
+
+        String result = apiRequestTools.uploadFile(wireMockServer.baseUrl() + "/upload", filePath, "file", null);
+
+        assertThat(result).contains("Status: 201");
+    }
         }

@@ -30,6 +30,8 @@ import org.tarik.ta.core.model.DefaultErrorHandler;
 import org.tarik.ta.dto.UiPreconditionResult;
 import org.tarik.ta.dto.UiTestStepResult;
 import org.tarik.ta.dto.UiTestExecutionResult;
+import org.tarik.ta.dto.SystemInfo;
+import org.tarik.ta.utils.LogCapture;
 import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.error.ErrorCategory;
 import org.tarik.ta.core.error.RetryPolicy;
@@ -81,6 +83,9 @@ public class UiTestAgent {
         BudgetManager.reset();
         ScreenRecorder screenRecorder = new ScreenRecorder();
         screenRecorder.beginScreenCapture();
+        LogCapture logCapture = new LogCapture();
+        logCapture.start();
+        SystemInfo systemInfo = getSystemInfo();
 
         try (VerificationManager verificationManager = new VerificationManager()) {
             var testExecutionStartTimestamp = now();
@@ -95,7 +100,8 @@ public class UiTestAgent {
                     var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
                     return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
                             failedPrecondition.errorMessage(),
-                            ((UiPreconditionResult) failedPrecondition).screenshot());
+                            ((UiPreconditionResult) failedPrecondition).screenshot(), systemInfo,
+                            screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                 }
             }
 
@@ -105,20 +111,25 @@ public class UiTestAgent {
                 var lastStep = context.getTestStepExecutionHistory().getLast();
                 if (lastStep.executionStatus() == TestStepResultStatus.FAILURE) {
                     return getFailedTestExecutionResult(context, testExecutionStartTimestamp, lastStep.errorMessage(),
-                            ((UiTestStepResult) lastStep).screenshot());
+                            ((UiTestStepResult) lastStep).screenshot(), systemInfo,
+                            screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                 } else {
                     return getTestExecutionResultWithError(context, testExecutionStartTimestamp,
                             lastStep.errorMessage(),
-                            ((UiTestStepResult) lastStep).screenshot());
+                            ((UiTestStepResult) lastStep).screenshot(), systemInfo,
+                            screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                 }
             } else {
                 return new UiTestExecutionResult(testCase.name(), PASSED, context.getPreconditionExecutionHistory(),
-                        context.getTestStepExecutionHistory(), null, testExecutionStartTimestamp, now(),
+                        context.getTestStepExecutionHistory(), null, systemInfo,
+                        screenRecorder.getCurrentRecordingPath(), logCapture.getLogs(), testExecutionStartTimestamp,
+                        now(),
                         null);
             }
         } finally {
             LOG.info("Finished execution of the test case '{}'", testCase.name());
             screenRecorder.endScreenCapture();
+            logCapture.stop();
         }
     }
 
@@ -311,7 +322,7 @@ public class UiTestAgent {
                     });
 
                     if (!isElementLocationPrefetchingEnabled() &&
-                            !verificationManager.waitForVerificationToFinish(Long.MAX_VALUE).success()) {
+                            !verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis()).success()) {
                         // The test case execution should be interrupted after any verification failure
                         return;
                     }
@@ -400,25 +411,41 @@ public class UiTestAgent {
                 .build();
     }
 
+    private static SystemInfo getSystemInfo() {
+        String device = "PC";
+        try {
+            device = java.net.InetAddress.getLocalHost().getHostName();
+        } catch (Exception ignored) {
+        }
+        String os = System.getProperty("os.name") + " " + System.getProperty("os.version");
+        String browser = System.getProperty("test.browser", "N/A");
+        String environment = System.getProperty("test.environment", "Local");
+        return new SystemInfo(device, os, browser, environment);
+    }
+
     @NotNull
     private static TestExecutionResult getFailedTestExecutionResult(TestExecutionContext context,
             Instant testExecutionStartTimestamp, String errorMessage,
-            BufferedImage screenshot) {
+            BufferedImage screenshot, SystemInfo systemInfo, String videoPath, List<String> logs) {
         LOG.error(errorMessage);
         return new UiTestExecutionResult(context.getTestCase().name(), FAILED,
                 context.getPreconditionExecutionHistory(),
                 context.getTestStepExecutionHistory(),
                 screenshot,
+                systemInfo,
+                videoPath,
+                logs,
                 testExecutionStartTimestamp, now(), errorMessage);
     }
 
     @NotNull
     private static TestExecutionResult getTestExecutionResultWithError(TestExecutionContext context,
             Instant testExecutionStartTimestamp, String errorMessage,
-            BufferedImage screenshot) {
+            BufferedImage screenshot, SystemInfo systemInfo, String videoPath, List<String> logs) {
         LOG.error(errorMessage);
         return new UiTestExecutionResult(context.getTestCase().name(), TestExecutionResult.TestExecutionStatus.ERROR,
                 context.getPreconditionExecutionHistory(), context.getTestStepExecutionHistory(), screenshot,
+                systemInfo, videoPath, logs,
                 testExecutionStartTimestamp,
                 now(), errorMessage);
     }

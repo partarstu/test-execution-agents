@@ -29,20 +29,41 @@ import java.util.Objects;
 
 public class UiTestExecutionResult extends TestExecutionResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
+    private final @Nullable SystemInfo systemInfo;
+    private final @Nullable String videoPath;
+    private final @Nullable List<String> logs;
 
     public UiTestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus,
                                  @NotNull List<PreconditionResult> preconditionResults,
                                  @NotNull List<TestStepResult> stepResults,
                                  @Nullable BufferedImage screenshot,
+                                 @Nullable SystemInfo systemInfo,
+                                 @Nullable String videoPath,
+                                 @Nullable List<String> logs,
                                  @Nullable Instant executionStartTimestamp,
                                  @Nullable Instant executionEndTimestamp,
                                  @Nullable String generalErrorMessage) {
         super(testCaseName, testExecutionStatus, preconditionResults, stepResults, executionStartTimestamp, executionEndTimestamp, generalErrorMessage);
         this.screenshot = screenshot;
+        this.systemInfo = systemInfo;
+        this.videoPath = videoPath;
+        this.logs = logs;
     }
 
     public @Nullable BufferedImage screenshot() {
         return screenshot;
+    }
+
+    public @Nullable SystemInfo systemInfo() {
+        return systemInfo;
+    }
+
+    public @Nullable String videoPath() {
+        return videoPath;
+    }
+
+    public @Nullable List<String> logs() {
+        return logs;
     }
 
     @Override
@@ -51,11 +72,14 @@ public class UiTestExecutionResult extends TestExecutionResult {
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         UiTestExecutionResult that = (UiTestExecutionResult) o;
-        return Objects.equals(screenshot, that.screenshot);
+        return Objects.equals(screenshot, that.screenshot) &&
+                Objects.equals(systemInfo, that.systemInfo) &&
+                Objects.equals(videoPath, that.videoPath) &&
+                Objects.equals(logs, that.logs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), screenshot);
+        return Objects.hash(super.hashCode(), screenshot, systemInfo, videoPath, logs);
     }
 }

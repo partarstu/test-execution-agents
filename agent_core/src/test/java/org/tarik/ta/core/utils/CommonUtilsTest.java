@@ -20,15 +20,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.tarik.ta.core.utils.CommonUtils.isBlank;
-import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
-import static org.tarik.ta.core.utils.CommonUtils.parseStringAsDouble;
-import static org.tarik.ta.core.utils.CommonUtils.parseStringAsInteger;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.tarik.ta.core.utils.CommonUtils.*;
 
 @SuppressWarnings("ALL")
 @ExtendWith(MockitoExtension.class)
@@ -211,6 +208,12 @@ class CommonUtilsTest {
         CommonUtils.deleteFile(file);
         assertFalse(file.exists());
     }
+    
+    @Test
+    void deleteFile_ShouldHandleNonExistentFile() {
+        java.io.File file = new java.io.File("non_existent_file.txt");
+        assertDoesNotThrow(() -> CommonUtils.deleteFile(file));
+    }
 
     @Test
     void deleteFolderContents_ShouldDeleteContents(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) throws java.io.IOException {
@@ -224,6 +227,14 @@ class CommonUtilsTest {
         try (java.util.stream.Stream<java.nio.file.Path> entries = java.nio.file.Files.list(tempDir)) {
              assertEquals(0, entries.count());
         }
+    }
+    
+    @Test
+    void deleteFolderContents_ShouldThrowIfFile(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) throws java.io.IOException {
+        java.nio.file.Path file = tempDir.resolve("file.txt");
+        java.nio.file.Files.createFile(file);
+        
+        assertThrows(IllegalArgumentException.class, () -> CommonUtils.deleteFolderContents(file));
     }
 
     @Test
@@ -244,13 +255,60 @@ class CommonUtilsTest {
         Optional<String> result = CommonUtils.getFutureResult(future, "task");
         assertTrue(result.isEmpty());
     }
+    
+    @Test
+    void getFutureResult_ShouldHandleInterruptedException() throws java.util.concurrent.ExecutionException, InterruptedException {
+        java.util.concurrent.Future<String> future = org.mockito.Mockito.mock(java.util.concurrent.Future.class);
+        org.mockito.Mockito.when(future.get()).thenThrow(new InterruptedException("Interrupted"));
+        
+        Optional<String> result = CommonUtils.getFutureResult(future, "task");
+        assertTrue(result.isEmpty());
+        assertTrue(Thread.currentThread().isInterrupted());
+    }
 
     @Test
     void getEnvironmentVariable_ShouldReturnValue() {
-        // Can't easily set env vars in Java, but we can test property fallback if env is missing
         String key = "TEST_PROP_KEY_" + System.currentTimeMillis();
         System.setProperty(key, "test_value");
         assertEquals("test_value", CommonUtils.getEnvironmentVariable(key));
         System.clearProperty(key);
+    }
+    
+    @Test
+    void getEnvironmentVariable_ShouldReturnNullForBlank() {
+        assertNull(CommonUtils.getEnvironmentVariable(""));
+        assertNull(CommonUtils.getEnvironmentVariable(null));
+    }
+    
+    @Test
+    void sleepSeconds_ShouldSleep() {
+        long start = System.currentTimeMillis();
+        CommonUtils.sleepSeconds(1);
+        long end = System.currentTimeMillis();
+        assertTrue((end - start) >= 1000);
+    }
+    
+    @Test
+    void sleepMillis_ShouldSleep() {
+        long start = System.currentTimeMillis();
+        CommonUtils.sleepMillis(100);
+        long end = System.currentTimeMillis();
+        assertTrue((end - start) >= 100);
+    }
+    
+    @Test
+    void waitUntil_ShouldWait() {
+        Instant deadline = Instant.now().plusMillis(200);
+        CommonUtils.waitUntil(deadline);
+        assertFalse(Instant.now().isBefore(deadline));
+    }
+    
+    @Test
+    void waitUntil_ShouldReturnImmediatelyIfDeadlinePassed() {
+        Instant deadline = Instant.now().minusMillis(200);
+        long start = System.currentTimeMillis();
+        CommonUtils.waitUntil(deadline);
+        long end = System.currentTimeMillis();
+        assertTrue((end - start) < 100); // Should be very fast
     }
 }

@@ -115,10 +115,11 @@ public class ElementLocatorTools extends UiAbstractTools {
 
     @Tool(value = "Locates the UI element on the screen based on its description and returns its coordinates.")
     public ElementLocation locateElementOnTheScreen(
-            @P("A description of UI element to locate.")
+            @P("A very brief description of UI element to locate. If any related to this element data is provided, don't use " +
+                    "that data as a part of its description")
             String elementDescription,
             @P(value = "Any data related to this element or the action involving this element.", required = false)
-            String testSpecificData) {
+            String elementSpecificData) {
         if (isBlank(elementDescription)) {
             throw new ToolExecutionException("Element description cannot be empty", TRANSIENT_TOOL_ERROR);
         }
@@ -150,7 +151,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                         matchingByDescriptionUiElements.size(), elementDescription,
                         matchingByDescriptionUiElements.stream().map(UiElement::name).toList());
                 return findElementAndProcessLocationResult(() ->
-                        getFinalElementLocation(bestMatchingElement, testSpecificData), elementDescription);
+                        getFinalElementLocation(bestMatchingElement, elementSpecificData), elementDescription);
             }
         } catch (Exception e) {
             throw rethrowAsToolException(e, "locating a UI element on the screen");
@@ -207,7 +208,8 @@ public class ElementLocatorTools extends UiAbstractTools {
                     String.join(", ", uiElement.dataDependentAttributes()), elementTestData);
         } else {
             return """
-                    The target element: "%s. %s %s"
+                    The target element:
+                    "%s. %s %s"
                     """.formatted(uiElement.name(), uiElement.description(), uiElement.locationDetails());
         }
     }
@@ -540,7 +542,7 @@ public class ElementLocatorTools extends UiAbstractTools {
     private List<Rectangle> identifyBoundingBoxesUsingVision(UiElement element, BufferedImage wholeScreenshot,
                                                              String elementTestData) {
         var startTime = Instant.now();
-        LOG.info("Asking model to identify bounding boxes for element '{}'.", element.name());
+        LOG.info("Asking sub-agent to identify bounding boxes for element '{}'.", element.name());
         try {
             var scalingRatio = getScalingRatio(wholeScreenshot);
             var imageToSend = scalingRatio < 1.0 ? scaleImage(wholeScreenshot, scalingRatio) : wholeScreenshot;
