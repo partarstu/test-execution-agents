@@ -91,11 +91,12 @@ public class UiTestAgent {
             var testExecutionStartTimestamp = now();
             var context = new UiTestExecutionContext(testCase, new VisualState(captureScreen()));
             var userInteractionTools = new UserInteractionTools(getUiElementRetriever());
-            var commonTools = new CommonTools(verificationManager);
+            var preconditionCommonTools = new CommonTools();
+            var testStepCommonTools = new CommonTools(verificationManager);
 
             if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
                 executePreconditions(context,
-                        getPreconditionActionAgent(commonTools, userInteractionTools, new RetryState()));
+                        getPreconditionActionAgent(preconditionCommonTools, userInteractionTools, new RetryState()));
                 if (hasPreconditionFailures(context)) {
                     var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
                     return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
@@ -105,7 +106,8 @@ public class UiTestAgent {
                 }
             }
 
-            var testStepActionAgent = getTestStepActionAgent(commonTools, userInteractionTools, new RetryState());
+            var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, userInteractionTools,
+                    new RetryState());
             executeTestSteps(context, testStepActionAgent, verificationManager);
             if (hasStepFailures(context)) {
                 var lastStep = context.getTestStepExecutionHistory().getLast();
@@ -322,7 +324,8 @@ public class UiTestAgent {
                     });
 
                     if (!isElementLocationPrefetchingEnabled() &&
-                            !verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis()).success()) {
+                            !verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis())
+                                    .success()) {
                         // The test case execution should be interrupted after any verification failure
                         return;
                     }

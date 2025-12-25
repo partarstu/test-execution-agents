@@ -41,7 +41,7 @@ public class KeyboardTools extends UiAbstractTools {
     private static final Map<String, Integer> actionableKeyCodeByNameMap = getActionableKeyCodesByName();
     private static final int MAX_KEY_INDEX = 120000;
     private static final int KEYBOARD_ACTION_DELAY_MILLIS = 500;
-    private static final int AUTO_DELAY = 30;
+    private static final int AUTO_DELAY = 10;
 
     public KeyboardTools() {
         super();
@@ -53,10 +53,10 @@ public class KeyboardTools extends UiAbstractTools {
 
     @Tool(value = "Presses the specified keyboard key. Use this tool when you need to press a single keyboard key.")
     public void pressKey(
-            @P(value = "The specific value of a keyboard key which needs to be pressed, e.g. 'Ctrl', 'Enter', 'A', '1', 'Shift' etc.")
-            String keyboardKey) {
+            @P(value = "The specific value of a keyboard key which needs to be pressed, e.g. 'Ctrl', 'Enter', 'A', '1', 'Shift' etc.") String keyboardKey) {
         if (keyboardKey == null || keyboardKey.isBlank()) {
-            throw new ToolExecutionException("In order to press a keyboard key it can't be empty", TRANSIENT_TOOL_ERROR);
+            throw new ToolExecutionException("In order to press a keyboard key it can't be empty",
+                    TRANSIENT_TOOL_ERROR);
         }
         try {
             getRobot().setAutoDelay(AUTO_DELAY);
@@ -68,13 +68,15 @@ public class KeyboardTools extends UiAbstractTools {
         }
     }
 
-    @Tool(value = "Presses the specified sequence of keyboard keys. Use this tool when you need to press a combination or sequence of" +
+    @Tool(value = "Presses the specified sequence of keyboard keys. Use this tool when you need to press a combination or sequence of"
+            +
             " multiple keyboard keys at the same time.")
     public void pressKeys(
             @P("A non-empty array of values each representing the keyboard key which needs to be " +
                     "pressed, e.g. 'Ctrl', 'Enter', 'A', '1', 'Shift' etc.") String... keyboardKeys) {
         if (keyboardKeys == null || keyboardKeys.length == 0) {
-            throw new ToolExecutionException("In order to press keyboard keys combination it can't be empty", TRANSIENT_TOOL_ERROR);
+            throw new ToolExecutionException("In order to press keyboard keys combination it can't be empty",
+                    TRANSIENT_TOOL_ERROR);
         }
         var validKeys = stream(keyboardKeys)
                 .filter(key -> key != null && !key.isBlank())
@@ -92,21 +94,25 @@ public class KeyboardTools extends UiAbstractTools {
         }
     }
 
-    @Tool(value = "Types (enters, inputs) the specified text using the keyboard. Normally you would first click the element with a " +
-            "mouse in order to get the focus on the element and only then call this tool. If the content of the target UI " +
+    @Tool(value = "Types (enters, inputs) the specified text using the keyboard. Normally you would first click the element with a "
+            +
+            "mouse in order to get the focus on the element and only then call this tool. If the content of the target UI "
+            +
             "element might not be empty, it can be wiped out before typing if the corresponding boolean parameter is set.")
     public void typeText(
-            @P(value = "The text to be typed.")
-            String text,
-            @P(value = "A boolean which defines if existing contents of the UI element, in which the text should be input, need to be " +
-                    "wiped out before input")
-            String wipeOutOldContent) {
+            @P(value = "The text to be typed.") String text,
+            @P(value = "A boolean which defines if existing contents of the UI element, in which the text should be input, need to be "
+                    +
+                    "wiped out before input") String wipeOutOldContent) {
         if (text == null) {
             throw new ToolExecutionException("Text which needs to be input can't be NULL", TRANSIENT_TOOL_ERROR);
         }
-        if (isNotBlank(wipeOutOldContent) && !List.of("true", "false").contains(wipeOutOldContent.trim().toLowerCase())) {
-            throw new ToolExecutionException(("Got incorrect value for the variable which defines if the content should be wiped " +
-                    "out. Expected boolean value, got : {%s}").formatted(wipeOutOldContent), TRANSIENT_TOOL_ERROR);
+        if (isNotBlank(wipeOutOldContent)
+                && !List.of("true", "false").contains(wipeOutOldContent.trim().toLowerCase())) {
+            throw new ToolExecutionException(
+                    ("Got incorrect value for the variable which defines if the content should be wiped " +
+                            "out. Expected boolean value, got : {%s}").formatted(wipeOutOldContent),
+                    TRANSIENT_TOOL_ERROR);
         }
         try {
             getRobot().setAutoDelay(AUTO_DELAY);
@@ -119,7 +125,8 @@ public class KeyboardTools extends UiAbstractTools {
                     try {
                         typeCharacter(ch);
                     } catch (Exception e) {
-                        LOG.info("Couldn't type '{}' character using keyboard keys, falling back to copy-paste.", ch, e);
+                        LOG.info("Couldn't type '{}' character using keyboard keys, falling back to copy-paste.", ch,
+                                e);
                         copyPaste(ch);
                     }
                 } else {
@@ -131,7 +138,8 @@ public class KeyboardTools extends UiAbstractTools {
         }
     }
 
-    @Tool(value = "Clears (wipes out) data inside some input UI element by first selecting the whole content and then clicking the delete" +
+    @Tool(value = "Clears (wipes out) data inside some input UI element by first selecting the whole content and then clicking the delete"
+            +
             " button. Normally you would first click the element with a mouse in order to get the focus.")
     public void clearData() {
         try {
@@ -139,6 +147,39 @@ public class KeyboardTools extends UiAbstractTools {
             selectAndDeleteContent();
         } catch (Exception e) {
             throw rethrowAsToolException(e, "clearing data using keyboard");
+        }
+    }
+
+    @Tool(value = "Pastes the specified text using the clipboard (Ctrl+V). This is an alternative to typing text character by character."
+            +
+            " Use this tool when you need to paste long texts or texts containing special characters. Normally you would first click the"
+            +
+            " element with a mouse in order to get the focus on the element and only then call this tool. If the content of the target UI"
+            +
+            " element might not be empty, it can be wiped out before pasting if the corresponding boolean parameter is set.")
+    public void pasteText(
+            @P(value = "The text to be pasted.") String text,
+            @P(value = "A boolean which defines if existing contents of the UI element, in which the text should be pasted, need to be "
+                    +
+                    "wiped out before pasting") String wipeOutOldContent) {
+        if (text == null) {
+            throw new ToolExecutionException("Text which needs to be pasted can't be NULL", TRANSIENT_TOOL_ERROR);
+        }
+        if (isNotBlank(wipeOutOldContent)
+                && !List.of("true", "false").contains(wipeOutOldContent.trim().toLowerCase())) {
+            throw new ToolExecutionException(
+                    ("Got incorrect value for the variable which defines if the content should be wiped " +
+                            "out. Expected boolean value, got : {%s}").formatted(wipeOutOldContent),
+                    TRANSIENT_TOOL_ERROR);
+        }
+        try {
+            getRobot().setAutoDelay(AUTO_DELAY);
+            if (isBlank(wipeOutOldContent) || Boolean.parseBoolean(wipeOutOldContent)) {
+                selectAndDeleteContent();
+            }
+            copyPasteText(text);
+        } catch (Exception e) {
+            throw rethrowAsToolException(e, "pasting text '%s'".formatted(text));
         }
     }
 
@@ -166,6 +207,21 @@ public class KeyboardTools extends UiAbstractTools {
         }
     }
 
+    private static void copyPasteText(String text) {
+        try {
+            getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
+            getRobot().keyPress(VK_CONTROL);
+            getRobot().keyPress(VK_V);
+            getRobot().keyRelease(VK_V);
+            getRobot().keyRelease(VK_CONTROL);
+            sleepMillis(KEYBOARD_ACTION_DELAY_MILLIS);
+        } catch (Exception ex) {
+            String message = "Got error while copy-pasting text.";
+            LOG.error(message, ex);
+            throw new RuntimeException(ex);
+        }
+    }
+
     private static boolean isAsciiPrintable(char c) {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
     }
@@ -182,14 +238,17 @@ public class KeyboardTools extends UiAbstractTools {
                 getRobot().keyRelease(VK_SHIFT);
             }
         } catch (IllegalArgumentException e) {
-            LOG.error("Can't type character '{}' as it can't be mapped to a key code. Trying to fall back to copy-paste", ch);
+            LOG.error(
+                    "Can't type character '{}' as it can't be mapped to a key code. Trying to fall back to copy-paste",
+                    ch);
             throw e;
         }
     }
 
     private static int getKeyCode(String keyboardKeyName) {
         if (!actionableKeyCodeByNameMap.containsKey(keyboardKeyName.toLowerCase())) {
-            throw new IllegalArgumentException("There is no keyboard key with the name '%s'".formatted(keyboardKeyName));
+            throw new IllegalArgumentException(
+                    "There is no keyboard key with the name '%s'".formatted(keyboardKeyName));
         }
         return actionableKeyCodeByNameMap.get(keyboardKeyName.toLowerCase());
     }

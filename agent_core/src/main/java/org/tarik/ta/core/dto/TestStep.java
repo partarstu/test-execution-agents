@@ -22,8 +22,9 @@ import java.util.List;
 public record TestStep(
         @Description("A natural language description of the action to perform in this step.")
         String stepDescription,
-        @Description("A test data to be used as input for the step. Can be empty.")
+        @Description("A test data to be used as input for the step. Allowed to be empty.")
         List<String> testData,
-        @Description("The expected outcome or state of the application after the step is executed. This is used for verification.")
+        @Description({"The expected outcome or state of the application after the step is executed. This is used for verification. Allowed " +
+                "to be empty"})
         String expectedResults) {
 }

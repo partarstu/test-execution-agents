@@ -66,13 +66,14 @@ public class NextActionPopup extends AbstractDialog {
             dispose();
         });
 
-        JPanel buttonsPanel = getButtonsPanel(createNewElementButton, refineExistingElementButton, retrySearchButton, terminateButton);
+        JPanel buttonsPanel = getButtonsPanel(createNewElementButton, refineExistingElementButton, retrySearchButton,
+                terminateButton);
         JPanel mainPanel = getDefaultMainPanel();
         mainPanel.add(new JScrollPane(userMessageArea), BorderLayout.CENTER);
         mainPanel.add(buttonsPanel, BorderLayout.SOUTH);
 
         add(mainPanel);
-        setDefaultSizeAndPosition(0.3, 0.2);
+        setDefaultSizeAndPosition(0.3, 0.3);
         displayPopup();
     }
 
@@ -87,6 +88,3 @@ public class NextActionPopup extends AbstractDialog {
         return popup.userDecision.get();
     }
 }
-
-
-
