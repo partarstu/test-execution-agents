@@ -78,58 +78,102 @@ public class UiTestAgent {
     protected static final int ACTION_VERIFICATION_DELAY_MILLIS = getActionVerificationDelayMillis();
 
     public static TestExecutionResult executeTestCase(String receivedMessage) {
-        TestCase testCase = extractTestCase(receivedMessage).orElseThrow();
-        LOG.info("Starting execution of the test case '{}'", testCase.name());
-        BudgetManager.reset();
+        var testExecutionStartTimestamp = now();
         ScreenRecorder screenRecorder = new ScreenRecorder();
-        screenRecorder.beginScreenCapture();
         LogCapture logCapture = new LogCapture();
-        logCapture.start();
-        SystemInfo systemInfo = getSystemInfo();
+        SystemInfo systemInfo = null;
 
-        try (VerificationManager verificationManager = new VerificationManager()) {
-            var testExecutionStartTimestamp = now();
-            var context = new UiTestExecutionContext(testCase, new VisualState(captureScreen()));
-            var userInteractionTools = new UserInteractionTools(getUiElementRetriever());
-            var preconditionCommonTools = new CommonTools();
-            var testStepCommonTools = new CommonTools(verificationManager);
-
-            if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
-                executePreconditions(context,
-                        getPreconditionActionAgent(preconditionCommonTools, userInteractionTools, new RetryState()));
-                if (hasPreconditionFailures(context)) {
-                    var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
-                    return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
-                            failedPrecondition.errorMessage(),
-                            ((UiPreconditionResult) failedPrecondition).screenshot(), systemInfo,
-                            screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
-                }
-            }
-
-            var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, userInteractionTools,
-                    new RetryState());
-            executeTestSteps(context, testStepActionAgent, verificationManager);
-            if (hasStepFailures(context)) {
-                var lastStep = context.getTestStepExecutionHistory().getLast();
-                if (lastStep.executionStatus() == TestStepResultStatus.FAILURE) {
-                    return getFailedTestExecutionResult(context, testExecutionStartTimestamp, lastStep.errorMessage(),
-                            ((UiTestStepResult) lastStep).screenshot(), systemInfo,
-                            screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
-                } else {
-                    return getTestExecutionResultWithError(context, testExecutionStartTimestamp,
-                            lastStep.errorMessage(),
-                            ((UiTestStepResult) lastStep).screenshot(), systemInfo,
-                            screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
-                }
-            } else {
-                return new UiTestExecutionResult(testCase.name(), PASSED, context.getPreconditionExecutionHistory(),
-                        context.getTestStepExecutionHistory(), null, systemInfo,
-                        screenRecorder.getCurrentRecordingPath(), logCapture.getLogs(), testExecutionStartTimestamp,
+        try {
+            var extractedTestCase = extractTestCase(receivedMessage);
+            if (extractedTestCase.isEmpty()) {
+                var errorMessage = "Failed to extract a valid test case from the provided message. " +
+                        "Please ensure the message contains all required information (test case name, test steps with descriptions).";
+                LOG.error(errorMessage);
+                systemInfo = getSystemInfo();
+                return new UiTestExecutionResult(
+                        "Unknown Test Case",
+                        TestExecutionResult.TestExecutionStatus.ERROR,
+                        List.of(),
+                        List.of(),
+                        captureScreen(),
+                        systemInfo,
+                        null,
+                        List.of(),
+                        testExecutionStartTimestamp,
                         now(),
-                        null);
+                        errorMessage);
             }
+
+            TestCase testCase = extractedTestCase.get();
+            LOG.info("Starting execution of the test case '{}'", testCase.name());
+            BudgetManager.reset();
+            screenRecorder.beginScreenCapture();
+            logCapture.start();
+            systemInfo = getSystemInfo();
+
+            try (VerificationManager verificationManager = new VerificationManager()) {
+                var context = new UiTestExecutionContext(testCase, new VisualState(captureScreen()));
+                var userInteractionTools = new UserInteractionTools(getUiElementRetriever());
+                var preconditionCommonTools = new CommonTools();
+                var testStepCommonTools = new CommonTools(verificationManager);
+
+                if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
+                    executePreconditions(context,
+                            getPreconditionActionAgent(preconditionCommonTools, userInteractionTools,
+                                    new RetryState()));
+                    if (hasPreconditionFailures(context)) {
+                        var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
+                        return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
+                                failedPrecondition.errorMessage(),
+                                ((UiPreconditionResult) failedPrecondition).screenshot(), systemInfo,
+                                screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
+                    }
+                }
+
+                var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, userInteractionTools,
+                        new RetryState());
+                executeTestSteps(context, testStepActionAgent, verificationManager);
+                if (hasStepFailures(context)) {
+                    var lastStep = context.getTestStepExecutionHistory().getLast();
+                    if (lastStep.executionStatus() == TestStepResultStatus.FAILURE) {
+                        return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
+                                lastStep.errorMessage(),
+                                ((UiTestStepResult) lastStep).screenshot(), systemInfo,
+                                screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
+                    } else {
+                        return getTestExecutionResultWithError(context, testExecutionStartTimestamp,
+                                lastStep.errorMessage(),
+                                ((UiTestStepResult) lastStep).screenshot(), systemInfo,
+                                screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
+                    }
+                } else {
+                    return new UiTestExecutionResult(testCase.name(), PASSED, context.getPreconditionExecutionHistory(),
+                            context.getTestStepExecutionHistory(), null, systemInfo,
+                            screenRecorder.getCurrentRecordingPath(), logCapture.getLogs(), testExecutionStartTimestamp,
+                            now(),
+                            null);
+                }
+            } finally {
+                LOG.info("Finished execution of the test case '{}'", testCase.name());
+            }
+        } catch (Exception e) {
+            LOG.error("Unexpected error during test case execution", e);
+            if (systemInfo == null) {
+                systemInfo = getSystemInfo();
+            }
+            return new UiTestExecutionResult(
+                    "Unknown Test Case",
+                    TestExecutionResult.TestExecutionStatus.ERROR,
+                    List.of(),
+                    List.of(),
+                    captureScreen(),
+                    systemInfo,
+                    screenRecorder.getCurrentRecordingPath(),
+                    logCapture.getLogs(),
+                    testExecutionStartTimestamp,
+                    now(),
+                    "Unexpected error during test case execution: " + e.getMessage());
         } finally {
-            LOG.info("Finished execution of the test case '{}'", testCase.name());
             screenRecorder.endScreenCapture();
             logCapture.stop();
         }
