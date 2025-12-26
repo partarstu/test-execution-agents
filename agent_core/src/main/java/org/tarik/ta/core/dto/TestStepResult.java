@@ -15,15 +15,20 @@
  */
 package org.tarik.ta.core.dto;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.Objects;
 
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
+
 /**
  * Represents the result of a single test step execution.
  */
+@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class TestStepResult {
     private final @NotNull TestStep testStep;
     private final TestStepResultStatus executionStatus;
@@ -32,7 +37,9 @@ public class TestStepResult {
     private final @Nullable Instant executionStartTimestamp;
     private final @Nullable Instant executionEndTimestamp;
 
-    public TestStepResult(@NotNull TestStep testStep, TestStepResultStatus executionStatus, @Nullable String errorMessage, @Nullable String actualResult, @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
+    public TestStepResult(@NotNull TestStep testStep, TestStepResultStatus executionStatus,
+            @Nullable String errorMessage, @Nullable String actualResult, @Nullable Instant executionStartTimestamp,
+            @Nullable Instant executionEndTimestamp) {
         this.testStep = testStep;
         this.executionStatus = executionStatus;
         this.errorMessage = errorMessage;
@@ -67,19 +74,26 @@ public class TestStepResult {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         TestStepResult that = (TestStepResult) o;
-        return Objects.equals(testStep, that.testStep) && executionStatus == that.executionStatus && Objects.equals(errorMessage, that.errorMessage) && Objects.equals(actualResult, that.actualResult) && Objects.equals(executionStartTimestamp, that.executionStartTimestamp) && Objects.equals(executionEndTimestamp, that.executionEndTimestamp);
+        return Objects.equals(testStep, that.testStep) && executionStatus == that.executionStatus
+                && Objects.equals(errorMessage, that.errorMessage) && Objects.equals(actualResult, that.actualResult)
+                && Objects.equals(executionStartTimestamp, that.executionStartTimestamp)
+                && Objects.equals(executionEndTimestamp, that.executionEndTimestamp);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(testStep, executionStatus, errorMessage, actualResult, executionStartTimestamp, executionEndTimestamp);
+        return Objects.hash(testStep, executionStatus, errorMessage, actualResult, executionStartTimestamp,
+                executionEndTimestamp);
     }
 
     /**
-     * Provides a human-friendly string representation of the TestStepResult instance.
+     * Provides a human-friendly string representation of the TestStepResult
+     * instance.
      * The output is formatted for console readability.
      *
      * @return A formatted string representing the test step result.
@@ -95,7 +109,8 @@ public class TestStepResult {
             sb.append("  - Error: ").append(errorMessage).append("\n");
         }
 
-        sb.append("  - Start Time: ").append(executionStartTimestamp != null ? executionStartTimestamp.toString() : "N/A")
+        sb.append("  - Start Time: ")
+                .append(executionStartTimestamp != null ? executionStartTimestamp.toString() : "N/A")
                 .append("\n");
         sb.append("  - End Time: ").append(executionEndTimestamp != null ? executionEndTimestamp.toString() : "N/A");
 

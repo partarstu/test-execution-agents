@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.dto;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -24,12 +25,16 @@ import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.Objects;
 
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
+
+@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class UiPreconditionResult extends PreconditionResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
 
     public UiPreconditionResult(@NotNull String precondition, boolean success, @Nullable String errorMessage,
-                                @Nullable BufferedImage screenshot,
-                                @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
+            @Nullable BufferedImage screenshot,
+            @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
         super(precondition, success, errorMessage, executionStartTimestamp, executionEndTimestamp);
         this.screenshot = screenshot;
     }
@@ -40,9 +45,12 @@ public class UiPreconditionResult extends PreconditionResult {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        if (!super.equals(o))
+            return false;
         UiPreconditionResult that = (UiPreconditionResult) o;
         return Objects.equals(screenshot, that.screenshot);
     }

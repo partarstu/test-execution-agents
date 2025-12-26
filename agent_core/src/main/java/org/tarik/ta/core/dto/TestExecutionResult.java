@@ -23,10 +23,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
+
 /**
  * Represents the result of the test execution.
  */
-@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
+@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class TestExecutionResult {
     private final String testCaseName;
     private final @NotNull TestExecutionStatus testExecutionStatus;
@@ -36,7 +39,10 @@ public class TestExecutionResult {
     private final @Nullable Instant executionEndTimestamp;
     private final @Nullable String generalErrorMessage;
 
-    public TestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus, @NotNull List<PreconditionResult> preconditionResults, @NotNull List<TestStepResult> stepResults, @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp, @Nullable String generalErrorMessage) {
+    public TestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus,
+            @NotNull List<PreconditionResult> preconditionResults, @NotNull List<TestStepResult> stepResults,
+            @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp,
+            @Nullable String generalErrorMessage) {
         this.testCaseName = testCaseName;
         this.testExecutionStatus = testExecutionStatus;
         this.preconditionResults = preconditionResults;
@@ -76,15 +82,23 @@ public class TestExecutionResult {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         TestExecutionResult that = (TestExecutionResult) o;
-        return Objects.equals(testCaseName, that.testCaseName) && testExecutionStatus == that.testExecutionStatus && Objects.equals(preconditionResults, that.preconditionResults) && Objects.equals(stepResults, that.stepResults) && Objects.equals(executionStartTimestamp, that.executionStartTimestamp) && Objects.equals(executionEndTimestamp, that.executionEndTimestamp) && Objects.equals(generalErrorMessage, that.generalErrorMessage);
+        return Objects.equals(testCaseName, that.testCaseName) && testExecutionStatus == that.testExecutionStatus
+                && Objects.equals(preconditionResults, that.preconditionResults)
+                && Objects.equals(stepResults, that.stepResults)
+                && Objects.equals(executionStartTimestamp, that.executionStartTimestamp)
+                && Objects.equals(executionEndTimestamp, that.executionEndTimestamp)
+                && Objects.equals(generalErrorMessage, that.generalErrorMessage);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(testCaseName, testExecutionStatus, preconditionResults, stepResults, executionStartTimestamp, executionEndTimestamp, generalErrorMessage);
+        return Objects.hash(testCaseName, testExecutionStatus, preconditionResults, stepResults,
+                executionStartTimestamp, executionEndTimestamp, generalErrorMessage);
     }
 
     @Override
@@ -96,8 +110,10 @@ public class TestExecutionResult {
         if (generalErrorMessage != null && !generalErrorMessage.isBlank()) {
             sb.append("Error Message: ").append(generalErrorMessage).append("\n");
         }
-        sb.append("Start Time: ").append(executionStartTimestamp != null ? executionStartTimestamp.toString() : "N/A").append("\n");
-        sb.append("End Time: ").append(executionEndTimestamp != null ? executionEndTimestamp.toString() : "N/A").append("\n");
+        sb.append("Start Time: ").append(executionStartTimestamp != null ? executionStartTimestamp.toString() : "N/A")
+                .append("\n");
+        sb.append("End Time: ").append(executionEndTimestamp != null ? executionEndTimestamp.toString() : "N/A")
+                .append("\n");
         sb.append("============================================================\n");
 
         if (!preconditionResults.isEmpty()) {

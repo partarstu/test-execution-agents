@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.dto;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -27,6 +28,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
+
+@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class UiTestExecutionResult extends TestExecutionResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
     private final @Nullable SystemInfo systemInfo;
@@ -34,16 +39,17 @@ public class UiTestExecutionResult extends TestExecutionResult {
     private final @Nullable List<String> logs;
 
     public UiTestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus,
-                                 @NotNull List<PreconditionResult> preconditionResults,
-                                 @NotNull List<TestStepResult> stepResults,
-                                 @Nullable BufferedImage screenshot,
-                                 @Nullable SystemInfo systemInfo,
-                                 @Nullable String videoPath,
-                                 @Nullable List<String> logs,
-                                 @Nullable Instant executionStartTimestamp,
-                                 @Nullable Instant executionEndTimestamp,
-                                 @Nullable String generalErrorMessage) {
-        super(testCaseName, testExecutionStatus, preconditionResults, stepResults, executionStartTimestamp, executionEndTimestamp, generalErrorMessage);
+            @NotNull List<PreconditionResult> preconditionResults,
+            @NotNull List<TestStepResult> stepResults,
+            @Nullable BufferedImage screenshot,
+            @Nullable SystemInfo systemInfo,
+            @Nullable String videoPath,
+            @Nullable List<String> logs,
+            @Nullable Instant executionStartTimestamp,
+            @Nullable Instant executionEndTimestamp,
+            @Nullable String generalErrorMessage) {
+        super(testCaseName, testExecutionStatus, preconditionResults, stepResults, executionStartTimestamp,
+                executionEndTimestamp, generalErrorMessage);
         this.screenshot = screenshot;
         this.systemInfo = systemInfo;
         this.videoPath = videoPath;
@@ -68,9 +74,12 @@ public class UiTestExecutionResult extends TestExecutionResult {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        if (!super.equals(o))
+            return false;
         UiTestExecutionResult that = (UiTestExecutionResult) o;
         return Objects.equals(screenshot, that.screenshot) &&
                 Objects.equals(systemInfo, that.systemInfo) &&

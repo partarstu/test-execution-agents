@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.dto;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,10 +26,16 @@ import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.Objects;
 
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
+
+@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class UiTestStepResult extends TestStepResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
 
-    public UiTestStepResult(@NotNull TestStep testStep, TestStepResultStatus executionStatus, @Nullable String errorMessage, @Nullable String actualResult, @Nullable BufferedImage screenshot, @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
+    public UiTestStepResult(@NotNull TestStep testStep, TestStepResultStatus executionStatus,
+            @Nullable String errorMessage, @Nullable String actualResult, @Nullable BufferedImage screenshot,
+            @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
         super(testStep, executionStatus, errorMessage, actualResult, executionStartTimestamp, executionEndTimestamp);
         this.screenshot = screenshot;
     }
@@ -39,9 +46,12 @@ public class UiTestStepResult extends TestStepResult {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        if (!super.equals(o))
+            return false;
         UiTestStepResult that = (UiTestStepResult) o;
         return Objects.equals(screenshot, that.screenshot);
     }
@@ -58,15 +68,18 @@ public class UiTestStepResult extends TestStepResult {
         sb.append("  - Step: ").append(testStep()).append("\n");
         sb.append("  - Status: ").append(executionStatus()).append("\n");
 
-        if (executionStatus() != TestStepResultStatus.SUCCESS && errorMessage() != null && !errorMessage().trim().isEmpty()) {
+        if (executionStatus() != TestStepResultStatus.SUCCESS && errorMessage() != null
+                && !errorMessage().trim().isEmpty()) {
             sb.append("  - Error: ").append(errorMessage()).append("\n");
         }
 
         boolean screenshotExists = screenshot != null;
         sb.append("  - Screenshot: ").append(screenshotExists ? "Available" : "Not Available").append("\n");
-        sb.append("  - Start Time: ").append(executionStartTimestamp() != null ? executionStartTimestamp().toString() : "N/A")
+        sb.append("  - Start Time: ")
+                .append(executionStartTimestamp() != null ? executionStartTimestamp().toString() : "N/A")
                 .append("\n");
-        sb.append("  - End Time: ").append(executionEndTimestamp() != null ? executionEndTimestamp().toString() : "N/A");
+        sb.append("  - End Time: ")
+                .append(executionEndTimestamp() != null ? executionEndTimestamp().toString() : "N/A");
 
         return sb.toString();
     }

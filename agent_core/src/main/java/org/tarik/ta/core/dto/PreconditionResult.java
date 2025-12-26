@@ -15,12 +15,17 @@
  */
 package org.tarik.ta.core.dto;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.Objects;
 
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
+
+@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class PreconditionResult {
     private final @NotNull String precondition;
     private final boolean success;
@@ -28,7 +33,8 @@ public class PreconditionResult {
     private final @Nullable Instant executionStartTimestamp;
     private final @Nullable Instant executionEndTimestamp;
 
-    public PreconditionResult(@NotNull String precondition, boolean success, @Nullable String errorMessage, @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
+    public PreconditionResult(@NotNull String precondition, boolean success, @Nullable String errorMessage,
+            @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
         this.precondition = precondition;
         this.success = success;
         this.errorMessage = errorMessage;
@@ -58,10 +64,15 @@ public class PreconditionResult {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         PreconditionResult that = (PreconditionResult) o;
-        return success == that.success && Objects.equals(precondition, that.precondition) && Objects.equals(errorMessage, that.errorMessage) && Objects.equals(executionStartTimestamp, that.executionStartTimestamp) && Objects.equals(executionEndTimestamp, that.executionEndTimestamp);
+        return success == that.success && Objects.equals(precondition, that.precondition)
+                && Objects.equals(errorMessage, that.errorMessage)
+                && Objects.equals(executionStartTimestamp, that.executionStartTimestamp)
+                && Objects.equals(executionEndTimestamp, that.executionEndTimestamp);
     }
 
     @Override
