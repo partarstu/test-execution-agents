@@ -20,6 +20,7 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ToolChoice;
 import dev.langchain4j.model.googleai.GeminiMode;
 import dev.langchain4j.model.googleai.GeminiThinkingConfig;
+import dev.langchain4j.model.googleai.GeminiThinkingLevel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.vertexai.gemini.VertexAiGeminiChatModel;
@@ -57,11 +58,12 @@ public class ModelFactory {
                     .maxOutputTokens(MAX_OUTPUT_TOKENS)
                     .temperature(TEMPERATURE)
                     .topP(TOP_P)
-                    .toolConfig(GeminiMode.ANY )
+                    .toolConfig(GeminiMode.ANY)
                     .logRequestsAndResponses(LOG_MODEL_OUTPUTS)
                     .thinkingConfig(GeminiThinkingConfig.builder()
                             .includeThoughts(OUTPUT_THOUGHTS)
-                            .thinkingBudget(GEMINI_THINKING_BUDGET)
+                            //.thinkingBudget(GEMINI_THINKING_BUDGET)
+                            .thinkingLevel(GeminiThinkingLevel.valueOf(getGeminiThinkingLevel().toUpperCase()))
                             .build())
                     .returnThinking(true)
                     .sendThinking(true)
@@ -127,7 +129,7 @@ public class ModelFactory {
                         .maxTokens(MAX_OUTPUT_TOKENS)
                         .temperature(TEMPERATURE)
                         .toolChoice(ToolChoice.REQUIRED)
-                        //.topP(TOP_P)
+                        // .topP(TOP_P)
                         .listeners(List.of(new ChatModelEventListener()))
                         .build();
             }

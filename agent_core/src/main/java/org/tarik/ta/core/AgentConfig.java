@@ -100,6 +100,8 @@ public class AgentConfig {
             "gemini.thinking.budget", "GEMINI_THINKING_BUDGET", "5000", false);
     private static final ConfigProperty<Integer> MAX_RETRIES = loadPropertyAsInteger("model.max.retries", "MAX_RETRIES",
             "10", false);
+    private static final ConfigProperty<String> GEMINI_THINKING_LEVEL = loadProperty(
+            "gemini.thinking.level", "GEMINI_THINKING_LEVEL", "MINIMAL", s -> s, false);
 
     // Google API Config (Only relevant if model.provider is Google)
     private static final ConfigProperty<GoogleApiProvider> GOOGLE_API_PROVIDER = getProperty("google.api.provider",
@@ -226,6 +228,10 @@ public class AgentConfig {
 
     public static int getMaxRetries() {
         return MAX_RETRIES.value();
+    }
+
+    public static String getGeminiThinkingLevel() {
+        return GEMINI_THINKING_LEVEL.value();
     }
 
     // -----------------------------------------------------
