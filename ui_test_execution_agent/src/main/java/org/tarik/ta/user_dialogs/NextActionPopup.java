@@ -73,7 +73,7 @@ public class NextActionPopup extends AbstractDialog {
         mainPanel.add(buttonsPanel, BorderLayout.SOUTH);
 
         add(mainPanel);
-        setDefaultSizeAndPosition(0.3, 0.3);
+        setDefaultSizeAndPosition();
         displayPopup();
     }
 

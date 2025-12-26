@@ -49,7 +49,7 @@ public class NoElementFoundPopup extends AbstractDialog {
         mainPanel.add(buttonsPanel, BorderLayout.SOUTH);
 
         add(mainPanel);
-        setDefaultSizeAndPosition(0.2, 0.2);
+        setDefaultSizeAndPosition();
         displayPopup();
     }
 

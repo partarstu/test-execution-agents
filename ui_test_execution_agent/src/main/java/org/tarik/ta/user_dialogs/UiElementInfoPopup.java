@@ -42,7 +42,8 @@ public class UiElementInfoPopup extends AbstractDialog {
         super(owner, "UI Element Info");
 
         JPanel panel = getDefaultMainPanel();
-        var userMessageArea = getUserMessageArea("Please revise, and if needed, modify the following info regarding the element");
+        var userMessageArea = getUserMessageArea(
+                "Please revise, and if needed, modify the following info regarding the element");
         panel.add(new JScrollPane(userMessageArea), BorderLayout.NORTH);
 
         JPanel contentPanel = new JPanel();
@@ -50,11 +51,15 @@ public class UiElementInfoPopup extends AbstractDialog {
         contentPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         nameField = addLabelWithValueField("Name", originalElementInfo.name(), contentPanel);
         descriptionArea = addLabelWithValueField("Description", originalElementInfo.description(), contentPanel);
-        locationDetails = addLabelWithValueField("Location Details", originalElementInfo.locationDetails(), contentPanel);
-        pageSummaryArea = addLabelWithValueField("Name or short description of the page on which the element is located",
+        locationDetails = addLabelWithValueField("Location Details", originalElementInfo.locationDetails(),
+                contentPanel);
+        pageSummaryArea = addLabelWithValueField(
+                "Name or short description of the page on which the element is located",
                 originalElementInfo.pageSummary(), contentPanel);
 
-        boolean isDataDependent = originalElementInfo.isDataDependent() || (originalElementInfo.dataDependentAttributes() != null && !originalElementInfo.dataDependentAttributes().isEmpty());
+        boolean isDataDependent = originalElementInfo.isDataDependent()
+                || (originalElementInfo.dataDependentAttributes() != null
+                        && !originalElementInfo.dataDependentAttributes().isEmpty());
         dataDependentCheckBox = new JCheckBox("Data-Driven Element", isDataDependent);
         setHoverAsClick(dataDependentCheckBox);
         zoomInNeededCheckBox = new JCheckBox("Use Zoom for Precision", originalElementInfo.zoomInRequired());
@@ -103,7 +108,7 @@ public class UiElementInfoPopup extends AbstractDialog {
         panel.add(buttonsPanel, BorderLayout.SOUTH);
 
         add(panel);
-        setDefaultSizeAndPosition(0.5, 0.8);
+        setDefaultSizeAndPosition();
         displayPopup();
     }
 
@@ -144,12 +149,13 @@ public class UiElementInfoPopup extends AbstractDialog {
         }
     }
 
-    public static Optional<UiElementInfo> displayAndGetUpdatedElementInfo(Window owner, @NotNull UiElementInfo elementDraftFromModel) {
+    public static Optional<UiElementInfo> displayAndGetUpdatedElementInfo(Window owner,
+            @NotNull UiElementInfo elementDraftFromModel) {
         var popup = new UiElementInfoPopup(owner, elementDraftFromModel);
         return ofNullable(popup.getUpdatedUiElementInfo());
     }
 
     public record UiElementInfo(String name, String description, String locationDetails, String pageSummary,
-                                boolean zoomInRequired, boolean isDataDependent, List<String> dataDependentAttributes) {
+            boolean zoomInRequired, boolean isDataDependent, List<String> dataDependentAttributes) {
     }
 }

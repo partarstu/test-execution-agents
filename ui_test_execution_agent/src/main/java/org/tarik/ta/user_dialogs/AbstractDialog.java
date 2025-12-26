@@ -55,9 +55,12 @@ public abstract class AbstractDialog extends JDialog {
         super.pack();
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
         Dimension dialogSize = getSize();
-        int newWidth = Math.min(dialogSize.width, (int) (screenSize.width * 0.95));
-        int newHeight = Math.min(dialogSize.height, (int) (screenSize.height * 0.95));
-        setSize(newWidth, newHeight);
+        // Only limit size if it exceeds 95% of screen dimensions
+        if (dialogSize.width > screenSize.width * 0.95 || dialogSize.height > screenSize.height * 0.95) {
+            int newWidth = Math.min(dialogSize.width, (int) (screenSize.width * 0.95));
+            int newHeight = Math.min(dialogSize.height, (int) (screenSize.height * 0.95));
+            setSize(newWidth, newHeight);
+        }
     }
 
     protected abstract void onDialogClosing();
@@ -130,7 +133,8 @@ public abstract class AbstractDialog extends JDialog {
     @NotNull
     protected static JPanel getButtonsPanel(JButton... buttons) {
         // Use AgentConfig to get gaps
-        var panel = new JPanel(new FlowLayout(FlowLayout.CENTER, DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
+        var panel = new JPanel(
+                new FlowLayout(FlowLayout.CENTER, DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
         for (JButton button : buttons) {
             panel.add(button);
         }
@@ -147,16 +151,8 @@ public abstract class AbstractDialog extends JDialog {
         setLocationRelativeTo(null);
     }
 
-    private void setDefaultSize(double widthRatio, double heightRatio) {
-        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        var desiredWidth = screenSize.getWidth() * widthRatio;
-        var desiredHeight = screenSize.getHeight() * heightRatio;
-        setSize(new Dimension((int) desiredWidth, (int) desiredHeight));
-    }
-
-    protected void setDefaultSizeAndPosition(double widthRatio, double heightRatio) {
+    protected void setDefaultSizeAndPosition() {
         pack();
-        setDefaultSize(widthRatio, heightRatio);
         setDefaultPosition();
     }
 }

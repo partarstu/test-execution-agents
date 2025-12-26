@@ -25,7 +25,8 @@ public abstract class AbstractConfirmationDialog extends AbstractDialog {
 
     @Override
     protected void onDialogClosing() {
-        // Dialog does nothing after its closing - it's the same as clicking the OK button
+        // Dialog does nothing after its closing - it's the same as clicking the OK
+        // button
     }
 
     protected void initializeDialog(String userMessage) {
@@ -40,7 +41,7 @@ public abstract class AbstractConfirmationDialog extends AbstractDialog {
         mainPanel.add(buttonsPanel, BorderLayout.SOUTH);
 
         add(mainPanel);
-        setDefaultSizeAndPosition(0.2, 0.2);
+        setDefaultSizeAndPosition();
         displayPopup();
     }
 }
