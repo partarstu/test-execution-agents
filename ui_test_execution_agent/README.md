@@ -136,6 +136,9 @@ a part of this framework for executing a sample test case inside Google Cloud.
       opening the Chrome browser.
     * [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java ) provides the whole logic for locating a specific
       UI element on the screen based on its description.
+    * [UserInteractionTools](src/main/java/org/tarik/ta/tools/UserInteractionTools.java) facilitates user interactions via dialogs for 
+      element creation, refinement, and verification. **Note:** These tools are only available when running in attended mode 
+      (`unattended.mode=false`).
 
 * **Attended and Unattended Modes:**
     * Supports two execution modes controlled by the `unattended.mode` flag in `config.properties`.

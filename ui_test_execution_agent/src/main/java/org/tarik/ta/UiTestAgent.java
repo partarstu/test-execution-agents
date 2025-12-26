@@ -374,14 +374,21 @@ public class UiTestAgent {
                 AgentConfig.getTestStepActionAgentModelProvider());
         var testStepActionAgentPrompt = loadSystemPrompt("test_step/executor",
                 AgentConfig.getTestStepActionAgentPromptVersion(), "test_step_action_agent_system_prompt.txt");
-        return builder(UiTestStepActionAgent.class)
+        var agentBuilder = builder(UiTestStepActionAgent.class)
                 .chatModel(testStepActionAgentModel.chatModel())
                 .systemMessageProvider(_ -> testStepActionAgentPrompt)
-                .tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                        userInteractionTools,
-                        new EmptyExecutionResult())
-                .toolExecutionErrorHandler(new UiErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState))
-                .build();
+                .toolExecutionErrorHandler(new UiErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState));
+
+        if (isUnattendedMode()) {
+            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
+                    new EmptyExecutionResult());
+        } else {
+            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
+                    userInteractionTools,
+                    new EmptyExecutionResult());
+        }
+
+        return agentBuilder.build();
     }
 
     private static UiPreconditionVerificationAgent getPreconditionVerificationAgent(RetryState retryState) {
@@ -404,14 +411,21 @@ public class UiTestAgent {
                 AgentConfig.getPreconditionActionAgentModelProvider());
         var preconditionAgentPrompt = loadSystemPrompt("precondition/executor",
                 AgentConfig.getPreconditionAgentPromptVersion(), "precondition_action_agent_system_prompt.txt");
-        return builder(UiPreconditionActionAgent.class)
+        var agentBuilder = builder(UiPreconditionActionAgent.class)
                 .chatModel(preconditionAgentModel.chatModel())
                 .systemMessageProvider(_ -> preconditionAgentPrompt)
-                .toolExecutionErrorHandler(new UiErrorHandler(PreconditionActionAgent.RETRY_POLICY, retryState))
-                .tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                        userInteractionTools,
-                        new EmptyExecutionResult())
-                .build();
+                .toolExecutionErrorHandler(new UiErrorHandler(PreconditionActionAgent.RETRY_POLICY, retryState));
+
+        if (isUnattendedMode()) {
+            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
+                    new EmptyExecutionResult());
+        } else {
+            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
+                    userInteractionTools,
+                    new EmptyExecutionResult());
+        }
+
+        return agentBuilder.build();
     }
 
     private static SystemInfo getSystemInfo() {
