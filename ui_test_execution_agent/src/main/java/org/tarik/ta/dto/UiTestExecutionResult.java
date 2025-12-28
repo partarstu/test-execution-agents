@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.tarik.ta.core.dto.PreconditionResult;
+import org.tarik.ta.core.dto.SystemInfo;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStepResult;
 
@@ -29,9 +30,7 @@ import java.util.Objects;
 
 public class UiTestExecutionResult extends TestExecutionResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
-    private final @Nullable SystemInfo systemInfo;
     private final @Nullable String videoPath;
-    private final @Nullable List<String> logs;
 
     public UiTestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus,
             @NotNull List<PreconditionResult> preconditionResults,
@@ -44,27 +43,17 @@ public class UiTestExecutionResult extends TestExecutionResult {
             @Nullable Instant executionEndTimestamp,
             @Nullable String generalErrorMessage) {
         super(testCaseName, testExecutionStatus, preconditionResults, stepResults, executionStartTimestamp,
-                executionEndTimestamp, generalErrorMessage);
+                executionEndTimestamp, generalErrorMessage, systemInfo, logs);
         this.screenshot = screenshot;
-        this.systemInfo = systemInfo;
         this.videoPath = videoPath;
-        this.logs = logs;
     }
 
     public @Nullable BufferedImage getScreenshot() {
         return screenshot;
     }
 
-    public @Nullable SystemInfo getSystemInfo() {
-        return systemInfo;
-    }
-
     public @Nullable String getVideoPath() {
         return videoPath;
-    }
-
-    public @Nullable List<String> getLogs() {
-        return logs;
     }
 
     @Override
@@ -77,13 +66,11 @@ public class UiTestExecutionResult extends TestExecutionResult {
             return false;
         UiTestExecutionResult that = (UiTestExecutionResult) o;
         return Objects.equals(screenshot, that.screenshot) &&
-                Objects.equals(systemInfo, that.systemInfo) &&
-                Objects.equals(videoPath, that.videoPath) &&
-                Objects.equals(logs, that.logs);
+                Objects.equals(videoPath, that.videoPath);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), screenshot, systemInfo, videoPath, logs);
+        return Objects.hash(super.hashCode(), screenshot, videoPath);
     }
 }

@@ -25,6 +25,7 @@ import org.tarik.ta.dto.UiTestExecutionResult;
 import org.tarik.ta.dto.UiTestStepResult;
 
 import java.util.List;
+import java.util.Optional;
 
 import static java.util.Optional.ofNullable;
 import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
@@ -55,5 +56,10 @@ public class UiAgentExecutor extends AbstractAgentExecutor {
                             "General screenshot for the test case %s.png".formatted(result.getTestCaseName()),
                             convertImageToBase64(screenshot, "png")))));
         }
+    }
+
+    @Override
+    protected Optional<List<String>> extractLogs(TestExecutionResult result) {
+        return ofNullable(result.getLogs());
     }
 }

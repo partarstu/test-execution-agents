@@ -68,7 +68,7 @@ public class ApiTestAgent {
                 if (testCase == null) {
                         return new TestExecutionResult("Unknown", TestExecutionResult.TestExecutionStatus.ERROR,
                                         List.of(), List.of(), now(), now(),
-                                        "Could not extract test case");
+                                        "Could not extract test case", null, null);
                 }
 
                 LOG.info("Starting execution of the API test case '{}'", testCase.name());
@@ -108,7 +108,7 @@ public class ApiTestAgent {
                                 return new TestExecutionResult(testCase.name(), PASSED,
                                                 executionContext.getPreconditionExecutionHistory(),
                                                 executionContext.getTestStepExecutionHistory(),
-                                                testExecutionStartTimestamp, now(), null);
+                                                testExecutionStartTimestamp, now(), null, null, null);
                         }
                 } finally {
                         LOG.info("Finished execution of the test case '{}'", testCase.name());
@@ -342,7 +342,7 @@ public class ApiTestAgent {
                 return new TestExecutionResult(context.getTestCase().name(), FAILED,
                                 context.getPreconditionExecutionHistory(),
                                 context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(),
-                                errorMessage);
+                                errorMessage, null, null);
         }
 
         @NotNull
@@ -353,7 +353,7 @@ public class ApiTestAgent {
                                 TestExecutionResult.TestExecutionStatus.ERROR,
                                 context.getPreconditionExecutionHistory(),
                                 context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(),
-                                errorMessage);
+                                errorMessage, null, null);
         }
 
         private static void addFailedTestStep(TestExecutionContext context, TestStep testStep, String errorMessage,

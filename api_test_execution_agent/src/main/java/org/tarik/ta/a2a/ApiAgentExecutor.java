@@ -21,6 +21,7 @@ import org.tarik.ta.core.a2a.AbstractAgentExecutor;
 import org.tarik.ta.core.dto.TestExecutionResult;
 
 import java.util.List;
+import java.util.Optional;
 
 public class ApiAgentExecutor extends AbstractAgentExecutor {
 
@@ -32,5 +33,10 @@ public class ApiAgentExecutor extends AbstractAgentExecutor {
     @Override
     protected void addSpecificArtifacts(TestExecutionResult result, List<Part<?>> parts) {
         // No specific artifacts for API tests yet
+    }
+
+    @Override
+    protected Optional<List<String>> extractLogs(TestExecutionResult result) {
+        return Optional.ofNullable(result.getLogs());
     }
 }

@@ -33,11 +33,13 @@ public class TestExecutionResult {
     private final @Nullable Instant executionStartTimestamp;
     private final @Nullable Instant executionEndTimestamp;
     private final @Nullable String generalErrorMessage;
+    private final @Nullable SystemInfo systemInfo;
+    private final @Nullable List<String> logs;
 
     public TestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus,
             @NotNull List<PreconditionResult> preconditionResults, @NotNull List<TestStepResult> stepResults,
             @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp,
-            @Nullable String generalErrorMessage) {
+            @Nullable String generalErrorMessage, @Nullable SystemInfo systemInfo, @Nullable List<String> logs) {
         this.testCaseName = testCaseName;
         this.testExecutionStatus = testExecutionStatus;
         this.preconditionResults = preconditionResults;
@@ -45,6 +47,8 @@ public class TestExecutionResult {
         this.executionStartTimestamp = executionStartTimestamp;
         this.executionEndTimestamp = executionEndTimestamp;
         this.generalErrorMessage = generalErrorMessage;
+        this.systemInfo = systemInfo;
+        this.logs = logs;
     }
 
     public String getTestCaseName() {
@@ -75,6 +79,14 @@ public class TestExecutionResult {
         return generalErrorMessage;
     }
 
+    public @Nullable SystemInfo getSystemInfo() {
+        return systemInfo;
+    }
+
+    public @Nullable List<String> getLogs() {
+        return logs;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o)
@@ -87,13 +99,15 @@ public class TestExecutionResult {
                 && Objects.equals(stepResults, that.stepResults)
                 && Objects.equals(executionStartTimestamp, that.executionStartTimestamp)
                 && Objects.equals(executionEndTimestamp, that.executionEndTimestamp)
-                && Objects.equals(generalErrorMessage, that.generalErrorMessage);
+                && Objects.equals(generalErrorMessage, that.generalErrorMessage)
+                && Objects.equals(systemInfo, that.systemInfo)
+                && Objects.equals(logs, that.logs);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(testCaseName, testExecutionStatus, preconditionResults, stepResults,
-                executionStartTimestamp, executionEndTimestamp, generalErrorMessage);
+                executionStartTimestamp, executionEndTimestamp, generalErrorMessage, systemInfo, logs);
     }
 
     @Override
@@ -109,6 +123,9 @@ public class TestExecutionResult {
                 .append("\n");
         sb.append("End Time: ").append(executionEndTimestamp != null ? executionEndTimestamp.toString() : "N/A")
                 .append("\n");
+        if (systemInfo != null) {
+            sb.append("System Info: ").append(systemInfo).append("\n");
+        }
         sb.append("============================================================\n");
 
         if (!preconditionResults.isEmpty()) {

@@ -22,6 +22,7 @@ import org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
@@ -53,7 +54,7 @@ class AbstractAgentExecutorTest {
         when(requestContext.getTaskId()).thenReturn("task-123");
         // Create a message with text to satisfy extractTextFromMessage
         Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
-                null, null);
+                null, null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
         TestExecutionResult result = new TestExecutionResult(
@@ -63,6 +64,8 @@ class AbstractAgentExecutorTest {
                 Collections.emptyList(),
                 Instant.now(),
                 Instant.now(),
+                null,
+                null,
                 null);
         executor.setResultToReturn(result);
 
@@ -81,7 +84,7 @@ class AbstractAgentExecutorTest {
         when(requestContext.getTask()).thenReturn(task);
         when(requestContext.getTaskId()).thenReturn("task-123");
         Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
-                null, null);
+                null, null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
         TestExecutionResult result = new TestExecutionResult(
@@ -91,6 +94,8 @@ class AbstractAgentExecutorTest {
                 Collections.emptyList(),
                 Instant.now(),
                 Instant.now(),
+                null,
+                null,
                 null);
         executor.setResultToReturn(result);
 
@@ -110,7 +115,7 @@ class AbstractAgentExecutorTest {
         when(requestContext.getTaskId()).thenReturn("task-123");
         // Message with empty text
         Message message = new Message(Message.Role.USER, List.of(new TextPart("   ", null)), "msg-1", null, null, null,
-                null);
+                null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
         try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
@@ -127,7 +132,7 @@ class AbstractAgentExecutorTest {
         when(requestContext.getTask()).thenReturn(task);
         when(requestContext.getTaskId()).thenReturn("task-123");
         Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
-                null, null);
+                null, null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
         executor.setThrowException(true);
@@ -168,7 +173,7 @@ class AbstractAgentExecutorTest {
         }
 
         @Override
-        protected TestExecutionResult executeTestCase(String message) throws Exception {
+        protected TestExecutionResult executeTestCase(String message) {
             if (throwException) {
                 throw new RuntimeException("Simulated error");
             }
@@ -178,6 +183,12 @@ class AbstractAgentExecutorTest {
         @Override
         protected void addSpecificArtifacts(TestExecutionResult result, List<Part<?>> parts) {
             // No-op
+        }
+
+        @Override
+        protected Optional<List<String>> extractLogs(TestExecutionResult result) {
+            // No logs in tests
+            return Optional.empty();
         }
     }
 }

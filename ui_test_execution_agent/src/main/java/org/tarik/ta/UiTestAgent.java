@@ -30,7 +30,7 @@ import org.tarik.ta.core.model.DefaultErrorHandler;
 import org.tarik.ta.dto.UiPreconditionResult;
 import org.tarik.ta.dto.UiTestStepResult;
 import org.tarik.ta.dto.UiTestExecutionResult;
-import org.tarik.ta.dto.SystemInfo;
+import org.tarik.ta.core.dto.SystemInfo;
 import org.tarik.ta.utils.LogCapture;
 import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.error.ErrorCategory;
@@ -476,11 +476,18 @@ public class UiTestAgent {
         String device = "PC";
         try {
             device = java.net.InetAddress.getLocalHost().getHostName();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
+            // If we can't retrieve the device, let's stick to having the default one - PC
         }
         String os = System.getProperty("os.name") + " " + System.getProperty("os.version");
-        String browser = System.getProperty("test.browser", "N/A");
-        String environment = System.getProperty("test.environment", "Local");
+        String browser = System.getenv("TEST_BROWSER");
+        if (isBlank(browser)) {
+            browser = "N/A";
+        }
+        String environment = System.getenv("TEST_ENVIRONMENT");
+        if (isBlank(environment)) {
+            environment = "Local";
+        }
         return new SystemInfo(device, os, browser, environment);
     }
 

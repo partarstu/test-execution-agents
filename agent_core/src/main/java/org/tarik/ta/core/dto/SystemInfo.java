@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.dto;
+package org.tarik.ta.core.dto;
 
 import dev.langchain4j.model.output.structured.Description;
 
 @Description("Description of the system on which the agent executed the test case")
 public record SystemInfo(
-    @Description("Device name or type (e.g., iPhone 14, Windows 11 PC)") String device,
-    @Description("Operating System version") String osVersion,
-    @Description("Browser name and version (if applicable)") String browser,
-    @Description("Execution environment (e.g., QA Staging, Production, Dev)") String environment
-) {}
+        @Description("Device name or type (e.g., iPhone 14, Windows 11 PC)") String device,
+        @Description("Operating System version") String osVersion,
+        @Description("Browser name and version (if applicable)") String browser,
+        @Description("Execution environment (e.g., QA Staging, Production, Dev)") String environment) {
+}

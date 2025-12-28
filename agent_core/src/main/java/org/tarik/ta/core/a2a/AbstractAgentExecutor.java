@@ -22,6 +22,9 @@ import io.a2a.server.agentexecution.RequestContext;
 import io.a2a.server.events.EventQueue;
 import io.a2a.server.tasks.TaskUpdater;
 import io.a2a.spec.*;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -95,6 +98,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                 TextPart textPart = new TextPart(OBJECT_MAPPER.writeValueAsString(result), null);
                 parts.add(textPart);
                 addSpecificArtifacts(result, parts);
+                addLogsArtifact(result, parts);
                 updater.addArtifact(parts, null, null, null);
                 updater.complete(updater.newAgentMessage(List.of(textPart), null));
             } catch (Exception e) {
@@ -103,6 +107,18 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                 failTask(updater, "Got exception while preparing the task artifacts for the test case. " +
                         "Before re-sending please investigate the root cause based on the agent's logs.");
             }
+        });
+    }
+
+    private void addLogsArtifact(TestExecutionResult result, List<Part<?>> parts) {
+        extractLogs(result).ifPresent(logs -> {
+            String logsContent = String.join("\n", logs);
+            String base64Logs = Base64.getEncoder().encodeToString(logsContent.getBytes(StandardCharsets.UTF_8));
+            FileWithBytes logsFile = new FileWithBytes(
+                    "text/plain",
+                    "execution_logs_%s.txt".formatted(result.getTestCaseName().replaceAll("\\s", "_")),
+                    base64Logs);
+            parts.add(new FilePart(logsFile));
         });
     }
 
@@ -118,9 +134,11 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
         }
     }
 
-    protected abstract TestExecutionResult executeTestCase(String message) throws Exception;
+    protected abstract TestExecutionResult executeTestCase(String message);
 
     protected abstract void addSpecificArtifacts(TestExecutionResult result, List<Part<?>> parts);
+
+    protected abstract Optional<List<String>> extractLogs(TestExecutionResult result);
 
     protected void failTask(TaskUpdater updater, String message) {
         TextPart errorPart = new TextPart(message, null);
@@ -148,7 +166,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
         String result = ofNullable(message.getParts())
                 .stream()
                 .flatMap(Collection::stream)
-                .filter(p -> p instanceof TextPart)
+                .filter(TextPart.class::isInstance)
                 .map(part -> ((TextPart) part).getText())
                 .filter(CommonUtils::isNotBlank)
                 .map(String::trim)
