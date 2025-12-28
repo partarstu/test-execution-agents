@@ -259,8 +259,8 @@ public class ElementLocatorTools extends UiAbstractTools {
                         "similarity mainScore > %.1f. The most similar element names by similarity mainScore are: %s",
                 elementDescription, MIN_TARGET_RETRIEVAL_SCORE, retrievedElementsString);
         LOG.info(failureReason);
-        var message = "No elements found in DB matching the provided UI element description. Similar candidates exist but their " +
-                "similarity scores are below threshold.";
+        var message = ("No UI elements found in DB matching the description '%s'. Similar candidates exist but their " +
+                "similarity scores are below threshold.").formatted(elementDescription);
         return new ElementLocationException(message, SIMILAR_ELEMENTS_IN_DB_BUT_SCORE_TOO_LOW);
     }
 
@@ -268,7 +268,7 @@ public class ElementLocatorTools extends UiAbstractTools {
         var failureReason = String.format("No UI elements found in vector DB which semantically match the description '%s' with the " +
                 "similarity mainScore > %.1f.", elementDescription, MIN_GENERAL_RETRIEVAL_SCORE);
         LOG.info(failureReason);
-        var message = "No elements found in DB matching the provided UI element description.";
+        var message = "No UI elements found in DB matching the description '%s'.".formatted(elementDescription);
         return new ElementLocationException(message, NO_ELEMENTS_FOUND_IN_DB);
     }
 
@@ -389,8 +389,7 @@ public class ElementLocatorTools extends UiAbstractTools {
 
     @NotNull
     private Rectangle extendZoomInRegion(Rectangle zoomInOriginalRegion, BufferedImage elementScreenshot, BufferedImage wholeScreenshot) {
-        var extensionRatio =
-                ((double) elementScreenshot.getWidth() * ZOOM_IN_EXTENSION_RATIO_PROPORTIONAL_TO_ELEMENT) / zoomInOriginalRegion.width;
+        var extensionRatio = (elementScreenshot.getWidth() * ZOOM_IN_EXTENSION_RATIO_PROPORTIONAL_TO_ELEMENT) / zoomInOriginalRegion.width;
         if (extensionRatio >= 1.0) {
             int newWidth = (int) (zoomInOriginalRegion.width * extensionRatio);
             int newHeight = (int) (zoomInOriginalRegion.height * extensionRatio);

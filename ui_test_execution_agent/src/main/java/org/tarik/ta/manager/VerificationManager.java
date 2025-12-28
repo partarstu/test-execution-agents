@@ -75,7 +75,7 @@ public class VerificationManager implements AutoCloseable {
                 }
                 try {
                     remainingNanos = verificationFinished.awaitNanos(remainingNanos);
-                } catch (InterruptedException e) {
+                } catch (InterruptedException _) {
                     Thread.currentThread().interrupt();
                     return new VerificationStatus(false, false);
                 }
@@ -93,7 +93,7 @@ public class VerificationManager implements AutoCloseable {
             if (!executor.awaitTermination(5, SECONDS)) {
                 LOG.warn("Executor did not terminate in time");
             }
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
     }
