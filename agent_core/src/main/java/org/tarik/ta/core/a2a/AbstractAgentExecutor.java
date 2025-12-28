@@ -99,7 +99,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                 updater.complete(updater.newAgentMessage(List.of(textPart), null));
             } catch (Exception e) {
                 LOG.error("Got exception while preparing the task artifacts for the test case '{}'",
-                        result.testCaseName(), e);
+                        result.getTestCaseName(), e);
                 failTask(updater, "Got exception while preparing the task artifacts for the test case. " +
                         "Before re-sending please investigate the root cause based on the agent's logs.");
             }

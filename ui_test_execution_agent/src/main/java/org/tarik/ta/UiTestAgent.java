@@ -124,8 +124,8 @@ public class UiTestAgent {
                     if (hasPreconditionFailures(context)) {
                         var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
                         return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
-                                failedPrecondition.errorMessage(),
-                                ((UiPreconditionResult) failedPrecondition).screenshot(), systemInfo,
+                                failedPrecondition.getErrorMessage(),
+                                ((UiPreconditionResult) failedPrecondition).getScreenshot(), systemInfo,
                                 screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                     }
                 }
@@ -135,15 +135,15 @@ public class UiTestAgent {
                 executeTestSteps(context, testStepActionAgent, verificationManager);
                 if (hasStepFailures(context)) {
                     var lastStep = context.getTestStepExecutionHistory().getLast();
-                    if (lastStep.executionStatus() == TestStepResultStatus.FAILURE) {
+                    if (lastStep.getExecutionStatus() == TestStepResultStatus.FAILURE) {
                         return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
-                                lastStep.errorMessage(),
-                                ((UiTestStepResult) lastStep).screenshot(), systemInfo,
+                                lastStep.getErrorMessage(),
+                                ((UiTestStepResult) lastStep).getScreenshot(), systemInfo,
                                 screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                     } else {
                         return getTestExecutionResultWithError(context, testExecutionStartTimestamp,
-                                lastStep.errorMessage(),
-                                ((UiTestStepResult) lastStep).screenshot(), systemInfo,
+                                lastStep.getErrorMessage(),
+                                ((UiTestStepResult) lastStep).getScreenshot(), systemInfo,
                                 screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                     }
                 } else {
@@ -390,11 +390,11 @@ public class UiTestAgent {
     }
 
     private static boolean hasPreconditionFailures(TestExecutionContext context) {
-        return !context.getPreconditionExecutionHistory().stream().allMatch(PreconditionResult::success);
+        return !context.getPreconditionExecutionHistory().stream().allMatch(PreconditionResult::isSuccess);
     }
 
     private static boolean hasStepFailures(TestExecutionContext context) {
-        return context.getTestStepExecutionHistory().stream().map(TestStepResult::executionStatus)
+        return context.getTestStepExecutionHistory().stream().map(TestStepResult::getExecutionStatus)
                 .anyMatch(s -> s != SUCCESS);
     }
 

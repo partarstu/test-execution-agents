@@ -15,7 +15,6 @@
  */
 package org.tarik.ta.dto;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -26,10 +25,6 @@ import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.Objects;
 
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
-
-@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class UiTestStepResult extends TestStepResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
 
@@ -40,7 +35,7 @@ public class UiTestStepResult extends TestStepResult {
         this.screenshot = screenshot;
     }
 
-    public @Nullable BufferedImage screenshot() {
+    public @Nullable BufferedImage getScreenshot() {
         return screenshot;
     }
 
@@ -65,21 +60,21 @@ public class UiTestStepResult extends TestStepResult {
     public @NotNull String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("TestStepResult:\n");
-        sb.append("  - Step: ").append(testStep()).append("\n");
-        sb.append("  - Status: ").append(executionStatus()).append("\n");
+        sb.append("  - Step: ").append(getTestStep()).append("\n");
+        sb.append("  - Status: ").append(getExecutionStatus()).append("\n");
 
-        if (executionStatus() != TestStepResultStatus.SUCCESS && errorMessage() != null
-                && !errorMessage().trim().isEmpty()) {
-            sb.append("  - Error: ").append(errorMessage()).append("\n");
+        if (getExecutionStatus() != TestStepResultStatus.SUCCESS && getErrorMessage() != null
+                && !getErrorMessage().trim().isEmpty()) {
+            sb.append("  - Error: ").append(getErrorMessage()).append("\n");
         }
 
         boolean screenshotExists = screenshot != null;
         sb.append("  - Screenshot: ").append(screenshotExists ? "Available" : "Not Available").append("\n");
         sb.append("  - Start Time: ")
-                .append(executionStartTimestamp() != null ? executionStartTimestamp().toString() : "N/A")
+                .append(getExecutionStartTimestamp() != null ? getExecutionStartTimestamp().toString() : "N/A")
                 .append("\n");
         sb.append("  - End Time: ")
-                .append(executionEndTimestamp() != null ? executionEndTimestamp().toString() : "N/A");
+                .append(getExecutionEndTimestamp() != null ? getExecutionEndTimestamp().toString() : "N/A");
 
         return sb.toString();
     }

@@ -15,7 +15,6 @@
  */
 package org.tarik.ta.core.dto;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -23,13 +22,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
-
 /**
  * Represents the result of the test execution.
  */
-@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class TestExecutionResult {
     private final String testCaseName;
     private final @NotNull TestExecutionStatus testExecutionStatus;
@@ -52,31 +47,31 @@ public class TestExecutionResult {
         this.generalErrorMessage = generalErrorMessage;
     }
 
-    public String testCaseName() {
+    public String getTestCaseName() {
         return testCaseName;
     }
 
-    public @NotNull TestExecutionStatus testExecutionStatus() {
+    public @NotNull TestExecutionStatus getTestExecutionStatus() {
         return testExecutionStatus;
     }
 
-    public @NotNull List<PreconditionResult> preconditionResults() {
+    public @NotNull List<PreconditionResult> getPreconditionResults() {
         return preconditionResults;
     }
 
-    public @NotNull List<TestStepResult> stepResults() {
+    public @NotNull List<TestStepResult> getStepResults() {
         return stepResults;
     }
 
-    public @Nullable Instant executionStartTimestamp() {
+    public @Nullable Instant getExecutionStartTimestamp() {
         return executionStartTimestamp;
     }
 
-    public @Nullable Instant executionEndTimestamp() {
+    public @Nullable Instant getExecutionEndTimestamp() {
         return executionEndTimestamp;
     }
 
-    public @Nullable String generalErrorMessage() {
+    public @Nullable String getGeneralErrorMessage() {
         return generalErrorMessage;
     }
 
@@ -121,10 +116,10 @@ public class TestExecutionResult {
             for (int i = 0; i < preconditionResults.size(); i++) {
                 PreconditionResult result = preconditionResults.get(i);
                 sb.append("\n[Precondition ").append(i + 1).append("]\n");
-                sb.append("  - Description: ").append(result.precondition()).append("\n");
-                sb.append("  - Status: ").append(result.success() ? "SUCCESS" : "FAILURE").append("\n");
-                if (!result.success() && result.errorMessage() != null) {
-                    sb.append("  - Error: ").append(result.errorMessage()).append("\n");
+                sb.append("  - Description: ").append(result.getPrecondition()).append("\n");
+                sb.append("  - Status: ").append(result.isSuccess() ? "SUCCESS" : "FAILURE").append("\n");
+                if (!result.isSuccess() && result.getErrorMessage() != null) {
+                    sb.append("  - Error: ").append(result.getErrorMessage()).append("\n");
                 }
             }
             sb.append("------------------------------------------------------------\n");

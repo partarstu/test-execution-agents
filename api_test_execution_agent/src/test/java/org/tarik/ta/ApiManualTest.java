@@ -32,71 +32,79 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Disabled
 class ApiManualTest {
 
-    @Test
-    void testPetstoreFlow() throws JsonProcessingException {
-        // Given
-        var steps = new LinkedList<TestStep>();
+        @Test
+        void testPetstoreFlow() throws JsonProcessingException {
+                // Given
+                var steps = new LinkedList<TestStep>();
 
-        // Step 1: Load Data
-        String testDataPath = Paths.get("src", "test", "resources", "test-data.json").toAbsolutePath().toString();
-        var precondition = "Pet data is loaded from '" + testDataPath + "' file into variable as 'target pet'";
+                // Step 1: Load Data
+                String testDataPath = Paths.get("src", "test", "resources", "test-data.json").toAbsolutePath()
+                                .toString();
+                var precondition = "Pet data is loaded from '" + testDataPath + "' file into variable as 'target pet'";
 
-        // Step 2: Create Pet
-        steps.add(new TestStep("Create a new pet by sending a POST request to '/pet'. Use the first item from the loaded pet list items " +
-                "as the body. Set 'Content-Type' header to 'application/json'.",
-                List.of("${petList}"),
-                "Request is sent. Status: 200."));
+                // Step 2: Create Pet
+                steps.add(new TestStep(
+                                "Create a new pet by sending a POST request to '/pet'. Use the first item from the loaded pet list items "
+                                                +
+                                                "as the body. Set 'Content-Type' header to 'application/json'.",
+                                List.of("${petList}"),
+                                "Request is sent. Status: 200."));
 
-        // Step 3: Extract ID
-        steps.add(new TestStep("Extract the 'id' from the response JSON and store it in variable 'petId'.",
-                List.of(),
-                "Extracted value to variable 'petId'"));
+                // Step 3: Extract ID
+                steps.add(new TestStep("Extract the 'id' from the response JSON and store it in variable 'petId'.",
+                                List.of(),
+                                "Extracted value to variable 'petId'"));
 
-        // Step 4: Upload Image
-        String imagePath = Paths.get("src", "test", "resources", "pet-image.png").toAbsolutePath().toString();
-        steps.add(new TestStep("Upload the file '" + imagePath + "' to '/pet/${petId}/uploadImage'. Use multipart name 'file'.",
-                List.of("petId"),
-                "File uploaded. Status: 200"));
+                // Step 4: Upload Image
+                String imagePath = Paths.get("src", "test", "resources", "pet-image.png").toAbsolutePath().toString();
+                steps.add(new TestStep(
+                                "Upload the file '" + imagePath
+                                                + "' to '/pet/${petId}/uploadImage'. Use multipart name 'file'.",
+                                List.of("petId"),
+                                "File uploaded. Status: 200"));
 
-        // Step 5: Get Pet (Verify creation)
-        steps.add(new TestStep("Send a GET request to '/pet/${petId}' to retrieve the pet details.",
-                List.of("petId"),
-                "Request sent. Status: 200"));
+                // Step 5: Get Pet (Verify creation)
+                steps.add(new TestStep("Send a GET request to '/pet/${petId}' to retrieve the pet details.",
+                                List.of("petId"),
+                                "Request sent. Status: 200"));
 
-        // Step 6: Validate OpenAPI
-        steps.add(new TestStep("Validate the last response against the OpenAPI spec at 'https://petstore.swagger.io/v2/swagger.json'.",
-                List.of(),
-                "OpenAPI validation passed."));
+                // Step 6: Validate OpenAPI
+                steps.add(new TestStep(
+                                "Validate the last response against the OpenAPI spec at 'https://petstore.swagger.io/v2/swagger.json'.",
+                                List.of(),
+                                "OpenAPI validation passed."));
 
-        // Step 7: Update Pet (PUT)
-        steps.add(new TestStep("Update the pet status to 'sold' by sending a PUT request to '/pet'. " +
-                "Body: { \"id\": ${petId}, \"name\": \"Rex\", \"status\": \"sold\", \"photoUrls\": [\"string\"] }. Headers: { \"Content-Type\": \"application/json\" }.",
-                List.of("petId"),
-                "Request sent. Status: 200"));
+                // Step 7: Update Pet (PUT)
+                steps.add(new TestStep("Update the pet status to 'sold' by sending a PUT request to '/pet'. " +
+                                "Body: { \"id\": ${petId}, \"name\": \"Rex\", \"status\": \"sold\", \"photoUrls\": [\"string\"] }. Headers: { \"Content-Type\": \"application/json\" }.",
+                                List.of("petId"),
+                                "Request sent. Status: 200"));
 
-        // Step 8: Verify Update
-        steps.add(new TestStep("Assert that the JSON path 'status' in the last response matches 'sold'.",
-                List.of(),
-                "Assertion passed: status == sold"));
+                // Step 8: Verify Update
+                steps.add(new TestStep("Assert that the JSON path 'status' in the last response matches 'sold'.",
+                                List.of(),
+                                "Assertion passed: status == sold"));
 
-        // Step 9: Delete Pet
-        steps.add(new TestStep(
-                "Delete the pet by sending a DELETE request to '/pet/${petId}'. " +
-                        "Auth Type: API_KEY, Value: 'api_key=special-key', Location: HEADER.",
-                List.of("petId"),
-                "Request sent. Status: 200"));
+                // Step 9: Delete Pet
+                steps.add(new TestStep(
+                                "Delete the pet by sending a DELETE request to '/pet/${petId}'. " +
+                                                "Auth Type: API_KEY, Value: 'api_key=special-key', Location: HEADER.",
+                                List.of("petId"),
+                                "Request sent. Status: 200"));
 
-        // Step 10: Verify Deletion
-        steps.add(new TestStep("Send a GET request to '/pet/${petId}'.",
-                List.of("petId"),
-                "Request sent. Status: 404"));
+                // Step 10: Verify Deletion
+                steps.add(new TestStep("Send a GET request to '/pet/${petId}'.",
+                                List.of("petId"),
+                                "Request sent. Status: 404"));
 
-        TestCase testCase = new TestCase("Swagger Petstore End-to-End Flow", List.of(precondition), steps);
+                TestCase testCase = new TestCase("Swagger Petstore End-to-End Flow", List.of(precondition), steps);
 
-        // When
-        TestExecutionResult actualResult = ApiTestAgent.executeTestCase(new ObjectMapper().writeValueAsString(testCase));
+                // When
+                TestExecutionResult actualResult = ApiTestAgent
+                                .executeTestCase(new ObjectMapper().writeValueAsString(testCase));
 
-        // Then
-        assertThat(actualResult.testExecutionStatus()).isEqualTo(TestExecutionResult.TestExecutionStatus.PASSED);
-    }
+                // Then
+                assertThat(actualResult.getTestExecutionStatus())
+                                .isEqualTo(TestExecutionResult.TestExecutionStatus.PASSED);
+        }
 }

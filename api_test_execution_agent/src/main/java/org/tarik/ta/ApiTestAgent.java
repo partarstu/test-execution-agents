@@ -89,19 +89,20 @@ public class ApiTestAgent {
                                         var failedPrecondition = executionContext.getPreconditionExecutionHistory()
                                                         .getLast();
                                         return getFailedTestExecutionResult(executionContext,
-                                                        testExecutionStartTimestamp, failedPrecondition.errorMessage());
+                                                        testExecutionStartTimestamp,
+                                                        failedPrecondition.getErrorMessage());
                                 }
                         }
 
                         executeTestSteps(executionContext, apiContext, requestTools, assertionTools, dataTools);
                         if (hasStepFailures(executionContext)) {
                                 var lastStep = executionContext.getTestStepExecutionHistory().getLast();
-                                if (lastStep.executionStatus() == FAILURE) {
+                                if (lastStep.getExecutionStatus() == FAILURE) {
                                         return getFailedTestExecutionResult(executionContext,
-                                                        testExecutionStartTimestamp, lastStep.errorMessage());
+                                                        testExecutionStartTimestamp, lastStep.getErrorMessage());
                                 } else {
                                         return getTestExecutionResultWithError(executionContext,
-                                                        testExecutionStartTimestamp, lastStep.errorMessage());
+                                                        testExecutionStartTimestamp, lastStep.getErrorMessage());
                                 }
                         } else {
                                 return new TestExecutionResult(testCase.name(), PASSED,
@@ -326,11 +327,11 @@ public class ApiTestAgent {
         }
 
         private static boolean hasPreconditionFailures(TestExecutionContext context) {
-                return !context.getPreconditionExecutionHistory().stream().allMatch(PreconditionResult::success);
+                return !context.getPreconditionExecutionHistory().stream().allMatch(PreconditionResult::isSuccess);
         }
 
         private static boolean hasStepFailures(TestExecutionContext context) {
-                return context.getTestStepExecutionHistory().stream().map(TestStepResult::executionStatus)
+                return context.getTestStepExecutionHistory().stream().map(TestStepResult::getExecutionStatus)
                                 .anyMatch(s -> s != SUCCESS);
         }
 

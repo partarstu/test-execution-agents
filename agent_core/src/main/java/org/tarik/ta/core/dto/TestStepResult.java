@@ -15,20 +15,15 @@
  */
 package org.tarik.ta.core.dto;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.Objects;
 
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
-
 /**
  * Represents the result of a single test step execution.
  */
-@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class TestStepResult {
     private final @NotNull TestStep testStep;
     private final TestStepResultStatus executionStatus;
@@ -48,27 +43,27 @@ public class TestStepResult {
         this.executionEndTimestamp = executionEndTimestamp;
     }
 
-    public @NotNull TestStep testStep() {
+    public @NotNull TestStep getTestStep() {
         return testStep;
     }
 
-    public TestStepResultStatus executionStatus() {
+    public TestStepResultStatus getExecutionStatus() {
         return executionStatus;
     }
 
-    public @Nullable String errorMessage() {
+    public @Nullable String getErrorMessage() {
         return errorMessage;
     }
 
-    public @Nullable String actualResult() {
+    public @Nullable String getActualResult() {
         return actualResult;
     }
 
-    public @Nullable Instant executionStartTimestamp() {
+    public @Nullable Instant getExecutionStartTimestamp() {
         return executionStartTimestamp;
     }
 
-    public @Nullable Instant executionEndTimestamp() {
+    public @Nullable Instant getExecutionEndTimestamp() {
         return executionEndTimestamp;
     }
 

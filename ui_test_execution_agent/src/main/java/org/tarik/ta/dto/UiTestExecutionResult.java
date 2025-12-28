@@ -15,7 +15,6 @@
  */
 package org.tarik.ta.dto;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -28,10 +27,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
-
-@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class UiTestExecutionResult extends TestExecutionResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
     private final @Nullable SystemInfo systemInfo;
@@ -56,19 +51,19 @@ public class UiTestExecutionResult extends TestExecutionResult {
         this.logs = logs;
     }
 
-    public @Nullable BufferedImage screenshot() {
+    public @Nullable BufferedImage getScreenshot() {
         return screenshot;
     }
 
-    public @Nullable SystemInfo systemInfo() {
+    public @Nullable SystemInfo getSystemInfo() {
         return systemInfo;
     }
 
-    public @Nullable String videoPath() {
+    public @Nullable String getVideoPath() {
         return videoPath;
     }
 
-    public @Nullable List<String> logs() {
+    public @Nullable List<String> getLogs() {
         return logs;
     }
 

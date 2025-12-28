@@ -296,9 +296,10 @@ class UiTestAgentTest {
                 TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
-                assertThat(result.testExecutionStatus()).isEqualTo(PASSED);
-                assertThat(result.stepResults()).hasSize(1);
-                assertThat(result.stepResults().getFirst().executionStatus()).isEqualTo(TestStepResultStatus.SUCCESS);
+                assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+                assertThat(result.getStepResults()).hasSize(1);
+                assertThat(result.getStepResults().getFirst().getExecutionStatus())
+                                .isEqualTo(TestStepResultStatus.SUCCESS);
 
                 verify(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
                 verify(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
@@ -322,7 +323,7 @@ class UiTestAgentTest {
                 TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
-                assertThat(result.testExecutionStatus()).isEqualTo(PASSED);
+                assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
                 verify(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
                 verifyNoInteractions(uiTestStepVerificationAgentMock);
         }
@@ -354,7 +355,7 @@ class UiTestAgentTest {
                 TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
-                assertThat(result.testExecutionStatus()).isEqualTo(PASSED);
+                assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
                 verify(preconditionActionAgentMock).executeWithRetry(any(Supplier.class));
                 verify(preconditionVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
                 verify(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
@@ -378,8 +379,8 @@ class UiTestAgentTest {
                 TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
-                assertThat(result.testExecutionStatus()).isEqualTo(FAILED);
-                assertThat(result.generalErrorMessage()).contains("Failure while executing precondition");
+                assertThat(result.getTestExecutionStatus()).isEqualTo(FAILED);
+                assertThat(result.getGeneralErrorMessage()).contains("Failure while executing precondition");
                 verify(preconditionActionAgentMock).executeWithRetry(any(Supplier.class));
                 verifyNoInteractions(preconditionVerificationAgentMock);
                 verifyNoInteractions(uiTestStepActionAgentMock);
@@ -407,8 +408,8 @@ class UiTestAgentTest {
                 TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
-                assertThat(result.testExecutionStatus()).isEqualTo(FAILED);
-                assertThat(result.generalErrorMessage()).contains("Precondition verification failed. Not Verified");
+                assertThat(result.getTestExecutionStatus()).isEqualTo(FAILED);
+                assertThat(result.getGeneralErrorMessage()).contains("Precondition verification failed. Not Verified");
                 verify(preconditionActionAgentMock).executeWithRetry(any(Supplier.class));
                 verify(preconditionVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
                 verifyNoInteractions(uiTestStepActionAgentMock);
@@ -431,8 +432,9 @@ class UiTestAgentTest {
                 TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
-                assertThat(result.testExecutionStatus()).isEqualTo(TestExecutionStatus.ERROR);
-                assertThat(result.stepResults().getFirst().executionStatus()).isEqualTo(TestStepResultStatus.ERROR);
+                assertThat(result.getTestExecutionStatus()).isEqualTo(TestExecutionStatus.ERROR);
+                assertThat(result.getStepResults().getFirst().getExecutionStatus())
+                                .isEqualTo(TestStepResultStatus.ERROR);
                 verify(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
                 verifyNoInteractions(uiTestStepVerificationAgentMock);
         }
@@ -460,8 +462,9 @@ class UiTestAgentTest {
                 TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
 
                 // Then
-                assertThat(result.testExecutionStatus()).isEqualTo(FAILED);
-                assertThat(result.stepResults().getFirst().executionStatus()).isEqualTo(TestStepResultStatus.FAILURE);
+                assertThat(result.getTestExecutionStatus()).isEqualTo(FAILED);
+                assertThat(result.getStepResults().getFirst().getExecutionStatus())
+                                .isEqualTo(TestStepResultStatus.FAILURE);
                 verify(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
                 verify(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
         }
@@ -476,20 +479,21 @@ class UiTestAgentTest {
                 mockTestCaseExtraction(testCase);
 
                 doReturn(new UiAgentExecutionResult<>(SUCCESS, "Action executed", true, new EmptyExecutionResult(),
-                        mockScreenshot,
-                        Instant.now()))
-                        .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
+                                mockScreenshot,
+                                Instant.now()))
+                                .when(uiTestStepActionAgentMock).executeWithRetry(any(Supplier.class));
 
                 // When
-                org.tarik.ta.dto.UiTestExecutionResult result = (org.tarik.ta.dto.UiTestExecutionResult) UiTestAgent.executeTestCase("test case message");
+                org.tarik.ta.dto.UiTestExecutionResult result = (org.tarik.ta.dto.UiTestExecutionResult) UiTestAgent
+                                .executeTestCase("test case message");
 
                 // Then
-                assertThat(result.testExecutionStatus()).isEqualTo(PASSED);
-                assertThat(result.systemInfo()).isNotNull();
-                assertThat(result.systemInfo().device()).isNotNull();
-                assertThat(result.systemInfo().osVersion()).isNotBlank();
-                assertThat(result.logs()).isNotNull();
-                assertThat(result.logs()).isNotEmpty(); // Should contain at least start/end logs
+                assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+                assertThat(result.getSystemInfo()).isNotNull();
+                assertThat(result.getSystemInfo().device()).isNotNull();
+                assertThat(result.getSystemInfo().osVersion()).isNotBlank();
+                assertThat(result.getLogs()).isNotNull();
+                assertThat(result.getLogs()).isNotEmpty(); // Should contain at least start/end logs
         }
 
         private void mockTestCaseExtraction(TestCase testCase) {

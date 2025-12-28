@@ -21,12 +21,12 @@ class TestStepResultTest {
 
         TestStepResult result = new TestStepResult(step, status, error, actual, start, end);
 
-        assertThat(result.testStep()).isEqualTo(step);
-        assertThat(result.executionStatus()).isEqualTo(status);
-        assertThat(result.errorMessage()).isEqualTo(error);
-        assertThat(result.actualResult()).isEqualTo(actual);
-        assertThat(result.executionStartTimestamp()).isEqualTo(start);
-        assertThat(result.executionEndTimestamp()).isEqualTo(end);
+        assertThat(result.getTestStep()).isEqualTo(step);
+        assertThat(result.getExecutionStatus()).isEqualTo(status);
+        assertThat(result.getErrorMessage()).isEqualTo(error);
+        assertThat(result.getActualResult()).isEqualTo(actual);
+        assertThat(result.getExecutionStartTimestamp()).isEqualTo(start);
+        assertThat(result.getExecutionEndTimestamp()).isEqualTo(end);
     }
 
     @Test

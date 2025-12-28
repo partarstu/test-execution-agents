@@ -38,22 +38,21 @@ public class UiAgentExecutor extends AbstractAgentExecutor {
 
     @Override
     protected void addSpecificArtifacts(TestExecutionResult result, List<Part<?>> parts) {
-        result.stepResults().stream()
+        result.getStepResults().stream()
                 .filter(UiTestStepResult.class::isInstance)
                 .map(UiTestStepResult.class::cast)
-                .filter(r -> r.screenshot() != null)
+                .filter(r -> r.getScreenshot() != null)
                 .map(r -> new FileWithBytes(
                         "image/png",
-                        "Screenshot for the test step %s".formatted(r.testStep().stepDescription()),
-                        convertImageToBase64(r.screenshot(), "png"))
-                )
+                        "Screenshot for the test step %s".formatted(r.getTestStep().stepDescription()),
+                        convertImageToBase64(r.getScreenshot(), "png")))
                 .map(FilePart::new)
                 .forEach(parts::add);
 
         if (result instanceof UiTestExecutionResult uiResult) {
-            ofNullable(uiResult.screenshot()).ifPresent(screenshot ->
-                    parts.add(new FilePart(new FileWithBytes("image/png",
-                            "General screenshot for the test case %s.png".formatted(result.testCaseName()),
+            ofNullable(uiResult.getScreenshot())
+                    .ifPresent(screenshot -> parts.add(new FilePart(new FileWithBytes("image/png",
+                            "General screenshot for the test case %s.png".formatted(result.getTestCaseName()),
                             convertImageToBase64(screenshot, "png")))));
         }
     }

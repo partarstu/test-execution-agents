@@ -22,23 +22,27 @@ class TestExecutionResultTest {
         Instant end = start.plusSeconds(1);
         String error = null;
 
-        TestExecutionResult result = new TestExecutionResult(testCaseName, status, preconditions, steps, start, end, error);
+        TestExecutionResult result = new TestExecutionResult(testCaseName, status, preconditions, steps, start, end,
+                error);
 
-        assertThat(result.testCaseName()).isEqualTo(testCaseName);
-        assertThat(result.testExecutionStatus()).isEqualTo(status);
-        assertThat(result.preconditionResults()).isEqualTo(preconditions);
-        assertThat(result.stepResults()).isEqualTo(steps);
-        assertThat(result.executionStartTimestamp()).isEqualTo(start);
-        assertThat(result.executionEndTimestamp()).isEqualTo(end);
-        assertThat(result.generalErrorMessage()).isNull();
+        assertThat(result.getTestCaseName()).isEqualTo(testCaseName);
+        assertThat(result.getTestExecutionStatus()).isEqualTo(status);
+        assertThat(result.getPreconditionResults()).isEqualTo(preconditions);
+        assertThat(result.getStepResults()).isEqualTo(steps);
+        assertThat(result.getExecutionStartTimestamp()).isEqualTo(start);
+        assertThat(result.getExecutionEndTimestamp()).isEqualTo(end);
+        assertThat(result.getGeneralErrorMessage()).isNull();
     }
 
     @Test
     void testEqualsAndHashCode() {
         Instant now = Instant.now();
-        TestExecutionResult result1 = new TestExecutionResult("TC1", PASSED, Collections.emptyList(), Collections.emptyList(), now, now, null);
-        TestExecutionResult result2 = new TestExecutionResult("TC1", PASSED, Collections.emptyList(), Collections.emptyList(), now, now, null);
-        TestExecutionResult result3 = new TestExecutionResult("TC2", FAILED, Collections.emptyList(), Collections.emptyList(), now, now, "Error");
+        TestExecutionResult result1 = new TestExecutionResult("TC1", PASSED, Collections.emptyList(),
+                Collections.emptyList(), now, now, null);
+        TestExecutionResult result2 = new TestExecutionResult("TC1", PASSED, Collections.emptyList(),
+                Collections.emptyList(), now, now, null);
+        TestExecutionResult result3 = new TestExecutionResult("TC2", FAILED, Collections.emptyList(),
+                Collections.emptyList(), now, now, "Error");
 
         assertThat(result1).isEqualTo(result2);
         assertThat(result1.hashCode()).isEqualTo(result2.hashCode());
@@ -49,8 +53,9 @@ class TestExecutionResultTest {
     void testToString_WithStepsAndPreconditions() {
         PreconditionResult precondition = new PreconditionResult("Precond 1", true, null, Instant.now(), Instant.now());
         TestStep step = new TestStep("Action", Collections.emptyList(), "Verification");
-        TestStepResult stepResult = new TestStepResult(step, TestStepResult.TestStepResultStatus.SUCCESS, null, null, Instant.now(), Instant.now());
-        
+        TestStepResult stepResult = new TestStepResult(step, TestStepResult.TestStepResultStatus.SUCCESS, null, null,
+                Instant.now(), Instant.now());
+
         TestExecutionResult result = new TestExecutionResult(
                 "Complex Test",
                 PASSED,
@@ -58,8 +63,7 @@ class TestExecutionResultTest {
                 List.of(stepResult),
                 Instant.now(),
                 Instant.now(),
-                null
-        );
+                null);
 
         String str = result.toString();
         assertThat(str).contains("Test Case: Complex Test");
@@ -72,15 +76,14 @@ class TestExecutionResultTest {
 
     @Test
     void testToString_Failed() {
-         TestExecutionResult result = new TestExecutionResult(
+        TestExecutionResult result = new TestExecutionResult(
                 "Failed Test",
                 FAILED,
                 Collections.emptyList(),
                 Collections.emptyList(),
                 Instant.now(),
                 Instant.now(),
-                "Something went wrong"
-        );
+                "Something went wrong");
 
         String str = result.toString();
         assertThat(str).contains("Test Case: Failed Test");

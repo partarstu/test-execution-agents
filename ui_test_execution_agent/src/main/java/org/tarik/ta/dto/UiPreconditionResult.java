@@ -15,7 +15,6 @@
  */
 package org.tarik.ta.dto;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,10 +24,6 @@ import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.Objects;
 
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
-
-@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class UiPreconditionResult extends PreconditionResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
 
@@ -39,7 +34,7 @@ public class UiPreconditionResult extends PreconditionResult {
         this.screenshot = screenshot;
     }
 
-    public @Nullable BufferedImage screenshot() {
+    public @Nullable BufferedImage getScreenshot() {
         return screenshot;
     }
 
@@ -63,11 +58,11 @@ public class UiPreconditionResult extends PreconditionResult {
     @Override
     public String toString() {
         return "UiPreconditionResult[" +
-                "precondition=" + precondition() + ", " +
-                "success=" + success() + ", " +
-                "errorMessage=" + errorMessage() + ", " +
+                "precondition=" + getPrecondition() + ", " +
+                "success=" + isSuccess() + ", " +
+                "errorMessage=" + getErrorMessage() + ", " +
                 "screenshot=" + screenshot + ", " +
-                "executionStartTimestamp=" + executionStartTimestamp() + ", " +
-                "executionEndTimestamp=" + executionEndTimestamp() + ']';
+                "executionStartTimestamp=" + getExecutionStartTimestamp() + ", " +
+                "executionEndTimestamp=" + getExecutionEndTimestamp() + ']';
     }
 }

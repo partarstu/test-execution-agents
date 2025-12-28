@@ -15,17 +15,12 @@
  */
 package org.tarik.ta.core.dto;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.Objects;
 
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
-import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
-
-@JsonAutoDetect(fieldVisibility = NONE, getterVisibility = ANY, isGetterVisibility = ANY)
 public class PreconditionResult {
     private final @NotNull String precondition;
     private final boolean success;
@@ -42,23 +37,23 @@ public class PreconditionResult {
         this.executionEndTimestamp = executionEndTimestamp;
     }
 
-    public @NotNull String precondition() {
+    public @NotNull String getPrecondition() {
         return precondition;
     }
 
-    public boolean success() {
+    public boolean isSuccess() {
         return success;
     }
 
-    public @Nullable String errorMessage() {
+    public @Nullable String getErrorMessage() {
         return errorMessage;
     }
 
-    public @Nullable Instant executionStartTimestamp() {
+    public @Nullable Instant getExecutionStartTimestamp() {
         return executionStartTimestamp;
     }
 
-    public @Nullable Instant executionEndTimestamp() {
+    public @Nullable Instant getExecutionEndTimestamp() {
         return executionEndTimestamp;
     }
 
