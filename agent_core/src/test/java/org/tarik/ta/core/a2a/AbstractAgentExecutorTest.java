@@ -52,7 +52,8 @@ class AbstractAgentExecutorTest {
         when(requestContext.getTask()).thenReturn(null);
         when(requestContext.getTaskId()).thenReturn("task-123");
         // Create a message with text to satisfy extractTextFromMessage
-        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null, null, null);
+        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
         TestExecutionResult result = new TestExecutionResult(
@@ -62,8 +63,7 @@ class AbstractAgentExecutorTest {
                 Collections.emptyList(),
                 Instant.now(),
                 Instant.now(),
-                null
-        );
+                null);
         executor.setResultToReturn(result);
 
         try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
@@ -72,7 +72,7 @@ class AbstractAgentExecutorTest {
             TaskUpdater updater = mockedUpdater.constructed().get(0);
             verify(updater).submit(); // Verified because context.getTask() is null
             verify(updater).startWork();
-            verify(updater).complete();
+            verify(updater).complete(any(Message.class));
         }
     }
 
@@ -80,7 +80,8 @@ class AbstractAgentExecutorTest {
     void execute_shouldNotSubmitTask_whenTaskIsNotNull() {
         when(requestContext.getTask()).thenReturn(task);
         when(requestContext.getTaskId()).thenReturn("task-123");
-        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null, null, null);
+        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
         TestExecutionResult result = new TestExecutionResult(
@@ -90,8 +91,7 @@ class AbstractAgentExecutorTest {
                 Collections.emptyList(),
                 Instant.now(),
                 Instant.now(),
-                null
-        );
+                null);
         executor.setResultToReturn(result);
 
         try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
@@ -100,7 +100,7 @@ class AbstractAgentExecutorTest {
             TaskUpdater updater = mockedUpdater.constructed().get(0);
             verify(updater, never()).submit();
             verify(updater).startWork();
-            verify(updater).complete();
+            verify(updater).complete(any(Message.class));
         }
     }
 
@@ -109,7 +109,8 @@ class AbstractAgentExecutorTest {
         when(requestContext.getTask()).thenReturn(task);
         when(requestContext.getTaskId()).thenReturn("task-123");
         // Message with empty text
-        Message message = new Message(Message.Role.USER, List.of(new TextPart("   ", null)), "msg-1", null, null, null, null);
+        Message message = new Message(Message.Role.USER, List.of(new TextPart("   ", null)), "msg-1", null, null, null,
+                null);
         when(requestContext.getMessage()).thenReturn(message);
 
         try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
@@ -125,7 +126,8 @@ class AbstractAgentExecutorTest {
     void execute_shouldFailTask_whenExceptionDuringExecution() {
         when(requestContext.getTask()).thenReturn(task);
         when(requestContext.getTaskId()).thenReturn("task-123");
-        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null, null, null);
+        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
         executor.setThrowException(true);
@@ -142,11 +144,11 @@ class AbstractAgentExecutorTest {
     @Test
     void cancel_shouldCancel_whenStateIsValid() {
         when(requestContext.getTask()).thenReturn(task);
-        when(task.getStatus()).thenReturn(new TaskStatus(TaskState.SUBMITTED, null, null)); 
+        when(task.getStatus()).thenReturn(new TaskStatus(TaskState.SUBMITTED, null, null));
 
         try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
             executor.cancel(requestContext, eventQueue);
-            
+
             TaskUpdater updater = mockedUpdater.constructed().get(0);
             verify(updater).cancel();
         }

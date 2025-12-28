@@ -67,7 +67,8 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                     extractTextFromMessage(context.getMessage())
                             .ifPresentOrElse(userMessage -> requestTestCaseExecution(userMessage, updater),
                                     () -> {
-                                        var message = "Request for test case execution failed either contained no valid test " +
+                                        var message = "Request for test case execution failed either contained no valid test "
+                                                +
                                                 "case or insufficient information in order to execute it.";
                                         LOG.error(message);
                                         failTask(updater, message);
@@ -95,9 +96,10 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                 parts.add(textPart);
                 addSpecificArtifacts(result, parts);
                 updater.addArtifact(parts, null, null, null);
-                updater.complete();
+                updater.complete(updater.newAgentMessage(List.of(textPart), null));
             } catch (Exception e) {
-                LOG.error("Got exception while preparing the task artifacts for the test case '{}'", result.testCaseName(), e);
+                LOG.error("Got exception while preparing the task artifacts for the test case '{}'",
+                        result.testCaseName(), e);
                 failTask(updater, "Got exception while preparing the task artifacts for the test case. " +
                         "Before re-sending please investigate the root cause based on the agent's logs.");
             }

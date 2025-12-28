@@ -47,7 +47,7 @@ public class AgentExecutionResource {
         var executor = newSingleThreadExecutor();
         var taskStore = new InMemoryTaskStore();
         var queueManager = new InMemoryQueueManager(taskStore);
-        DefaultRequestHandler httpRequestHandler = new DefaultRequestHandler(agentExecutor,
+        DefaultRequestHandler httpRequestHandler = DefaultRequestHandler.create(agentExecutor,
                 taskStore, queueManager, pushNotificationConfigStore,
                 new BasePushNotificationSender(pushNotificationConfigStore), executor);
         this.jsonRpcHandler = new JSONRPCHandler(agentCard, httpRequestHandler, executor);
@@ -64,21 +64,25 @@ public class AgentExecutionResource {
             var body = context.body();
             var request = objectMapper.readValue(body, java.util.Map.class);
             var method = (String) request.get("method");
-            ServerCallContext serverCallContext = new ServerCallContext(UnauthenticatedUser.INSTANCE, new HashMap<>(), Set.of());
+            ServerCallContext serverCallContext = new ServerCallContext(UnauthenticatedUser.INSTANCE, new HashMap<>(),
+                    Set.of());
             JSONRPCResponse<?> response = switch (method) {
                 case GetTaskRequest.METHOD ->
-                        jsonRpcHandler.onGetTask(objectMapper.readValue(body, GetTaskRequest.class), serverCallContext);
+                    jsonRpcHandler.onGetTask(objectMapper.readValue(body, GetTaskRequest.class), serverCallContext);
                 case CancelTaskRequest.METHOD ->
-                        jsonRpcHandler.onCancelTask(objectMapper.readValue(body, CancelTaskRequest.class), serverCallContext);
+                    jsonRpcHandler.onCancelTask(objectMapper.readValue(body, CancelTaskRequest.class),
+                            serverCallContext);
                 case SendMessageRequest.METHOD ->
-                        jsonRpcHandler.onMessageSend(objectMapper.readValue(body, SendMessageRequest.class), serverCallContext);
+                    jsonRpcHandler.onMessageSend(objectMapper.readValue(body, SendMessageRequest.class),
+                            serverCallContext);
                 default -> new JSONRPCErrorResponse(null, new UnsupportedOperationError());
             };
             return objectMapper.writeValueAsString(response);
         } catch (Exception e) {
             try {
                 LOG.error("Got error while processing agent task request", e);
-                return objectMapper.writeValueAsString(new JSONRPCErrorResponse(null, new InternalError(e.getMessage())));
+                return objectMapper
+                        .writeValueAsString(new JSONRPCErrorResponse(null, new InternalError(e.getMessage())));
             } catch (Exception ex) {
                 return "{}";
             }
