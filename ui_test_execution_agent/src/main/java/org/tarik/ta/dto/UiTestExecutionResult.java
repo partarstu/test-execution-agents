@@ -32,7 +32,9 @@ public class UiTestExecutionResult extends TestExecutionResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
     private final @Nullable String videoPath;
 
-    public UiTestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus,
+    public UiTestExecutionResult(
+            @NotNull String testCaseName,
+            @NotNull TestExecutionStatus testExecutionStatus,
             @NotNull List<PreconditionResult> preconditionResults,
             @NotNull List<TestStepResult> stepResults,
             @Nullable BufferedImage screenshot,
@@ -48,11 +50,13 @@ public class UiTestExecutionResult extends TestExecutionResult {
         this.videoPath = videoPath;
     }
 
-    public @Nullable BufferedImage getScreenshot() {
+    @Nullable
+    public BufferedImage getScreenshot() {
         return screenshot;
     }
 
-    public @Nullable String getVideoPath() {
+    @Nullable
+    public String getVideoPath() {
         return videoPath;
     }
 

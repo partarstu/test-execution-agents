@@ -64,6 +64,7 @@ public class ApiTestAgent {
         private static final Logger LOG = LoggerFactory.getLogger(ApiTestAgent.class);
 
         public static TestExecutionResult executeTestCase(String receivedMessage) {
+                BudgetManager.reset();
                 TestCase testCase = extractTestCase(receivedMessage).orElse(null);
                 if (testCase == null) {
                         return new TestExecutionResult("Unknown", TestExecutionResult.TestExecutionStatus.ERROR,
@@ -72,7 +73,6 @@ public class ApiTestAgent {
                 }
 
                 LOG.info("Starting execution of the API test case '{}'", testCase.name());
-                BudgetManager.reset();
 
                 try {
                         var testExecutionStartTimestamp = now();

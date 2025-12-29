@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.core.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,12 +35,19 @@ public class TestExecutionResult {
     private final @Nullable Instant executionEndTimestamp;
     private final @Nullable String generalErrorMessage;
     private final @Nullable SystemInfo systemInfo;
+    @JsonIgnore
     private final @Nullable List<String> logs;
 
-    public TestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus,
-            @NotNull List<PreconditionResult> preconditionResults, @NotNull List<TestStepResult> stepResults,
-            @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp,
-            @Nullable String generalErrorMessage, @Nullable SystemInfo systemInfo, @Nullable List<String> logs) {
+    public TestExecutionResult(
+            @NotNull String testCaseName,
+            @NotNull TestExecutionStatus testExecutionStatus,
+            @NotNull List<PreconditionResult> preconditionResults,
+            @NotNull List<TestStepResult> stepResults,
+            @Nullable Instant executionStartTimestamp,
+            @Nullable Instant executionEndTimestamp,
+            @Nullable String generalErrorMessage,
+            @Nullable SystemInfo systemInfo,
+            @Nullable List<String> logs) {
         this.testCaseName = testCaseName;
         this.testExecutionStatus = testExecutionStatus;
         this.preconditionResults = preconditionResults;
@@ -151,7 +159,7 @@ public class TestExecutionResult {
                 TestStepResult result = stepResults.get(i);
                 sb.append("\n[Step ").append(i + 1).append("]\n");
                 // Indent the output from the TestStepResult.toString() for better hierarchy
-                String indentedStepResult = "  " + result.toString().replaceAll("\n", "\n  ");
+                String indentedStepResult = "  " + result.toString().replace("\n", "\n  ");
                 sb.append(indentedStepResult).append("\n");
             }
         }

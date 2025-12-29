@@ -35,7 +35,7 @@ public class Server {
     private static final String AGENT_CARD_PATH = "/.well-known/agent-card.json";
     private static final boolean UNATTENDED_MODE = isUnattendedMode();
 
-    public static void main(String[] args) {
+    static void main() {
         int port = getStartPort();
         String host = AgentConfig.getHost();
         AgentExecutor executor = new UiAgentExecutor();

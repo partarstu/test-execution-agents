@@ -24,7 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -38,7 +38,7 @@ public class VerificationManager implements AutoCloseable {
     private int activeVerifications = 0;
     private boolean lastSuccess = true;
 
-    public void submitVerification(Supplier<Boolean> verificationTask) {
+    public void submitVerification(BooleanSupplier verificationTask) {
         lock.lock();
         try {
             activeVerifications++;
@@ -51,7 +51,7 @@ public class VerificationManager implements AutoCloseable {
         executor.submit(() -> {
             boolean success = false;
             try {
-                success = verificationTask.get();
+                success = verificationTask.getAsBoolean();
             } catch (Exception e) {
                 LOG.error("Verification task failed unexpectedly", e);
             } finally {

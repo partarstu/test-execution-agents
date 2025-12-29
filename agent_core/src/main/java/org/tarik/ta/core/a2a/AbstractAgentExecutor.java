@@ -116,7 +116,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
             String base64Logs = Base64.getEncoder().encodeToString(logsContent.getBytes(StandardCharsets.UTF_8));
             FileWithBytes logsFile = new FileWithBytes(
                     "text/plain",
-                    "execution_logs_%s.txt".formatted(result.getTestCaseName().replaceAll("\\s", "_")),
+                    "execution_logs_%s.log".formatted(result.getTestCaseName().replaceAll("\\s", "_").toLowerCase()),
                     base64Logs);
             parts.add(new FilePart(logsFile));
         });
