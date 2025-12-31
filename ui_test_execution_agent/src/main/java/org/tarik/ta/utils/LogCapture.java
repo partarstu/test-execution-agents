@@ -20,11 +20,17 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class LogCapture {
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
+            .withZone(ZoneId.systemDefault());
+
     private ListAppender<ILoggingEvent> listAppender;
     private final Logger rootLogger;
 
@@ -50,7 +56,22 @@ public class LogCapture {
             return new ArrayList<>();
         }
         return listAppender.list.stream()
-                .map(event -> event.getFormattedMessage())
+                .map(this::formatLogEvent)
                 .collect(Collectors.toList());
+    }
+
+    private String formatLogEvent(ILoggingEvent event) {
+        String timestamp = TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(event.getTimeStamp()));
+        String level = event.getLevel().toString();
+        String loggerName = getShortLoggerName(event.getLoggerName());
+        return "%s %-5s %s - %s".formatted(timestamp, level, loggerName, event.getFormattedMessage());
+    }
+
+    private String getShortLoggerName(String loggerName) {
+        if (loggerName == null || loggerName.isEmpty()) {
+            return "";
+        }
+        int lastDotIndex = loggerName.lastIndexOf('.');
+        return lastDotIndex >= 0 ? loggerName.substring(lastDotIndex + 1) : loggerName;
     }
 }
