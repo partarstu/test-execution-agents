@@ -48,7 +48,7 @@ public interface ApiPreconditionVerificationAgent extends BaseAiAgent<Verificati
             - Status Code: {{lastResponseStatus}}
             - Response Body: {{lastResponseBody}}
 
-            Shared data: {{sharedData}}
+            Test context execution data: {{sharedData}}
 
             Determine if the precondition was successful based on the API response and context state.
             """)

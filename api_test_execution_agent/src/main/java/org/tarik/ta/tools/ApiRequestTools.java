@@ -75,8 +75,8 @@ public class ApiRequestTools extends org.tarik.ta.core.tools.AbstractTools {
             LOG.info("Sending {} request to {}", method, resolvedUrl);
             Response response = request.request(method, resolvedUrl);
             context.setLastResponse(response);
-            executionContext.setSharedData("_last_request_method", method);
-            executionContext.setSharedData("_last_request_path", resolvedUrl);
+            executionContext.addSharedData("_last_request_method", method);
+            executionContext.addSharedData("_last_request_path", resolvedUrl);
             return "Request sent. Status: " + response.getStatusCode();
         } catch (Exception e) {
             throw rethrowAsToolException(e, "sending request to " + url);

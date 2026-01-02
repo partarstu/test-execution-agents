@@ -64,7 +64,7 @@ public class TestExecutionContext {
         this.preconditionExecutionHistory.add(result);
     }
 
-    public synchronized void setSharedData(String key, Object value) {
+    public synchronized void addSharedData(String key, Object value) {
         this.sharedData.put(key, value);
     }
 }

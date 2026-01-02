@@ -53,7 +53,7 @@ public interface ApiTestStepActionAgent extends BaseAiAgent<EmptyExecutionResult
 
             Data related to the test step: {{testData}}
 
-            Shared data: {{sharedData}}
+            Test context execution data: {{sharedData}}
             """)
     Result<String> execute(
             @V("testStep") String testStep,

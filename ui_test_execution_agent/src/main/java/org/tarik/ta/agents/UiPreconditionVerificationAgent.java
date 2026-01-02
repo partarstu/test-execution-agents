@@ -32,7 +32,7 @@ public interface UiPreconditionVerificationAgent extends BaseUiAgent<Verificatio
     @UserMessage("""
             The test case precondition is: {{precondition}}.
             
-            Shared data: {{sharedData}}
+            Test context execution data: {{sharedData}}
             """)
     Result<String> verify(
             @V("precondition") String precondition,

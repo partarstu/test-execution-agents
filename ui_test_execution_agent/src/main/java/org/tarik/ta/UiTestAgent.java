@@ -59,8 +59,10 @@ import static org.tarik.ta.UiTestAgentConfig.isElementLocationPrefetchingEnabled
 import static org.tarik.ta.UiTestAgentConfig.isUnattendedMode;
 import static org.tarik.ta.core.AgentConfig.*;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.*;
+import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.error.ErrorCategory.*;
+import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.rag.RetrieverFactory.getUiElementRetriever;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.VERIFICATION_FAILURE;
@@ -126,7 +128,7 @@ public class UiTestAgent {
                 executeTestSteps(context, testStepActionAgent, verificationManager);
                 if (hasStepFailures(context)) {
                     var lastStep = context.getTestStepExecutionHistory().getLast();
-                    if (lastStep.getExecutionStatus() == TestStepResultStatus.FAILURE) {
+                    if (lastStep.getExecutionStatus() == FAILURE) {
                         return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
                                 lastStep.getErrorMessage(),
                                 ((UiTestStepResult) lastStep).getScreenshot(), systemInfo,
@@ -217,7 +219,7 @@ public class UiTestAgent {
                 LOG.info("Executing precondition: {}", precondition);
                 var preconditionExecutionResult = preconditionActionAgent.executeWithRetry(
                         () -> preconditionActionAgent.execute(precondition, context.getSharedData().toString()));
-                BudgetManager.resetToolCallUsage();
+                resetToolCallUsage();
 
                 if (!preconditionExecutionResult.isSuccess()) {
                     var errorMessage = "Failure while executing precondition '%s'. Root cause: %s"
@@ -237,7 +239,7 @@ public class UiTestAgent {
                                     context.getSharedData().toString(),
                                     singleImageContent(screenshot));
                         }, r -> r == null || !r.success());
-                BudgetManager.resetToolCallUsage();
+                resetToolCallUsage();
 
                 if (!verificationExecutionResult.isSuccess()) {
                     var errorMessage = "Error while verifying precondition '%s'. Root cause: %s"
@@ -284,13 +286,11 @@ public class UiTestAgent {
                             !isUnattendedMode());
                     return null;
                 });
-                BudgetManager.resetToolCallUsage();
+                resetToolCallUsage();
                 if (!actionResult.isSuccess()) {
                     if (actionResult.getExecutionStatus() != VERIFICATION_FAILURE) {
-                        // Verification failure happens only if the current action was executed as a UI
-                        // element location prefetch part,
-                        // it means this test step shouldn't be reported because the execution is to be
-                        // halted after verification
+                        // Verification failure happens only if the current action was executed as a UI element location prefetch part,
+                        // it means this test step shouldn't be reported because the execution is to be halted after verification
                         // failure for the previous step
                         var errorMessage = "Error while executing action '%s'. Root cause: %s"
                                 .formatted(actionInstruction, actionResult.getMessage());
@@ -310,11 +310,10 @@ public class UiTestAgent {
                             var verificationExecutionResult = testStepVerificationAgent.executeWithRetry(() -> {
                                 var screenshot = captureScreen();
                                 context.setVisualState(new VisualState(screenshot));
-                                return testStepVerificationAgent.verify(verificationInstruction, actionInstruction,
-                                        testDataString, context.getSharedData().toString(),
-                                        singleImageContent(screenshot));
+                                return testStepVerificationAgent.verify(verificationInstruction, actionInstruction, testDataString,
+                                        context.getSharedData().toString(), singleImageContent(screenshot));
                             }, result -> result == null || !result.success());
-                            BudgetManager.resetToolCallUsage();
+                            resetToolCallUsage();
 
                             if (!verificationExecutionResult.isSuccess()) {
                                 var errorMessage = "Failure while verifying test step '%s'. Root cause: %s"
@@ -323,20 +322,21 @@ public class UiTestAgent {
                                         context.getVisualState().screenshot(), TestStepResultStatus.ERROR);
                                 return false;
                             } else {
-                                VerificationExecutionResult verificationResult = verificationExecutionResult
-                                        .getResultPayload();
-                                if (verificationResult != null && !verificationResult.success()) {
-                                    var errorMessage = "Verification failed. %s"
-                                            .formatted(verificationResult.message());
+                                VerificationExecutionResult verificationResult = verificationExecutionResult.getResultPayload();
+                                if (verificationResult == null) {
+                                    var errorMessage = "Verification result got back empty.";
+                                    addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
+                                            context.getVisualState().screenshot(), FAILURE);
+                                    return false;
+                                }
+                                if (!verificationResult.success()) {
+                                    var errorMessage = "Verification failed. %s".formatted(verificationResult.message());
                                     addFailedTestStep(context, testStep, errorMessage, verificationResult.message(),
-                                            executionStartTimestamp, now(), context.getVisualState().screenshot(),
-                                            TestStepResultStatus.FAILURE);
+                                            executionStartTimestamp, now(), context.getVisualState().screenshot(), FAILURE);
                                     return false;
                                 }
                                 LOG.info("Verification execution complete.");
-                                var actualResult = verificationResult != null ? verificationResult.message()
-                                        : "Verification successful";
-                                context.addStepResult(new UiTestStepResult(testStep, SUCCESS, null, actualResult, null,
+                                context.addStepResult(new UiTestStepResult(testStep, SUCCESS, null, verificationResult.message(), null,
                                         executionStartTimestamp, now()));
                                 return true;
                             }
@@ -350,7 +350,8 @@ public class UiTestAgent {
 
                     if (!isElementLocationPrefetchingEnabled() &&
                             !verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis()).success()) {
-                        // The test case execution should be interrupted after any verification failure
+                        // The test case execution should be immediately interrupted after any verification failure, unless UI element
+                        // location pre-fetching is activated (in this case it will fail while executing the next test step)
                         return;
                     }
                 } else {
@@ -502,8 +503,8 @@ public class UiTestAgent {
             Instant executionEndTimestamp,
             BufferedImage screenshot,
             TestStepResultStatus status) {
-        context.addStepResult(new UiTestStepResult(testStep, status, errorMessage, actualResult, screenshot,
-                executionStartTimestamp, executionEndTimestamp));
+        context.addStepResult(new UiTestStepResult(testStep, status, errorMessage, actualResult, screenshot, executionStartTimestamp,
+                executionEndTimestamp));
     }
 
     private static class UiErrorHandler extends DefaultErrorHandler {

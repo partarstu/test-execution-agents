@@ -89,7 +89,7 @@ public class ApiAssertionTools extends org.tarik.ta.core.tools.AbstractTools {
 
         try {
             Object value = responseOpt.get().jsonPath().get(jsonPath);
-            testExecutionContext.setSharedData(variableName, value);
+            testExecutionContext.addSharedData(variableName, value);
             return "Extracted value '" + value + "' to variable '" + variableName + "'";
         } catch (Exception e) {
             throw rethrowAsToolException(e, "extracting value from JSON path " + jsonPath);

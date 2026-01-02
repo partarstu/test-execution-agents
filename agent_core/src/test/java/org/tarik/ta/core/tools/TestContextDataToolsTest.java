@@ -8,12 +8,9 @@ import org.mockito.MockitoAnnotations;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.core.model.TestExecutionContext;
 
-import java.io.File;
 import java.io.FileWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -44,7 +41,7 @@ class TestContextDataToolsTest {
         String result = tools.loadJsonData(jsonFile.toString(), "myVar");
 
         assertThat(result).contains("Loaded JSON data");
-        verify(context).setSharedData("myVar", jsonContent);
+        verify(context).addSharedData("myVar", jsonContent);
     }
 
     @Test
@@ -94,7 +91,7 @@ class TestContextDataToolsTest {
             ...
             context.setSharedData(variableName, result);
          */
-        verify(context).setSharedData(org.mockito.ArgumentMatchers.eq("myCsvVar"), org.mockito.ArgumentMatchers.anyList());
+        verify(context).addSharedData(org.mockito.ArgumentMatchers.eq("myCsvVar"), org.mockito.ArgumentMatchers.anyList());
     }
 
     @Test

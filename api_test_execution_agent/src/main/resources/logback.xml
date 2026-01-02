@@ -21,9 +21,8 @@
         <appender-ref ref="FILE"/>
     </root>
 
-    <logger name="org.eclipse.jetty" level="OFF"/>
-    <logger name="dev.langchain4j.http.client.log" level="OFF"/>
-    <logger name="dev.langchain4j" level="INFO"/>
-    <logger name="io.grpc.netty" level="INFO"/>
-    <logger name="io.a2a.server" level="INFO"/>
+    <logger name="org.eclipse.jetty" level="OFF" />
+    <logger name="dev.langchain4j.http.client.log" level="OFF" />
+    <logger name="dev.langchain4j" level="INFO" />
+    <logger name="io.grpc.netty" level="INFO" />
 </configuration>

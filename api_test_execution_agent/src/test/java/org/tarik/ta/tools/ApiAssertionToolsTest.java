@@ -16,7 +16,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -106,7 +105,7 @@ class ApiAssertionToolsTest {
         String result = tools.extractValue("data.token", "TOKEN");
 
         assertThat(result).contains("Extracted value 'secret-token' to variable 'TOKEN'");
-        verify(testExecutionContext).setSharedData("TOKEN", "secret-token");
+        verify(testExecutionContext).addSharedData("TOKEN", "secret-token");
     }
 
     @Test

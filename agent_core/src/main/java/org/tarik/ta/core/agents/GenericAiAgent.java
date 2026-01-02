@@ -21,6 +21,7 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.dto.AgentExecutionResult;
+import org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus;
 import org.tarik.ta.core.dto.FinalResult;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
@@ -45,7 +46,7 @@ public interface GenericAiAgent<T extends FinalResult<T>, R extends AgentExecuti
 
     R createSuccessResult(T result);
 
-    R createErrorResult(AgentExecutionResult.ExecutionStatus status, String message, @Nullable Throwable t);
+    R createErrorResult(ExecutionStatus status, String message, @Nullable Throwable t);
 
     RetryPolicy getRetryPolicy();
 
@@ -77,13 +78,11 @@ public interface GenericAiAgent<T extends FinalResult<T>, R extends AgentExecuti
             try {
                 Result<?> resultWrapper = action.get();
                 T result = extractResult(resultWrapper);
-
                 if (retryCondition != null && retryCondition.test(result)) {
-                    String message = "Retry explicitly requested by the task because it has the following result: "
-                            + result;
-                    R errorResult = handleRetry(attempt, startTime, policy, message, taskDescription);
-                    if (errorResult != null) {
-                        return errorResult;
+                    String message = "Retry explicitly requested by the task because it has the following result: " + result;
+                    R retryResult = retry(attempt, startTime, policy, message, taskDescription);
+                    if (retryResult != null) {
+                        return retryResult;
                     }
                     continue;
                 }
@@ -107,7 +106,7 @@ public interface GenericAiAgent<T extends FinalResult<T>, R extends AgentExecuti
                 }
 
                 LOG.error("Got error while executing action for task: {}. Retrying...", taskDescription, e);
-                R errorResult = handleRetry(attempt, startTime, policy, e.getMessage(), taskDescription);
+                R errorResult = retry(attempt, startTime, policy, e.getMessage(), taskDescription);
                 if (errorResult != null) {
                     return errorResult;
                 }
@@ -141,23 +140,21 @@ public interface GenericAiAgent<T extends FinalResult<T>, R extends AgentExecuti
     }
 
     @Nullable
-    default R handleRetry(int attempt, long startTime, RetryPolicy policy, String message,
-            String taskDescription) {
+    default R retry(int attempt, long startTime, RetryPolicy policy, String message,
+                    String taskDescription) {
         long elapsedTime = currentTimeMillis() - startTime;
         boolean isTimeout = policy.timeoutMillis() > 0 && elapsedTime > policy.timeoutMillis();
         boolean isMaxRetriesReached = attempt > policy.maxRetries();
 
         if (isTimeout || isMaxRetriesReached) {
-            LOG.error("Operation for task '{}' failed after {} attempts (elapsed: {}ms). Last error: {}",
-                    taskDescription, attempt,
+            LOG.error("Operation for task '{}' failed after {} attempts (elapsed: {}ms). Last error: {}", taskDescription, attempt,
                     elapsedTime, message);
             return createErrorResult(ERROR, message, null);
         }
 
         long delayMillis = (long) (policy.initialDelayMillis() * Math.pow(policy.backoffMultiplier(), attempt - 1));
         delayMillis = Math.min(delayMillis, policy.maxDelayMillis());
-        LOG.warn("Attempt {} for task '{}' failed: {}. Retrying in {}ms...", attempt, taskDescription, message,
-                delayMillis);
+        LOG.warn("Attempt {} for task '{}' failed: {}. Retrying in {}ms...", attempt, taskDescription, message, delayMillis);
         sleepMillis((int) delayMillis);
         return null;
     }

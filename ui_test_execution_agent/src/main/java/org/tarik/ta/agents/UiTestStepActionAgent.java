@@ -43,7 +43,7 @@ public interface UiTestStepActionAgent extends BaseUiAgent<EmptyExecutionResult>
             
             Data, related to the test step: {{testData}}
             
-            Shared data: {{sharedData}}
+            Test context execution data: {{sharedData}}
             
             Interaction with the user is allowed: {{attendedMode}}
             """)

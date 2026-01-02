@@ -47,7 +47,7 @@ public class TestContextDataTools extends AbstractTools {
                 objectMapper.readTree(content);
             }
 
-            context.setSharedData(variableName, content);
+            context.addSharedData(variableName, content);
             return "Loaded JSON data from " + filePath + " into shared variable '" + variableName + "'";
         } catch (Exception e) {
             throw rethrowAsToolException(e, "loading JSON data from " + filePath);
@@ -90,7 +90,7 @@ public class TestContextDataTools extends AbstractTools {
                 result.add(rowMap);
             }
 
-            context.setSharedData(variableName, result);
+            context.addSharedData(variableName, result);
             return "Loaded " + result.size() + " items into shared variable '" + variableName + "'";
         } catch (Exception e) {
             throw rethrowAsToolException(e, "loading CSV data from " + filePath);

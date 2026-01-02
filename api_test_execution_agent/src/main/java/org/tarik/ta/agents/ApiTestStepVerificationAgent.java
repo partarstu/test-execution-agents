@@ -50,7 +50,7 @@ public interface ApiTestStepVerificationAgent extends BaseAiAgent<VerificationEx
             - Response Body: {{lastResponseBody}}
             - Response Headers: {{lastResponseHeaders}}
 
-            Shared data: {{sharedData}}
+            Test context execution data: {{sharedData}}
 
             Use the assertion tools if needed to verify the expected results.
             Determine if the verification passed or failed based on the response and context.
