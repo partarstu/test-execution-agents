@@ -49,7 +49,11 @@ if [ -z "${APP_JAR_PATH}" ] || [ ! -f "${APP_JAR_PATH}" ]; then
   exit 1
 fi
 
-su headless
-DISPLAY=:1 java -jar ${APP_JAR_PATH}
+# Export DISPLAY so all child processes (including Chrome) inherit it
+export DISPLAY=:1
+
+# Run Java application as ubuntu user
+# Using 'su -c' to execute the command in a non-interactive shell
+su ubuntu -c "java -jar ${APP_JAR_PATH}"
 
 echo "Agent application launched."
