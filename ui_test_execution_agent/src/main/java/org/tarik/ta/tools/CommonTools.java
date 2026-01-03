@@ -174,6 +174,7 @@ public class CommonTools extends UiAbstractTools {
             return new String[] {
                     browserCommand,
                     "--no-sandbox",
+                    "--test-type",
                     "--no-first-run",
                     "--no-default-browser-check",
                     "--start-maximized",
