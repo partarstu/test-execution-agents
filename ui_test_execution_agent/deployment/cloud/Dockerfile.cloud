@@ -22,9 +22,9 @@ ARG APP_DIR=/app
 ARG APP_LOG_DIR=${APP_DIR}/log
 ARG SOURCE_JAR_PATH=ui_test_execution_agent/target/ui-test-execution-agent-1.0.0-SNAPSHOT.jar
 ARG DESTINATION_JAR_PATH=${APP_DIR}/app.jar
-ARG SOURCE_START_SCRIPT=deployment/agent_startup.sh
+ARG SOURCE_START_SCRIPT=ui_test_execution_agent/deployment/agent_startup.sh
 ARG DESTINATION_START_SCRIPT=${APP_DIR}/agent_startup.sh
-ARG SOURCE_START_WEBSOCKIFY_SSL_SCRIPT=deployment/cloud/start_websockify_ssl.sh
+ARG SOURCE_START_WEBSOCKIFY_SSL_SCRIPT=ui_test_execution_agent/deployment/cloud/start_websockify_ssl.sh
 ARG DESTINATION_START_WEBSOCKIFY_SSL_SCRIPT=${APP_DIR}/start_websockify_ssl.sh
 ARG JAVA_VERSION=25
 
