@@ -66,8 +66,8 @@ public class CommonTools extends UiAbstractTools {
     @Tool(value = "Waits for any running verifications to complete and returns the verification results, if any.")
     public VerificationStatus waitForVerification() {
         try {
-            var result= verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis());
-            if (!result.success()){
+            var result = verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis());
+            if (!result.success()) {
                 throw new ToolExecutionException("The latest verification failed, interrupting further tool execution",
                         VERIFICATION_FAILED);
             } else {
@@ -83,7 +83,8 @@ public class CommonTools extends UiAbstractTools {
         try {
             sleepSeconds(secondsAmount);
         } catch (Exception e) {
-            throw new ToolExecutionException("Failed to wait for " + secondsAmount + " seconds: " + e.getMessage(), UNKNOWN);
+            throw new ToolExecutionException("Failed to wait for " + secondsAmount + " seconds: " + e.getMessage(),
+                    UNKNOWN);
         }
     }
 
@@ -95,8 +96,10 @@ public class CommonTools extends UiAbstractTools {
             }
 
             String sanitizedUrl = url;
-            if (!sanitizedUrl.toLowerCase().startsWith(HTTP_PROTOCOL) && !sanitizedUrl.toLowerCase().startsWith(HTTPS_PROTOCOL)) {
-                LOG.warn("Provided URL '{}' doesn't have the protocol defined, using HTTP as the default one", sanitizedUrl);
+            if (!sanitizedUrl.toLowerCase().startsWith(HTTP_PROTOCOL)
+                    && !sanitizedUrl.toLowerCase().startsWith(HTTPS_PROTOCOL)) {
+                LOG.warn("Provided URL '{}' doesn't have the protocol defined, using HTTP as the default one",
+                        sanitizedUrl);
                 sanitizedUrl = HTTP_PROTOCOL + sanitizedUrl;
             }
 
@@ -110,11 +113,12 @@ public class CommonTools extends UiAbstractTools {
             try {
                 closeBrowser(); // Close any existing browser instance
 
-                if (isDesktopSupported() && getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                    getDesktop().browse(finalUrl.toURI());
-                } else {
-                    LOG.debug("Java AWT Desktop is not supported on the current OS, falling back to alternative method.");
-                    String os = System.getProperty(OS_NAME_SYS_PROPERTY).toLowerCase();
+                String os = System.getProperty(OS_NAME_SYS_PROPERTY).toLowerCase();
+
+                // On Linux (Docker), always use ProcessBuilder with custom flags to ensure
+                // Chrome starts with proper configuration (skip first-run, no-sandbox, etc.)
+                // Desktop.browse() would bypass these flags and cause Chrome welcome dialogs
+                if (os.contains("linux")) {
                     String[] command = buildBrowserStartupCommand(os, finalUrl.toString());
                     LOG.debug("Executing command: {}", String.join(" ", command));
                     browserProcess = new ProcessBuilder(command).start();
@@ -123,6 +127,13 @@ public class CommonTools extends UiAbstractTools {
                                 .formatted(IOUtils.toString(browserProcess.getErrorStream(), UTF_8));
                         throw new ToolExecutionException(errorMessage, TRANSIENT_TOOL_ERROR);
                     }
+                } else if (isDesktopSupported() && getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                    getDesktop().browse(finalUrl.toURI());
+                } else {
+                    LOG.debug(
+                            "Java AWT Desktop is not supported on the current OS, falling back to alternative method.");
+                    throw new ToolExecutionException("Current OS doesn't support opening a browser.",
+                            NON_RETRYABLE_ERROR);
                 }
                 sleepSeconds(BROWSER_OPEN_TIME_SECONDS);
             } catch (Exception e) {
@@ -152,18 +163,25 @@ public class CommonTools extends UiAbstractTools {
 
     private static String[] buildBrowserStartupCommand(String os, String url) {
         if (os.contains("win")) {
-            return new String[]{"cmd.exe", "/c", "start", url};
+            return new String[] { "cmd.exe", "/c", "start", url };
         } else if (os.contains("mac")) {
-            return new String[]{"open", url};
+            return new String[] { "open", url };
         } else {
             String browserCommand = System.getenv("BROWSER_COMMAND");
             if (browserCommand == null || browserCommand.trim().isEmpty()) {
                 browserCommand = "chromium-browser";
             }
-            return new String[]{browserCommand, "--no-sandbox", "--start-maximized", url};
+            return new String[] {
+                    browserCommand,
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--start-maximized",
+                    "--disable-gpu",
+                    "--disable-dev-shm-usage",
+                    "--force-device-scale-factor=1",
+                    "--in-process-gpu",
+                    url
+            };
         }
     }
 }
-
-
-

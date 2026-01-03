@@ -3,12 +3,14 @@ package dev.langchain4j.model.googleai;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
+import java.util.Map;
 
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record GeminiGenerationConfig(
         @JsonProperty("stopSequences") List<String> stopSequences,
         @JsonProperty("responseMimeType") String responseMimeType,
         @JsonProperty("responseSchema") GeminiSchema responseSchema,
+        @JsonProperty("responseJsonSchema") Map<String, Object> responseJsonSchema,
         @JsonProperty("candidateCount") Integer candidateCount,
         @JsonProperty("maxOutputTokens") Integer maxOutputTokens,
         @JsonProperty("temperature") Double temperature,
@@ -32,6 +34,7 @@ public record GeminiGenerationConfig(
         private List<String> stopSequences;
         private String responseMimeType;
         private GeminiSchema responseSchema;
+        private Map<String, Object> responseJsonSchema;
         private Integer candidateCount;
         private Integer maxOutputTokens;
         private Double temperature;
@@ -46,7 +49,8 @@ public record GeminiGenerationConfig(
         private Integer logprobs;
         private GeminiMediaResolution mediaResolution;
 
-        GeminiGenerationConfigBuilder() {}
+        GeminiGenerationConfigBuilder() {
+        }
 
         public GeminiGenerationConfigBuilder stopSequences(List<String> stopSequences) {
             this.stopSequences = stopSequences;
@@ -60,6 +64,11 @@ public record GeminiGenerationConfig(
 
         public GeminiGenerationConfigBuilder responseSchema(GeminiSchema responseSchema) {
             this.responseSchema = responseSchema;
+            return this;
+        }
+
+        public GeminiGenerationConfigBuilder responseJsonSchema(Map<String, Object> responseJsonSchema) {
+            this.responseJsonSchema = responseJsonSchema;
             return this;
         }
 
@@ -133,6 +142,7 @@ public record GeminiGenerationConfig(
                     stopSequences,
                     responseMimeType,
                     responseSchema,
+                    responseJsonSchema,
                     candidateCount,
                     maxOutputTokens,
                     temperature,

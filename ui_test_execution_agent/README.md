@@ -519,16 +519,32 @@ using the provided `cloudbuild_chroma.yaml` configuration.
 
 For local development and testing, you can run the agent within a Docker container on your machine.
 
+#### Docker Image Architecture
+
+The agent uses a two-layer Docker image architecture:
+
+1. **Base Image (`ui-testing-agent-base`)**: Built from `deployment/Dockerfile.base`, provides:
+   - Ubuntu 24.04 LTS
+   - Xfce desktop environment
+   - TigerVNC server
+   - noVNC (web-based VNC access)
+   - **Google Chrome Stable** (latest version)
+   - Common utilities (wget, curl, git, zip, unzip, jq, etc.)
+
+2. **Application Image (`ui-test-execution-agent`)**: Built from `deployment/local/Dockerfile`, adds:
+   - Java 25 runtime
+   - Agent application JAR
+   - Application-specific configuration
+
 #### Prerequisites for Local Docker Deployment
 
 * **Docker Desktop:** Ensure Docker Desktop is installed and running on your system.
 
 #### Building and Running the Docker Image
 
-The `build_and_run_docker.bat` script (for Windows) simplifies the process of building the Docker image and running the container.
+The `build_and_run_docker.bat` script (for Windows) simplifies the process of building the application and Docker image, and running the container.
 
-1. **Build the project:** The maven must be used for that, be sure to use the maven profiles "server" and "linux" for the build.
-2. **Adapt `deployment/local/Dockerfile`:**
+1. **Adapt `deployment/local/Dockerfile`:**
     * **IMPORTANT:** Before running the script, open `deployment/local/Dockerfile` and replace the placeholder `VNC_PW` environment variable
       with a strong password of your choice. For example:
       ```dockerfile
@@ -537,12 +553,14 @@ The `build_and_run_docker.bat` script (for Windows) simplifies the process of bu
       (Note: The `build_and_run_docker.bat` script also sets `VNC_PW` to `123456` for convenience, but it's recommended to set it directly
       in the Dockerfile for consistency and security.)
 
-3. **Execute the batch script:**
+2. **Execute the batch script:**
    ```bash
    deployment\local\build_and_run_docker.bat
    ```
    This script will:
-    * Build the Docker image named `ui-test-execution-agent` using `deployment/local/Dockerfile`.
+    * Build the `ui_test_execution_agent` module (and its dependencies) using Maven.
+    * Build the base Docker image `ui-testing-agent-base` from `deployment/Dockerfile.base` (Ubuntu 24.04 + VNC + Chrome).
+    * Build the application Docker image `ui-test-execution-agent` using `deployment/local/Dockerfile`.
     * Stop and remove any existing container named `ui-agent`.
     * Run a new Docker container, mapping ports `5901` (VNC), `6901` (noVNC), and `8005` (agent server) to your local machine.
 

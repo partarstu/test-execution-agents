@@ -1,0 +1,201 @@
+#
+# Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Base Dockerfile for UI Test Execution Agent
+# Provides: Ubuntu 24.04 + Xfce + TigerVNC + noVNC + Google Chrome
+
+FROM ubuntu:24.04
+
+LABEL maintainer="partarstu@gmail.com"
+LABEL description="Ubuntu 24.04 with Xfce, TigerVNC, noVNC, and Google Chrome for UI testing"
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# --- System Configuration ---
+ARG HEADLESS_USER=headless
+ARG HEADLESS_USER_ID=1000
+ARG HEADLESS_GROUP_ID=1000
+ARG VNC_PORT=5901
+ARG NOVNC_PORT=6901
+ARG VNC_RESOLUTION=1920x1080
+ARG VNC_COL_DEPTH=24
+
+# --- Install Core Packages ---
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Xfce desktop environment
+    xfce4 \
+    xfce4-goodies \
+    xfce4-terminal \
+    # VNC server
+    tigervnc-standalone-server \
+    tigervnc-common \
+    tigervnc-tools \
+    # noVNC and websockify for web-based VNC access
+    novnc \
+    python3-websockify \
+    # Utilities (matching original accetto image)
+    wget \
+    curl \
+    git \
+    zip \
+    unzip \
+    jq \
+    iputils-ping \
+    net-tools \
+    lsof \
+    # X11 and display utilities
+    dbus-x11 \
+    x11-utils \
+    x11-xserver-utils \
+    xdg-utils \
+    # Font packages for proper rendering
+    fonts-liberation \
+    fonts-dejavu-core \
+    # For SSL certificate generation
+    openssl \
+    # Additional dependencies
+    libgtk-3-0 \
+    libgbm1 \
+    libasound2t64 \
+    libnss3 \
+    libxss1 \
+    libappindicator3-1 \
+    libindicator3-7 \
+    sudo \
+    ca-certificates \
+    gnupg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Install Google Chrome Stable ---
+# Add Google's official signing key and repository
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Create Headless User ---
+# Ubuntu 24.04 has a default 'ubuntu' user with UID/GID 1000, we need to remove it first
+RUN userdel -r ubuntu 2>/dev/null || true && \
+    groupdel ubuntu 2>/dev/null || true && \
+    groupadd --gid ${HEADLESS_GROUP_ID} ${HEADLESS_USER} && \
+    useradd --uid ${HEADLESS_USER_ID} --gid ${HEADLESS_GROUP_ID} --shell /bin/bash --create-home ${HEADLESS_USER} && \
+    echo "${HEADLESS_USER}:${HEADLESS_USER}" | chpasswd && \
+    usermod -aG sudo ${HEADLESS_USER} && \
+    echo "${HEADLESS_USER} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# --- Configure VNC ---
+RUN mkdir -p /home/${HEADLESS_USER}/.vnc \
+    && mkdir -p /home/${HEADLESS_USER}/.config \
+    && mkdir -p /home/${HEADLESS_USER}/Desktop
+
+# Create VNC startup script
+RUN echo '#!/bin/bash\n\
+unset SESSION_MANAGER\n\
+unset DBUS_SESSION_BUS_ADDRESS\n\
+export XDG_RUNTIME_DIR=/tmp/runtime-headless\n\
+mkdir -p $XDG_RUNTIME_DIR\n\
+chmod 700 $XDG_RUNTIME_DIR\n\
+exec startxfce4\n\
+' > /home/${HEADLESS_USER}/.vnc/xstartup \
+    && chmod +x /home/${HEADLESS_USER}/.vnc/xstartup
+
+# Create VNC configuration
+RUN echo "geometry=${VNC_RESOLUTION}\n\
+depth=${VNC_COL_DEPTH}\n\
+localhost=no\n\
+alwaysshared\n\
+" > /home/${HEADLESS_USER}/.vnc/config
+
+# --- Create Startup Script ---
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Set VNC password\n\
+VNC_PW=${VNC_PW:-"secret"}\n\
+echo "$VNC_PW" | vncpasswd -f > /home/headless/.vnc/passwd\n\
+chmod 600 /home/headless/.vnc/passwd\n\
+chown headless:headless /home/headless/.vnc/passwd\n\
+\n\
+# Set resolution from environment variable\n\
+VNC_RESOLUTION=${VNC_RESOLUTION:-"1920x1080"}\n\
+sed -i "s/^geometry=.*/geometry=$VNC_RESOLUTION/" /home/headless/.vnc/config\n\
+\n\
+# Start VNC server\n\
+echo "Starting VNC server on display :1..."\n\
+su - headless -c "vncserver :1 -geometry $VNC_RESOLUTION -depth 24"\n\
+\n\
+# Start noVNC websockify\n\
+NOVNC_PORT=${NOVNC_PORT:-6901}\n\
+echo "Starting noVNC on port $NOVNC_PORT..."\n\
+/usr/share/novnc/utils/novnc_proxy --vnc localhost:5901 --listen $NOVNC_PORT &\n\
+\n\
+echo "VNC server is running. Access via:"\n\
+echo "  - VNC client: localhost:5901"\n\
+echo "  - Web browser (noVNC): http://localhost:$NOVNC_PORT/vnc.html"\n\
+\n\
+# Execute any additional command passed to the container\n\
+if [ -n "$1" ]; then\n\
+    exec "$@"\n\
+else\n\
+    # Keep container running\n\
+    tail -f /dev/null\n\
+fi\n\
+' > /usr/local/bin/startup.sh \
+    && chmod +x /usr/local/bin/startup.sh
+
+# --- Configure Chrome Settings ---
+# Configure Chrome to run with necessary flags for Docker
+# Create the "First Run" sentinel file to skip the first-run experience
+# Also configure Local State to disable various first-run prompts
+RUN mkdir -p /home/${HEADLESS_USER}/.config/google-chrome/Default \
+    && touch /home/${HEADLESS_USER}/.config/google-chrome/First\ Run \
+    && echo '{"browser":{"check_default_browser":false,"show_home_button":false,"enabled_labs_experiments":["allow-insecure-localhost"]},"distribution":{"suppress_first_run_bubble":true,"suppress_first_run_default_browser_prompt":true,"make_chrome_default_for_user":false},"profile":{"default_content_setting_values":{"notifications":2}}}' \
+    > /home/${HEADLESS_USER}/.config/google-chrome/Local\ State 2>/dev/null || true
+
+# Create Chrome launcher with proper flags
+RUN echo '[Desktop Entry]\n\
+Version=1.0\n\
+Name=Google Chrome\n\
+Exec=google-chrome-stable --no-sandbox --disable-gpu --disable-dev-shm-usage %U\n\
+Terminal=false\n\
+Icon=google-chrome\n\
+Type=Application\n\
+Categories=Network;WebBrowser;\n\
+' > /home/${HEADLESS_USER}/Desktop/google-chrome.desktop \
+    && chmod +x /home/${HEADLESS_USER}/Desktop/google-chrome.desktop
+
+# --- Set Ownership ---
+# IMPORTANT: This must be done AFTER all home directory modifications
+RUN chown -R ${HEADLESS_USER}:${HEADLESS_USER} /home/${HEADLESS_USER}
+
+# --- Environment Variables ---
+ENV DISPLAY=:1
+ENV VNC_PORT=${VNC_PORT}
+ENV NOVNC_PORT=${NOVNC_PORT}
+ENV VNC_RESOLUTION=${VNC_RESOLUTION}
+ENV HOME=/home/${HEADLESS_USER}
+ENV USER=${HEADLESS_USER}
+
+# --- Expose Ports ---
+EXPOSE ${VNC_PORT} ${NOVNC_PORT}
+
+# --- Entrypoint ---
+ENTRYPOINT ["/usr/local/bin/startup.sh"]

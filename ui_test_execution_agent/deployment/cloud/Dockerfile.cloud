@@ -1,6 +1,6 @@
-# Use the accetto VNC image as the base
-# Using the 'latest' tag is convenient, but for production, you might want to pin to a specific version.
-FROM accetto/ubuntu-vnc-xfce-chromium-g3:latest
+# Use the custom VNC + Chrome base image
+# Build the base image first: docker build -t ui-testing-agent-base -f deployment/Dockerfile.base deployment/
+FROM ui-testing-agent-base:latest
 
 ARG APP_DIR=/app
 ARG APP_LOG_DIR=${APP_DIR}/log
@@ -44,9 +44,13 @@ RUN openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/ssl/novnc/novnc.key -
 COPY ${SOURCE_START_WEBSOCKIFY_SSL_SCRIPT} ${DESTINATION_START_WEBSOCKIFY_SSL_SCRIPT}
 RUN chmod +x ${DESTINATION_START_WEBSOCKIFY_SSL_SCRIPT}
 
-# --- Chromium Configuration ---
-# Configure Chromium flags for headless operation
-RUN echo 'CHROMIUM_FLAGS="--no-sandbox --disable-gpu --disable-dev-shm-usage"' >> /home/headless/.chromium-browser.init
+# --- Chrome Configuration ---
+# Configure Chrome flags for headless operation in Docker
+# Create the "First Run" sentinel file to skip the first-run experience
+RUN mkdir -p /home/headless/.config/google-chrome/Default \
+    && touch /home/headless/.config/google-chrome/First\ Run \
+    && echo '{"browser":{"check_default_browser":false,"show_home_button":false},"distribution":{"suppress_first_run_bubble":true,"suppress_first_run_default_browser_prompt":true,"make_chrome_default_for_user":false},"profile":{"default_content_setting_values":{"notifications":2}}}' \
+    > /home/headless/.config/google-chrome/Local\ State 2>/dev/null || true
 RUN chown -R headless:headless /home/headless
 
 # --- Application Setup ---
@@ -62,9 +66,8 @@ RUN chmod 777 ${DESTINATION_START_SCRIPT}
 # --- Environment Variables ---
 ENV APP_JAR_PATH=${DESTINATION_JAR_PATH}
 ENV DISPLAY=:1
+ENV BROWSER_COMMAND="google-chrome-stable"
 ENV SCREENSHOTS_SAVE_FOLDER="${APP_DIR}/screenshots"
 ENV SCREEN_RECORDING_FOLDER="${APP_DIR}/videos"
 ENV LOG_DIR=${APP_LOG_DIR}
 ENV DEPLOYMENT_ENV="cloud"
-ENV BBOX_IDENTIFICATION_MODEL_NAME=""
-ENV BBOX_IDENTIFICATION_MODEL_PROVIDER=""
