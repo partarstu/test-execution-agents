@@ -60,15 +60,6 @@ RUN openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/ssl/novnc/novnc.key -
 COPY ${SOURCE_START_WEBSOCKIFY_SSL_SCRIPT} ${DESTINATION_START_WEBSOCKIFY_SSL_SCRIPT}
 RUN chmod +x ${DESTINATION_START_WEBSOCKIFY_SSL_SCRIPT}
 
-# --- Chrome Configuration ---
-# Configure Chrome flags for proper operation in Docker
-# Create the "First Run" sentinel file to skip the first-run experience
-RUN mkdir -p /home/ubuntu/.config/google-chrome/Default \
-    && touch /home/ubuntu/.config/google-chrome/First\ Run \
-    && echo '{"browser":{"check_default_browser":false,"show_home_button":false},"distribution":{"suppress_first_run_bubble":true,"suppress_first_run_default_browser_prompt":true,"make_chrome_default_for_user":false},"profile":{"default_content_setting_values":{"notifications":2}}}' \
-    > /home/ubuntu/.config/google-chrome/Local\ State 2>/dev/null || true
-RUN chown -R ubuntu:ubuntu /home/ubuntu
-
 # --- Application Setup ---
 # Copy your Java application JAR file into the container, create logs folder with corresponding access rights.
 COPY ${SOURCE_JAR_PATH} ${DESTINATION_JAR_PATH}
