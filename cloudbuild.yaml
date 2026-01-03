@@ -20,20 +20,25 @@ steps:
     args: [ 'mvn', 'clean', 'install', '-DskipTests', '-P', 'linux', '-pl', 'ui_test_execution_agent', '-am' ]
 
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build-base-image'
     dir: '/workspace'
-    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/$_UI_AGENT_SERVICE_NAME:$_IMAGE_TAG', '-f', 'deployment/cloud/Dockerfile.cloud', '.' ]
+    args: [ 'build', '-t', 'ui-testing-agent-base:latest', '-f', 'ui_test_execution_agent/deployment/Dockerfile.base', '.' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    dir: '/workspace'
+    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/$_UI_AGENT_SERVICE_NAME:$_IMAGE_TAG', '-f', 'ui_test_execution_agent/deployment/cloud/Dockerfile', '.' ]
 
   - name: 'gcr.io/cloud-builders/docker'
     args: [ 'push', 'gcr.io/$PROJECT_ID/$_UI_AGENT_SERVICE_NAME:$_IMAGE_TAG' ]
 
   - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
-    args: [ '-c', 'chmod +x deployment/cloud/deploy_vm.sh' ]
+    args: [ '-c', 'chmod +x ui_test_execution_agent/deployment/cloud/deploy_vm.sh' ]
     dir: '/workspace'
 
   - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
-    args: [ '-c', 'deployment/cloud/deploy_vm.sh' ]
+    args: [ '-c', 'ui_test_execution_agent/deployment/cloud/deploy_vm.sh' ]
     dir: '/workspace'
     env:
       - 'SERVICE_NAME=$_UI_AGENT_SERVICE_NAME'

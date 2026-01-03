@@ -498,7 +498,7 @@ using the provided `cloudbuild_chroma.yaml` configuration.
    This script will:
     * Enable necessary GCP services.
     * Build the agent application using Maven.
-    * Build the Docker image for the agent using `deployment/cloud/Dockerfile.cloud` and push it to Google Container Registry.
+    * Build the Docker image for the agent using `deployment/cloud/Dockerfile` and push it to Google Container Registry.
     * Set up VPC network and firewall rules (if they don't exist).
     * Create a GCE Spot VM instance
     * Start the agent container inside created VM using a corresponding startup script.
