@@ -166,7 +166,7 @@ gcloud beta compute instances create ${INSTANCE_NAME} \
     --boot-disk-device-name=${INSTANCE_NAME} \
     --labels=goog-ops-agent-policy=v2-x86-template-1-4-0,goog-ec-src=vm_add-gcloud \
     --max-run-duration=${MAX_VM_RUN_DURATION} \
-    --metadata-from-file=startup-script=deployment/cloud/vm_startup_script.sh \
+    --metadata-from-file=startup-script=ui_test_execution_agent/deployment/cloud/vm_startup_script.sh \
     --metadata=enable-osconfig=TRUE,\
       gcp-project-id=${PROJECT_ID},\
       gcp-service-name=${SERVICE_NAME},\
