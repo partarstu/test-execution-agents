@@ -21,11 +21,32 @@
 # Kill any existing websockify process on the SSL port
 echo "Attempting to kill existing websockify process on port $NO_VNC_PORT..."
 
+# Get current process ID and parent to exclude them from killing
+CURRENT_PID=$$
+PARENT_PID=$PPID
+
 # Find PIDs using lsof (for processes listening on the port) and pgrep (for websockify)
-ALL_PIDS=$( (lsof -t -i:$NO_VNC_PORT 2>/dev/null || true; pgrep -f websockify 2>/dev/null || true) | sort -u )
+# Use pgrep with -x for exact program name matching to avoid matching this script
+# Filter out the current process and parent process to prevent killing ourselves
+LSOF_PIDS=$(lsof -t -i:$NO_VNC_PORT 2>/dev/null || true)
+# Use [w]ebsockify pattern trick to prevent pgrep from matching itself
+PGREP_PIDS=$(pgrep -f '[w]ebsockify' 2>/dev/null || true)
+
+# Combine, sort unique, and filter out current and parent PIDs
+ALL_PIDS=""
+for pid in $LSOF_PIDS $PGREP_PIDS; do
+    if [ "$pid" != "$CURRENT_PID" ] && [ "$pid" != "$PARENT_PID" ] && [ -n "$pid" ]; then
+        # Also check if this is an ancestor process of the current script
+        if ! grep -q "^PPid:.*$pid\$" /proc/$$/status 2>/dev/null; then
+            ALL_PIDS="$ALL_PIDS $pid"
+        fi
+    fi
+done
+ALL_PIDS=$(echo "$ALL_PIDS" | tr ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
 
 if [ -n "$ALL_PIDS" ]; then
-    echo "Found websockify PIDs: $ALL_PIDS. Killing them..."
+    echo "Found websockify PIDs to kill: $ALL_PIDS"
+    echo "Current PID: $CURRENT_PID, Parent PID: $PARENT_PID (excluded)"
     kill -9 $ALL_PIDS 2>/dev/null || true
     echo "Killed websockify processes."
     sleep 2 # Give some time for the port to be released
