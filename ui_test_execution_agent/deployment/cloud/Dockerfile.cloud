@@ -1,10 +1,26 @@
+#
+# Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 # Use the custom VNC + Chrome base image
 # Build the base image first: docker build -t ui-testing-agent-base -f deployment/Dockerfile.base deployment/
 FROM ui-testing-agent-base:latest
 
 ARG APP_DIR=/app
 ARG APP_LOG_DIR=${APP_DIR}/log
-ARG SOURCE_JAR_PATH=ui_test_execution_agent/target/ui_test_execution_agent-1.0.0-SNAPSHOT.jar
+ARG SOURCE_JAR_PATH=ui_test_execution_agent/target/ui-test-execution-agent-1.0.0-SNAPSHOT.jar
 ARG DESTINATION_JAR_PATH=${APP_DIR}/app.jar
 ARG SOURCE_START_SCRIPT=deployment/agent_startup.sh
 ARG DESTINATION_START_SCRIPT=${APP_DIR}/agent_startup.sh
@@ -64,10 +80,12 @@ COPY ${SOURCE_START_SCRIPT} ${DESTINATION_START_SCRIPT}
 RUN chmod 777 ${DESTINATION_START_SCRIPT}
 
 # --- Environment Variables ---
+# Only static/essential environment variables are defined here.
+# All agent-specific configuration is passed at runtime via deployment scripts.
 ENV APP_JAR_PATH=${DESTINATION_JAR_PATH}
 ENV DISPLAY=:1
 ENV BROWSER_COMMAND="google-chrome-stable"
 ENV SCREENSHOTS_SAVE_FOLDER="${APP_DIR}/screenshots"
-ENV SCREEN_RECORDING_FOLDER="${APP_DIR}/videos"
 ENV LOG_DIR=${APP_LOG_DIR}
 ENV DEPLOYMENT_ENV="cloud"
+ENV SCREEN_RECORDING_FOLDER="${APP_DIR}/log/videos"
