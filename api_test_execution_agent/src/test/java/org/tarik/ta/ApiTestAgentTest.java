@@ -205,6 +205,8 @@ class ApiTestAgentTest {
                                         .thenReturn(mockStepActionAgentBuilder);
                         when(mockStepActionAgentBuilder.toolExecutionErrorHandler(any()))
                                         .thenReturn(mockStepActionAgentBuilder);
+                        when(mockStepActionAgentBuilder.maxSequentialToolsInvocations(anyInt()))
+                                        .thenReturn(mockStepActionAgentBuilder);
                         when(mockStepActionAgentBuilder.build()).thenReturn(mockStepActionAgent);
                         when(mockStepActionAgent.executeWithRetry(any())).thenReturn(actionResult);
 
@@ -218,6 +220,8 @@ class ApiTestAgentTest {
                         when(mockStepVerificationAgentBuilder.tools(any(Object[].class)))
                                         .thenReturn(mockStepVerificationAgentBuilder);
                         when(mockStepVerificationAgentBuilder.toolExecutionErrorHandler(any()))
+                                        .thenReturn(mockStepVerificationAgentBuilder);
+                        when(mockStepVerificationAgentBuilder.maxSequentialToolsInvocations(anyInt()))
                                         .thenReturn(mockStepVerificationAgentBuilder);
                         when(mockStepVerificationAgentBuilder.build()).thenReturn(mockStepVerificationAgent);
                         when(mockStepVerificationAgent.executeWithRetry(any(), any())).thenReturn(verificationResult);

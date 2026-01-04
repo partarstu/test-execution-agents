@@ -69,7 +69,10 @@ class AbstractAgentExecutorTest {
                 null);
         executor.setResultToReturn(result);
 
-        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
+        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class,
+                (mock, context) -> {
+                    when(mock.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
+                })) {
             executor.execute(requestContext, eventQueue);
 
             TaskUpdater updater = mockedUpdater.constructed().get(0);
@@ -99,7 +102,10 @@ class AbstractAgentExecutorTest {
                 null);
         executor.setResultToReturn(result);
 
-        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
+        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class,
+                (mock, context) -> {
+                    when(mock.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
+                })) {
             executor.execute(requestContext, eventQueue);
 
             TaskUpdater updater = mockedUpdater.constructed().get(0);

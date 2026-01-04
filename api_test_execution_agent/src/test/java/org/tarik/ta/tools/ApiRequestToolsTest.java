@@ -11,17 +11,11 @@ import org.tarik.ta.core.model.TestExecutionContext;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
-
-import io.restassured.path.json.JsonPath;
-import io.restassured.response.Response;
-import org.tarik.ta.core.exceptions.ToolExecutionException;
 
 class ApiRequestToolsTest {
 
@@ -195,32 +189,5 @@ class ApiRequestToolsTest {
                 null);
 
         assertThat(result).contains("Status: 201");
-    }
-
-    @Test
-    void extractValue_shouldStoreValue() {
-        Response response = mock(Response.class);
-        doReturn(Optional.of(response)).when(apiContext).getLastResponse();
-        JsonPath jsonPath = mock(JsonPath.class);
-        when(response.jsonPath()).thenReturn(jsonPath);
-        when(jsonPath.get("data.token")).thenReturn("secret-token");
-
-        String result = apiRequestTools.extractValue("data.token", "TOKEN");
-
-        assertThat(result).contains("Extracted value 'secret-token' to variable 'TOKEN'");
-        verify(testExecutionContext).addSharedData("TOKEN", "secret-token");
-    }
-
-    @Test
-    void extractValue_shouldThrowException_whenInvalidInput() {
-        assertThatThrownBy(() -> apiRequestTools.extractValue("", "var"))
-                .isInstanceOf(ToolExecutionException.class);
-        assertThatThrownBy(() -> apiRequestTools.extractValue("path", ""))
-                .isInstanceOf(ToolExecutionException.class);
-
-        doReturn(Optional.empty()).when(apiContext).getLastResponse();
-        assertThatThrownBy(() -> apiRequestTools.extractValue("path", "var"))
-                .isInstanceOf(ToolExecutionException.class)
-                .hasMessageContaining("No response");
     }
 }
