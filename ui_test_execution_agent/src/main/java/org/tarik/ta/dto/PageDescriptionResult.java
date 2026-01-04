@@ -27,7 +27,7 @@ import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 @Description("the results of the description of the screen relative to the target UI element")
 public record PageDescriptionResult(
         @Description("the description itself") String pageDescription)
-        implements FinalResult<PageDescriptionResult> {
+        implements FinalResult {
     private static final Logger LOG = LoggerFactory.getLogger(PageDescriptionResult.class);
 
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)

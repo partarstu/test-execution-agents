@@ -40,7 +40,7 @@ public record UiElementDescriptionResult(
         String locationDescription,
         @Description("Name or very short description of the direct parent (enclosing) element (e.g. page/form/dialog/popup/view " +
                 "etc.) in which the target element is located.")
-        String pageSummary) implements FinalResult<UiElementDescriptionResult> {
+        String pageSummary) implements FinalResult {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementDescriptionResult.class);
 
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)

@@ -67,12 +67,11 @@ class ApiManualTest {
         // Step 2: Create Pet (POST /pet)
         steps.add(new TestStep("Create a new pet by sending a POST request to '/pet'. Use the first item from the " +
                 "loaded pet list items as the body. Set 'Content-Type' header to 'application/json'.",
-                List.of("${petList}"),
+                List.of(),
                 "Request is sent. Status: 200."));
 
         // Step 3: Extract ID
-        steps.add(new TestStep("Store the value of the ID from the previous response JSON into the test context under the " +
-                "variable 'petId'.",
+        steps.add(new TestStep("Store the ID of the created pet into the test context under the variable 'petId'.",
                 List.of(),
                 "Variable successfully stored in the test context."));
 

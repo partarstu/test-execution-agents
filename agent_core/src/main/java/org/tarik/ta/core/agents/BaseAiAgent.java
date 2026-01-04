@@ -25,7 +25,7 @@ import org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus;
 import static java.time.Instant.now;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
 
-public interface BaseAiAgent<T extends FinalResult<T>> extends GenericAiAgent<T, AgentExecutionResult<T>> {
+public interface BaseAiAgent<T extends FinalResult> extends GenericAiAgent<T, AgentExecutionResult<T>> {
     Logger LOG = LoggerFactory.getLogger(BaseAiAgent.class);
 
     @Override

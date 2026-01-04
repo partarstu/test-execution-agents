@@ -37,7 +37,7 @@ public record UiElementIdentificationResult(
                 "\"true\", this field should have your comments clarifying why a specific bounding box was identified comparing to " +
                 "others. If the value of \"success\" field is \"false\", this field should have your comments " +
                 "clarifying why you found no good match at all.")
-        String message) implements FinalResult<UiElementIdentificationResult> {
+        String message) implements FinalResult {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementIdentificationResult.class);
 
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)

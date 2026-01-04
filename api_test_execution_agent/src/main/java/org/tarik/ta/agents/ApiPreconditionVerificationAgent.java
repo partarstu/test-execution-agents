@@ -41,21 +41,19 @@ public interface ApiPreconditionVerificationAgent extends BaseAiAgent<Verificati
     RetryPolicy RETRY_POLICY = getVerificationRetryPolicy();
 
     @UserMessage("""
-            Verify that the following API precondition was executed successfully: {{precondition}}
+            Precondition: '{{precondition}}'
             
-            The precondition action that was executed: {{actionDescription}}
+            Precondition execution result: {{preconditionExecutionResult}}
             
             Last API response information:
             - Status Code: {{lastResponseStatus}}
             - Response Body: {{lastResponseBody}}
             
-            Test context execution data: {{sharedData}}
-            
-            Determine if the precondition was successful based on the API response and context state.
+            Test context execution data: {{sharedData}}.
             """)
     Result<String> verify(
             @V("precondition") String precondition,
-            @V("actionDescription") String actionDescription,
+            @V("preconditionExecutionResult") String preconditionExecutionResult,
             @V("lastResponseStatus") String lastResponseStatus,
             @V("lastResponseBody") String lastResponseBody,
             @V("sharedData") String sharedData);

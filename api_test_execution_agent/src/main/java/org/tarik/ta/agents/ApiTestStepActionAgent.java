@@ -50,11 +50,11 @@ public interface ApiTestStepActionAgent extends BaseAiAgent<EmptyExecutionResult
     }
 
     @UserMessage("""
-            Execute the following API test step: {{testStep}}
+            Test step action: {{testStep}}
             
             Data related to the test step: {{testData}}
             
-            Test context execution data: {{sharedData}}
+            Test context data: {{sharedData}}
             """)
     Result<String> execute(
             @V("testStep") String testStep,

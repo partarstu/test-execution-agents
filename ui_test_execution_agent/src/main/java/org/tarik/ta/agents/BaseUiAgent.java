@@ -30,7 +30,7 @@ import java.awt.image.BufferedImage;
 import static java.time.Instant.now;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
 
-public interface BaseUiAgent<T extends FinalResult<T>> extends GenericAiAgent<T, UiAgentExecutionResult<T>> {
+public interface BaseUiAgent<T extends FinalResult> extends GenericAiAgent<T, UiAgentExecutionResult<T>> {
     Logger LOG = LoggerFactory.getLogger(BaseUiAgent.class);
 
     default BufferedImage captureErrorScreenshot() {

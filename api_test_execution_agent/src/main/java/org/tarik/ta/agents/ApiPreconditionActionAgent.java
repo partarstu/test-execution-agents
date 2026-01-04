@@ -18,7 +18,6 @@ package org.tarik.ta.agents;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.agents.BaseAiAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
