@@ -231,7 +231,7 @@ public class UiTestAgentConfig extends AgentConfig {
 
     // UI Element Description Agent
     private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME = loadProperty(
-            "ui.element.description.agent.model.name", "UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME", "gemini-2.5-flash",
+            "ui.element.description.agent.model.name", "UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME", "gemini-3-flash-preview",
             s -> s, false);
 
     public static String getUiElementDescriptionAgentModelName() {
@@ -256,7 +256,7 @@ public class UiTestAgentConfig extends AgentConfig {
 
     // UI State Check Agent
     private static final ConfigProperty<String> UI_STATE_CHECK_AGENT_MODEL_NAME = loadProperty(
-            "ui.state.check.agent.model.name", "UI_STATE_CHECK_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
+            "ui.state.check.agent.model.name", "UI_STATE_CHECK_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
 
     public static String getUiStateCheckAgentModelName() {
         return UI_STATE_CHECK_AGENT_MODEL_NAME.value();
@@ -279,7 +279,7 @@ public class UiTestAgentConfig extends AgentConfig {
 
     // Element Bounding Box Agent
     private static final ConfigProperty<String> ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME = loadProperty(
-            "element.bounding.box.agent.model.name", "ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME", "gemini-2.5-flash",
+            "element.bounding.box.agent.model.name", "ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME", "gemini-3-flash-preview",
             s -> s, false);
 
     public static String getElementBoundingBoxAgentModelName() {
@@ -304,7 +304,7 @@ public class UiTestAgentConfig extends AgentConfig {
 
     // Element Selection Agent
     private static final ConfigProperty<String> ELEMENT_SELECTION_AGENT_MODEL_NAME = loadProperty(
-            "element.selection.agent.model.name", "ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s,
+            "element.selection.agent.model.name", "ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s,
             false);
 
     public static String getElementSelectionAgentModelName() {
@@ -329,7 +329,7 @@ public class UiTestAgentConfig extends AgentConfig {
 
     // Page Description Agent
     private static final ConfigProperty<String> PAGE_DESCRIPTION_AGENT_MODEL_NAME = loadProperty(
-            "page.description.agent.model.name", "PAGE_DESCRIPTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s,
+            "page.description.agent.model.name", "PAGE_DESCRIPTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s,
             false);
 
     public static String getPageDescriptionAgentModelName() {

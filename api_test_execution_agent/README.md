@@ -68,7 +68,7 @@ Executes precondition setup operations like creating test data, obtaining tokens
 
 | Property | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
-| `api.precondition.action.agent.model.name` | `API_PRECONDITION_ACTION_AGENT_MODEL_NAME` | `gemini-2.5-flash` | Model name |
+| `api.precondition.action.agent.model.name` | `API_PRECONDITION_ACTION_AGENT_MODEL_NAME` | `gemini-3-flash-preview` | Model name |
 | `api.precondition.action.agent.model.provider` | `API_PRECONDITION_ACTION_AGENT_MODEL_PROVIDER` | `google` | Model provider |
 | `api.precondition.action.agent.prompt.version` | `API_PRECONDITION_ACTION_AGENT_PROMPT_VERSION` | `v1.0.0` | Prompt version |
 
@@ -77,7 +77,7 @@ Verifies that precondition setup operations completed successfully.
 
 | Property | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
-| `api.precondition.verification.agent.model.name` | `API_PRECONDITION_VERIFICATION_AGENT_MODEL_NAME` | `gemini-2.5-flash` | Model name |
+| `api.precondition.verification.agent.model.name` | `API_PRECONDITION_VERIFICATION_AGENT_MODEL_NAME` | `gemini-3-flash-preview` | Model name |
 | `api.precondition.verification.agent.model.provider` | `API_PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER` | `google` | Model provider |
 | `api.precondition.verification.agent.prompt.version` | `API_PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION` | `v1.0.0` | Prompt version |
 
@@ -86,7 +86,7 @@ Executes individual API test steps including HTTP requests and data handling.
 
 | Property | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
-| `api.test.step.action.agent.model.name` | `API_TEST_STEP_ACTION_AGENT_MODEL_NAME` | `gemini-2.5-flash` | Model name |
+| `api.test.step.action.agent.model.name` | `API_TEST_STEP_ACTION_AGENT_MODEL_NAME` | `gemini-3-flash-preview` | Model name |
 | `api.test.step.action.agent.model.provider` | `API_TEST_STEP_ACTION_AGENT_MODEL_PROVIDER` | `google` | Model provider |
 | `api.test.step.action.agent.prompt.version` | `API_TEST_STEP_ACTION_AGENT_PROMPT_VERSION` | `v1.0.0` | Prompt version |
 
@@ -95,7 +95,7 @@ Verifies test step expected results against actual API responses.
 
 | Property | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
-| `api.test.step.verification.agent.model.name` | `API_TEST_STEP_VERIFICATION_AGENT_MODEL_NAME` | `gemini-2.5-flash` | Model name |
+| `api.test.step.verification.agent.model.name` | `API_TEST_STEP_VERIFICATION_AGENT_MODEL_NAME` | `gemini-3-flash-preview` | Model name |
 | `api.test.step.verification.agent.model.provider` | `API_TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER` | `google` | Model provider |
 | `api.test.step.verification.agent.prompt.version` | `API_TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION` | `v1.0.0` | Prompt version |
 

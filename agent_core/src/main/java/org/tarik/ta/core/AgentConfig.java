@@ -353,7 +353,7 @@ public class AgentConfig {
 
     // Precondition Agent
     private static final ConfigProperty<String> PRECONDITION_AGENT_MODEL_NAME = loadProperty(
-            "precondition.agent.model.name", "PRECONDITION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s, false);
+            "precondition.agent.model.name", "PRECONDITION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
 
     public static String getPreconditionActionAgentModelName() {
         return PRECONDITION_AGENT_MODEL_NAME.value();
@@ -377,7 +377,7 @@ public class AgentConfig {
     // Precondition Verification Agent
     private static final ConfigProperty<String> PRECONDITION_VERIFICATION_AGENT_MODEL_NAME = loadProperty(
             "precondition.verification.agent.model.name", "PRECONDITION_VERIFICATION_AGENT_MODEL_NAME",
-            "gemini-2.5-flash", s -> s, false);
+            "gemini-3-flash-preview", s -> s, false);
 
     public static String getPreconditionVerificationAgentModelName() {
         return PRECONDITION_VERIFICATION_AGENT_MODEL_NAME.value();
@@ -401,7 +401,7 @@ public class AgentConfig {
 
     // Test Step Action Agent
     private static final ConfigProperty<String> TEST_STEP_ACTION_AGENT_MODEL_NAME = loadProperty(
-            "test.step.action.agent.model.name", "TEST_STEP_ACTION_AGENT_MODEL_NAME", "gemini-2.5-flash", s -> s,
+            "test.step.action.agent.model.name", "TEST_STEP_ACTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s,
             false);
 
     public static String getTestStepActionAgentModelName() {
@@ -425,7 +425,7 @@ public class AgentConfig {
 
     // Test Step Verification Agent
     private static final ConfigProperty<String> TEST_STEP_VERIFICATION_AGENT_MODEL_NAME = loadProperty(
-            "test.step.verification.agent.model.name", "TEST_STEP_VERIFICATION_AGENT_MODEL_NAME", "gemini-2.5-flash",
+            "test.step.verification.agent.model.name", "TEST_STEP_VERIFICATION_AGENT_MODEL_NAME", "gemini-3-flash-preview",
             s -> s, false);
 
     public static String getTestStepVerificationAgentModelName() {
@@ -450,7 +450,7 @@ public class AgentConfig {
 
     // Test Case Extraction Agent
     private static final ConfigProperty<String> TEST_CASE_EXTRACTION_AGENT_MODEL_NAME = loadProperty(
-            "test.case.extraction.agent.model.name", "TEST_CASE_EXTRACTION_AGENT_MODEL_NAME", "gemini-2.5-flash",
+            "test.case.extraction.agent.model.name", "TEST_CASE_EXTRACTION_AGENT_MODEL_NAME", "gemini-3-flash-preview",
             s -> s, false);
 
     public static String getTestCaseExtractionAgentModelName() {
