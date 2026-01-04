@@ -72,30 +72,6 @@ public class ApiAssertionTools extends org.tarik.ta.core.tools.AbstractTools {
         }
     }
 
-    @Tool("Extracts a value from the last response using JSON path and stores it in a context variable.")
-    public String extractValue(@P("JSON path expression") String jsonPath,
-            @P("Variable name to store value") String variableName) {
-        if (isBlank(jsonPath)) {
-            throw new ToolExecutionException("JSON path cannot be null or empty", TRANSIENT_TOOL_ERROR);
-        }
-        if (isBlank(variableName)) {
-            throw new ToolExecutionException("Variable name cannot be null or empty", TRANSIENT_TOOL_ERROR);
-        }
-
-        Optional<Response> responseOpt = apiContext.getLastResponse();
-        if (responseOpt.isEmpty()) {
-            throw new ToolExecutionException("No response available.", TRANSIENT_TOOL_ERROR);
-        }
-
-        try {
-            Object value = responseOpt.get().jsonPath().get(jsonPath);
-            testExecutionContext.addSharedData(variableName, value);
-            return "Extracted value '" + value + "' to variable '" + variableName + "'";
-        } catch (Exception e) {
-            throw rethrowAsToolException(e, "extracting value from JSON path " + jsonPath);
-        }
-    }
-
     @Tool("Validates the last response body against a JSON Schema file.")
     public String validateSchema(@P("Path to the JSON schema file") String schemaPath) {
         if (isBlank(schemaPath)) {

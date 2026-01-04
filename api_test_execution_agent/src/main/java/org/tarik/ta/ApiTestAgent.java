@@ -23,7 +23,6 @@ import org.tarik.ta.agents.ApiPreconditionVerificationAgent;
 import org.tarik.ta.agents.ApiTestStepActionAgent;
 import org.tarik.ta.agents.ApiTestStepVerificationAgent;
 import org.tarik.ta.context.ApiContext;
-import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestCase;
@@ -42,23 +41,20 @@ import org.tarik.ta.tools.ApiRequestTools;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 import static dev.langchain4j.service.AiServices.builder;
 import static java.time.Instant.now;
-import static java.util.Optional.empty;
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 import static org.tarik.ta.core.AgentConfig.*;
+import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.FAILED;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
-import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
-import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
+import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.*;
 import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
-import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
+import static org.tarik.ta.core.utils.TestCaseExtractor.extractTestCase;
 
 public class ApiTestAgent {
         private static final Logger LOG = LoggerFactory.getLogger(ApiTestAgent.class);
@@ -67,13 +63,11 @@ public class ApiTestAgent {
                 BudgetManager.reset();
                 TestCase testCase = extractTestCase(receivedMessage).orElse(null);
                 if (testCase == null) {
-                        return new TestExecutionResult("Unknown", TestExecutionResult.TestExecutionStatus.ERROR,
-                                        List.of(), List.of(), now(), now(),
+                        return new TestExecutionResult("Unknown", ERROR, List.of(), List.of(), now(), now(),
                                         "Could not extract test case", null, null);
                 }
 
                 LOG.info("Starting execution of the API test case '{}'", testCase.name());
-
                 try {
                         var testExecutionStartTimestamp = now();
                         var apiContext = ApiContext.createFromConfig();
@@ -123,8 +117,7 @@ public class ApiTestAgent {
                         var preconditionActionAgent = getApiPreconditionActionAgent(requestTools, assertionTools,
                                         dataTools, new RetryState());
                         var preconditionVerificationAgent = getApiPreconditionVerificationAgent(apiContext,
-                                        executionContext,
-                                        new RetryState());
+                                        executionContext, new RetryState());
                         LOG.info("Executing and verifying preconditions for test case: {}",
                                         executionContext.getTestCase().name());
                         for (String precondition : preconditions) {
@@ -137,7 +130,8 @@ public class ApiTestAgent {
 
                                 if (!preconditionExecutionResult.isSuccess()) {
                                         var errorMessage = "Failure while executing precondition '%s'. Root cause: %s"
-                                                        .formatted(precondition,
+                                                        .formatted(
+                                                                        precondition,
                                                                         preconditionExecutionResult.getMessage());
                                         executionContext.addPreconditionResult(
                                                         new PreconditionResult(precondition, false, errorMessage,
@@ -157,7 +151,8 @@ public class ApiTestAgent {
                                                                 () -> preconditionVerificationAgent.verify(precondition,
                                                                                 preconditionExecutionResult
                                                                                                 .getMessage(),
-                                                                                lastResponseStatus, lastResponseBody,
+                                                                                lastResponseStatus,
+                                                                                lastResponseBody,
                                                                                 executionContext.getSharedData()
                                                                                                 .toString()),
                                                                 r -> r == null || !r.success());
@@ -165,7 +160,8 @@ public class ApiTestAgent {
 
                                 if (!verificationExecutionResult.isSuccess()) {
                                         var errorMessage = "Error while verifying precondition '%s'. Root cause: %s"
-                                                        .formatted(precondition,
+                                                        .formatted(
+                                                                        precondition,
                                                                         verificationExecutionResult.getMessage());
                                         executionContext.addPreconditionResult(
                                                         new PreconditionResult(precondition, false, errorMessage,
@@ -198,8 +194,8 @@ public class ApiTestAgent {
         }
 
         private static void executeTestSteps(TestExecutionContext executionContext, ApiContext apiContext,
-                        ApiRequestTools requestTools,
-                        ApiAssertionTools assertionTools, TestContextDataTools dataTools) {
+                        ApiRequestTools requestTools, ApiAssertionTools assertionTools,
+                        TestContextDataTools dataTools) {
                 var testStepActionAgent = getApiTestStepActionAgent(requestTools, assertionTools, dataTools,
                                 new RetryState());
                 var testStepVerificationAgent = getApiTestStepVerificationAgent(apiContext, executionContext,
@@ -212,17 +208,15 @@ public class ApiTestAgent {
                         try {
                                 var executionStartTimestamp = now();
                                 LOG.info("Executing test step: {}", actionInstruction);
-
-                                var actionResult = testStepActionAgent.executeWithRetry(() -> {
-                                        testStepActionAgent.execute(actionInstruction, testData,
-                                                        executionContext.getSharedData().toString());
-                                        return null;
-                                });
+                                var actionResult = testStepActionAgent
+                                                .executeWithRetry(() -> testStepActionAgent.execute(actionInstruction,
+                                                                testData, executionContext.getSharedData().toString()));
                                 resetToolCallUsage();
 
                                 if (!actionResult.isSuccess()) {
                                         var errorMessage = "Error while executing action '%s'. Root cause: %s"
-                                                        .formatted(actionInstruction, actionResult.getMessage());
+                                                        .formatted(
+                                                                        actionInstruction, actionResult.getMessage());
                                         addFailedTestStep(executionContext, testStep, errorMessage, null,
                                                         executionStartTimestamp, now(),
                                                         TestStepResultStatus.ERROR);
@@ -240,7 +234,6 @@ public class ApiTestAgent {
                                         var lastResponseHeaders = apiContext.getLastResponse()
                                                         .map(r -> r.getHeaders().toString())
                                                         .orElse("");
-
                                         LOG.info("Executing verification of: '{}'", verificationInstruction);
                                         var verificationExecutionResult = testStepVerificationAgent.executeWithRetry(
                                                         () -> testStepVerificationAgent.verify(verificationInstruction,
@@ -252,7 +245,8 @@ public class ApiTestAgent {
 
                                         if (!verificationExecutionResult.isSuccess()) {
                                                 var errorMessage = "Failure while verifying test step '%s'. Root cause: %s"
-                                                                .formatted(actionInstruction,
+                                                                .formatted(
+                                                                                actionInstruction,
                                                                                 verificationExecutionResult
                                                                                                 .getMessage());
                                                 addFailedTestStep(executionContext, testStep, errorMessage, null,
@@ -277,10 +271,9 @@ public class ApiTestAgent {
                                                         new TestStepResult(testStep, SUCCESS, null, actualResult,
                                                                         executionStartTimestamp, now()));
                                 } else {
-                                        executionContext.addStepResult(
-                                                        new TestStepResult(testStep, SUCCESS, null,
-                                                                        "No verification required",
-                                                                        executionStartTimestamp, now()));
+                                        executionContext.addStepResult(new TestStepResult(testStep, SUCCESS, null,
+                                                        "No verification required",
+                                                        executionStartTimestamp, now()));
                                 }
                         } catch (Exception e) {
                                 LOG.error("Unexpected error while executing the test step: '{}'",
@@ -290,40 +283,6 @@ public class ApiTestAgent {
                                 return;
                         }
                 }
-        }
-
-        public static Optional<TestCase> extractTestCase(String message) {
-                LOG.info("Attempting to extract TestCase instance from user message using AI model.");
-                if (isBlank(message)) {
-                        LOG.error("User message is blank, cannot extract a TestCase.");
-                        return empty();
-                }
-
-                try {
-                        var agent = getTestCaseExtractionAgent();
-                        TestCase extractedTestCase = agent.executeAndGetResult(() -> agent.extractTestCase(message))
-                                        .getResultPayload();
-                        if (isTestCaseInvalid(extractedTestCase)) {
-                                LOG.warn("Model could not extract a valid TestCase from the provided user message, original message: {}",
-                                                message);
-                                return empty();
-                        } else {
-                                LOG.info("Successfully extracted TestCase: '{}'", extractedTestCase.name());
-                                return of(extractedTestCase);
-                        }
-                } catch (Exception e) {
-                        LOG.error("Failed to extract test case from message", e);
-                        return empty();
-                }
-        }
-
-        private static boolean isTestCaseInvalid(TestCase extractedTestCase) {
-                return extractedTestCase == null
-                                || isBlank(extractedTestCase.name())
-                                || extractedTestCase.testSteps() == null
-                                || extractedTestCase.testSteps().isEmpty()
-                                || extractedTestCase.testSteps().stream()
-                                                .anyMatch(step -> isBlank(step.stepDescription()));
         }
 
         private static boolean hasPreconditionFailures(TestExecutionContext context) {
@@ -341,18 +300,17 @@ public class ApiTestAgent {
                 LOG.error(errorMessage);
                 return new TestExecutionResult(context.getTestCase().name(), FAILED,
                                 context.getPreconditionExecutionHistory(),
-                                context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(),
-                                errorMessage, null, null);
+                                context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), errorMessage,
+                                null, null);
         }
 
         @NotNull
         private static TestExecutionResult getTestExecutionResultWithError(TestExecutionContext context,
                         Instant testExecutionStartTimestamp, String errorMessage) {
                 LOG.error(errorMessage);
-                return new TestExecutionResult(context.getTestCase().name(),
-                                TestExecutionResult.TestExecutionStatus.ERROR,
-                                context.getPreconditionExecutionHistory(),
-                                context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(),
+                return new TestExecutionResult(context.getTestCase().name(), ERROR,
+                                context.getPreconditionExecutionHistory(), context.getTestStepExecutionHistory(),
+                                testExecutionStartTimestamp, now(),
                                 errorMessage, null, null);
         }
 
@@ -362,17 +320,6 @@ public class ApiTestAgent {
                 context.addStepResult(
                                 new TestStepResult(testStep, status, errorMessage, actualResult,
                                                 executionStartTimestamp, executionEndTimestamp));
-        }
-
-        private static TestCaseExtractionAgent getTestCaseExtractionAgent() {
-                var model = getModel(getTestCaseExtractionAgentModelName(), getTestCaseExtractionAgentModelProvider());
-                var prompt = loadSystemPrompt("test_case_extractor", getTestCaseExtractionAgentPromptVersion(),
-                                "test_case_extraction_prompt.txt");
-                return builder(TestCaseExtractionAgent.class)
-                                .chatModel(model.chatModel())
-                                .systemMessageProvider(_ -> prompt)
-                                .tools(new TestCase("", List.of(), List.of()))
-                                .build();
         }
 
         private static ApiTestStepActionAgent getApiTestStepActionAgent(ApiRequestTools requestTools,
@@ -388,6 +335,7 @@ public class ApiTestAgent {
                                 .tools(requestTools, assertionTools, dataTools, new EmptyExecutionResult())
                                 .toolExecutionErrorHandler(new DefaultErrorHandler(ApiTestStepActionAgent.RETRY_POLICY,
                                                 retryState))
+                                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
                                 .build();
         }
 
@@ -398,13 +346,13 @@ public class ApiTestAgent {
                 var model = getModel(getPreconditionActionAgentModelName(), getPreconditionActionAgentModelProvider());
                 var prompt = loadSystemPrompt("api_precondition_action", getPreconditionAgentPromptVersion(),
                                 "api_precondition_action_prompt.txt");
-
                 return builder(ApiPreconditionActionAgent.class)
                                 .chatModel(model.chatModel())
                                 .systemMessageProvider(_ -> prompt)
                                 .tools(requestTools, assertionTools, dataTools, new EmptyExecutionResult())
                                 .toolExecutionErrorHandler(new DefaultErrorHandler(
                                                 ApiPreconditionActionAgent.RETRY_POLICY, retryState))
+                                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
                                 .build();
         }
 
@@ -416,7 +364,6 @@ public class ApiTestAgent {
                 var prompt = loadSystemPrompt("api_precondition_verification",
                                 getPreconditionVerificationAgentPromptVersion(),
                                 "api_precondition_verification_prompt.txt");
-
                 return builder(ApiPreconditionVerificationAgent.class)
                                 .chatModel(model.chatModel())
                                 .systemMessageProvider(_ -> prompt)
@@ -424,6 +371,7 @@ public class ApiTestAgent {
                                                 new VerificationExecutionResult(false, ""))
                                 .toolExecutionErrorHandler(new DefaultErrorHandler(
                                                 ApiPreconditionVerificationAgent.RETRY_POLICY, retryState))
+                                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
                                 .build();
         }
 
@@ -434,7 +382,6 @@ public class ApiTestAgent {
                                 getTestStepVerificationAgentModelProvider());
                 var prompt = loadSystemPrompt("api_test_step_verification", getTestStepVerificationAgentPromptVersion(),
                                 "api_test_step_verification_prompt.txt");
-
                 return builder(ApiTestStepVerificationAgent.class)
                                 .chatModel(model.chatModel())
                                 .systemMessageProvider(_ -> prompt)
@@ -442,6 +389,7 @@ public class ApiTestAgent {
                                                 new VerificationExecutionResult(false, ""))
                                 .toolExecutionErrorHandler(new DefaultErrorHandler(
                                                 ApiTestStepVerificationAgent.RETRY_POLICY, retryState))
+                                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
                                 .build();
         }
 }

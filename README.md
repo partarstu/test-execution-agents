@@ -27,6 +27,7 @@ D:\Projects\test-execution-agents\
 ### Module Overview
 
 *   **`agent_core`**: A shared library module containing the core framework logic, data transfer objects (DTOs), base agent classes, budget management, and generic utilities. This module is designed to be reused by different types of test execution agents.
+    *   **`TestCaseExtractor`**: A utility class (`org.tarik.ta.core.utils.TestCaseExtractor`) that provides shared test case extraction functionality using an AI model. Both UI and API agents use this class to parse test case information from incoming messages.
 *   **`ui_test_execution_agent`**: The executable application module that implements the specific logic for UI testing. It includes the server, UI-specific agents (e.g., for visual grounding, element interaction), computer vision capabilities (using OpenCV), and tools for mouse/keyboard control. Deployed as a **GCE VM** with VNC access.
 *   **`api_test_execution_agent`**: The executable application module that implements the specific logic for API testing. It includes REST request execution, authentication handling, assertions, and data-driven testing capabilities. Deployed as a **Cloud Run** service.
 

@@ -96,4 +96,12 @@ public class TestContextDataTools extends AbstractTools {
             throw rethrowAsToolException(e, "loading CSV data from " + filePath);
         }
     }
+
+    @Tool("Stores a new variable into a test context.")
+    public String storeVariableIntoContext(
+            @P("Variable name to store") String variableName,
+            @P("Value for the variable to store") String variableValue) {
+        context.addSharedData(variableName, variableValue);
+        return "Added variable '%s' with value '%s' to the test context.".formatted(variableName, variableValue);
+    }
 }

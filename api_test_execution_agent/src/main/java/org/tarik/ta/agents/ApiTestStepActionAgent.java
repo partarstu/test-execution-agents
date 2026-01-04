@@ -23,6 +23,8 @@ import org.tarik.ta.core.agents.BaseAiAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
+import static org.tarik.ta.core.AgentConfig.getActionRetryPolicy;
+
 /**
  * Agent responsible for executing API test step actions.
  * <p>
@@ -35,8 +37,7 @@ import org.tarik.ta.core.error.RetryPolicy;
  * </ul>
  */
 public interface ApiTestStepActionAgent extends BaseAiAgent<EmptyExecutionResult> {
-
-    RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
+    RetryPolicy RETRY_POLICY = getActionRetryPolicy();
 
     @Override
     default String getAgentTaskDescription() {
@@ -50,9 +51,9 @@ public interface ApiTestStepActionAgent extends BaseAiAgent<EmptyExecutionResult
 
     @UserMessage("""
             Execute the following API test step: {{testStep}}
-
+            
             Data related to the test step: {{testData}}
-
+            
             Test context execution data: {{sharedData}}
             """)
     Result<String> execute(

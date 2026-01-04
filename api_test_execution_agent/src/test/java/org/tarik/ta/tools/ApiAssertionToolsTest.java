@@ -69,7 +69,7 @@ class ApiAssertionToolsTest {
                 .isInstanceOf(ToolExecutionException.class)
                 .hasMessageContaining("No response available");
     }
-    
+
     @Test
     void assertJsonPath_shouldPass_whenValueMatches() {
         when(apiContext.getLastResponse()).thenReturn(Optional.of(response));
@@ -78,7 +78,7 @@ class ApiAssertionToolsTest {
         when(jsonPath.getString("data.id")).thenReturn("123");
 
         String result = tools.assertJsonPath("data.id", "123");
-        
+
         assertThat(result).contains("Assertion passed");
     }
 
@@ -90,35 +90,9 @@ class ApiAssertionToolsTest {
         when(jsonPath.getString("data.id")).thenReturn("456");
 
         String result = tools.assertJsonPath("data.id", "123");
-        
+
         assertThat(result).contains("Assertion failed");
         assertThat(result).contains("expected '123' but was '456'");
-    }
-
-    @Test
-    void extractValue_shouldStoreValue() {
-        when(apiContext.getLastResponse()).thenReturn(Optional.of(response));
-        JsonPath jsonPath = mock(JsonPath.class);
-        when(response.jsonPath()).thenReturn(jsonPath);
-        when(jsonPath.get("data.token")).thenReturn("secret-token");
-
-        String result = tools.extractValue("data.token", "TOKEN");
-
-        assertThat(result).contains("Extracted value 'secret-token' to variable 'TOKEN'");
-        verify(testExecutionContext).addSharedData("TOKEN", "secret-token");
-    }
-
-    @Test
-    void extractValue_shouldThrowException_whenInvalidInput() {
-        assertThatThrownBy(() -> tools.extractValue("", "var"))
-                .isInstanceOf(ToolExecutionException.class);
-        assertThatThrownBy(() -> tools.extractValue("path", ""))
-                .isInstanceOf(ToolExecutionException.class);
-        
-        when(apiContext.getLastResponse()).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> tools.extractValue("path", "var"))
-                .isInstanceOf(ToolExecutionException.class)
-                .hasMessageContaining("No response");
     }
 
     @Test
@@ -127,7 +101,7 @@ class ApiAssertionToolsTest {
                 .isInstanceOf(ToolExecutionException.class);
         assertThatThrownBy(() -> tools.assertJsonPath("path", ""))
                 .isInstanceOf(ToolExecutionException.class);
-        
+
         when(apiContext.getLastResponse()).thenReturn(Optional.empty());
         assertThatThrownBy(() -> tools.assertJsonPath("path", "val"))
                 .isInstanceOf(ToolExecutionException.class)
@@ -138,7 +112,7 @@ class ApiAssertionToolsTest {
     void validateSchema_shouldThrowException_whenInvalidInput() {
         assertThatThrownBy(() -> tools.validateSchema(""))
                 .isInstanceOf(ToolExecutionException.class);
-        
+
         when(apiContext.getLastResponse()).thenReturn(Optional.empty());
         assertThatThrownBy(() -> tools.validateSchema("schema.json"))
                 .isInstanceOf(ToolExecutionException.class)
@@ -146,22 +120,24 @@ class ApiAssertionToolsTest {
     }
 
     @Test
-    void validateSchema_shouldPass_whenSchemaMatches(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) throws java.io.IOException {
+    void validateSchema_shouldPass_whenSchemaMatches(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir)
+            throws java.io.IOException {
         when(apiContext.getLastResponse()).thenReturn(Optional.of(response));
         when(response.then()).thenReturn(validatableResponse);
-        
+
         // Create a simple schema file
         java.io.File schemaFile = tempDir.resolve("schema.json").toFile();
         java.nio.file.Files.writeString(schemaFile.toPath(), "{\"type\":\"object\"}");
-        
+
         String result = tools.validateSchema(schemaFile.getAbsolutePath());
-        
+
         assertThat(result).contains("Schema validation passed");
         verify(validatableResponse).body(any(org.hamcrest.Matcher.class));
     }
 
     @Test
-    void validateOpenApi_shouldPass_whenSpecMatches(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) throws java.io.IOException {
+    void validateOpenApi_shouldPass_whenSpecMatches(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir)
+            throws java.io.IOException {
         when(apiContext.getLastResponse()).thenReturn(Optional.of(response));
         when(response.statusCode()).thenReturn(200);
         when(response.getBody()).thenReturn(mock(io.restassured.response.ResponseBody.class));

@@ -23,6 +23,8 @@ import org.tarik.ta.core.agents.BaseAiAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
+import static org.tarik.ta.core.AgentConfig.getVerificationRetryPolicy;
+
 /**
  * Agent responsible for verifying API test step expected results.
  * <p>
@@ -36,8 +38,7 @@ import org.tarik.ta.core.error.RetryPolicy;
  * </ul>
  */
 public interface ApiTestStepVerificationAgent extends BaseAiAgent<VerificationExecutionResult> {
-
-    RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
+    RetryPolicy RETRY_POLICY = getVerificationRetryPolicy();
 
     @UserMessage("""
             Verify the following expected result: {{verificationDescription}}

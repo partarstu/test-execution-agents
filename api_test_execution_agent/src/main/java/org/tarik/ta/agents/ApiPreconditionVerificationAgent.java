@@ -23,6 +23,8 @@ import org.tarik.ta.core.agents.BaseAiAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
+import static org.tarik.ta.core.AgentConfig.getVerificationRetryPolicy;
+
 /**
  * Agent responsible for verifying API test case preconditions.
  * <p>
@@ -36,20 +38,19 @@ import org.tarik.ta.core.error.RetryPolicy;
  * </ul>
  */
 public interface ApiPreconditionVerificationAgent extends BaseAiAgent<VerificationExecutionResult> {
-
-    RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
+    RetryPolicy RETRY_POLICY = getVerificationRetryPolicy();
 
     @UserMessage("""
             Verify that the following API precondition was executed successfully: {{precondition}}
-
+            
             The precondition action that was executed: {{actionDescription}}
-
+            
             Last API response information:
             - Status Code: {{lastResponseStatus}}
             - Response Body: {{lastResponseBody}}
-
+            
             Test context execution data: {{sharedData}}
-
+            
             Determine if the precondition was successful based on the API response and context state.
             """)
     Result<String> verify(

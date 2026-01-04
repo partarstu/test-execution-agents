@@ -13,8 +13,8 @@ working with agentic systems.
 ### Coding guidelines and rules
 
 * You must use Java 25 for development.
-* Minimize Diff Noise - do not wrap lines that are under 140 characters, even if it improves readability. Do not reformat code segments 
-  that are not directly involved in the logic change.
+* Never reformat the code which you haven't modified!
+* Minimize Diff Noise - do not wrap lines that are under 140 characters, even if it improves readability.
 * You're working with a project which is always used in IntelliJ Idea.
 * Always use imports instead of qualified names.
 * Never concatenate strings because of parameters, always use String.formatted() for that (except logging).
