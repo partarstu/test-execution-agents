@@ -67,7 +67,7 @@ public class AgentConfig {
     private static final String CONFIG_FILE = "config.properties";
 
     // Main Config
-    private static final ConfigProperty<Integer> START_PORT = loadPropertyAsInteger("port", "PORT", "7070", false);
+    private static final ConfigProperty<Integer> START_PORT = loadPropertyAsInteger("port", "PORT", "8005", false);
     private static final ConfigProperty<String> HOST = getRequiredProperty("host", "AGENT_HOST", false);
     private static final ConfigProperty<String> EXTERNAL_URL = loadProperty("external.url", "EXTERNAL_URL",
             "http://localhost:%s".formatted(START_PORT.value()), s -> s, false);

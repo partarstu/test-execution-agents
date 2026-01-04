@@ -48,17 +48,13 @@ ENV APP_JAR_PATH=${DESTINATION_JAR_PATH}
 ENV LOG_DIR=${APP_LOG_DIR}
 ENV DEPLOYMENT_ENV="cloud"
 
-# Cloud Run expects the application to listen on PORT (default 8080)
-# The agent uses HOST and PORT environment variables from AgentConfig
-ENV HOST="0.0.0.0"
-ENV PORT="8080"
+# Cloud Run expects the application to listen on the specified port
+# The agent uses AGENT_HOST and PORT environment variables from AgentConfig
+ENV AGENT_HOST="0.0.0.0"
+ENV PORT="8005"
 
 # Expose the port
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/.well-known/agent-card.json || exit 1
+EXPOSE 8005
 
 # Run the application
 # Using exec form to ensure proper signal handling for graceful shutdown

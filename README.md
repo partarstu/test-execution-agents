@@ -140,8 +140,10 @@ To customize deployment parameters, you can override substitutions:
 
 ```bash
 gcloud builds submit --config=cloudbuild.yaml \
-  --substitutions=_IMAGE_TAG=v1.0.0,_API_AGENT_MIN_INSTANCES=1
+  --substitutions=_IMAGE_TAG=v1.0.0,_API_AGENT_EXTERNAL_URL=https://your-actual-cloudrun-url.run.app
 ```
+
+> **Note:** After the first deployment, update `_API_AGENT_EXTERNAL_URL` in `cloudbuild.yaml` with the actual Cloud Run service URL. This URL is displayed in the Cloud Run console after deployment and is required for the A2A agent card to advertise the correct service endpoint.
 
 ### Deployment Details
 

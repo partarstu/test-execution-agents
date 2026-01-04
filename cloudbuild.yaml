@@ -92,7 +92,7 @@ steps:
       - '--concurrency=2'
       - '--min-instances=0'
       - '--max-instances=1'
-      - '--set-env-vars=DEPLOYMENT_ENV=cloud'
+      - '--set-env-vars=DEPLOYMENT_ENV=cloud,AGENT_HOST=0.0.0.0,EXTERNAL_URL=$_API_AGENT_EXTERNAL_URL'
       - '--set-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest'
     waitFor: [ 'docker-push-api-agent' ]
 
@@ -100,9 +100,10 @@ substitutions:
   _UI_AGENT_SERVICE_NAME: 'ui-test-execution-agent'
   _API_AGENT_SERVICE_NAME: 'api-test-execution-agent'
   _IMAGE_TAG: 'latest'
-  _REGION: 'europe-west1'
-  _API_AGENT_MEMORY: '1Gi'
+  _REGION: 'us-central1'
+  _API_AGENT_MEMORY: '2Gi'
   _API_AGENT_CPU: '1'
+  _API_AGENT_EXTERNAL_URL: ''
 
 options:
   logging: CLOUD_LOGGING_ONLY

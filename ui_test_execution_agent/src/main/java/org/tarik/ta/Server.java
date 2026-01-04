@@ -15,42 +15,33 @@
  */
 package org.tarik.ta;
 
-import org.tarik.ta.core.a2a.AgentExecutor;
-import org.tarik.ta.a2a.AgentCardProducer;
+import io.a2a.spec.AgentCard;
 import org.tarik.ta.a2a.UiAgentExecutor;
-import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.a2a.AgentExecutionResource;
-import io.javalin.json.JavalinJackson;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.AbstractServer;
+import org.tarik.ta.core.a2a.AgentExecutor;
 
-import static io.javalin.Javalin.create;
-import static org.tarik.ta.core.AgentConfig.getStartPort;
 import static org.tarik.ta.UiTestAgentConfig.isUnattendedMode;
+import static org.tarik.ta.a2a.AgentCardProducer.agentCard;
 
-public class Server {
-    private static final Logger LOG = LoggerFactory.getLogger(Server.class);
-    private static final long MAX_REQUEST_SIZE = 10000000;
-    private static final String MAIN_PATH = "/";
-    private static final String AGENT_CARD_PATH = "/.well-known/agent-card.json";
-    private static final boolean UNATTENDED_MODE = isUnattendedMode();
+public class Server extends AbstractServer {
 
     static void main() {
-        int port = getStartPort();
-        String host = AgentConfig.getHost();
-        AgentExecutor executor = new UiAgentExecutor();
-        AgentExecutionResource agentExecutionResource = new AgentExecutionResource(executor,
-                AgentCardProducer.agentCard());
+        new Server().start();
+    }
 
-        create(config -> {
-            config.http.maxRequestSize = MAX_REQUEST_SIZE;
-            config.jsonMapper(new JavalinJackson());
-        })
-                .post(MAIN_PATH, ctx -> ctx.result(agentExecutionResource.handleNonStreamingRequests(ctx)))
-                .get(AGENT_CARD_PATH, agentExecutionResource::getAgentCard)
-                .start(host, port);
+    @Override
+    protected AgentExecutor createAgentExecutor() {
+        return new UiAgentExecutor();
+    }
 
-        LOG.info("Agent server started on host {} and port {} in {} mode", host, port,
-                UNATTENDED_MODE ? "unattended" : "attended");
+    @Override
+    protected AgentCard createAgentCard() {
+        return agentCard();
+    }
+
+    @Override
+    protected String getStartupLogMessage(String host, int port) {
+        String mode = isUnattendedMode() ? "unattended" : "attended";
+        return "Agent server started on host %s and port %d in %s mode".formatted(host, port, mode);
     }
 }

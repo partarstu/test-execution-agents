@@ -31,6 +31,7 @@ import static java.util.Optional.ofNullable;
 import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
 
 public class UiAgentExecutor extends AbstractAgentExecutor {
+    public static final String SCREENSHOT_FORMAT = "png";
 
     @Override
     protected TestExecutionResult executeTestCase(String message) {
@@ -44,17 +45,20 @@ public class UiAgentExecutor extends AbstractAgentExecutor {
                 .map(UiTestStepResult.class::cast)
                 .filter(r -> r.getScreenshot() != null)
                 .map(r -> new FileWithBytes(
-                        "image/png",
-                        "Screenshot for the test step %s".formatted(r.getTestStep().stepDescription()),
-                        convertImageToBase64(r.getScreenshot(), "png")))
+                        "image/" + SCREENSHOT_FORMAT,
+                        "screenshot_for_the_test_step_%s.%s".formatted(
+                                r.getTestStep().stepDescription().replaceAll("\\s", "_").toLowerCase(), SCREENSHOT_FORMAT),
+                        convertImageToBase64(r.getScreenshot(), SCREENSHOT_FORMAT)))
                 .map(FilePart::new)
                 .forEach(parts::add);
 
         if (result instanceof UiTestExecutionResult uiResult) {
             ofNullable(uiResult.getScreenshot())
-                    .ifPresent(screenshot -> parts.add(new FilePart(new FileWithBytes("image/png",
-                            "General screenshot for the test case %s.png".formatted(result.getTestCaseName()),
-                            convertImageToBase64(screenshot, "png")))));
+                    .ifPresent(screenshot -> parts.add(new FilePart(new FileWithBytes(
+                            "image/" + SCREENSHOT_FORMAT,
+                            "general_screenshot_for_the_test_case_%s.%s".formatted(
+                                    result.getTestCaseName().replaceAll("\\s", "_").toLowerCase(), SCREENSHOT_FORMAT),
+                            convertImageToBase64(screenshot, SCREENSHOT_FORMAT)))));
         }
     }
 

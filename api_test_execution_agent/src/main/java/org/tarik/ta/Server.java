@@ -15,41 +15,31 @@
  */
 package org.tarik.ta;
 
-import io.javalin.json.JavalinJackson;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.tarik.ta.a2a.AgentCardProducer;
+import io.a2a.spec.AgentCard;
 import org.tarik.ta.a2a.ApiAgentExecutor;
-import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.a2a.AgentExecutionResource;
+import org.tarik.ta.core.AbstractServer;
 import org.tarik.ta.core.a2a.AgentExecutor;
 
-import static io.javalin.Javalin.create;
-import static org.tarik.ta.core.AgentConfig.getStartPort;
+import static org.tarik.ta.a2a.AgentCardProducer.agentCard;
 
-public class Server {
-    private static final Logger LOG = LoggerFactory.getLogger(Server.class);
-    private static final long MAX_REQUEST_SIZE = 10000000;
-    private static final String MAIN_PATH = "/";
-    private static final String AGENT_CARD_PATH = "/.well-known/agent-card.json";
-    private static final boolean UNATTENDED_MODE = true;
+public class Server extends AbstractServer {
 
-    public static void main(String[] args) {
-        int port = getStartPort();
-        String host = AgentConfig.getHost();
-        AgentExecutor executor = new ApiAgentExecutor();
-        AgentExecutionResource agentExecutionResource = new AgentExecutionResource(executor,
-                AgentCardProducer.agentCard());
+    static void main() {
+        new Server().start();
+    }
 
-        create(config -> {
-            config.http.maxRequestSize = MAX_REQUEST_SIZE;
-            config.jsonMapper(new JavalinJackson());
-        })
-                .post(MAIN_PATH, ctx -> ctx.result(agentExecutionResource.handleNonStreamingRequests(ctx)))
-                .get(AGENT_CARD_PATH, agentExecutionResource::getAgentCard)
-                .start(host, port);
+    @Override
+    protected AgentExecutor createAgentExecutor() {
+        return new ApiAgentExecutor();
+    }
 
-        LOG.info("Agent server started on host {} and port {} in {} mode", host, port,
-                UNATTENDED_MODE ? "unattended" : "attended");
+    @Override
+    protected AgentCard createAgentCard() {
+        return agentCard();
+    }
+
+    @Override
+    protected String getStartupLogMessage(String host, int port) {
+        return "Agent server started on host %s and port %d.".formatted(host, port);
     }
 }
