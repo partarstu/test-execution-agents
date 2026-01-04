@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,6 +26,7 @@ import org.tarik.ta.agents.ApiTestStepActionAgent;
 import org.tarik.ta.agents.ApiTestStepVerificationAgent;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
+import org.tarik.ta.core.dto.PreconditionExecutionActionResult;
 import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -116,8 +117,8 @@ public class ApiTestAgent {
             for (String precondition : preconditions) {
                 var executionStartTimestamp = now();
                 LOG.info("Executing precondition: {}", precondition);
-                var preconditionExecutionResult = preconditionActionAgent.executeWithRetry(() ->
-                        preconditionActionAgent.execute(precondition, executionContext.getSharedData().toString()));
+                var preconditionExecutionResult = preconditionActionAgent.executeWithRetry(() -> preconditionActionAgent.execute(
+                        precondition, executionContext.getSharedData().toString()));
                 resetToolCallUsage();
 
                 if (!preconditionExecutionResult.isSuccess()) {
@@ -136,11 +137,13 @@ public class ApiTestAgent {
                         .map(ResponseOptions::getBody)
                         .map(ResponseBodyData::asString)
                         .orElse("");
-                var verificationExecutionResult = preconditionVerificationAgent.executeWithRetry(() ->
-                                preconditionVerificationAgent.verify(precondition, preconditionExecutionResult.getResultPayload(),
-                                        lastResponseStatus,
-                                        lastResponseBody,
-                                        executionContext.getSharedData().toString()),
+                var verificationExecutionResult = preconditionVerificationAgent.executeWithRetry(() -> preconditionVerificationAgent.verify(
+                        precondition,
+                        preconditionExecutionResult.getResultPayload() != null ? preconditionExecutionResult.getResultPayload()
+                                .executionSummary() : "",
+                        lastResponseStatus,
+                        lastResponseBody,
+                        executionContext.getSharedData().toString()),
                         r -> r == null || !r.success());
                 resetToolCallUsage();
 
@@ -251,8 +254,7 @@ public class ApiTestAgent {
                         return;
                     }
                     LOG.info("Verification execution complete.");
-                    var actualResult = verificationResult != null ? verificationResult.message()
-                            : "Verification successful";
+                    var actualResult = verificationResult != null ? verificationResult.message() : "Verification successful";
                     executionContext.addStepResult(
                             new TestStepResult(testStep, SUCCESS, null, actualResult,
                                     executionStartTimestamp, now()));
@@ -335,7 +337,7 @@ public class ApiTestAgent {
         return builder(ApiPreconditionActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .tools(requestTools, assertionTools, dataTools, new EmptyExecutionResult())
+                .tools(requestTools, assertionTools, dataTools, new PreconditionExecutionActionResult(""))
                 .toolExecutionErrorHandler(new DefaultErrorHandler(
                         ApiPreconditionActionAgent.RETRY_POLICY, retryState))
                 .maxSequentialToolsInvocations(getAgentToolCallsBudget())

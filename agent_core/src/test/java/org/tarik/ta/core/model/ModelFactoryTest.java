@@ -27,6 +27,7 @@ class ModelFactoryTest {
             config.when(AgentConfig::isModelLoggingEnabled).thenReturn(false);
             config.when(AgentConfig::isThinkingOutputEnabled).thenReturn(false);
             config.when(AgentConfig::getGeminiThinkingBudget).thenReturn(1024);
+            config.when(AgentConfig::getGeminiThinkingLevel).thenReturn("MINIMAL");
             
             config.when(AgentConfig::getGoogleApiProvider).thenReturn(GoogleApiProvider.STUDIO_AI);
             config.when(AgentConfig::getGoogleApiToken).thenReturn("fake-token");

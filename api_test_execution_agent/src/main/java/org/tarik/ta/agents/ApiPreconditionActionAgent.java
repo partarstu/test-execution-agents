@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +19,8 @@ import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.core.agents.BaseAiAgent;
-import org.tarik.ta.core.dto.EmptyExecutionResult;
+
+import org.tarik.ta.core.dto.PreconditionExecutionActionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
 import static org.tarik.ta.core.AgentConfig.getActionRetryPolicy;
@@ -35,14 +36,14 @@ import static org.tarik.ta.core.AgentConfig.getActionRetryPolicy;
  * <li>Creating required resources before test execution</li>
  * </ul>
  */
-public interface ApiPreconditionActionAgent extends BaseAiAgent<EmptyExecutionResult> {
+public interface ApiPreconditionActionAgent extends BaseAiAgent<PreconditionExecutionActionResult> {
     RetryPolicy RETRY_POLICY = getActionRetryPolicy();
 
     @UserMessage("""
             Execute the following API precondition: {{precondition}}
-
+            
             Shared data from previous operations: {{sharedData}}
-
+            
             Use the available API tools to execute this precondition.
             Store any values needed for later steps in context variables.
             """)
