@@ -19,14 +19,13 @@ import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.core.agents.BaseAiAgent;
-
-import org.tarik.ta.core.dto.PreconditionExecutionActionResult;
+import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
 import static org.tarik.ta.core.AgentConfig.getActionRetryPolicy;
 
 /**
- * Agent responsible for executing API test case preconditions.
+ * Agent responsible for executing and verifying API test case preconditions.
  * <p>
  * This agent handles setup operations such as:
  * <ul>
@@ -35,17 +34,22 @@ import static org.tarik.ta.core.AgentConfig.getActionRetryPolicy;
  * <li>Initializing session state</li>
  * <li>Creating required resources before test execution</li>
  * </ul>
+ * <p>
+ * After execution, it also verifies that the precondition was successfully met by:
+ * <ul>
+ * <li>Checking API response status codes and bodies</li>
+ * <li>Validating that expected resources were created</li>
+ * <li>Confirming authentication tokens are valid</li>
+ * <li>Verifying data state matches expectations</li>
+ * </ul>
  */
-public interface ApiPreconditionActionAgent extends BaseAiAgent<PreconditionExecutionActionResult> {
+public interface ApiPreconditionActionAgent extends BaseAiAgent<VerificationExecutionResult> {
     RetryPolicy RETRY_POLICY = getActionRetryPolicy();
 
     @UserMessage("""
-            Execute the following API precondition: {{precondition}}
+            Precondition: {{precondition}}
             
-            Shared data from previous operations: {{sharedData}}
-            
-            Use the available API tools to execute this precondition.
-            Store any values needed for later steps in context variables.
+            Test context data from previous operations: {{sharedData}}.
             """)
     Result<String> execute(
             @V("precondition") String precondition,
@@ -53,7 +57,7 @@ public interface ApiPreconditionActionAgent extends BaseAiAgent<PreconditionExec
 
     @Override
     default String getAgentTaskDescription() {
-        return "Executing API precondition action";
+        return "Executing and verifying API test preconditions";
     }
 
     @Override

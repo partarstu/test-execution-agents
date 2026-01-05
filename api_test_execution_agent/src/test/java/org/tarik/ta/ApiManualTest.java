@@ -60,58 +60,53 @@ class ApiManualTest {
         // Given
         var steps = new LinkedList<TestStep>();
 
-        // Step 1: Load Data
+        // Load Data
         String testDataPath = Paths.get("src", "test", "resources", "test-data.json").toAbsolutePath().toString();
         var precondition = "Pet data is loaded from '" + testDataPath + "' file into variable as 'target pet'";
 
-        // Step 2: Create Pet (POST /pet)
+        // Create Pet (POST /pet)
         steps.add(new TestStep("Create a new pet by sending a POST request to '/pet'. Use the first item from the " +
                 "loaded pet list items as the body. Set 'Content-Type' header to 'application/json'.",
                 List.of(),
                 "Request is sent. Status: 200."));
 
-        // Step 3: Extract ID
+        // Extract ID
         steps.add(new TestStep("Store the ID of the created pet into the test context under the variable 'petId'.",
                 List.of(),
                 "Variable successfully stored in the test context."));
 
-        // Step 4: Upload Image (POST /pet/{petId}/uploadImage)
+        // Upload Image (POST /pet/{petId}/uploadImage)
         String imagePath = Paths.get("src", "test", "resources", "pet-image.png").toAbsolutePath().toString();
         steps.add(new TestStep("Upload the file '" + imagePath + "' to '/pet/${petId}/uploadImage'. Use multipart name 'file'.",
                 List.of("${petId}"),
                 "File uploaded. Status: 200"));
 
-        // Step 5: Get Pet (GET /pet/{petId})
+        // Get Pet (GET /pet/{petId})
         steps.add(new TestStep("Send a GET request to '/pet/${petId}' to retrieve the pet details.",
-                List.of("petId"),
-                "Request sent. Status: 200"));
+                List.of("${petId}"),
+                "Request sent. Status: 200. Response has the same JSON field values which were sent in the last request including the " +
+                        "uploaded image."));
 
-        // Step 6: Validate OpenAPI
+        // Validate OpenAPI
         steps.add(new TestStep("Validate the last response against the OpenAPI spec at '" + OPENAPI_SPEC_URL + "'.",
                 List.of(),
                 "OpenAPI validation passed."));
 
-        // Step 7: Update Pet (PUT /pet)
+        // Update Pet (PUT /pet)
         steps.add(new TestStep("Update the pet status to 'sold' by sending a PUT request to '/pet'. " +
                 "Body: { \"id\": ${petId}, \"name\": \"Rex\", \"status\": \"sold\", \"photoUrls\": [\"string\"] }. " +
                 "Headers: { \"Content-Type\": \"application/json\" }.",
                 List.of("petId"),
+                "Request sent. Status: 200. Response JSON contains the updated pet status."));
+
+        // Delete Pet (DELETE /pet/{petId})
+        steps.add(new TestStep("Delete the pet by sending a DELETE request to '/pet/${petId}'",
+                List.of("${petId}"),
                 "Request sent. Status: 200"));
 
-        // Step 8: Verify Update
-        steps.add(new TestStep("Assert that the JSON path 'status' in the last response matches 'sold'.",
-                List.of(),
-                "Assertion passed: status == sold"));
-
-        // Step 9: Delete Pet (DELETE /pet/{petId})
-        steps.add(new TestStep("Delete the pet by sending a DELETE request to '/pet/${petId}'. " +
-                "Auth Type: API_KEY, Value: 'api_key=special-key', Location: HEADER.",
-                List.of("petId"),
-                "Request sent. Status: 200"));
-
-        // Step 10: Verify Deletion
+        // Verify that the pet record doesn't exist anymore
         steps.add(new TestStep("Send a GET request to '/pet/${petId}'.",
-                List.of("petId"),
+                List.of("${petId}"),
                 "Request sent. Status: 404"));
 
         TestCase testCase = new TestCase("Swagger Petstore End-to-End Flow", List.of(precondition), steps);

@@ -40,4 +40,8 @@ public record VerificationExecutionResult (
         LOG.debug("Ending execution and returning the final result of type {}: {}", VerificationExecutionResult.class.getSimpleName(), result);
         return result;
     }
+
+    public static VerificationExecutionResult empty() {
+        return new VerificationExecutionResult(false, "");
+    }
 }

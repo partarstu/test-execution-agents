@@ -17,6 +17,7 @@
 package org.tarik.ta;
 
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.model.AuthType;
 
 import java.util.Optional;
 
@@ -191,6 +192,13 @@ public class ApiTestAgentConfig extends AgentConfig {
 
     // -----------------------------------------------------
     // Authentication Configuration (Environment Variables)
+
+    private static final ConfigProperty<AuthType> DEFAULT_AUTH_TYPE = loadProperty("api.default.auth.type",
+            "API_DEFAULT_AUTH_TYPE", "NONE", s -> AuthType.valueOf(s.toUpperCase()), false);
+
+    public static AuthType getDefaultAuthType() {
+        return DEFAULT_AUTH_TYPE.value();
+    }
 
     private static final ConfigProperty<String> BASIC_AUTH_USERNAME_ENV = loadProperty("api.auth.basic.username.env",
             "API_AUTH_BASIC_USERNAME_ENV", "API_USERNAME", s -> s, false);

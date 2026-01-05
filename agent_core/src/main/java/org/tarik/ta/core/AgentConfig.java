@@ -42,20 +42,15 @@ public class AgentConfig {
     }
 
     public enum ModelProvider {
-        GOOGLE,
-        OPENAI,
-        GROQ,
-        ANTHROPIC
+        GOOGLE, OPENAI, GROQ, ANTHROPIC
     }
 
     public enum GoogleApiProvider {
-        STUDIO_AI,
-        VERTEX_AI
+        STUDIO_AI, VERTEX_AI
     }
 
     public enum AnthropicApiProvider {
-        ANTHROPIC_API,
-        VERTEX_AI
+        ANTHROPIC_API, VERTEX_AI
     }
 
     public enum RagDbProvider {
@@ -374,30 +369,6 @@ public class AgentConfig {
         return PRECONDITION_AGENT_PROMPT_VERSION.value();
     }
 
-    // Precondition Verification Agent
-    private static final ConfigProperty<String> PRECONDITION_VERIFICATION_AGENT_MODEL_NAME = loadProperty(
-            "precondition.verification.agent.model.name", "PRECONDITION_VERIFICATION_AGENT_MODEL_NAME",
-            "gemini-3-flash-preview", s -> s, false);
-
-    public static String getPreconditionVerificationAgentModelName() {
-        return PRECONDITION_VERIFICATION_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER = getProperty(
-            "precondition.verification.agent.model.provider", "precondition_VERIFICATION_AGENT_MODEL_PROVIDER",
-            "google", AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getPreconditionVerificationAgentModelProvider() {
-        return PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION = loadProperty(
-            "precondition.verification.agent.prompt.version", "PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION",
-            "v1.0.0", s -> s, false);
-
-    public static String getPreconditionVerificationAgentPromptVersion() {
-        return PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION.value();
-    }
 
     // Test Step Action Agent
     private static final ConfigProperty<String> TEST_STEP_ACTION_AGENT_MODEL_NAME = loadProperty(
@@ -423,30 +394,6 @@ public class AgentConfig {
         return TEST_STEP_ACTION_AGENT_PROMPT_VERSION.value();
     }
 
-    // Test Step Verification Agent
-    private static final ConfigProperty<String> TEST_STEP_VERIFICATION_AGENT_MODEL_NAME = loadProperty(
-            "test.step.verification.agent.model.name", "TEST_STEP_VERIFICATION_AGENT_MODEL_NAME", "gemini-3-flash-preview",
-            s -> s, false);
-
-    public static String getTestStepVerificationAgentModelName() {
-        return TEST_STEP_VERIFICATION_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER = getProperty(
-            "test.step.verification.agent.model.provider", "TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getTestStepVerificationAgentModelProvider() {
-        return TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION = loadProperty(
-            "test.step.verification.agent.prompt.version", "TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION", "v1.0.0",
-            s -> s, false);
-
-    public static String getTestStepVerificationAgentPromptVersion() {
-        return TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION.value();
-    }
 
     // Test Case Extraction Agent
     private static final ConfigProperty<String> TEST_CASE_EXTRACTION_AGENT_MODEL_NAME = loadProperty(
@@ -492,8 +439,8 @@ public class AgentConfig {
     }
 
     protected static <T> ConfigProperty<T> loadProperty(String key, String envVar, String defaultValue,
-            Function<String, T> converter,
-            boolean isSecret) {
+                                                        Function<String, T> converter,
+                                                        boolean isSecret) {
         var value = getProperty(key, envVar, defaultValue, isSecret);
         return new ConfigProperty<>(converter.apply(value), isSecret);
     }
@@ -535,8 +482,8 @@ public class AgentConfig {
     }
 
     protected static <T> ConfigProperty<T> getProperty(String key, String envVar, String defaultValue,
-            Function<String, T> converter,
-            boolean isSecret) {
+                                                       Function<String, T> converter,
+                                                       boolean isSecret) {
         String value = getProperty(key, envVar, defaultValue, isSecret);
         return new ConfigProperty<>(converter.apply(value), isSecret);
     }
@@ -549,7 +496,7 @@ public class AgentConfig {
     }
 
     protected static ConfigProperty<Integer> loadPropertyAsInteger(String propertyKey, String envVar,
-            String defaultValue, boolean isSecret) {
+                                                                   String defaultValue, boolean isSecret) {
         var configProperty = getProperty(propertyKey, envVar, defaultValue, s -> s, isSecret);
         Integer value = CommonUtils.parseStringAsInteger(configProperty.value())
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -559,7 +506,7 @@ public class AgentConfig {
     }
 
     protected static ConfigProperty<Double> loadPropertyAsDouble(String propertyKey, String envVar, String defaultValue,
-            boolean isSecret) {
+                                                                 boolean isSecret) {
         var configProperty = getProperty(propertyKey, envVar, defaultValue, s -> s, isSecret);
         Double value = CommonUtils.parseStringAsDouble(configProperty.value())
                 .orElseThrow(() -> new IllegalArgumentException(

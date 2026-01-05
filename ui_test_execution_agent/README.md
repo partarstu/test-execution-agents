@@ -46,8 +46,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
       control:
         * **Time Budget:** Configurable maximum execution time for the test case execution(`agent.execution.time.budget.seconds`).
         * **Token Budget:** Limits total token consumption across all models during test case execution (`agent.token.budget`).
-        * **Tool Call Budget:** Limits max tool calls for each agent in attended (`agent.tool.calls.budget.attended`) and unattended (
-          `agent.tool.calls.budget.unattended`) modes.
+        * **Tool Call Budget:** Limits max tool calls for each agent in unattended (`agent.tool.calls.budget.unattended`) mode.
         * Tracks token usage per model (input, output, cached, total).
         * Automatically interrupts execution in unattended mode if budget is exceeded.
 

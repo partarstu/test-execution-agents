@@ -53,7 +53,7 @@ class ApiRequestToolsTest {
                         .withBody("Success")));
 
         String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/test", null, null,
-                AuthType.NONE, null);
+                AuthType.NONE);
 
         assertThat(result).contains("Status: 200");
         assertThat(apiContext.getLastResponse()).isPresent();
@@ -70,7 +70,7 @@ class ApiRequestToolsTest {
 
         String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/resource/${id}", null,
                 null,
-                AuthType.NONE, null);
+                AuthType.NONE);
 
         assertThat(result).contains("Status: 200");
     }
@@ -88,7 +88,7 @@ class ApiRequestToolsTest {
         try {
             String result = apiRequestTools.sendRequest("POST", wireMockServer.baseUrl() + "/login", null,
                     "{}",
-                    AuthType.BASIC, null);
+                    AuthType.BASIC);
 
             assertThat(result).contains("Status: 201");
         } finally {
@@ -104,7 +104,7 @@ class ApiRequestToolsTest {
                 .willReturn(aResponse().withStatus(200)));
 
         String result = apiRequestTools.sendRequest("PUT", wireMockServer.baseUrl() + "/update", null,
-                "{\"key\":\"value\"}", AuthType.NONE, null);
+                "{\"key\":\"value\"}", AuthType.NONE);
 
         assertThat(result).contains("Status: 200");
     }
@@ -115,7 +115,7 @@ class ApiRequestToolsTest {
                 .willReturn(aResponse().withStatus(204)));
 
         String result = apiRequestTools.sendRequest("DELETE", wireMockServer.baseUrl() + "/delete", null,
-                null, AuthType.NONE, null);
+                null, AuthType.NONE);
 
         assertThat(result).contains("Status: 204");
     }
@@ -131,7 +131,7 @@ class ApiRequestToolsTest {
         headers.put("X-Custom", "customVal");
 
         String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/search?q=term", headers,
-                null, AuthType.NONE, null);
+                null, AuthType.NONE);
 
         assertThat(result).contains("Status: 200");
     }
@@ -146,7 +146,7 @@ class ApiRequestToolsTest {
         try {
             String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/protected",
                     null,
-                    null, AuthType.BEARER, null);
+                    null, AuthType.BEARER);
             assertThat(result).contains("Status: 200");
         } finally {
             System.clearProperty("API_TOKEN");
@@ -164,7 +164,7 @@ class ApiRequestToolsTest {
         try {
             String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/protected",
                     null,
-                    null, AuthType.API_KEY, "HEADER");
+                    null, AuthType.API_TOKEN);
             assertThat(result).contains("Status: 200");
         } finally {
             System.clearProperty("API_KEY_NAME");
@@ -186,7 +186,44 @@ class ApiRequestToolsTest {
         }
 
         String result = apiRequestTools.uploadFile(wireMockServer.baseUrl() + "/upload", filePath, "file",
+                null, AuthType.NONE);
+
+        assertThat(result).contains("Status: 201");
+    }
+
+    @Test
+    void testSendRequestWithNullAuthTypeUsesDefault() {
+        // Default auth type is NONE (from config), so no auth headers should be added
+        wireMockServer.stubFor(get(urlEqualTo("/default-auth"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withBody("Success")));
+
+        // Pass null for authType - should use default (NONE)
+        String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/default-auth", null, null,
                 null);
+
+        assertThat(result).contains("Status: 200");
+        assertThat(apiContext.getLastResponse()).isPresent();
+        assertThat(apiContext.getLastResponse().get().getBody().asString()).isEqualTo("Success");
+    }
+
+    @Test
+    void testUploadFileWithNullAuthTypeUsesDefault() {
+        wireMockServer.stubFor(post(urlEqualTo("/upload-default-auth"))
+                .withHeader("Content-Type", containing("multipart/form-data"))
+                .willReturn(aResponse().withStatus(201)));
+
+        // Use a resource file
+        String filePath = getClass().getClassLoader().getResource("pet-image.png").getPath();
+        // Fix for Windows path if needed (leading slash issue)
+        if (System.getProperty("os.name").toLowerCase().contains("win") && filePath.startsWith("/")) {
+            filePath = filePath.substring(1);
+        }
+
+        // Pass null for authType - should use default (NONE)
+        String result = apiRequestTools.uploadFile(wireMockServer.baseUrl() + "/upload-default-auth", filePath, "file",
+                null, null);
 
         assertThat(result).contains("Status: 201");
     }

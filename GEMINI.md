@@ -14,11 +14,11 @@ working with agentic systems.
 
 * You must use Java 25 for development.
 * Never reformat the code which you haven't modified!
-* Minimize Diff Noise - do not wrap lines that are under 140 characters, even if it improves readability.
-* You're working with a project which is always used in IntelliJ Idea.
+* Do not wrap lines that are under 140 characters, even if it improves readability.
+* You're working with a project which is always used in IntelliJ IDEA.
 * Always use imports instead of qualified names.
 * Never concatenate strings because of parameters, always use String.formatted() for that (except logging).
-* Prefer static imports, if possible.
+* Prefer static imports everywhere, if possible.
 * Don't commit or push any changes into Git, unless explicitly asked for.
 * Every time any functionality is changed (modified, removed, extended) or a new one is added, update the README.MD so that the 
   documentation is always up-to-date.

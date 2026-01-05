@@ -28,50 +28,6 @@ public class ApiAssertionTools extends org.tarik.ta.core.tools.AbstractTools {
         this.testExecutionContext = testExecutionContext;
     }
 
-    @Tool("Asserts that the last response status code matches the expected code.")
-    public String assertStatusCode(@P("Expected HTTP status code") int expectedCode) {
-        Optional<Response> responseOpt = apiContext.getLastResponse();
-        if (responseOpt.isEmpty()) {
-            throw new ToolExecutionException("No response available to assert.", TRANSIENT_TOOL_ERROR);
-        }
-
-        try {
-            responseOpt.get().then().statusCode(expectedCode);
-            return "Assertion passed: Status code is " + expectedCode;
-        } catch (AssertionError e) {
-            return "Assertion failed: " + e.getMessage();
-        } catch (Exception e) {
-            throw rethrowAsToolException(e, "asserting status code");
-        }
-    }
-
-    @Tool("Asserts that the JSON path in the last response matches the expected value.")
-    public String assertJsonPath(@P("JSON path expression") String jsonPath,
-            @P("Expected value") String expectedValue) {
-        if (isBlank(jsonPath)) {
-            throw new ToolExecutionException("JSON path cannot be null or empty", TRANSIENT_TOOL_ERROR);
-        }
-        if (isBlank(expectedValue)) {
-            throw new ToolExecutionException("Expected value cannot be null or empty", TRANSIENT_TOOL_ERROR);
-        }
-        Optional<Response> responseOpt = apiContext.getLastResponse();
-        if (responseOpt.isEmpty()) {
-            throw new ToolExecutionException("No response available to assert.", TRANSIENT_TOOL_ERROR);
-        }
-
-        try {
-            // Using string comparison for flexibility
-            String actual = responseOpt.get().jsonPath().getString(jsonPath);
-            if (expectedValue.equals(actual)) {
-                return "Assertion passed: " + jsonPath + " == " + expectedValue;
-            } else {
-                return "Assertion failed: " + jsonPath + " expected '" + expectedValue + "' but was '" + actual + "'";
-            }
-        } catch (Exception e) {
-            throw rethrowAsToolException(e, "asserting JSON path " + jsonPath);
-        }
-    }
-
     @Tool("Validates the last response body against a JSON Schema file.")
     public String validateSchema(@P("Path to the JSON schema file") String schemaPath) {
         if (isBlank(schemaPath)) {
