@@ -196,16 +196,15 @@ public class ElementLocatorTools extends UiAbstractTools {
     }
 
     private String formatElementBoundingBoxPrompt(UiElement uiElement, String elementTestData) {
-        if (isNotBlank(elementTestData) && !uiElement.dataDependentAttributes().isEmpty()) {
+        if (isNotBlank(elementTestData) && uiElement.isDataDependent()) {
             return """
                     The target element:
                     "%s. %s %s"
                     
                     This element is data-dependent.
-                    The element attributes which depend on specific data: [%s].
                     Available specific data for this element: "%s"
                     """.formatted(uiElement.name(), uiElement.description(), uiElement.locationDetails(),
-                    String.join(", ", uiElement.dataDependentAttributes()), elementTestData);
+                    elementTestData);
         } else {
             return """
                     The target element:
@@ -216,18 +215,17 @@ public class ElementLocatorTools extends UiAbstractTools {
 
     private String formatElementSelectionPrompt(UiElement uiElement, String elementTestData, List<String> boundingBoxIds) {
         String boundingBoxIdsString = "Bounding box IDs: %s.".formatted(String.join(", ", boundingBoxIds));
-        if (isNotBlank(elementTestData) && !uiElement.dataDependentAttributes().isEmpty()) {
+        if (isNotBlank(elementTestData) && uiElement.isDataDependent()) {
             return """
                     The target element:
                     "%s. %s %s"
                     
                     This element is data-dependent.
-                    The element attributes which depend on specific data: [%s].
                     Available specific data for this element: "%s"
                     
                     %s
                     """.formatted(uiElement.name(), uiElement.description(), uiElement.locationDetails(),
-                    String.join(", ", uiElement.dataDependentAttributes()), elementTestData, boundingBoxIdsString);
+                    elementTestData, boundingBoxIdsString);
         } else {
             return """
                     The target element: "%s. %s %s"

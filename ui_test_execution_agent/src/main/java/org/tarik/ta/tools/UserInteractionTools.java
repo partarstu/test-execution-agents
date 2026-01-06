@@ -116,7 +116,7 @@ public class UserInteractionTools extends UiAbstractTools {
 
             // Step 4: Prompt user to refine the suggested by the model element info
             var uiElementInfo = new UiElementInfo(describedUiElement.name(), describedUiElement.ownDescription(),
-                    describedUiElement.locationDescription(), describedUiElement.pageSummary(), false, false, List.of());
+                    describedUiElement.locationDescription(), describedUiElement.pageSummary(), false, false);
             return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, uiElementInfo)
                     .map(clarifiedByUserElement -> {
                         // Step 5: Persist the element
@@ -348,7 +348,7 @@ public class UserInteractionTools extends UiAbstractTools {
         var screenshot = fromBufferedImage(elementScreenshot, "png");
         UiElement uiElementToStore = new UiElement(randomUUID(), uiElement.name(), uiElement.description(),
                 uiElement.locationDetails(), uiElement.pageSummary(), screenshot, uiElement.zoomInRequired(),
-                uiElement.dataDependentAttributes());
+                uiElement.isDataDependent());
         uiElementRetriever.storeElement(uiElementToStore);
     }
 
@@ -366,7 +366,7 @@ public class UserInteractionTools extends UiAbstractTools {
                     var elementWithNewScreenshot = new UiElement(
                             elementToUpdate.uuid(), elementToUpdate.name(), elementToUpdate.description(),
                             elementToUpdate.locationDetails(), elementToUpdate.pageSummary(), newScreenshot,
-                            elementToUpdate.zoomInRequired(), elementToUpdate.dataDependentAttributes());
+                            elementToUpdate.zoomInRequired(), elementToUpdate.isDataDependent());
                     uiElementRetriever.updateElement(elementToUpdate, elementWithNewScreenshot);
                     LOG.debug("Persisted updated screenshot for element: {}", elementToUpdate.name());
                     return elementWithNewScreenshot;
@@ -379,14 +379,14 @@ public class UserInteractionTools extends UiAbstractTools {
 
         var currentInfo = new UiElementInfo(elementToUpdate.name(), elementToUpdate.description(),
                 elementToUpdate.locationDetails(), elementToUpdate.pageSummary(), elementToUpdate.zoomInRequired(),
-                false, elementToUpdate.dataDependentAttributes());
+                elementToUpdate.isDataDependent());
 
         return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, currentInfo)
                 .map(newInfo -> {
                     var updatedElement = new UiElement(elementToUpdate.uuid(), newInfo.name(), newInfo.description(),
                             newInfo.locationDetails(), newInfo.pageSummary(), elementToUpdate.screenshot(),
                             newInfo.zoomInRequired(),
-                            newInfo.dataDependentAttributes());
+                            newInfo.isDataDependent());
                     uiElementRetriever.updateElement(elementToUpdate, updatedElement);
                     LOG.debug("Persisted updated info for element: {}", updatedElement.name());
                     return updatedElement;

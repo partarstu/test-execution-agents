@@ -18,13 +18,11 @@ package org.tarik.ta.rag.model;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.segment.TextSegment;
 import org.jetbrains.annotations.NotNull;
-import org.tarik.ta.core.utils.CommonUtils;
 
 import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.function.BiFunction;
 
-import static java.lang.String.join;
 import static java.util.Objects.requireNonNull;
 import static org.tarik.ta.utils.ImageUtils.convertBase64ToImage;
 import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
@@ -38,7 +36,7 @@ public class UiElement {
     private final String pageSummary;
     private final Screenshot screenshot;
     private final boolean zoomInRequired;
-    private final List<String> dataAttributes;
+    private final boolean isDataDependent;
 
     public UiElement(@NotNull UUID uuid,
                      @NotNull String name,
@@ -47,7 +45,7 @@ public class UiElement {
                      @NotNull String pageSummary,
                      Screenshot screenshot,
                      boolean zoomInRequired,
-                     @NotNull List<String> dataAttributes) {
+                     boolean isDataDependent) {
         this.uuid = uuid;
         this.name = name;
         this.ownDescription = ownDescription;
@@ -55,7 +53,7 @@ public class UiElement {
         this.pageSummary = pageSummary;
         this.screenshot = screenshot;
         this.zoomInRequired = zoomInRequired;
-        this.dataAttributes = dataAttributes;
+        this.isDataDependent = isDataDependent;
     }
 
     public UUID uuid() {
@@ -86,12 +84,8 @@ public class UiElement {
         return zoomInRequired;
     }
 
-    public List<String> dataDependentAttributes() {
-        return dataAttributes;
-    }
-
     public boolean isDataDependent() {
-        return dataAttributes.stream().anyMatch(CommonUtils::isNotBlank);
+        return isDataDependent;
     }
 
     public enum MetadataField {
@@ -104,7 +98,7 @@ public class UiElement {
         SCREENSHOT_MIME_TYPE(Metadata::getString, String.class),
         SCREENSHOT_IMAGE(Metadata::getString, String.class),
         ZOOM_IN_REQUIRED(Metadata::getString, String.class),
-        DATA_ATTRIBUTES(Metadata::getString, String.class);
+        IS_DATA_DEPENDENT(Metadata::getString, String.class);
 
         private final ValueProvider<?> valueProvider;
 
@@ -143,15 +137,11 @@ public class UiElement {
         var screenshotMimeType = SCREENSHOT_MIME_TYPE.<String>getValueFromMetadata(metadata).orElseThrow();
         var screenshotEncodedString = SCREENSHOT_IMAGE.<String>getValueFromMetadata(metadata).orElseThrow();
         var zoomInNeeded = ZOOM_IN_REQUIRED.<String>getValueFromMetadata(metadata).map(Boolean::parseBoolean).orElse(false);
-        var dataDependentAttributes = DATA_ATTRIBUTES.<String>getValueFromMetadata(metadata).stream()
-                .flatMap(v -> Arrays.stream(v.split(",")))
-                .map(String::trim)
-                .filter(CommonUtils::isNotBlank)
-                .toList();
+        var isDataDependent = IS_DATA_DEPENDENT.<String>getValueFromMetadata(metadata).map(Boolean::parseBoolean).orElse(false);
 
         return new UiElement(id, name, ownDescription, anchorsDescription, pageSummary,
                 new Screenshot(screenshotFileExtension, screenshotMimeType, screenshotEncodedString), zoomInNeeded,
-                dataDependentAttributes);
+                isDataDependent);
     }
 
     public record Screenshot(String fileExtension, String mimeType, String base64EncodedImage) {
@@ -175,7 +165,7 @@ public class UiElement {
                 .add("locationDescription='" + anchorsDescription + "'")
                 .add("pageSummary='" + pageSummary + "'")
                 .add("zoomInRequired=" + zoomInRequired)
-                .add("dataAttributes=" + dataAttributes)
+                .add("isDataDependent=" + isDataDependent)
                 .toString();
     }
 
@@ -196,7 +186,7 @@ public class UiElement {
             metadata.put(SCREENSHOT_IMAGE.name(), screenshot.base64EncodedImage());
         }
         metadata.put(ZOOM_IN_REQUIRED.name(), String.valueOf(zoomInRequired));
-        metadata.put(DATA_ATTRIBUTES.name(), join(",", dataAttributes));
+        metadata.put(IS_DATA_DEPENDENT.name(), String.valueOf(isDataDependent));
         return metadata;
     }
 
