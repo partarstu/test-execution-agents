@@ -34,6 +34,13 @@ public class UiTestAgentConfig extends AgentConfig {
         return UNATTENDED_MODE.value();
     }
 
+    private static final ConfigProperty<Integer> AGENT_TOOL_CALLS_BUDGET_ATTENDED = loadPropertyAsInteger(
+            "agent.tool.calls.budget.attended", "AGENT_TOOL_CALLS_BUDGET_ATTENDED", "100", false);
+
+    public static int getAgentToolCallsBudgetAttended() {
+        return AGENT_TOOL_CALLS_BUDGET_ATTENDED.value();
+    }
+
     // -----------------------------------------------------
     // Video Recording
     private static final ConfigProperty<Boolean> SCREEN_RECORDING_ENABLED = loadProperty("screen.recording.active",

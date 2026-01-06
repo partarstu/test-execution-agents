@@ -162,7 +162,7 @@ public class UiTestAgent {
     }
 
     private static void executePreconditions(UiTestExecutionContext context,
-            UiPreconditionActionAgent preconditionActionAgent) {
+                                             UiPreconditionActionAgent preconditionActionAgent) {
         List<String> preconditions = context.getTestCase().preconditions();
         var preconditionVerificationAgent = getPreconditionVerificationAgent(new RetryState());
         if (preconditions != null && !preconditions.isEmpty()) {
@@ -224,8 +224,8 @@ public class UiTestAgent {
     }
 
     private static void executeTestSteps(UiTestExecutionContext context,
-            UiTestStepActionAgent uiTestStepActionAgent,
-            VerificationManager verificationManager) {
+                                         UiTestStepActionAgent uiTestStepActionAgent,
+                                         VerificationManager verificationManager) {
         var testStepVerificationAgent = getTestStepVerificationAgent(new RetryState());
         for (TestStep testStep : context.getTestCase().testSteps()) {
             var actionInstruction = testStep.stepDescription();
@@ -354,13 +354,13 @@ public class UiTestAgent {
                 .systemMessageProvider(_ -> testStepVerificationAgentPrompt)
                 .toolExecutionErrorHandler(new UiErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY, retryState))
                 .tools(new VerificationExecutionResult(false, ""))
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
+                .maxSequentialToolsInvocations(getEffectiveToolCallsBudget())
                 .build();
     }
 
     private static UiTestStepActionAgent getTestStepActionAgent(CommonTools commonTools,
-            UserInteractionTools userInteractionTools,
-            RetryState retryState) {
+                                                                UserInteractionTools userInteractionTools,
+                                                                RetryState retryState) {
         var testStepActionAgentModel = getModel(getTestStepActionAgentModelName(),
                 getTestStepActionAgentModelProvider());
         var testStepActionAgentPrompt = loadSystemPrompt("test_step/executor",
@@ -379,7 +379,7 @@ public class UiTestAgent {
                     new EmptyExecutionResult());
         }
 
-        return agentBuilder.maxSequentialToolsInvocations(getAgentToolCallsBudget()).build();
+        return agentBuilder.maxSequentialToolsInvocations(getEffectiveToolCallsBudget()).build();
     }
 
     private static UiPreconditionVerificationAgent getPreconditionVerificationAgent(RetryState retryState) {
@@ -392,13 +392,13 @@ public class UiTestAgent {
                 .systemMessageProvider(_ -> preconditionVerificationAgentPrompt)
                 .toolExecutionErrorHandler(new UiErrorHandler(RETRY_POLICY, retryState))
                 .tools(new VerificationExecutionResult(false, ""))
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
+                .maxSequentialToolsInvocations(getEffectiveToolCallsBudget())
                 .build();
     }
 
     private static UiPreconditionActionAgent getPreconditionActionAgent(CommonTools commonTools,
-            UserInteractionTools userInteractionTools,
-            RetryState retryState) {
+                                                                        UserInteractionTools userInteractionTools,
+                                                                        RetryState retryState) {
         var preconditionAgentModel = getModel(getPreconditionActionAgentModelName(),
                 getPreconditionActionAgentModelProvider());
         var preconditionAgentPrompt = loadSystemPrompt("precondition/executor",
@@ -417,7 +417,7 @@ public class UiTestAgent {
                     new EmptyExecutionResult());
         }
 
-        return agentBuilder.maxSequentialToolsInvocations(getAgentToolCallsBudget()).build();
+        return agentBuilder.maxSequentialToolsInvocations(getEffectiveToolCallsBudget()).build();
     }
 
     private static SystemInfo getSystemInfo() {
@@ -441,9 +441,9 @@ public class UiTestAgent {
 
     @NotNull
     private static TestExecutionResult getFailedTestExecutionResult(TestExecutionContext context,
-            Instant testExecutionStartTimestamp, String errorMessage,
-            BufferedImage screenshot, SystemInfo systemInfo, String videoPath,
-            List<String> logs) {
+                                                                    Instant testExecutionStartTimestamp, String errorMessage,
+                                                                    BufferedImage screenshot, SystemInfo systemInfo, String videoPath,
+                                                                    List<String> logs) {
         LOG.error(errorMessage);
         return new UiTestExecutionResult(context.getTestCase().name(), FAILED,
                 context.getPreconditionExecutionHistory(),
@@ -454,9 +454,9 @@ public class UiTestAgent {
 
     @NotNull
     private static TestExecutionResult getTestExecutionResultWithError(TestExecutionContext context,
-            Instant testExecutionStartTimestamp, String errorMessage,
-            BufferedImage screenshot, SystemInfo systemInfo, String videoPath,
-            List<String> logs) {
+                                                                       Instant testExecutionStartTimestamp, String errorMessage,
+                                                                       BufferedImage screenshot, SystemInfo systemInfo, String videoPath,
+                                                                       List<String> logs) {
         LOG.error(errorMessage);
         return new UiTestExecutionResult(context.getTestCase().name(), ERROR, context.getPreconditionExecutionHistory(),
                 context.getTestStepExecutionHistory(), screenshot, systemInfo, videoPath, logs,
@@ -507,5 +507,9 @@ public class UiTestAgent {
                 case null, default -> throw new RuntimeException(error);
             }
         }
+    }
+
+    private static int getEffectiveToolCallsBudget() {
+        return isUnattendedMode() ? getAgentToolCallsBudget() : getAgentToolCallsBudgetAttended();
     }
 }

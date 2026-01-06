@@ -166,16 +166,16 @@ class UiTestAgentTest {
                                 .thenReturn(AgentConfig.ModelProvider.GOOGLE);
                 agentConfigMockedStatic.when(AgentConfig::getTestStepActionAgentModelProvider)
                                 .thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                agentConfigMockedStatic.when(AgentConfig::getPreconditionVerificationAgentModelProvider)
+                agentConfigMockedStatic.when(UiTestAgentConfig::getPreconditionVerificationAgentModelProvider)
                                 .thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                agentConfigMockedStatic.when(AgentConfig::getTestStepVerificationAgentModelProvider)
+                agentConfigMockedStatic.when(UiTestAgentConfig::getTestStepVerificationAgentModelProvider)
                                 .thenReturn(AgentConfig.ModelProvider.GOOGLE);
                 agentConfigMockedStatic.when(AgentConfig::getTestCaseExtractionAgentModelName).thenReturn("test-model");
                 agentConfigMockedStatic.when(AgentConfig::getPreconditionActionAgentModelName).thenReturn("test-model");
                 agentConfigMockedStatic.when(AgentConfig::getTestStepActionAgentModelName).thenReturn("test-model");
-                agentConfigMockedStatic.when(AgentConfig::getPreconditionVerificationAgentModelName)
+                agentConfigMockedStatic.when(UiTestAgentConfig::getPreconditionVerificationAgentModelName)
                                 .thenReturn("test-model");
-                agentConfigMockedStatic.when(AgentConfig::getTestStepVerificationAgentModelName)
+                agentConfigMockedStatic.when(UiTestAgentConfig::getTestStepVerificationAgentModelName)
                                 .thenReturn("test-model");
                 agentConfigMockedStatic.when(AgentConfig::getPreconditionAgentPromptVersion).thenReturn("v1");
                 agentConfigMockedStatic.when(AgentConfig::getTestStepActionAgentPromptVersion).thenReturn("v1");
@@ -197,9 +197,9 @@ class UiTestAgentTest {
                                 .thenReturn("v1");
                 uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentPromptVersion)
                                 .thenReturn("v1");
-                agentConfigMockedStatic.when(AgentConfig::getPreconditionVerificationAgentPromptVersion)
+                agentConfigMockedStatic.when(UiTestAgentConfig::getPreconditionVerificationAgentPromptVersion)
                                 .thenReturn("v1");
-                agentConfigMockedStatic.when(AgentConfig::getTestStepVerificationAgentPromptVersion).thenReturn("v1");
+                agentConfigMockedStatic.when(UiTestAgentConfig::getTestStepVerificationAgentPromptVersion).thenReturn("v1");
 
                 mockModel = new GenAiModel(mockChatModel);
 

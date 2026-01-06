@@ -46,7 +46,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
       control:
         * **Time Budget:** Configurable maximum execution time for the test case execution(`agent.execution.time.budget.seconds`).
         * **Token Budget:** Limits total token consumption across all models during test case execution (`agent.token.budget`).
-        * **Tool Call Budget:** Limits max tool calls for each agent in unattended (`agent.tool.calls.budget.unattended`) mode.
+        * **Tool Call Budget:** Limits max tool calls for each agent in unattended (`agent.tool.calls.budget.unattended`) and attended (`agent.tool.calls.budget.attended`) modes.
         * Tracks token usage per model (input, output, cached, total).
         * Automatically interrupts execution in unattended mode if budget is exceeded.
 
@@ -143,7 +143,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * Supports two execution modes controlled by the `unattended.mode` flag in `config.properties`.
     * **Attended ("Trainee") Mode (`unattended.mode=false`):** Designed for initial test case runs or when execution in unattended mode
       fails for debugging/fixing purposes. In this mode the agent behaves as a trainee, who needs assistance from the human tutor/mentor
-      in order to identify all the information which is required for the unattended (without supervision) execution of the test case.
+      in order to identify all the information which is required for the unattended (without supervision) execution of the test case. Tool call limits are significantly relaxed in this mode (default 100), configurable via `agent.tool.calls.budget.attended`.
     * **Unattended Mode (`unattended.mode=true`):** The agent executes the test case without any human assistance. It relies entirely on the
       information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored data.
       Errors during element location or verification will cause the execution to fail. This mode is suitable for integration into CI/CD
@@ -342,6 +342,7 @@ override properties file settings.**
 * `agent.token.budget` (Env: `AGENT_TOKEN_BUDGET`): Maximum total tokens that can be consumed across all models. Default: `1000000`.
 
 * `agent.tool.calls.budget.unattended` (Env: `AGENT_TOOL_CALLS_BUDGET_UNATTENDED`): Maximum tool calls in unattended mode. Default: `5`.
+* `agent.tool.calls.budget.attended` (Env: `AGENT_TOOL_CALLS_BUDGET_ATTENDED`): Maximum tool calls in attended mode. Default: `100`.
 * `agent.execution.time.budget.seconds` (Env: `AGENT_EXECUTION_TIME_BUDGET_SECONDS`): Maximum execution time in seconds. Default: `3000`.
 
 **Screen Recording Configuration:**
