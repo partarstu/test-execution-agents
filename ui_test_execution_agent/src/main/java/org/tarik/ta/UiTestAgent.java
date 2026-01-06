@@ -21,7 +21,6 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.*;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.agents.PreconditionActionAgent;
 import org.tarik.ta.core.dto.*;
 import org.tarik.ta.core.utils.TestCaseExtractor;
@@ -53,9 +52,7 @@ import static dev.langchain4j.service.AiServices.builder;
 import static java.lang.String.join;
 import static java.time.Instant.now;
 import static java.util.Optional.*;
-import static org.tarik.ta.UiTestAgentConfig.isElementLocationPrefetchingEnabled;
-import static org.tarik.ta.UiTestAgentConfig.isUnattendedMode;
-import static org.tarik.ta.core.AgentConfig.*;
+import static org.tarik.ta.UiTestAgentConfig.*;
 import static org.tarik.ta.core.agents.PreconditionVerificationAgent.RETRY_POLICY;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.*;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
@@ -348,10 +345,10 @@ public class UiTestAgent {
     }
 
     private static UiTestStepVerificationAgent getTestStepVerificationAgent(RetryState retryState) {
-        var testStepVerificationAgentModel = getModel(AgentConfig.getTestStepVerificationAgentModelName(),
-                AgentConfig.getTestStepVerificationAgentModelProvider());
+        var testStepVerificationAgentModel = getModel(getTestStepVerificationAgentModelName(),
+                getTestStepVerificationAgentModelProvider());
         var testStepVerificationAgentPrompt = loadSystemPrompt("test_step/verifier",
-                AgentConfig.getTestStepVerificationAgentPromptVersion(), "verification_execution_prompt.txt");
+                getTestStepVerificationAgentPromptVersion(), "verification_execution_prompt.txt");
         return builder(UiTestStepVerificationAgent.class)
                 .chatModel(testStepVerificationAgentModel.chatModel())
                 .systemMessageProvider(_ -> testStepVerificationAgentPrompt)
@@ -364,10 +361,10 @@ public class UiTestAgent {
     private static UiTestStepActionAgent getTestStepActionAgent(CommonTools commonTools,
             UserInteractionTools userInteractionTools,
             RetryState retryState) {
-        var testStepActionAgentModel = getModel(AgentConfig.getTestStepActionAgentModelName(),
-                AgentConfig.getTestStepActionAgentModelProvider());
+        var testStepActionAgentModel = getModel(getTestStepActionAgentModelName(),
+                getTestStepActionAgentModelProvider());
         var testStepActionAgentPrompt = loadSystemPrompt("test_step/executor",
-                AgentConfig.getTestStepActionAgentPromptVersion(), "test_step_action_agent_system_prompt.txt");
+                getTestStepActionAgentPromptVersion(), "test_step_action_agent_system_prompt.txt");
         var agentBuilder = builder(UiTestStepActionAgent.class)
                 .chatModel(testStepActionAgentModel.chatModel())
                 .systemMessageProvider(_ -> testStepActionAgentPrompt)
@@ -386,10 +383,10 @@ public class UiTestAgent {
     }
 
     private static UiPreconditionVerificationAgent getPreconditionVerificationAgent(RetryState retryState) {
-        var preconditionVerificationAgentModel = getModel(AgentConfig.getPreconditionVerificationAgentModelName(),
-                AgentConfig.getPreconditionVerificationAgentModelProvider());
+        var preconditionVerificationAgentModel = getModel(getPreconditionVerificationAgentModelName(),
+                getPreconditionVerificationAgentModelProvider());
         var preconditionVerificationAgentPrompt = loadSystemPrompt("precondition/verifier",
-                AgentConfig.getPreconditionVerificationAgentPromptVersion(), "precondition_verification_prompt.txt");
+                getPreconditionVerificationAgentPromptVersion(), "precondition_verification_prompt.txt");
         return builder(UiPreconditionVerificationAgent.class)
                 .chatModel(preconditionVerificationAgentModel.chatModel())
                 .systemMessageProvider(_ -> preconditionVerificationAgentPrompt)
@@ -402,10 +399,10 @@ public class UiTestAgent {
     private static UiPreconditionActionAgent getPreconditionActionAgent(CommonTools commonTools,
             UserInteractionTools userInteractionTools,
             RetryState retryState) {
-        var preconditionAgentModel = getModel(AgentConfig.getPreconditionActionAgentModelName(),
-                AgentConfig.getPreconditionActionAgentModelProvider());
+        var preconditionAgentModel = getModel(getPreconditionActionAgentModelName(),
+                getPreconditionActionAgentModelProvider());
         var preconditionAgentPrompt = loadSystemPrompt("precondition/executor",
-                AgentConfig.getPreconditionAgentPromptVersion(), "precondition_action_agent_system_prompt.txt");
+                getPreconditionAgentPromptVersion(), "precondition_action_agent_system_prompt.txt");
         var agentBuilder = builder(UiPreconditionActionAgent.class)
                 .chatModel(preconditionAgentModel.chatModel())
                 .systemMessageProvider(_ -> preconditionAgentPrompt)

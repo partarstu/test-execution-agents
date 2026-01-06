@@ -350,4 +350,54 @@ public class UiTestAgentConfig extends AgentConfig {
     public static String getPageDescriptionAgentPromptVersion() {
         return PAGE_DESCRIPTION_AGENT_PROMPT_VERSION.value();
     }
+
+    // Precondition Verification Agent
+    private static final ConfigProperty<String> PRECONDITION_VERIFICATION_AGENT_MODEL_NAME = loadProperty(
+            "precondition.verification.agent.model.name", "PRECONDITION_VERIFICATION_AGENT_MODEL_NAME",
+            "gemini-3-flash-preview", s -> s, false);
+
+    public static String getPreconditionVerificationAgentModelName() {
+        return PRECONDITION_VERIFICATION_AGENT_MODEL_NAME.value();
+    }
+
+    private static final ConfigProperty<ModelProvider> PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER = getProperty(
+            "precondition.verification.agent.model.provider", "precondition_VERIFICATION_AGENT_MODEL_PROVIDER",
+            "google", AgentConfig::getModelProvider, false);
+
+    public static ModelProvider getPreconditionVerificationAgentModelProvider() {
+        return PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER.value();
+    }
+
+    private static final ConfigProperty<String> PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION = loadProperty(
+            "precondition.verification.agent.prompt.version", "PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION",
+            "v1.0.0", s -> s, false);
+
+    public static String getPreconditionVerificationAgentPromptVersion() {
+        return PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION.value();
+    }
+
+    // Test Step Verification Agent
+    private static final ConfigProperty<String> TEST_STEP_VERIFICATION_AGENT_MODEL_NAME = loadProperty(
+            "test.step.verification.agent.model.name", "TEST_STEP_VERIFICATION_AGENT_MODEL_NAME", "gemini-3-flash-preview",
+            s -> s, false);
+
+    public static String getTestStepVerificationAgentModelName() {
+        return TEST_STEP_VERIFICATION_AGENT_MODEL_NAME.value();
+    }
+
+    private static final ConfigProperty<ModelProvider> TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER = getProperty(
+            "test.step.verification.agent.model.provider", "TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER", "google",
+            AgentConfig::getModelProvider, false);
+
+    public static ModelProvider getTestStepVerificationAgentModelProvider() {
+        return TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER.value();
+    }
+
+    private static final ConfigProperty<String> TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION = loadProperty(
+            "test.step.verification.agent.prompt.version", "TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION", "v1.0.0",
+            s -> s, false);
+
+    public static String getTestStepVerificationAgentPromptVersion() {
+        return TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION.value();
+    }
 }
