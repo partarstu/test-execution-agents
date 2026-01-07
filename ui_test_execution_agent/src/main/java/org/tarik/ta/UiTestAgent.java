@@ -29,7 +29,7 @@ import org.tarik.ta.dto.UiPreconditionResult;
 import org.tarik.ta.dto.UiTestStepResult;
 import org.tarik.ta.dto.UiTestExecutionResult;
 import org.tarik.ta.core.dto.SystemInfo;
-import org.tarik.ta.utils.LogCapture;
+import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.error.ErrorCategory;
 import org.tarik.ta.core.error.RetryPolicy;

@@ -35,6 +35,7 @@ import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.tools.ApiAssertionTools;
 import org.tarik.ta.core.tools.TestContextDataTools;
 import org.tarik.ta.tools.ApiRequestTools;
+import org.tarik.ta.core.utils.LogCapture;
 
 import java.time.Instant;
 import java.util.List;
@@ -58,13 +59,16 @@ public class ApiTestAgent {
 
     public static TestExecutionResult executeTestCase(String receivedMessage) {
         BudgetManager.reset();
+        LogCapture logCapture = new LogCapture();
         TestCase testCase = extractTestCase(receivedMessage).orElse(null);
         if (testCase == null) {
             return new TestExecutionResult("Unknown", ERROR, List.of(), List.of(), now(), now(),
-                    "Could not extract test case", null, null);
+                    "Could not extract test case", null, logCapture.getLogs());
         }
 
+
         LOG.info("Starting execution of the API test case '{}'", testCase.name());
+        logCapture.start();
         try {
             var testExecutionStartTimestamp = now();
             var apiContext = ApiContext.createFromConfig();
@@ -78,7 +82,7 @@ public class ApiTestAgent {
                 if (hasPreconditionFailures(executionContext)) {
                     var failedPrecondition = executionContext.getPreconditionExecutionHistory().getLast();
                     return getFailedTestExecutionResult(executionContext, testExecutionStartTimestamp,
-                            failedPrecondition.getErrorMessage());
+                            failedPrecondition.getErrorMessage(), logCapture.getLogs());
                 }
             }
 
@@ -86,17 +90,18 @@ public class ApiTestAgent {
             if (hasStepFailures(executionContext)) {
                 var lastStep = executionContext.getTestStepExecutionHistory().getLast();
                 if (lastStep.getExecutionStatus() == FAILURE) {
-                    return getFailedTestExecutionResult(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage());
+                    return getFailedTestExecutionResult(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage(), logCapture.getLogs());
                 } else {
-                    return getTestExecutionResultWithError(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage());
+                    return getTestExecutionResultWithError(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage(), logCapture.getLogs());
                 }
             } else {
                 return new TestExecutionResult(testCase.name(), PASSED, executionContext.getPreconditionExecutionHistory(),
                         executionContext.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), null,
-                        null, null);
+                        null, logCapture.getLogs());
             }
         } finally {
             LOG.info("Finished execution of the test case '{}'", testCase.name());
+            logCapture.stop();
         }
     }
 
@@ -205,18 +210,18 @@ public class ApiTestAgent {
 
     @NotNull
     private static TestExecutionResult getFailedTestExecutionResult(TestExecutionContext context,
-                                                                    Instant testExecutionStartTimestamp, String errorMessage) {
+                                                                    Instant testExecutionStartTimestamp, String errorMessage, List<String> logs) {
         LOG.error(errorMessage);
         return new TestExecutionResult(context.getTestCase().name(), FAILED, context.getPreconditionExecutionHistory(),
-                context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), errorMessage, null, null);
+                context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), errorMessage, null, logs);
     }
 
     @NotNull
     private static TestExecutionResult getTestExecutionResultWithError(TestExecutionContext context,
-                                                                       Instant testExecutionStartTimestamp, String errorMessage) {
+                                                                       Instant testExecutionStartTimestamp, String errorMessage, List<String> logs) {
         LOG.error(errorMessage);
         return new TestExecutionResult(context.getTestCase().name(), ERROR, context.getPreconditionExecutionHistory(),
-                context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), errorMessage, null, null);
+                context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), errorMessage, null, logs);
     }
 
     private static void addFailedTestStep(TestExecutionContext context, TestStep testStep, String errorMessage,
