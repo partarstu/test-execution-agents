@@ -380,6 +380,10 @@ override properties file settings.**
 * `element.locator.zoom.scale.factor` (Env: `ELEMENT_LOCATOR_ZOOM_SCALE_FACTOR`): Zoom scale factor for element location. Default: `1`.
 * `element.locator.algorithmic.search.enabled` (Env: `ALGORITHMIC_SEARCH_ENABLED`): Enable/disable OpenCV algorithmic search. Default:
   `false`.
+* `element.locator.skip.model.selection.vision.only` (Env: `SKIP_UI_ELEMENT_SELECTION_FOR_VISION`): When enabled, skip the model 
+  selection step when only visual grounding results are available (no algorithmic matches). In this case, the first identified element 
+  from the visual grounding results is returned directly without additional model validation. This can speed up element location when 
+  algorithmic search is disabled. Default: `false`.
 * `bounding.box.already.normalized` (Env: `BOUNDING_BOX_ALREADY_NORMALIZED`): Whether bounding boxes are pre-normalized. Default: `false`.
 * `bbox.screenshot.longest.allowed.dimension.pixels` (Env: `BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS`): Maximum screenshot
   dimension. Default: `1568`.

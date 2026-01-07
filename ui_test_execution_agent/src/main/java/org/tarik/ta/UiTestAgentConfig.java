@@ -191,6 +191,14 @@ public class UiTestAgentConfig extends AgentConfig {
         return ALGORITHMIC_SEARCH_ENABLED.value();
     }
 
+    private static final ConfigProperty<Boolean> SKIP_UI_ELEMENT_SELECTION_FOR_VISION = loadProperty(
+            "element.locator.skip.model.selection.vision.only", "SKIP_UI_ELEMENT_SELECTION_FOR_VISION", "false",
+            Boolean::parseBoolean, false);
+
+    public static boolean isSkipModelSelectionForVisionOnly() {
+        return SKIP_UI_ELEMENT_SELECTION_FOR_VISION.value();
+    }
+
     // -----------------------------------------------------
     // User UI dialogs
     private static final ConfigProperty<Integer> DIALOG_DEFAULT_HORIZONTAL_GAP = loadPropertyAsInteger(

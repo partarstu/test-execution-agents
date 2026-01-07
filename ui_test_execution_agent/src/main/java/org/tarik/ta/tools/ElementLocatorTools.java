@@ -446,8 +446,15 @@ public class ElementLocatorTools extends UiAbstractTools {
                     templateMatchedBoundingBoxes);
         } else {
             if (featureMatchedBoundingBoxes.isEmpty() && templateMatchedBoundingBoxes.isEmpty()) {
-                return selectBestMatchingUiElementUsingModel(elementRetrievedFromMemory, elementTestData, identifiedByVisionBoundingBoxes,
-                        wholeScreenshot, "vision_only", false, true);
+                if (UiTestAgentConfig.isSkipModelSelectionForVisionOnly()) {
+                    LOG.info("Skipping model selection for vision-only results as per configuration. Returning the first " +
+                            "identified element out of {} elements.", identifiedByVisionBoundingBoxes.size());
+                    return new UiElementLocationInternalResult(false, true, identifiedByVisionBoundingBoxes.getFirst(),
+                            elementRetrievedFromMemory, wholeScreenshot);
+                } else {
+                    return selectBestMatchingUiElementUsingModel(elementRetrievedFromMemory, elementTestData,
+                            identifiedByVisionBoundingBoxes, wholeScreenshot, "vision_only", false, true);
+                }
             } else {
                 return chooseBestCommonMatch(elementRetrievedFromMemory, elementTestData, identifiedByVisionBoundingBoxes, wholeScreenshot,
                         featureMatchedBoundingBoxes, templateMatchedBoundingBoxes)

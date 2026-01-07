@@ -71,7 +71,8 @@ public class VerificationManager implements AutoCloseable {
             long remainingNanos = MILLISECONDS.toNanos(timeoutMillis);
             while (activeVerifications > 0) {
                 if (remainingNanos <= 0) {
-                    return new VerificationStatus(true, false);
+                    LOG.warn("Timeout while waiting for verification to finish");
+                    return new VerificationStatus(true, null);
                 }
                 try {
                     remainingNanos = verificationFinished.awaitNanos(remainingNanos);

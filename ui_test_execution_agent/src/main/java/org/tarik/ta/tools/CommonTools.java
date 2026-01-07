@@ -67,12 +67,14 @@ public class CommonTools extends UiAbstractTools {
     public VerificationStatus waitForVerification() {
         try {
             var result = verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis());
-            if (!result.success()) {
+            if (result.timedOut()) {
+                throw new ToolExecutionException("Verification timed out before completing", VERIFICATION_FAILED);
+            }
+            if (!(result.isSuccessful().orElse(false))) {
                 throw new ToolExecutionException("The latest verification failed, interrupting further tool execution",
                         VERIFICATION_FAILED);
-            } else {
-                return new VerificationStatus(false, true);
             }
+            return result;
         } catch (Exception e) {
             throw rethrowAsToolException(e, "waiting for verification to complete");
         }

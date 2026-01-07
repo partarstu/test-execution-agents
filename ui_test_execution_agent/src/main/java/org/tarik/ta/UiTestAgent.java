@@ -265,8 +265,7 @@ public class UiTestAgent {
                             var verificationExecutionResult = testStepVerificationAgent.executeWithRetry(() -> {
                                 var screenshot = captureScreen();
                                 context.setVisualState(new VisualState(screenshot));
-                                return testStepVerificationAgent.verify(verificationInstruction, actionInstruction,
-                                        testDataString,
+                                return testStepVerificationAgent.verify(verificationInstruction, actionInstruction, testDataString,
                                         context.getSharedData().toString(), singleImageContent(screenshot));
                             }, result -> result == null || !result.success());
                             resetToolCallUsage();
@@ -278,18 +277,15 @@ public class UiTestAgent {
                                         context.getVisualState().screenshot(), TestStepResultStatus.ERROR);
                                 return false;
                             } else {
-                                VerificationExecutionResult verificationResult = verificationExecutionResult
-                                        .getResultPayload();
+                                VerificationExecutionResult verificationResult = verificationExecutionResult.getResultPayload();
                                 if (verificationResult == null) {
                                     var errorMessage = "Verification result got back empty.";
-                                    addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp,
-                                            now(),
+                                    addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
                                             context.getVisualState().screenshot(), FAILURE);
                                     return false;
                                 }
                                 if (!verificationResult.success()) {
-                                    var errorMessage = "Verification failed. %s"
-                                            .formatted(verificationResult.message());
+                                    var errorMessage = "Verification failed. %s".formatted(verificationResult.message());
                                     addFailedTestStep(context, testStep, errorMessage, verificationResult.message(),
                                             executionStartTimestamp, now(), context.getVisualState().screenshot(),
                                             FAILURE);
@@ -309,14 +305,30 @@ public class UiTestAgent {
                         }
                     });
 
-                    if (!isElementLocationPrefetchingEnabled() &&
-                            !verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis())
-                                    .success()) {
-                        // The test case execution should be immediately interrupted after any
-                        // verification failure, unless UI element
-                        // location pre-fetching is activated (in this case it will fail while executing
-                        // the next test step)
-                        return;
+                    if (!isElementLocationPrefetchingEnabled()) {
+                        // The test case execution should be immediately interrupted after any verification failure
+                        // or timeout, unless UI element location pre-fetching is activated (in this case it will
+                        // fail while executing the next test step)
+                        var verificationStatus = verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis());
+                        if (!verificationStatus.isCompleted()) {
+                            // Verification with retries might last longer than the timeout, because the requests to the model for
+                            // verification might last seconds. We need to wait for the final completion of the verification, should take
+                            // no more than the general timeout (unless network issues occurred)
+                            LOG.warn("Verification '{}' exceeded the timeout of {} ms, waiting the same amount of time before " +
+                                    "interrupting the execution", verificationInstruction, getVerificationRetryTimeoutMillis());
+                            var refreshedStatus = verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis());
+                            if (!refreshedStatus.isCompleted()) {
+                                var message = ("Verification '%s' hasn't completed within extended timeout")
+                                        .formatted(verificationInstruction);
+                                LOG.error("Verification '{}' is stuck, interrupting execution", verificationInstruction);
+                                addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(), captureScreen(),
+                                        TestStepResultStatus.ERROR);
+                            } else if (!verificationStatus.isSuccessful().orElse(false)) {
+                                return;
+                            }
+                        } else if (!verificationStatus.isSuccessful().orElse(false)) {
+                            return;
+                        }
                     }
                 } else {
                     context.addStepResult(new UiTestStepResult(testStep, SUCCESS, null, "No verification required",
@@ -445,10 +457,8 @@ public class UiTestAgent {
                                                                     BufferedImage screenshot, SystemInfo systemInfo, String videoPath,
                                                                     List<String> logs) {
         LOG.error(errorMessage);
-        return new UiTestExecutionResult(context.getTestCase().name(), FAILED,
-                context.getPreconditionExecutionHistory(),
-                context.getTestStepExecutionHistory(), screenshot, systemInfo, videoPath, logs,
-                testExecutionStartTimestamp, now(),
+        return new UiTestExecutionResult(context.getTestCase().name(), FAILED, context.getPreconditionExecutionHistory(),
+                context.getTestStepExecutionHistory(), screenshot, systemInfo, videoPath, logs, testExecutionStartTimestamp, now(),
                 errorMessage);
     }
 
@@ -459,8 +469,7 @@ public class UiTestAgent {
                                                                        List<String> logs) {
         LOG.error(errorMessage);
         return new UiTestExecutionResult(context.getTestCase().name(), ERROR, context.getPreconditionExecutionHistory(),
-                context.getTestStepExecutionHistory(), screenshot, systemInfo, videoPath, logs,
-                testExecutionStartTimestamp, now(),
+                context.getTestStepExecutionHistory(), screenshot, systemInfo, videoPath, logs, testExecutionStartTimestamp, now(),
                 errorMessage);
     }
 
@@ -473,9 +482,8 @@ public class UiTestAgent {
             Instant executionEndTimestamp,
             BufferedImage screenshot,
             TestStepResultStatus status) {
-        context.addStepResult(
-                new UiTestStepResult(testStep, status, errorMessage, actualResult, screenshot, executionStartTimestamp,
-                        executionEndTimestamp));
+        context.addStepResult(new UiTestStepResult(testStep, status, errorMessage, actualResult, screenshot, executionStartTimestamp,
+                executionEndTimestamp));
     }
 
     private static class UiErrorHandler extends DefaultErrorHandler {
