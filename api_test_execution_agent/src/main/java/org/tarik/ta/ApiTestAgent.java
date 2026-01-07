@@ -179,6 +179,7 @@ public class ApiTestAgent {
                             TestStepResultStatus.ERROR);
                     return;
                 }
+                LOG.info("Test step executed successfully.");
 
                 var verificationResult = executionResult.getResultPayload();
                 if (verificationResult != null && !verificationResult.success()) {
@@ -187,6 +188,7 @@ public class ApiTestAgent {
                             now(), FAILURE);
                     return;
                 }
+                LOG.info("Verification passed.");
                 LOG.info("Test step execution and verification complete.");
                 var actualResult = verificationResult != null ? verificationResult.message() : "Execution successful";
                 executionContext.addStepResult(new TestStepResult(testStep, SUCCESS, null, actualResult, executionStartTimestamp, now()));
