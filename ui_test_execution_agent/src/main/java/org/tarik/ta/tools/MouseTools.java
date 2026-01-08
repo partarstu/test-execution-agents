@@ -137,8 +137,8 @@ public class MouseTools extends UiAbstractTools {
         try {
             var actionDescription = "Clicked at location (%s, %s)".formatted(x, y);
             var checkResult = uiStateCheckAgent.executeAndGetResult(() ->
-                    uiStateCheckAgent.verify(expectedStateDescription, actionDescription, "",
-                            singleImageContent(captureScreen()))).getResultPayload();
+                    uiStateCheckAgent.verify(singleImageContent(captureScreen()),
+                            expectedStateDescription, actionDescription, "")).getResultPayload();
             if (checkResult == null || !checkResult.success()) {
                 var waitDuration = getMaxActionExecutionDurationMillis();
                 long deadline = currentTimeMillis() + waitDuration;
@@ -149,8 +149,8 @@ public class MouseTools extends UiAbstractTools {
                     sleepMillis(RETRIABLE_ACTION_DELAY_MILLIS);
                     var screenshot = latestScreenshot.updateAndGet(_ -> captureScreen());
                     var result = uiStateCheckAgent.executeAndGetResult(() ->
-                            uiStateCheckAgent.verify(expectedStateDescription, actionDescription, "",
-                                    singleImageContent(screenshot))).getResultPayload();
+                            uiStateCheckAgent.verify(singleImageContent(screenshot),
+                                    expectedStateDescription, actionDescription, "")).getResultPayload();
                     if (result != null && result.success()) {
                         return;
                     }

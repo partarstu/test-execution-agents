@@ -29,15 +29,15 @@ import org.tarik.ta.core.error.RetryPolicy;
 public interface UiElementDescriptionAgent extends BaseAiAgent<UiElementDescriptionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
-    @UserMessage("""
-            The target UI element info: {{original_element_description}}.
-            
-            The screenshot is attached.
-            """)
     Result<String> describeUiElement(
+            @UserMessage ImageContent screenshot,
+            @UserMessage("""
+                    The target UI element info: {{original_element_description}}.
+                    
+                    The screenshot is attached.
+                    """)
             @V("original_element_description") String originalElementDescription,
-            @V("bounding_box_color") String boundingBoxColor,
-            @UserMessage ImageContent screenshot);
+            @V("bounding_box_color") String boundingBoxColor);
 
     @Override
     default String getAgentTaskDescription() {

@@ -2,7 +2,7 @@ package org.tarik.ta.core;
 
 import dev.langchain4j.model.googleai.GeminiContent.GeminiPart;
 import dev.langchain4j.model.googleai.GeminiContent.GeminiPart.GeminiBlob;
-import dev.langchain4j.model.googleai.GeminiMediaResolution;
+import dev.langchain4j.model.googleai.GeminiMediaResolutionLevel;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,7 +22,7 @@ public class GeminiPatchTest {
         // Then
         assertThat(part.mediaResolution())
                 .as("Media resolution should automatically be set to HIGH for parts with inline data")
-                .isEqualTo(GeminiMediaResolution.HIGH);
+                .isEqualTo(GeminiMediaResolutionLevel.HIGH);
     }
 
     @Test

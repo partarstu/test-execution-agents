@@ -27,8 +27,10 @@ import org.tarik.ta.core.error.RetryPolicy;
 public interface BestUiElementMatchSelectionAgent extends BaseUiAgent<BestUiElementVisualMatchResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
-    Result<String> selectBestElement(@V("bounding_box_color") String boundingBoxColor, @UserMessage String prompt,
-                                                            @UserMessage ImageContent screenshot);
+    Result<String> selectBestElement(
+            @UserMessage ImageContent screenshot,
+            @UserMessage String prompt,
+            @V("bounding_box_color") String boundingBoxColor);
 
     @Override
     default String getAgentTaskDescription() {

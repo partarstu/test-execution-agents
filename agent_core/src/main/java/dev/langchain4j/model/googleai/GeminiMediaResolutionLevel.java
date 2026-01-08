@@ -4,6 +4,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public enum GeminiMediaResolution {
-    MEDIA_RESOLUTION_HIGH;
+public record GeminiMediaResolutionLevel(@JsonProperty("level") String level) {
+    public static final GeminiMediaResolutionLevel HIGH = new GeminiMediaResolutionLevel("MEDIA_RESOLUTION_HIGH");
 }

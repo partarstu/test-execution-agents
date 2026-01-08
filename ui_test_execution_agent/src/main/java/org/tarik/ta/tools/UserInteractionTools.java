@@ -340,7 +340,7 @@ public class UserInteractionTools extends UiAbstractTools {
         var screenshot = singleImageContent(capture.wholeScreenshotWithBoundingBox());
         var boundingBoxColorName = getColorName(BOUNDING_BOX_COLOR).toLowerCase();
         return uiElementDescriptionAgent.executeAndGetResult(() ->
-                        uiElementDescriptionAgent.describeUiElement(elementDescription, boundingBoxColorName, screenshot))
+                        uiElementDescriptionAgent.describeUiElement(screenshot, elementDescription, boundingBoxColorName))
                 .getResultPayload();
     }
 

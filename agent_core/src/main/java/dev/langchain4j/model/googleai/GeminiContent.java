@@ -26,11 +26,11 @@ public record GeminiContent(List<GeminiPart> parts, String role) {
             GeminiCodeExecutionResult codeExecutionResult,
             Boolean thought,
             String thoughtSignature,
-            GeminiMediaResolution mediaResolution) {
+            GeminiMediaResolutionLevel mediaResolution) {
 
         public GeminiPart {
             if ((inlineData != null || fileData != null) && mediaResolution == null) {
-                mediaResolution = GeminiMediaResolution.HIGH;
+                mediaResolution = GeminiMediaResolutionLevel.HIGH;
             }
         }
 
@@ -52,7 +52,7 @@ public record GeminiContent(List<GeminiPart> parts, String role) {
             private GeminiCodeExecutionResult codeExecutionResult;
             private Boolean thought;
             private String thoughtSignature;
-            private GeminiMediaResolution mediaResolution;
+            private GeminiMediaResolutionLevel mediaResolution;
 
             private Builder() {}
 
@@ -101,7 +101,7 @@ public record GeminiContent(List<GeminiPart> parts, String role) {
                 return this;
             }
             
-            public Builder mediaResolution(GeminiMediaResolution mediaResolution) {
+            public Builder mediaResolution(GeminiMediaResolutionLevel mediaResolution) {
                 this.mediaResolution = mediaResolution;
                 return this;
             }

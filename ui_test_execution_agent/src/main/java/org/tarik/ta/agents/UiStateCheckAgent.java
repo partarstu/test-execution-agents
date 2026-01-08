@@ -28,20 +28,20 @@ import org.tarik.ta.core.error.RetryPolicy;
 public interface UiStateCheckAgent extends BaseAiAgent<UiStateCheckResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
 
-    @UserMessage("""             
-            The expected state of the screen: {{expectedStateDescription}}
-            
-            The action performed was: {{actionDescription}}
-            
-            Any related to the expected state data: {{relevantData}}
-            
-            Screenshot attached.
-            """)
     Result<String> verify(
+            @UserMessage ImageContent screenshot,
+            @UserMessage("""
+                    The expected state of the screen: {{expectedStateDescription}}
+                    
+                    The action performed was: {{actionDescription}}
+                    
+                    Any related to the expected state data: {{relevantData}}
+                    
+                    Screenshot attached.
+                    """)
             @V("expectedStateDescription") String expectedStateDescription,
             @V("actionDescription") String actionDescription,
-            @V("relevantData") String relevantData,
-            @UserMessage ImageContent screenshot);
+            @V("relevantData") String relevantData);
 
     @Override
     default String getAgentTaskDescription() {

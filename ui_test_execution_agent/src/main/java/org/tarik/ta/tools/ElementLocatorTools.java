@@ -253,7 +253,7 @@ public class ElementLocatorTools extends UiAbstractTools {
         var userMessage = getDbElementBestMatchSelectionUserMessage(candidatesById, elementDescription, elementSpecificData);
         try {
             var result = dbUiElementSelectionAgent.executeAndGetResult(() ->
-                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, singleImageContent(screenshot)))
+                            dbUiElementSelectionAgent.selectBestElementFromCandidates(singleImageContent(screenshot), userMessage))
                     .getResultPayload();
             if (result != null && result.success() && isNotBlank(result.selectedElementId())) {
                 String selectedId = result.selectedElementId().toLowerCase().trim();
@@ -608,7 +608,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                 List<Callable<List<BoundingBox>>> tasks = range(0, VISUAL_GROUNDING_MODEL_VOTE_COUNT)
                         .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> Objects.requireNonNull(
                                 uiElementBoundingBoxAgent.executeAndGetResult(
-                                        () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend))
+                                        () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(singleImageContent(imageToSend), prompt)
                                 ).getResultPayload()).boundingBoxes())
                         .toList();
                 List<Rectangle> allBoundingBoxes = executor.invokeAll(tasks).stream()
@@ -748,8 +748,8 @@ public class ElementLocatorTools extends UiAbstractTools {
 
             List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, VALIDATION_MODEL_VOTE_COUNT)
                     .mapToObj(_ -> (Callable<BestUiElementVisualMatchResult>) () -> bestUiElementMatchSelectionAgent.executeAndGetResult(
-                            () -> bestUiElementMatchSelectionAgent.selectBestElement(boundingBoxColorName, prompt,
-                                    singleImageContent(resultingScreenshot))
+                            () -> bestUiElementMatchSelectionAgent.selectBestElement(singleImageContent(resultingScreenshot),
+                                    prompt, boundingBoxColorName)
                     ).getResultPayload())
                     .toList();
             return executor.invokeAll(tasks).stream()
