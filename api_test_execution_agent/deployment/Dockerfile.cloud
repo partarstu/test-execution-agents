@@ -56,6 +56,6 @@ ENV PORT="8005"
 # Expose the port
 EXPOSE 8005
 
-# Run the application
+# Run the application with cloud logging configuration
 # Using exec form to ensure proper signal handling for graceful shutdown
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-Dlogback.configurationFile=logback-cloud.xml", "-jar", "/app/app.jar"]

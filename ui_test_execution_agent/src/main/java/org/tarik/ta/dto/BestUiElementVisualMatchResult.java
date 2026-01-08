@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 @Description("the identified best match of the bounding box for a target UI element")
-public record UiElementIdentificationResult(
+public record BestUiElementVisualMatchResult(
         @Description("indicates whether there is a match. Must be \"false\", if you're sure that there are" +
                 " no bounding boxes which correctly mark the target UI element based on its info and visual characteristics," +
                 " \"true\" otherwise.")
@@ -38,11 +38,11 @@ public record UiElementIdentificationResult(
                 "others. If the value of \"success\" field is \"false\", this field should have your comments " +
                 "clarifying why you found no good match at all.")
         String message) implements FinalResult {
-    private static final Logger LOG = LoggerFactory.getLogger(UiElementIdentificationResult.class);
+    private static final Logger LOG = LoggerFactory.getLogger(BestUiElementVisualMatchResult.class);
 
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
-    public UiElementIdentificationResult endExecutionAndGetFinalResult(
-            @P(value = FINAL_RESULT_PARAM_DESCRIPTION) UiElementIdentificationResult result) {
+    public BestUiElementVisualMatchResult endExecutionAndGetFinalResult(
+            @P(value = FINAL_RESULT_PARAM_DESCRIPTION) BestUiElementVisualMatchResult result) {
         LOG.debug("Ending execution and returning the final result: {}", result);
         return result;
     }

@@ -318,29 +318,54 @@ public class UiTestAgentConfig extends AgentConfig {
     }
 
     // Element Selection Agent
-    private static final ConfigProperty<String> ELEMENT_SELECTION_AGENT_MODEL_NAME = loadProperty(
-            "element.selection.agent.model.name", "ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s,
-            false);
+    private static final ConfigProperty<String> UI_ELEMENT_VISUAL_MATCH_AGENT_MODEL_NAME = loadProperty(
+            "element.selection.agent.model.name", "ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
 
-    public static String getElementSelectionAgentModelName() {
-        return ELEMENT_SELECTION_AGENT_MODEL_NAME.value();
+    public static String getUiElementVisualMatchAgentModelName() {
+        return UI_ELEMENT_VISUAL_MATCH_AGENT_MODEL_NAME.value();
     }
 
-    private static final ConfigProperty<ModelProvider> ELEMENT_SELECTION_AGENT_MODEL_PROVIDER = getProperty(
-            "element.selection.agent.model.provider", "ELEMENT_SELECTION_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
+    private static final ConfigProperty<ModelProvider> UI_ELEMENT_VISUAL_MATCH_AGENT_MODEL_PROVIDER = getProperty(
+            "element.selection.agent.model.provider", "ELEMENT_SELECTION_AGENT_MODEL_PROVIDER", "google", AgentConfig::getModelProvider,
+            false);
 
-    public static ModelProvider getElementSelectionAgentModelProvider() {
-        return ELEMENT_SELECTION_AGENT_MODEL_PROVIDER.value();
+    public static ModelProvider getUiElementVisualMatchAgentModelProvider() {
+        return UI_ELEMENT_VISUAL_MATCH_AGENT_MODEL_PROVIDER.value();
     }
 
     private static final ConfigProperty<String> ELEMENT_SELECTION_AGENT_PROMPT_VERSION = loadProperty(
-            "element.selection.agent.prompt.version", "ELEMENT_SELECTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s,
-            false);
+            "element.selection.agent.prompt.version", "ELEMENT_SELECTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
 
     public static String getElementSelectionAgentPromptVersion() {
         return ELEMENT_SELECTION_AGENT_PROMPT_VERSION.value();
     }
+
+    // DB Element Selection Agent
+    private static final ConfigProperty<String> DB_ELEMENT_CANDIDATE_SELECTION_AGENT_PROMPT_VERSION = loadProperty(
+            "db.element.selection.agent.prompt.version", "ELEMENT_CANDIDATE_SELECTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s,
+            false);
+
+    public static String getDbElementCandidateSelectionAgentPromptVersion() {
+        return DB_ELEMENT_CANDIDATE_SELECTION_AGENT_PROMPT_VERSION.value();
+    }
+
+    // Element Selection Agent
+    private static final ConfigProperty<String> DB_ELEMENT_SELECTION_AGENT_MODEL_NAME = loadProperty(
+            "db.element.selection.agent.model.name", "DB_ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
+
+
+    public static String getDbElementCandidateSelectionAgentModelName() {
+        return DB_ELEMENT_SELECTION_AGENT_MODEL_NAME.value();
+    }
+
+    private static final ConfigProperty<ModelProvider> DB_ELEMENT_SELECTION_AGENT_MODEL_PROVIDER = getProperty(
+            "db.element.selection.agent.model.provider", "DB_ELEMENT_SELECTION_AGENT_MODEL_PROVIDER", "google",
+            AgentConfig::getModelProvider, false);
+
+    public static ModelProvider getDbElementCandidateSelectionAgentModelProvider() {
+        return DB_ELEMENT_SELECTION_AGENT_MODEL_PROVIDER.value();
+    }
+
 
     // Page Description Agent
     private static final ConfigProperty<String> PAGE_DESCRIPTION_AGENT_MODEL_NAME = loadProperty(

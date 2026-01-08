@@ -35,7 +35,7 @@ import org.tarik.ta.agents.UiElementDescriptionAgent;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.agents.PageDescriptionAgent;
 import org.tarik.ta.agents.UiElementBoundingBoxAgent;
-import org.tarik.ta.agents.UiElementSelectionAgent;
+import org.tarik.ta.agents.BestUiElementMatchSelectionAgent;
 import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -102,7 +102,7 @@ class UiTestAgentTest {
         @Mock
         private UiElementBoundingBoxAgent uiElementBoundingBoxAgentMock;
         @Mock
-        private UiElementSelectionAgent uiElementSelectionAgentMock;
+        private BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgentMock;
 
         @Mock
         private AiServices<TestCaseExtractionAgent> testCaseExtractionAgentBuilder;
@@ -123,7 +123,7 @@ class UiTestAgentTest {
         @Mock
         private AiServices<UiElementBoundingBoxAgent> elementBoundingBoxAgentBuilder;
         @Mock
-        private AiServices<UiElementSelectionAgent> elementSelectionAgentBuilder;
+        private AiServices<BestUiElementMatchSelectionAgent> elementSelectionAgentBuilder;
 
         // Static mocks
         private MockedStatic<ModelFactory> modelFactoryMockedStatic;
@@ -183,13 +183,13 @@ class UiTestAgentTest {
                                 .thenReturn("test-model");
                 uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentModelName)
                                 .thenReturn("test-model");
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentModelName)
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getUiElementVisualMatchAgentModelName)
                                 .thenReturn("test-model");
                 uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentModelProvider)
                                 .thenReturn(AgentConfig.ModelProvider.GOOGLE);
                 uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementBoundingBoxAgentModelProvider)
                                 .thenReturn(AgentConfig.ModelProvider.GOOGLE);
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getElementSelectionAgentModelProvider)
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getUiElementVisualMatchAgentModelProvider)
                                 .thenReturn(AgentConfig.ModelProvider.GOOGLE);
                 uiAgentConfigMockedStatic.when(UiTestAgentConfig::getPageDescriptionAgentPromptVersion)
                                 .thenReturn("v1");
@@ -232,7 +232,7 @@ class UiTestAgentTest {
                                 .thenReturn(pageDescriptionAgentBuilder);
                 aiServicesMockedStatic.when(() -> AiServices.builder(UiElementBoundingBoxAgent.class))
                                 .thenReturn(elementBoundingBoxAgentBuilder);
-                aiServicesMockedStatic.when(() -> AiServices.builder(UiElementSelectionAgent.class))
+                aiServicesMockedStatic.when(() -> AiServices.builder(BestUiElementMatchSelectionAgent.class))
                                 .thenReturn(elementSelectionAgentBuilder);
 
                 // Retriever Factory
@@ -249,7 +249,7 @@ class UiTestAgentTest {
                 configureBuilder(uiElementDescriptionAgentBuilder, uiElementDescriptionAgentMock);
                 configureBuilder(pageDescriptionAgentBuilder, pageDescriptionAgentMock);
                 configureBuilder(elementBoundingBoxAgentBuilder, uiElementBoundingBoxAgentMock);
-                configureBuilder(elementSelectionAgentBuilder, uiElementSelectionAgentMock);
+                configureBuilder(elementSelectionAgentBuilder, bestUiElementMatchSelectionAgentMock);
         }
 
         private <T> void configureBuilder(AiServices<T> builder, T agent) {

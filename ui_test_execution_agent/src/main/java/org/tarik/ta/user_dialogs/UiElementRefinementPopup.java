@@ -129,8 +129,8 @@ public class UiElementRefinementPopup extends AbstractDialog {
 
     @NotNull
     private JLabel getElementLabel(UiElement element) {
-        var elementFullName = isNotBlank(element.pageSummary())
-                ? "%s belonging to %s".formatted(element.name(), element.pageSummary())
+        var elementFullName = isNotBlank(element.parentElementSummary())
+                ? "%s belonging to %s".formatted(element.name(), element.parentElementSummary())
                 : element.name();
         String labelText = String.format(ELEMENT_LABEL_FORMAT, ELEMENT_DESCRIPTION_LENGTH,
                 ELEMENT_DESCRIPTION_FONT_SIZE, elementFullName,

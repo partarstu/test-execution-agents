@@ -52,8 +52,17 @@ fi
 # Export DISPLAY so all child processes (including Chrome) inherit it
 export DISPLAY=:1
 
+# Determine logback configuration based on deployment environment
+if [ "$DEPLOYMENT_ENV" = "cloud" ]; then
+  echo "Using cloud logging configuration (structured JSON for Google Cloud Logging)"
+  LOGBACK_CONFIG="-Dlogback.configurationFile=logback-cloud.xml"
+else
+  echo "Using default logging configuration"
+  LOGBACK_CONFIG=""
+fi
+
 # Run Java application as ubuntu user
 # Using 'su -c' to execute the command in a non-interactive shell
-su ubuntu -c "java -jar ${APP_JAR_PATH}"
+su ubuntu -c "java ${LOGBACK_CONFIG} -jar ${APP_JAR_PATH}"
 
 echo "Agent application launched."

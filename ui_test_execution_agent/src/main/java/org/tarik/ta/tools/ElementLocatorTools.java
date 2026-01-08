@@ -27,8 +27,8 @@ import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.UiElementBoundingBoxAgent;
-import org.tarik.ta.agents.UiElementSelectionAgent;
-import org.tarik.ta.agents.PageDescriptionAgent;
+import org.tarik.ta.agents.DbUiElementSelectionAgent;
+import org.tarik.ta.agents.BestUiElementMatchSelectionAgent;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.dto.*;
 import org.tarik.ta.exceptions.ElementLocationException;
@@ -39,7 +39,6 @@ import org.tarik.ta.rag.UiElementRetriever;
 import org.tarik.ta.rag.UiElementRetriever.RetrievedUiElementItem;
 import org.tarik.ta.rag.model.UiElement;
 import org.tarik.ta.utils.UiCommonUtils;
-import org.tarik.ta.core.utils.PromptUtils;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -64,9 +63,12 @@ import static java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor;
 import static java.util.stream.Collectors.*;
 import static java.util.stream.IntStream.range;
 import static java.util.stream.Stream.concat;
+import static org.tarik.ta.UiTestAgentConfig.*;
 import static org.tarik.ta.core.error.ErrorCategory.*;
+import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 import static org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus.NO_ELEMENTS_FOUND_IN_DB;
 import static org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus.SIMILAR_ELEMENTS_IN_DB_BUT_SCORE_TOO_LOW;
+import static org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus.MODEL_COULD_NOT_SELECT_FROM_DB_CANDIDATES;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.utils.BoundingBoxUtil.*;
 import static org.tarik.ta.utils.UiCommonUtils.*;
@@ -78,7 +80,6 @@ import static org.tarik.ta.utils.ImageUtils.*;
 public class ElementLocatorTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(ElementLocatorTools.class);
     private static final double MIN_TARGET_RETRIEVAL_SCORE = UiTestAgentConfig.getElementRetrievalMinTargetScore();
-    private static final double MIN_PAGE_RELEVANCE_SCORE = UiTestAgentConfig.getElementRetrievalMinPageRelevanceScore();
     private static final double MIN_GENERAL_RETRIEVAL_SCORE = UiTestAgentConfig.getElementRetrievalMinGeneralScore();
     private static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
     private static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
@@ -93,24 +94,24 @@ public class ElementLocatorTools extends UiAbstractTools {
     private static final boolean DEBUG_MODE = AgentConfig.isDebugMode();
 
     private final UiElementRetriever elementRetriever;
-    private final PageDescriptionAgent pageDescriptionAgent;
     private final UiElementBoundingBoxAgent uiElementBoundingBoxAgent;
-    private final UiElementSelectionAgent uiElementSelectionAgent;
+    private final BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent;
+    private final DbUiElementSelectionAgent dbUiElementSelectionAgent;
 
     public ElementLocatorTools() {
         super();
         this.elementRetriever = RetrieverFactory.getUiElementRetriever();
-        this.pageDescriptionAgent = createPageDescriptionAgent();
         this.uiElementBoundingBoxAgent = createElementBoundingBoxAgent();
-        this.uiElementSelectionAgent = createElementSelectionAgent();
+        this.bestUiElementMatchSelectionAgent = createElementSelectionAgent();
+        this.dbUiElementSelectionAgent = createDbElementSelectionAgent();
     }
 
     public ElementLocatorTools(UiStateCheckAgent uiStateCheckAgent) {
         super(uiStateCheckAgent);
         this.elementRetriever = RetrieverFactory.getUiElementRetriever();
-        this.pageDescriptionAgent = createPageDescriptionAgent();
         this.uiElementBoundingBoxAgent = createElementBoundingBoxAgent();
-        this.uiElementSelectionAgent = createElementSelectionAgent();
+        this.bestUiElementMatchSelectionAgent = createElementSelectionAgent();
+        this.dbUiElementSelectionAgent = createDbElementSelectionAgent();
     }
 
     @Tool(value = "Locates the UI element on the screen based on its description and returns its coordinates.")
@@ -137,45 +138,34 @@ public class ElementLocatorTools extends UiAbstractTools {
             } else if (matchingByDescriptionUiElements.isEmpty()) {
                 throw processNoElementsFoundInDbCase(elementDescription);
             } else {
-                UiElement bestMatchingElement;
-                if (matchingByDescriptionUiElements.size() > 1) {
-                    LOG.info("{} UI elements found in vector DB which semantically match the description '{}'. Scoring them based on " +
-                            "the relevance to the currently opened page.", matchingByDescriptionUiElements.size(), elementDescription);
-                    var bestMatchingByDescriptionAndPageRelevanceUiElements = getBestMatchingByDescriptionAndPageRelevanceUiElements(
-                            elementDescription);
-                    bestMatchingElement = bestMatchingByDescriptionAndPageRelevanceUiElements.getFirst();
-                } else {
-                    bestMatchingElement = matchingByDescriptionUiElements.getFirst();
-                }
                 LOG.info("Found {} UI element(s) in DB corresponding to the description of '{}'. Element names: {}",
                         matchingByDescriptionUiElements.size(), elementDescription,
                         matchingByDescriptionUiElements.stream().map(UiElement::name).toList());
-                return findElementAndProcessLocationResult(() ->
-                        getFinalElementLocation(bestMatchingElement, elementSpecificData), elementDescription);
+                UiElement bestMatchingElement;
+                if (matchingByDescriptionUiElements.size() > 1) {
+                    LOG.info("{} UI elements found in vector DB which semantically match the description '{}'. " +
+                                    "Using model to select the best matching element based on current screenshot.",
+                            matchingByDescriptionUiElements.size(), elementDescription);
+                    bestMatchingElement = selectBestMatchingDbElement(matchingByDescriptionUiElements, elementDescription,
+                            elementSpecificData)
+                            .orElseThrow(() -> processNoMatchingDbElementCandidateIdentifiedByModel(
+                                    elementDescription, retrievedElements));
+                } else {
+                    bestMatchingElement = matchingByDescriptionUiElements.getFirst();
+                }
+
+                return findElementAndProcessLocationResult(() -> getFinalElementLocation(bestMatchingElement, elementSpecificData),
+                        elementDescription);
             }
         } catch (Exception e) {
             throw rethrowAsToolException(e, "locating a UI element on the screen");
         }
     }
 
-    private PageDescriptionAgent createPageDescriptionAgent() {
-        var model =
-                getModel(UiTestAgentConfig.getPageDescriptionAgentModelName(), UiTestAgentConfig.getPageDescriptionAgentModelProvider());
-        var prompt = PromptUtils.loadSystemPrompt("page_describer", UiTestAgentConfig.getPageDescriptionAgentPromptVersion(),
-                "page_description_prompt.txt");
-        return builder(PageDescriptionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .tools(new PageDescriptionResult(""))
-                .build();
-    }
-
     private UiElementBoundingBoxAgent createElementBoundingBoxAgent() {
-        var model = getModel(UiTestAgentConfig.getElementBoundingBoxAgentModelName(),
-                UiTestAgentConfig.getElementBoundingBoxAgentModelProvider());
-        var prompt =
-                PromptUtils.loadSystemPrompt("element_locator/bounding_box", UiTestAgentConfig.getElementBoundingBoxAgentPromptVersion(),
-                        "element_bounding_box_prompt.txt");
+        var model = getModel(getElementBoundingBoxAgentModelName(), getElementBoundingBoxAgentModelProvider());
+        var prompt = loadSystemPrompt("element_locator/bounding_box", getElementBoundingBoxAgentPromptVersion(),
+                "element_bounding_box_prompt.txt");
         return builder(UiElementBoundingBoxAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
@@ -183,19 +173,18 @@ public class ElementLocatorTools extends UiAbstractTools {
                 .build();
     }
 
-    private UiElementSelectionAgent createElementSelectionAgent() {
-        var model =
-                getModel(UiTestAgentConfig.getElementSelectionAgentModelName(), UiTestAgentConfig.getElementSelectionAgentModelProvider());
-        var prompt = PromptUtils.loadSystemPrompt("element_locator/selection", UiTestAgentConfig.getElementSelectionAgentPromptVersion(),
+    private BestUiElementMatchSelectionAgent createElementSelectionAgent() {
+        var model = getModel(getUiElementVisualMatchAgentModelName(), getUiElementVisualMatchAgentModelProvider());
+        var prompt = loadSystemPrompt("element_locator/best_ui_match_selection", getElementSelectionAgentPromptVersion(),
                 "find_best_matching_ui_element_id.txt");
-        return builder(UiElementSelectionAgent.class)
+        return builder(BestUiElementMatchSelectionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .tools(new UiElementIdentificationResult(false, "", ""))
+                .tools(new BestUiElementVisualMatchResult(false, "", ""))
                 .build();
     }
 
-    private String formatElementBoundingBoxPrompt(UiElement uiElement, String elementTestData) {
+    private String getElementBoundingBoxUserMessage(UiElement uiElement, String elementTestData) {
         if (isNotBlank(elementTestData) && uiElement.isDataDependent()) {
             return """
                     The target element:
@@ -213,7 +202,7 @@ public class ElementLocatorTools extends UiAbstractTools {
         }
     }
 
-    private String formatElementSelectionPrompt(UiElement uiElement, String elementTestData, List<String> boundingBoxIds) {
+    private String getBestElementVisualMatchUserMessage(UiElement uiElement, String elementTestData, List<String> boundingBoxIds) {
         String boundingBoxIdsString = "Bounding box IDs: %s.".formatted(String.join(", ", boundingBoxIds));
         if (isNotBlank(elementTestData) && uiElement.isDataDependent()) {
             return """
@@ -236,16 +225,77 @@ public class ElementLocatorTools extends UiAbstractTools {
         }
     }
 
-    @NotNull
-    private List<UiElement> getBestMatchingByDescriptionAndPageRelevanceUiElements(String elementDescription) {
-        String pageDescription = getPageDescriptionFromModel();
-        var retrievedWithPageRelevanceScoreElements = elementRetriever.retrieveUiElements(elementDescription,
-                pageDescription, TOP_N_ELEMENTS_TO_RETRIEVE, MIN_GENERAL_RETRIEVAL_SCORE);
-        return retrievedWithPageRelevanceScoreElements.stream()
-                .filter(retrievedUiElementItem -> retrievedUiElementItem
-                        .pageRelevanceScore() >= MIN_PAGE_RELEVANCE_SCORE)
-                .map(RetrievedUiElementItem::element)
-                .toList();
+    private DbUiElementSelectionAgent createDbElementSelectionAgent() {
+        var model = getModel(getDbElementCandidateSelectionAgentModelName(), getDbElementCandidateSelectionAgentModelProvider());
+        var prompt = loadSystemPrompt("element_locator/db_element_selector",
+                getDbElementCandidateSelectionAgentPromptVersion(), "select_best_db_search_result_prompt.txt");
+        return builder(DbUiElementSelectionAgent.class)
+                .chatModel(model.chatModel())
+                .systemMessageProvider(_ -> prompt)
+                .tools(new DbUiElementSelectionResult(false, "", ""))
+                .build();
+    }
+
+
+    private Optional<UiElement> selectBestMatchingDbElement(List<UiElement> candidates, String elementDescription,
+                                                            String elementSpecificData) {
+        if (candidates.isEmpty()) {
+            return empty();
+        }
+        if (candidates.size() == 1) {
+            return of(candidates.getFirst());
+        }
+
+        BufferedImage screenshot = captureScreen();
+        Map<String, UiElement> candidatesById = range(0, candidates.size())
+                .boxed()
+                .collect(toMap(index -> "element_" + index, candidates::get));
+        var userMessage = getDbElementBestMatchSelectionUserMessage(candidatesById, elementDescription, elementSpecificData);
+        try {
+            var result = dbUiElementSelectionAgent.executeAndGetResult(() ->
+                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, singleImageContent(screenshot)))
+                    .getResultPayload();
+            if (result != null && result.success() && isNotBlank(result.selectedElementId())) {
+                String selectedId = result.selectedElementId().toLowerCase().trim();
+                UiElement selectedElement = candidatesById.get(selectedId);
+                if (selectedElement != null) {
+                    LOG.info("Model selected element '{}' from {} candidates.", selectedElement.name(), candidates.size());
+                    return of(selectedElement);
+                } else {
+                    LOG.warn("Model returned unknown element ID '{}'. Available IDs: {}. Falling back to first candidate.",
+                            selectedId, candidatesById.keySet());
+                }
+            } else {
+                LOG.warn("Model could not select a matching element from candidates. Reasoning: {}. Falling back to first candidate.",
+                        result != null ? result.message() : "No result");
+                return empty();
+            }
+        } catch (Exception e) {
+            throw rethrowAsToolException(e, "selecting the best UI element fetched from DB based on the screen state");
+        }
+
+        return empty();
+    }
+
+    private String getDbElementBestMatchSelectionUserMessage(Map<String, UiElement> candidatesById, String elementDescription,
+                                                             String elementSpecificData) {
+        String candidatesString = candidatesById.entrySet().stream()
+                .map((candidateById) -> {
+                    var candidate = candidateById.getValue();
+                    return "  - Candidate ID: %s, Name: '%s', Description: '%s', Location Details: '%s', Parent Element Info: '%s'"
+                            .formatted(candidateById.getKey(), candidate.name(), candidate.description(), candidate.locationDetails(),
+                                    candidate.parentElementSummary());
+                })
+                .collect(joining("\n"));
+
+        return """
+                The target element description: '%s'.
+                
+                Available data related to this element: '%s'
+                
+                Candidates:
+                %s
+                """.formatted(elementDescription, elementSpecificData, candidatesString);
     }
 
     private ElementLocationException processNoElementsFoundInDbWithSimilarCandidatesPresentCase(
@@ -270,14 +320,17 @@ public class ElementLocatorTools extends UiAbstractTools {
         return new ElementLocationException(message, NO_ELEMENTS_FOUND_IN_DB);
     }
 
-    private String getPageDescriptionFromModel() {
-        try {
-            var pageDescriptionResult = pageDescriptionAgent.executeAndGetResult(() ->
-                    pageDescriptionAgent.describePage(singleImageContent(captureScreen()))).getResultPayload();
-            return ofNullable(pageDescriptionResult).map(PageDescriptionResult::pageDescription).orElse("");
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to get page description from model", e);
-        }
+    private ElementLocationException processNoMatchingDbElementCandidateIdentifiedByModel(
+            String elementDescription, List<RetrievedUiElementItem> retrievedElements) {
+        var candidateElementsString = retrievedElements.stream()
+                .map(el -> "%s (score: %.2f)".formatted(el.element().name(), el.mainScore()))
+                .collect(joining(", "));
+        var failureReason = ("Model could not select a matching element from DB candidates for the description '%s'. Candidates " +
+                "considered: [%s]").formatted(elementDescription, candidateElementsString);
+        LOG.info(failureReason);
+        var message = ("Model could not select a matching element for '%s' from multiple DB candidates. " +
+                "None of the candidates appear to match the current screen state.").formatted(elementDescription);
+        return new ElementLocationException(message, MODEL_COULD_NOT_SELECT_FROM_DB_CANDIDATES);
     }
 
     private ElementLocation findElementAndProcessLocationResult(Supplier<UiElementLocationInternalResult> resultSupplier,
@@ -550,7 +603,7 @@ public class ElementLocatorTools extends UiAbstractTools {
         try {
             var scalingRatio = getScalingRatio(wholeScreenshot);
             var imageToSend = scalingRatio < 1.0 ? scaleImage(wholeScreenshot, scalingRatio) : wholeScreenshot;
-            var prompt = formatElementBoundingBoxPrompt(element, elementTestData);
+            var prompt = getElementBoundingBoxUserMessage(element, elementTestData);
             try (var executor = newVirtualThreadPerTaskExecutor()) {
                 List<Callable<List<BoundingBox>>> tasks = range(0, VISUAL_GROUNDING_MODEL_VOTE_COUNT)
                         .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> Objects.requireNonNull(
@@ -684,18 +737,18 @@ public class ElementLocatorTools extends UiAbstractTools {
     }
 
     @NotNull
-    private List<UiElementIdentificationResult> getValidSuccessfulIdentificationResultsFromModelUsingQuorum(
+    private List<BestUiElementVisualMatchResult> getValidSuccessfulIdentificationResultsFromModelUsingQuorum(
             @NotNull UiElement uiElement,
             String elementTestData,
             @NotNull BufferedImage resultingScreenshot,
             @NotNull List<String> boxIds) {
         try (var executor = newVirtualThreadPerTaskExecutor()) {
-            var prompt = formatElementSelectionPrompt(uiElement, elementTestData, boxIds);
+            var prompt = getBestElementVisualMatchUserMessage(uiElement, elementTestData, boxIds);
             var boundingBoxColorName = UiCommonUtils.getColorName(BOUNDING_BOX_COLOR).toLowerCase();
 
-            List<Callable<UiElementIdentificationResult>> tasks = range(0, VALIDATION_MODEL_VOTE_COUNT)
-                    .mapToObj(_ -> (Callable<UiElementIdentificationResult>) () -> uiElementSelectionAgent.executeAndGetResult(
-                            () -> uiElementSelectionAgent.selectBestElement(boundingBoxColorName, prompt,
+            List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, VALIDATION_MODEL_VOTE_COUNT)
+                    .mapToObj(_ -> (Callable<BestUiElementVisualMatchResult>) () -> bestUiElementMatchSelectionAgent.executeAndGetResult(
+                            () -> bestUiElementMatchSelectionAgent.selectBestElement(boundingBoxColorName, prompt,
                                     singleImageContent(resultingScreenshot))
                     ).getResultPayload())
                     .toList();

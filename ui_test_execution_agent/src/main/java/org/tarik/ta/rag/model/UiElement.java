@@ -33,7 +33,7 @@ public class UiElement {
     private final String name;
     private final String ownDescription;
     private final String anchorsDescription;
-    private final String pageSummary;
+    private final String parentElementSummary;
     private final Screenshot screenshot;
     private final boolean zoomInRequired;
     private final boolean isDataDependent;
@@ -42,7 +42,7 @@ public class UiElement {
                      @NotNull String name,
                      @NotNull String ownDescription,
                      @NotNull String anchorsDescription,
-                     @NotNull String pageSummary,
+                     @NotNull String parentElementSummary,
                      Screenshot screenshot,
                      boolean zoomInRequired,
                      boolean isDataDependent) {
@@ -50,7 +50,7 @@ public class UiElement {
         this.name = name;
         this.ownDescription = ownDescription;
         this.anchorsDescription = anchorsDescription;
-        this.pageSummary = pageSummary;
+        this.parentElementSummary = parentElementSummary;
         this.screenshot = screenshot;
         this.zoomInRequired = zoomInRequired;
         this.isDataDependent = isDataDependent;
@@ -72,8 +72,8 @@ public class UiElement {
         return anchorsDescription;
     }
 
-    public String pageSummary() {
-        return pageSummary;
+    public String parentElementSummary() {
+        return parentElementSummary;
     }
 
     public Screenshot screenshot() {
@@ -163,7 +163,7 @@ public class UiElement {
                 .add("name='" + name + "'")
                 .add("ownDescription='" + ownDescription + "'")
                 .add("locationDescription='" + anchorsDescription + "'")
-                .add("pageSummary='" + pageSummary + "'")
+                .add("pageSummary='" + parentElementSummary + "'")
                 .add("zoomInRequired=" + zoomInRequired)
                 .add("isDataDependent=" + isDataDependent)
                 .toString();
@@ -179,7 +179,7 @@ public class UiElement {
         metadata.put(NAME.name(), name);
         metadata.put(OWN_DESCRIPTION.name(), ownDescription);
         metadata.put(ANCHORS_DESCRIPTION.name(), anchorsDescription);
-        metadata.put(PAGE_SUMMARY.name(), pageSummary);
+        metadata.put(PAGE_SUMMARY.name(), parentElementSummary);
         if (screenshot != null) {
             metadata.put(SCREENSHOT_FILE_EXTENSION.name(), screenshot.fileExtension());
             metadata.put(SCREENSHOT_MIME_TYPE.name(), screenshot.mimeType());

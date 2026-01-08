@@ -20,6 +20,7 @@ FROM ui-testing-agent-base:latest
 
 ARG APP_DIR=/app
 ARG APP_LOG_DIR=${APP_DIR}/log
+ARG APP_SCREENSHOTS_DIR=${APP_DIR}/screenshots
 ARG SOURCE_JAR_PATH=ui_test_execution_agent/target/ui-test-execution-agent-1.0.0-SNAPSHOT.jar
 ARG DESTINATION_JAR_PATH=${APP_DIR}/app.jar
 ARG SOURCE_START_SCRIPT=ui_test_execution_agent/deployment/agent_startup.sh
@@ -65,6 +66,8 @@ RUN chmod +x ${DESTINATION_START_WEBSOCKIFY_SSL_SCRIPT}
 COPY ${SOURCE_JAR_PATH} ${DESTINATION_JAR_PATH}
 RUN mkdir -p ${APP_LOG_DIR}
 RUN chmod 777 -R ${APP_LOG_DIR}
+RUN mkdir -p ${APP_SCREENSHOTS_DIR}
+RUN chmod 777 -R ${APP_SCREENSHOTS_DIR}
 
 # This script will be executed after the main VNC and desktop services are running.
 COPY ${SOURCE_START_SCRIPT} ${DESTINATION_START_SCRIPT}
@@ -76,7 +79,7 @@ RUN chmod 777 ${DESTINATION_START_SCRIPT}
 ENV APP_JAR_PATH=${DESTINATION_JAR_PATH}
 ENV DISPLAY=:1
 ENV BROWSER_COMMAND="google-chrome-stable"
-ENV SCREENSHOTS_SAVE_FOLDER="${APP_DIR}/screenshots"
+ENV SCREENSHOTS_SAVE_FOLDER="${APP_SCREENSHOTS_DIR}"
 ENV LOG_DIR=${APP_LOG_DIR}
 ENV DEPLOYMENT_ENV="cloud"
 ENV SCREEN_RECORDING_FOLDER="${APP_DIR}/log/videos"

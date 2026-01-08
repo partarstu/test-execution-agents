@@ -15,24 +15,26 @@
  */
 package org.tarik.ta.agents;
 
-
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
 import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.dto.UiElementIdentificationResult;
 import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.dto.DbUiElementSelectionResult;
 
-public interface UiElementSelectionAgent extends BaseUiAgent<UiElementIdentificationResult> {
+/**
+ * Agent responsible for selecting the best matching UI element from a list of candidates
+ * retrieved from the database, based on the current screenshot of the screen.
+ */
+public interface DbUiElementSelectionAgent extends BaseUiAgent<DbUiElementSelectionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
-    Result<String> selectBestElement(@V("bounding_box_color") String boundingBoxColor, @UserMessage String prompt,
-                                                            @UserMessage ImageContent screenshot);
+    Result<String> selectBestElementFromCandidates(@UserMessage String candidatesInfo,
+                                                   @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {
-        return "Selecting the best matching UI element";
+        return "Selects the best matching UI element from found in DB candidates based on the screenshot";
     }
 
     @Override
@@ -40,5 +42,3 @@ public interface UiElementSelectionAgent extends BaseUiAgent<UiElementIdentifica
         return RETRY_POLICY;
     }
 }
-
-

@@ -153,6 +153,18 @@ gcloud builds submit --config=cloudbuild.yaml \
 | UI Test Execution Agent | GCE VM | noVNC (HTTPS) + Agent Server |
 | API Test Execution Agent | Cloud Run | HTTP (internal by default) |
 
+### Cloud Logging
+
+Both agents are configured to use **structured JSON logging** when deployed in Google Cloud. This ensures that multi-line log messages (such as stack traces and tool execution requests) are properly grouped as single log entries in Google Cloud Logging.
+
+The cloud logging configuration uses `google-cloud-logging-logback` with the `redirectToStdout` feature, which outputs structured JSON that Google Cloud's logging agents automatically parse.
+
+**Configuration files:**
+- UI Agent: `ui_test_execution_agent/src/main/resources/logback-cloud.xml`
+- API Agent: `api_test_execution_agent/src/main/resources/logback-cloud.xml`
+
+For local development, the standard `logback.xml` configuration is used with plain-text console output.
+
 ## Documentation
 
 *   For detailed documentation on the UI Test Execution Agent, see **[UI Agent README](ui_test_execution_agent/README.md)**.

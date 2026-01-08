@@ -35,9 +35,11 @@ a part of this framework for executing a sample test case inside Google Cloud.
           suggestions in order accelerate the execution in attended mode.
         * **[UiStateCheckAgent](src/main/java/org/tarik/ta/agents/UiStateCheckAgent.java):** Checks the current state of the UI against
           an expected one.
-        * **[PageDescriptionAgent](src/main/java/org/tarik/ta/agents/PageDescriptionAgent.java):** Describes the current page context
-          (in case multiple UI elements have same or similar names - the one will be selected which has the parent element most
-          semantically similar to this context).
+        * **[UiElementFromCandidatesSelectionAgent](src/main/java/org/tarik/ta/agents/UiElementFromCandidatesSelectionAgent.java):** When multiple UI 
+          elements in the database match the description (same or similar names), this agent analyzes the current screenshot and selects the best
+          matching element based on all element information (name, description, location details/parent context, and parent element info).
+        * **[PageDescriptionAgent](src/main/java/org/tarik/ta/agents/PageDescriptionAgent.java):** Describes the current page context. This can be
+          used for various purposes such as understanding the current UI state.
     * Each agent can be independently configured with its own AI model (name and provider) and system prompt version via
       `config.properties`.
 
@@ -97,11 +99,11 @@ a part of this framework for executing a sample test case inside Google Cloud.
 
 * **RAG:**
     * Employs a Retrieval-Augmented Generation (RAG) approach to manage information about UI elements.
-    * Uses a vector database to store and retrieve UI element details (name, element description, anchor element descriptions, page summary,
+    * Uses a vector database to store and retrieve UI element details (name, element description, location description, parent element description,
       and screenshot). It currently supports only Chroma DB (`AgentConfig.getVectorDbProvider` -> `chroma`), configured via `vector.db.url`
       in `config.properties`.
     * Stores UI element information as `UiElement` records, which include a name, self-description, description of surrounding
-      elements (anchors), a page summary, and a screenshot (`UiElement.Screenshot`).
+      elements (anchors), a parent element description, and a screenshot (`UiElement.Screenshot`).
     * Retrieves the top N (`retriever.top.n` in config) most relevant UI elements based on semantic similarity between the query (derived
       from the test step action) and based on the stored element names. Minimum similarity scores (`element.retrieval.min.target.score`,
       `element.retrieval.min.general.score`, `element.retrieval.min.page.relevance.score` in config) are used to filter results for target
@@ -220,9 +222,7 @@ combination of RAG, computer vision, analysis, and potentially user interaction 
       `MIN_GENERAL_RETRIEVAL_SCORE`:
         * **Attended Mode:** The agent displays a popup showing a list of the low-scoring potential UI element candidates. The user can
           choose to:
-            * **Update** one of the candidates by refining its name, description, anchors, or page summary and save the updated information
-              to the
-              vector DB.
+            * **Update** one of the candidates by refining its name, description, anchors, or parent element info and save the updated information to the vector DB.
             * **Delete** a deprecated element from the vector DB.
             * **Create New Element** (see below).
             * **Retry Search** (useful if elements were manually updated).
@@ -232,9 +232,9 @@ combination of RAG, computer vision, analysis, and potentially user interaction 
         * **Attended Mode:** The user is guided through the new element creation flow:
             1. The user draws a bounding box around the target element on a full-screen capture.
             2. The captured element screenshot with its description are sent to the vision model to generate a suggested detailed name,
-               self-description, surrounding elements (anchors) description, and page summary.
+               self-description, surrounding elements (anchors) description, and parent element info.
             3. The user reviews and confirms/edits the information suggested by the model.
-            4. The new `UiElement` record (with UUID, name, descriptions, page summary, screenshot) is stored into the vector DB.
+            4. The new `UiElement` record (with UUID, name, descriptions, parent element info, screenshot) is stored into the vector DB.
         * **Unattended Mode:** The location process fails.
 
 ## Setup Instructions
@@ -409,6 +409,7 @@ Available agents and their configuration prefixes:
 * `ui.state.check.agent.*`: UI State Check Agent
 * `element.bounding.box.agent.*`: Element Bounding Box Agent
 * `element.selection.agent.*`: Element Selection Agent
+* `element.candidate.selection.agent.*`: Element Candidate Selection Agent (uses same model as Element Selection Agent)
 * `page.description.agent.*`: Page Description Agent
 
 **Example agent configuration:**
