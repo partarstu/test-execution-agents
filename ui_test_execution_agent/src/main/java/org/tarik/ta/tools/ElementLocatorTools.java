@@ -116,7 +116,7 @@ public class ElementLocatorTools extends UiAbstractTools {
 
     @Tool(value = "Locates the UI element on the screen based on its description and returns its coordinates.")
     public ElementLocation locateElementOnTheScreen(
-            @P("A very brief description of UI element to locate. If any related to this element data is provided, don't use " +
+            @P("Original description of UI element to locate. If any related to this element data is provided, don't use " +
                     "that data as a part of its description")
             String elementDescription,
             @P(value = "Any data related to this element or the action involving this element.", required = false)
@@ -141,8 +141,8 @@ public class ElementLocatorTools extends UiAbstractTools {
                 LOG.info("Found {} UI element(s) in DB corresponding to the description of '{}'. Element names: {}",
                         matchingByDescriptionUiElements.size(), elementDescription,
                         matchingByDescriptionUiElements.stream().map(UiElement::name).toList());
-                UiElement bestMatchingElement;
-                if (matchingByDescriptionUiElements.size() > 1) {
+                UiElement bestMatchingElement = matchingByDescriptionUiElements.getFirst();
+                /*if (matchingByDescriptionUiElements.size() > 1) {
                     LOG.info("{} UI elements found in vector DB which semantically match the description '{}'. " +
                                     "Using model to select the best matching element based on current screenshot.",
                             matchingByDescriptionUiElements.size(), elementDescription);
@@ -152,7 +152,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                                     elementDescription, retrievedElements));
                 } else {
                     bestMatchingElement = matchingByDescriptionUiElements.getFirst();
-                }
+                }*/
 
                 return findElementAndProcessLocationResult(() -> getFinalElementLocation(bestMatchingElement, elementSpecificData),
                         elementDescription);

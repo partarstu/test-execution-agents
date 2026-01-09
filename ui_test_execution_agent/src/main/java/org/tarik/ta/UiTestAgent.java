@@ -109,32 +109,27 @@ public class UiTestAgent {
 
                 if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
                     executePreconditions(context,
-                            getPreconditionActionAgent(preconditionCommonTools, userInteractionTools,
-                                    new RetryState()));
+                            getPreconditionActionAgent(preconditionCommonTools, userInteractionTools, new RetryState()));
                     if (hasPreconditionFailures(context)) {
                         var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
                         return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
-                                failedPrecondition.getErrorMessage(),
-                                ((UiPreconditionResult) failedPrecondition).getScreenshot(), systemInfo,
-                                screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
+                                failedPrecondition.getErrorMessage(), ((UiPreconditionResult) failedPrecondition).getScreenshot(),
+                                systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                     }
                 }
 
-                var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, userInteractionTools,
-                        new RetryState());
+                var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, userInteractionTools, new RetryState());
                 executeTestSteps(context, testStepActionAgent, verificationManager);
                 if (hasStepFailures(context)) {
                     var lastStep = context.getTestStepExecutionHistory().getLast();
                     if (lastStep.getExecutionStatus() == FAILURE) {
-                        return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
-                                lastStep.getErrorMessage(),
-                                ((UiTestStepResult) lastStep).getScreenshot(), systemInfo,
-                                screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
+                        return getFailedTestExecutionResult(context, testExecutionStartTimestamp, lastStep.getErrorMessage(),
+                                ((UiTestStepResult) lastStep).getScreenshot(), systemInfo, screenRecorder.getCurrentRecordingPath(),
+                                logCapture.getLogs());
                     } else {
-                        return getTestExecutionResultWithError(context, testExecutionStartTimestamp,
-                                lastStep.getErrorMessage(),
-                                ((UiTestStepResult) lastStep).getScreenshot(), systemInfo,
-                                screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
+                        return getTestExecutionResultWithError(context, testExecutionStartTimestamp, lastStep.getErrorMessage(),
+                                ((UiTestStepResult) lastStep).getScreenshot(), systemInfo, screenRecorder.getCurrentRecordingPath(),
+                                logCapture.getLogs());
                     }
                 } else {
                     return new UiTestExecutionResult(testCase.name(), PASSED, context.getPreconditionExecutionHistory(),
@@ -152,8 +147,7 @@ public class UiTestAgent {
                 systemInfo = getSystemInfo();
             }
             return new UiTestExecutionResult("Unknown Test Case", ERROR, List.of(), List.of(), captureScreen(),
-                    systemInfo,
-                    screenRecorder.getCurrentRecordingPath(), logCapture.getLogs(), testExecutionStartTimestamp, now(),
+                    systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs(), testExecutionStartTimestamp, now(),
                     "Unexpected error during test case execution: " + e.getMessage());
         } finally {
             screenRecorder.endScreenCapture();
@@ -177,21 +171,19 @@ public class UiTestAgent {
                 if (!preconditionExecutionResult.isSuccess()) {
                     var errorMessage = "Failure while executing precondition '%s'. Root cause: %s"
                             .formatted(precondition, preconditionExecutionResult.getMessage());
-                    context.addPreconditionResult(
-                            new UiPreconditionResult(precondition, false, errorMessage, captureScreen(),
-                                    executionStartTimestamp, now()));
+                    context.addPreconditionResult(new UiPreconditionResult(precondition, false, errorMessage, captureScreen(),
+                            executionStartTimestamp, now()));
                     return;
                 }
                 LOG.info("Precondition execution complete.");
 
-                var verificationExecutionResult = preconditionVerificationAgent
-                        .executeWithRetry(() -> {
-                            var screenshot = captureScreen();
-                            context.setVisualState(new VisualState(screenshot));
-                            return preconditionVerificationAgent.verify(precondition,
-                                    context.getSharedData().toString(),
-                                    singleImageContent(screenshot));
-                        }, r -> r == null || !r.success());
+                LOG.info("Verifying if precondition was successfully executed.");
+                var verificationExecutionResult = preconditionVerificationAgent.executeWithRetry(() -> {
+                    var screenshot = captureScreen();
+                    context.setVisualState(new VisualState(screenshot));
+                    return preconditionVerificationAgent.verify(precondition, context.getSharedData().toString(),
+                            singleImageContent(screenshot));
+                }, r -> r == null || !r.success());
                 resetToolCallUsage();
 
                 if (!verificationExecutionResult.isSuccess()) {
@@ -223,8 +215,7 @@ public class UiTestAgent {
         }
     }
 
-    private static void executeTestSteps(UiTestExecutionContext context,
-                                         UiTestStepActionAgent uiTestStepActionAgent,
+    private static void executeTestSteps(UiTestExecutionContext context, UiTestStepActionAgent uiTestStepActionAgent,
                                          VerificationManager verificationManager) {
         var testStepVerificationAgent = getTestStepVerificationAgent(new RetryState());
         for (TestStep testStep : context.getTestCase().testSteps()) {
