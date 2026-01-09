@@ -188,9 +188,9 @@ public class UiTestAgent {
                         .executeWithRetry(() -> {
                             var screenshot = captureScreen();
                             context.setVisualState(new VisualState(screenshot));
-                            return preconditionVerificationAgent.verify(singleImageContent(screenshot),
-                                    precondition,
-                                    context.getSharedData().toString());
+                            return preconditionVerificationAgent.verify(precondition,
+                                    context.getSharedData().toString(),
+                                    singleImageContent(screenshot));
                         }, r -> r == null || !r.success());
                 resetToolCallUsage();
 

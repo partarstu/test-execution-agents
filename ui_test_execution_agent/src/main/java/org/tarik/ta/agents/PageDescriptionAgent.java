@@ -28,8 +28,8 @@ import org.tarik.ta.core.error.RetryPolicy;
 public interface PageDescriptionAgent extends BaseUiAgent<PageDescriptionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
-    @UserMessage("Screenshot is attached.")
-    Result<String> describePage(@UserMessage ImageContent screenshot);
+    Result<String> describePage(@UserMessage("Screenshot is attached.") String prompt,
+                                 @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {

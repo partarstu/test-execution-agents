@@ -30,13 +30,13 @@ public interface UiElementDescriptionAgent extends BaseAiAgent<UiElementDescript
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
     Result<String> describeUiElement(
-            @UserMessage ImageContent screenshot,
             @UserMessage("""
                     The target UI element info: {{original_element_description}}.
                     
                     The screenshot is attached.
                     """)
             @V("original_element_description") String originalElementDescription,
+            @UserMessage ImageContent screenshot,
             @V("bounding_box_color") String boundingBoxColor);
 
     @Override

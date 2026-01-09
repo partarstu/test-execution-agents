@@ -253,7 +253,7 @@ public class ElementLocatorTools extends UiAbstractTools {
         var userMessage = getDbElementBestMatchSelectionUserMessage(candidatesById, elementDescription, elementSpecificData);
         try {
             var result = dbUiElementSelectionAgent.executeAndGetResult(() ->
-                            dbUiElementSelectionAgent.selectBestElementFromCandidates(singleImageContent(screenshot), userMessage))
+                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, singleImageContent(screenshot)))
                     .getResultPayload();
             if (result != null && result.success() && isNotBlank(result.selectedElementId())) {
                 String selectedId = result.selectedElementId().toLowerCase().trim();
@@ -346,8 +346,7 @@ public class ElementLocatorTools extends UiAbstractTools {
         LOG.info("The best visual match for the description '{}' has been located at: {}", elementDescription, boundingBox);
         var scaledBoundingBox = getScaledBoundingBox(boundingBox);
         var center = new Point((int) scaledBoundingBox.getCenterX(), (int) scaledBoundingBox.getCenterY());
-        var bbox = new BoundingBox(scaledBoundingBox.x, scaledBoundingBox.y, scaledBoundingBox.x + scaledBoundingBox.width,
-                scaledBoundingBox.y + scaledBoundingBox.height);
+        var bbox = new BoundingBox( scaledBoundingBox.y, scaledBoundingBox.x,                scaledBoundingBox.y + scaledBoundingBox.height, scaledBoundingBox.x + scaledBoundingBox.width);
         return new ElementLocation(center.x, center.y, bbox);
     }
 
@@ -608,7 +607,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                 List<Callable<List<BoundingBox>>> tasks = range(0, VISUAL_GROUNDING_MODEL_VOTE_COUNT)
                         .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> Objects.requireNonNull(
                                 uiElementBoundingBoxAgent.executeAndGetResult(
-                                        () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(singleImageContent(imageToSend), prompt)
+                                        () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend))
                                 ).getResultPayload()).boundingBoxes())
                         .toList();
                 List<Rectangle> allBoundingBoxes = executor.invokeAll(tasks).stream()
@@ -748,8 +747,8 @@ public class ElementLocatorTools extends UiAbstractTools {
 
             List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, VALIDATION_MODEL_VOTE_COUNT)
                     .mapToObj(_ -> (Callable<BestUiElementVisualMatchResult>) () -> bestUiElementMatchSelectionAgent.executeAndGetResult(
-                            () -> bestUiElementMatchSelectionAgent.selectBestElement(singleImageContent(resultingScreenshot),
-                                    prompt, boundingBoxColorName)
+                            () -> bestUiElementMatchSelectionAgent.selectBestElement(prompt,
+                                    singleImageContent(resultingScreenshot), boundingBoxColorName)
                     ).getResultPayload())
                     .toList();
             return executor.invokeAll(tasks).stream()

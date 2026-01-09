@@ -29,8 +29,8 @@ import org.tarik.ta.dto.DbUiElementSelectionResult;
 public interface DbUiElementSelectionAgent extends BaseUiAgent<DbUiElementSelectionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
-    Result<String> selectBestElementFromCandidates(@UserMessage ImageContent screenshot,
-                                                   @UserMessage String candidatesInfo);
+    Result<String> selectBestElementFromCandidates(@UserMessage String candidatesInfo,
+                                                   @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {

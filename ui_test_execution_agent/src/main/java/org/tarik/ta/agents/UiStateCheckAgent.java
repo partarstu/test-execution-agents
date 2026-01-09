@@ -29,7 +29,6 @@ public interface UiStateCheckAgent extends BaseAiAgent<UiStateCheckResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
 
     Result<String> verify(
-            @UserMessage ImageContent screenshot,
             @UserMessage("""
                     The expected state of the screen: {{expectedStateDescription}}
                     
@@ -41,7 +40,8 @@ public interface UiStateCheckAgent extends BaseAiAgent<UiStateCheckResult> {
                     """)
             @V("expectedStateDescription") String expectedStateDescription,
             @V("actionDescription") String actionDescription,
-            @V("relevantData") String relevantData);
+            @V("relevantData") String relevantData,
+            @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {

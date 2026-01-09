@@ -24,10 +24,10 @@ import static org.tarik.ta.UiTestAgentConfig.isBoundingBoxAlreadyNormalized;
 
 @Description("a single bounding box with coordinates")
 public record BoundingBox(
-        @Description("The x-coordinate of the top-left corner") int x1,
-        @Description("The y-coordinate of the top-left corner") int y1,
-        @Description("The x-coordinate of the bottom-right corner") int x2,
-        @Description("The y-coordinate of the bottom-right corner") int y2) {
+        @Description("The y-coordinate of the top-left corner (y_min)") int y1,
+        @Description("The x-coordinate of the top-left corner (x_min)") int x1,
+        @Description("The y-coordinate of the bottom-right corner (y_max)") int y2,
+        @Description("The x-coordinate of the bottom-right corner (x_max)") int x2) {
     public Rectangle getActualBoundingBox(int actualImageWidth, int actualImageHeight) {
         if (isBoundingBoxAlreadyNormalized()) {
             // Coordinates are normalized between 0 and 1000

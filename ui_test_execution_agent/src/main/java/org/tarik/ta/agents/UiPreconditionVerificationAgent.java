@@ -30,14 +30,14 @@ public interface UiPreconditionVerificationAgent extends BaseUiAgent<Verificatio
     RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
 
     Result<String> verify(
-            @UserMessage ImageContent screenshot,
             @UserMessage("""
                     The test case precondition is: {{precondition}}.
                     
                     Test context execution data: {{sharedData}}
                     """)
             @V("precondition") String precondition,
-            @V("sharedData") String sharedData);
+            @V("sharedData") String sharedData,
+            @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {

@@ -28,8 +28,8 @@ public interface BestUiElementMatchSelectionAgent extends BaseUiAgent<BestUiElem
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
     Result<String> selectBestElement(
-            @UserMessage ImageContent screenshot,
             @UserMessage String prompt,
+            @UserMessage ImageContent screenshot,
             @V("bounding_box_color") String boundingBoxColor);
 
     @Override

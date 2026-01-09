@@ -36,6 +36,7 @@ import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.agents.PageDescriptionAgent;
 import org.tarik.ta.agents.UiElementBoundingBoxAgent;
 import org.tarik.ta.agents.BestUiElementMatchSelectionAgent;
+import org.tarik.ta.agents.DbUiElementSelectionAgent;
 import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -103,6 +104,8 @@ class UiTestAgentTest {
         private UiElementBoundingBoxAgent uiElementBoundingBoxAgentMock;
         @Mock
         private BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgentMock;
+        @Mock
+        private DbUiElementSelectionAgent dbUiElementSelectionAgentMock;
 
         @Mock
         private AiServices<TestCaseExtractionAgent> testCaseExtractionAgentBuilder;
@@ -124,6 +127,8 @@ class UiTestAgentTest {
         private AiServices<UiElementBoundingBoxAgent> elementBoundingBoxAgentBuilder;
         @Mock
         private AiServices<BestUiElementMatchSelectionAgent> elementSelectionAgentBuilder;
+        @Mock
+        private AiServices<DbUiElementSelectionAgent> dbElementSelectionAgentBuilder;
 
         // Static mocks
         private MockedStatic<ModelFactory> modelFactoryMockedStatic;
@@ -234,10 +239,19 @@ class UiTestAgentTest {
                                 .thenReturn(elementBoundingBoxAgentBuilder);
                 aiServicesMockedStatic.when(() -> AiServices.builder(BestUiElementMatchSelectionAgent.class))
                                 .thenReturn(elementSelectionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(DbUiElementSelectionAgent.class))
+                                .thenReturn(dbElementSelectionAgentBuilder);
 
                 // Retriever Factory
                 retrieverFactoryMockedStatic.when(RetrieverFactory::getUiElementRetriever)
                                 .thenReturn(mockUiElementRetriever);
+                
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getDbElementCandidateSelectionAgentModelName)
+                                .thenReturn("test-model");
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getDbElementCandidateSelectionAgentModelProvider)
+                                .thenReturn(AgentConfig.ModelProvider.GOOGLE);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getDbElementCandidateSelectionAgentPromptVersion)
+                                .thenReturn("v1");
 
                 // Builder chains
                 configureBuilder(testCaseExtractionAgentBuilder, testCaseExtractionAgentMock);
@@ -250,6 +264,7 @@ class UiTestAgentTest {
                 configureBuilder(pageDescriptionAgentBuilder, pageDescriptionAgentMock);
                 configureBuilder(elementBoundingBoxAgentBuilder, uiElementBoundingBoxAgentMock);
                 configureBuilder(elementSelectionAgentBuilder, bestUiElementMatchSelectionAgentMock);
+                configureBuilder(dbElementSelectionAgentBuilder, dbUiElementSelectionAgentMock);
         }
 
         private <T> void configureBuilder(AiServices<T> builder, T agent) {
