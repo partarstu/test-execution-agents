@@ -47,7 +47,7 @@ public record GeminiGenerationConfig(
         private Boolean enableEnhancedCivicAnswers;
         private GeminiThinkingConfig thinkingConfig;
         private Integer logprobs;
-        private GeminiMediaResolution mediaResolution = GeminiMediaResolution.MEDIA_RESOLUTION_HIGH;
+        private GeminiMediaResolution mediaResolution;
 
         GeminiGenerationConfigBuilder() {
         }

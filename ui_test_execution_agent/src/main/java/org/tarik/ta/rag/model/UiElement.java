@@ -163,7 +163,7 @@ public class UiElement {
                 .add("name='" + name + "'")
                 .add("ownDescription='" + ownDescription + "'")
                 .add("locationDescription='" + anchorsDescription + "'")
-                .add("pageSummary='" + parentElementSummary + "'")
+                .add("parentElementSummary='" + parentElementSummary + "'")
                 .add("zoomInRequired=" + zoomInRequired)
                 .add("isDataDependent=" + isDataDependent)
                 .toString();

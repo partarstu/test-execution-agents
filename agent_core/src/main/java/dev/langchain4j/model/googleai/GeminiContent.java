@@ -30,7 +30,7 @@ public record GeminiContent(List<GeminiPart> parts, String role) {
 
         public GeminiPart {
             if ((inlineData != null || fileData != null) && mediaResolution == null) {
-                mediaResolution = GeminiMediaResolutionLevel.HIGH;
+                mediaResolution = GeminiMediaResolutionLevel.ULTRA_HIGH;
             }
         }
 

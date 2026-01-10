@@ -17,7 +17,7 @@ package org.tarik.ta.rag;
 
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.embedding.onnx.allminilml6v2.AllMiniLmL6V2EmbeddingModel;
+import dev.langchain4j.model.embedding.onnx.bgesmallenv15.BgeSmallEnV15EmbeddingModel;
 import dev.langchain4j.store.embedding.*;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import org.slf4j.Logger;
@@ -38,7 +38,7 @@ public class ChromaRetriever implements UiElementRetriever {
     private static final String COLLECTION_NAME = "ui_elements";
     private static final int CONNECTION_TIMEOUT_SECONDS = 20;
     private final EmbeddingStore<TextSegment> embeddingStore;
-    private final EmbeddingModel embeddingModel = new AllMiniLmL6V2EmbeddingModel();
+    private final EmbeddingModel embeddingModel = new BgeSmallEnV15EmbeddingModel();
 
     public ChromaRetriever(String url) {
         checkArgument(isNotBlank(url));
@@ -87,6 +87,8 @@ public class ChromaRetriever implements UiElementRetriever {
                     var pageRelevanceScore = getPageRelevanceScore(actualPageDescription, element);
                     return new RetrievedUiElementItem(element, match.score(), pageRelevanceScore);
                 })
+                .peek(item -> LOG.info("Retrieved UI element from DB: name='{}', mainScore={}, pageRelevanceScore={}",
+                        item.element().name(), item.mainScore(), item.pageRelevanceScore()))
                 .distinct()
                 .toList();
         LOG.info("Retrieved {} most matching results to the query '{}'", resultingItems.size(), nameQuery);
