@@ -113,7 +113,7 @@ public class UiTestAgent {
                     if (hasPreconditionFailures(context)) {
                         var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
                         return getFailedTestExecutionResult(context, testExecutionStartTimestamp,
-                                failedPrecondition.getErrorMessage(), ((UiPreconditionResult) failedPrecondition).getScreenshot(),
+                                failedPrecondition.getErrorMessage(), null,
                                 systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                     }
                 }
@@ -124,11 +124,11 @@ public class UiTestAgent {
                     var lastStep = context.getTestStepExecutionHistory().getLast();
                     if (lastStep.getExecutionStatus() == FAILURE) {
                         return getFailedTestExecutionResult(context, testExecutionStartTimestamp, lastStep.getErrorMessage(),
-                                ((UiTestStepResult) lastStep).getScreenshot(), systemInfo, screenRecorder.getCurrentRecordingPath(),
+                                null, systemInfo, screenRecorder.getCurrentRecordingPath(),
                                 logCapture.getLogs());
                     } else {
                         return getTestExecutionResultWithError(context, testExecutionStartTimestamp, lastStep.getErrorMessage(),
-                                ((UiTestStepResult) lastStep).getScreenshot(), systemInfo, screenRecorder.getCurrentRecordingPath(),
+                                null, systemInfo, screenRecorder.getCurrentRecordingPath(),
                                 logCapture.getLogs());
                     }
                 } else {

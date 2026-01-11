@@ -28,6 +28,7 @@ import org.tarik.ta.utils.UiCommonUtils;
 import java.awt.image.BufferedImage;
 
 import static java.time.Instant.now;
+import static org.tarik.ta.UiTestAgentConfig.isUnattendedMode;
 import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
 
 public interface BaseUiAgent<T extends FinalResult> extends GenericAiAgent<T, UiAgentExecutionResult<T>> {
@@ -49,7 +50,7 @@ public interface BaseUiAgent<T extends FinalResult> extends GenericAiAgent<T, Ui
 
     @Override
     default void checkBudget() {
-        if (UiTestAgentConfig.isUnattendedMode()) {
+        if (isUnattendedMode()) {
             GenericAiAgent.super.checkBudget();
         }
     }
