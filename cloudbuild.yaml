@@ -25,40 +25,19 @@ steps:
 
   # ============================================
   # Stage 2: UI Test Execution Agent (VM-based)
+  # Delegates to the module's own cloudbuild.yaml
   # ============================================
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'docker-build-ui-base-image'
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-ui-agent'
+    entrypoint: 'gcloud'
+    args:
+      - 'builds'
+      - 'submit'
+      - '--config=ui_test_execution_agent/deployment/cloud/cloudbuild.yaml'
+      - '--substitutions=_SERVICE_NAME=$_UI_AGENT_SERVICE_NAME,_IMAGE_TAG=$_IMAGE_TAG'
+      - '.'
     dir: '/workspace'
-    args: [ 'build', '-t', 'ui-testing-agent-base:latest', '-f', 'ui_test_execution_agent/deployment/Dockerfile.base', '.' ]
     waitFor: [ 'maven-build' ]
-
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'docker-build-ui-agent'
-    dir: '/workspace'
-    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/$_UI_AGENT_SERVICE_NAME:$_IMAGE_TAG', '-f', 'ui_test_execution_agent/deployment/cloud/Dockerfile', '.' ]
-    waitFor: [ 'docker-build-ui-base-image' ]
-
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'docker-push-ui-agent'
-    args: [ 'push', 'gcr.io/$PROJECT_ID/$_UI_AGENT_SERVICE_NAME:$_IMAGE_TAG' ]
-    waitFor: [ 'docker-build-ui-agent' ]
-
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'deploy-ui-agent-chmod'
-    entrypoint: 'bash'
-    args: [ '-c', 'chmod +x ui_test_execution_agent/deployment/cloud/deploy_vm.sh' ]
-    dir: '/workspace'
-    waitFor: [ 'docker-push-ui-agent' ]
-
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'deploy-ui-agent-vm'
-    entrypoint: 'bash'
-    args: [ '-c', 'ui_test_execution_agent/deployment/cloud/deploy_vm.sh' ]
-    dir: '/workspace'
-    env:
-      - 'SERVICE_NAME=$_UI_AGENT_SERVICE_NAME'
-      - 'IMAGE_TAG=$_IMAGE_TAG'
-    waitFor: [ 'deploy-ui-agent-chmod' ]
 
   # ============================================
   # Stage 3: API Test Execution Agent (Cloud Run)

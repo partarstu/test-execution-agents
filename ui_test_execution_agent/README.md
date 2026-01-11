@@ -491,24 +491,50 @@ using the provided `cloudbuild_chroma.yaml` configuration.
    ```bash
    cd <project_root_directory>
    ```
-2. **Adapt the deployment script:**
-   `deployment/cloud/deploy_vm.sh` script has some predefined values which need to be adapted, e.g. network name, exposed ports etc. if
-   you want to use the agent as the part of already existing network (e.g. together
-   with [Agentic QA Framework](https://github.com/partarstu/agentic-qa-framework) ), you must carefully adapt all parameters to not
-   destroy any existing settings.
-3. **Execute the deployment script:**
-   ```bash
-   ./deployment/cloud/deploy_vm.sh
-   ```
-   This script will:
-    * Enable necessary GCP services.
-    * Build the agent application using Maven.
-    * Build the Docker image for the agent using `deployment/cloud/Dockerfile` and push it to Google Container Registry.
-    * Set up VPC network and firewall rules (if they don't exist).
-    * Create a GCE Spot VM instance
-    * Start the agent container inside created VM using a corresponding startup script.
 
-   **Note:** The script uses default values for region, zone, instance name, etc. You can override these by setting them in `gcloud` CLI.
+2. **Configure deployment substitutions:**
+
+   The deployment is configured via Cloud Build substitutions in `deployment/cloud/cloudbuild.yaml`. This file contains all configurable 
+   parameters as substitutions that can be overridden when running the build.
+
+   **Key configuration categories:**
+   
+   * **GCP Configuration:** Region, zone, instance name, network settings, machine type
+   * **Port Configuration:** noVNC, VNC, and agent server ports
+   * **Application Settings:** VNC resolution, log level, unattended/debug mode
+   * **Screenshot and Bounding Box Settings:** Image dimension limits and normalization settings
+   * **Agent Model Configuration:** Model names, providers, and prompt versions for each agent
+   * **API Endpoints:** Groq, Google Cloud location and project settings
+   * **Additional GCP Configuration:** Firewall rules, disk settings, VM provisioning model, etc.
+
+   **Important notes:**
+   * **Empty values use defaults:** If a substitution value is empty (e.g., `_ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME: ''`), 
+     the application will use defaults from `config.properties`.
+   * **Override substitutions:** Pass custom values when running `gcloud builds submit`.
+
+3. **Deploy using Cloud Build:**
+   ```bash
+   gcloud builds submit --config=ui_test_execution_agent/deployment/cloud/cloudbuild.yaml .
+   ```
+   
+   To override specific substitutions:
+   ```bash
+   gcloud builds submit --config=ui_test_execution_agent/deployment/cloud/cloudbuild.yaml \
+     --substitutions=_MACHINE_TYPE=e2-standard-4,_LOG_LEVEL=DEBUG .
+   ```
+
+   The build will:
+    * Build the Maven project.
+    * Build the Docker images (base and application).
+    * Push the Docker image to Google Container Registry.
+    * Enable necessary GCP services.
+    * Set up VPC network and firewall rules (if they don't exist).
+    * Create a GCE Spot VM instance.
+    * Start the agent container inside the created VM.
+
+   If you want to use the agent as part of an already existing network (e.g., together
+   with [Agentic QA Framework](https://github.com/partarstu/agentic-qa-framework)), you must carefully update the substitutions 
+   in the YAML file to avoid destroying existing settings.
 
 #### Accessing the Deployed Agent
 
