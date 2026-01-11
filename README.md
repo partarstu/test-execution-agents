@@ -131,17 +131,49 @@ Both agents can be deployed to Google Cloud using Cloud Build. The `cloudbuild.y
 
 ### Deploying with Cloud Build
 
-To deploy both agents:
+#### Deploy All Agents (Default)
+
+To deploy both UI and API agents:
 
 ```bash
 gcloud builds submit --config=cloudbuild.yaml
 ```
 
+#### Deploy Agents Separately
+
+You can deploy agents individually using the `_DEPLOY_TARGET` substitution:
+
+**Deploy only the UI agent:**
+```bash
+gcloud builds submit --config=cloudbuild.yaml --substitutions=_DEPLOY_TARGET=ui
+```
+
+**Deploy only the API agent:**
+```bash
+gcloud builds submit --config=cloudbuild.yaml --substitutions=_DEPLOY_TARGET=api
+```
+
+#### Standalone Deployment (Module-Level)
+
+Each agent also has its own `cloudbuild.yaml` for fully independent deployment:
+
+**UI Agent standalone deployment:**
+```bash
+gcloud builds submit --config=ui_test_execution_agent/deployment/cloud/cloudbuild.yaml
+```
+
+**API Agent standalone deployment:**
+```bash
+gcloud builds submit --config=api_test_execution_agent/deployment/cloud/cloudbuild.yaml
+```
+
+#### Customizing Deployment Parameters
+
 To customize deployment parameters, you can override substitutions:
 
 ```bash
 gcloud builds submit --config=cloudbuild.yaml \
-  --substitutions=_IMAGE_TAG=v1.0.0,_API_AGENT_EXTERNAL_URL=https://your-actual-cloudrun-url.run.app
+  --substitutions=_DEPLOY_TARGET=api,_IMAGE_TAG=v1.0.0,_API_AGENT_EXTERNAL_URL=https://your-actual-cloudrun-url.run.app
 ```
 
 > **Note:** After the first deployment, update `_API_AGENT_EXTERNAL_URL` in `cloudbuild.yaml` with the actual Cloud Run service URL. This URL is displayed in the Cloud Run console after deployment and is required for the A2A agent card to advertise the correct service endpoint.
