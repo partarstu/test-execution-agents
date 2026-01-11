@@ -33,8 +33,8 @@ public class TestStepResult {
     private final @Nullable Instant executionEndTimestamp;
 
     public TestStepResult(@NotNull TestStep testStep, TestStepResultStatus executionStatus,
-            @Nullable String errorMessage, @Nullable String actualResult, @Nullable Instant executionStartTimestamp,
-            @Nullable Instant executionEndTimestamp) {
+                          @Nullable String errorMessage, @Nullable String actualResult, @Nullable Instant executionStartTimestamp,
+                          @Nullable Instant executionEndTimestamp) {
         this.testStep = testStep;
         this.executionStatus = executionStatus;
         this.errorMessage = errorMessage;
@@ -69,10 +69,12 @@ public class TestStepResult {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
+        if (this == o) {
             return true;
-        if (o == null || getClass() != o.getClass())
+        }
+        if (o == null || getClass() != o.getClass()) {
             return false;
+        }
         TestStepResult that = (TestStepResult) o;
         return Objects.equals(testStep, that.testStep) && executionStatus == that.executionStatus
                 && Objects.equals(errorMessage, that.errorMessage) && Objects.equals(actualResult, that.actualResult)
@@ -82,8 +84,7 @@ public class TestStepResult {
 
     @Override
     public int hashCode() {
-        return Objects.hash(testStep, executionStatus, errorMessage, actualResult, executionStartTimestamp,
-                executionEndTimestamp);
+        return Objects.hash(testStep, executionStatus, errorMessage, actualResult, executionStartTimestamp, executionEndTimestamp);
     }
 
     /**

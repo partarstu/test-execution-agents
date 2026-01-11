@@ -28,9 +28,14 @@ import java.util.Objects;
 public class UiTestStepResult extends TestStepResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
 
-    public UiTestStepResult(@NotNull TestStep testStep, TestStepResultStatus executionStatus,
-            @Nullable String errorMessage, @Nullable String actualResult, @Nullable BufferedImage screenshot,
-            @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
+    public UiTestStepResult(
+            @NotNull TestStep testStep,
+            TestStepResultStatus executionStatus,
+            @Nullable String errorMessage,
+            @Nullable String actualResult,
+            @Nullable BufferedImage screenshot,
+            @Nullable Instant executionStartTimestamp,
+            @Nullable Instant executionEndTimestamp) {
         super(testStep, executionStatus, errorMessage, actualResult, executionStartTimestamp, executionEndTimestamp);
         this.screenshot = screenshot;
     }

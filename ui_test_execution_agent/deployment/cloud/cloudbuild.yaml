@@ -30,16 +30,31 @@ steps:
   # Stage 2: Build and Push Docker Images
   # ============================================
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'docker-build-ui-base-image'
-    dir: '/workspace'
-    args: [ 'build', '-t', 'ui-testing-agent-base:latest', '-f', 'ui_test_execution_agent/deployment/Dockerfile.base', '.' ]
+    id: 'prepare-ui-base-image'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "$_BUILD_BASE_IMAGE" == "true" ]; then
+          echo "Building base image..."
+          docker build -t gcr.io/$PROJECT_ID/ui-testing-agent-base:latest -f ui_test_execution_agent/deployment/Dockerfile.base .
+          docker push gcr.io/$PROJECT_ID/ui-testing-agent-base:latest
+        else
+          echo "Pulling base image..."
+          if ! docker pull gcr.io/$PROJECT_ID/ui-testing-agent-base:latest; then
+            echo "Base image not found, building..."
+            docker build -t gcr.io/$PROJECT_ID/ui-testing-agent-base:latest -f ui_test_execution_agent/deployment/Dockerfile.base .
+            docker push gcr.io/$PROJECT_ID/ui-testing-agent-base:latest
+          fi
+        fi
+        docker tag gcr.io/$PROJECT_ID/ui-testing-agent-base:latest ui-testing-agent-base:latest
     waitFor: [ 'maven-build' ]
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'docker-build-ui-agent'
     dir: '/workspace'
     args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$_IMAGE_TAG', '-f', 'ui_test_execution_agent/deployment/cloud/Dockerfile', '.' ]
-    waitFor: [ 'docker-build-ui-base-image' ]
+    waitFor: [ 'prepare-ui-base-image' ]
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'docker-push-ui-agent'
@@ -171,6 +186,7 @@ substitutions:
   _MACHINE_TYPE: 't2d-standard-2'
   _SERVICE_NAME: 'ui-test-execution-agent'
   _IMAGE_TAG: 'latest'
+  _BUILD_BASE_IMAGE: 'false'
 
   # --- Port Configuration ---
   _NO_VNC_PORT: '6901'

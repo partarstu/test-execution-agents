@@ -506,6 +506,7 @@ using the provided `cloudbuild_chroma.yaml` configuration.
    * **Agent Model Configuration:** Model names, providers, and prompt versions for each agent
    * **API Endpoints:** Groq, Google Cloud location and project settings
    * **Additional GCP Configuration:** Firewall rules, disk settings, VM provisioning model, etc.
+   * **Base Image configuration:** `_BUILD_BASE_IMAGE` (default `false`) controls whether to rebuild the base image or use the cached one.
 
    **Important notes:**
    * **Empty values use defaults:** If a substitution value is empty (e.g., `_ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME: ''`), 
@@ -525,7 +526,8 @@ using the provided `cloudbuild_chroma.yaml` configuration.
 
    The build will:
     * Build the Maven project.
-    * Build the Docker images (base and application).
+    * Build or pull the Docker base image (conditional on `_BUILD_BASE_IMAGE`).
+    * Build the Docker application image.
     * Push the Docker image to Google Container Registry.
     * Enable necessary GCP services.
     * Set up VPC network and firewall rules (if they don't exist).

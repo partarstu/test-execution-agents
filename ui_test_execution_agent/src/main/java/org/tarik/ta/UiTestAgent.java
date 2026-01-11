@@ -234,10 +234,8 @@ public class UiTestAgent {
                 if (!actionResult.isSuccess()) {
                     if (actionResult.getExecutionStatus() != VERIFICATION_FAILURE) {
                         // Verification failure happens only if the current action was executed as a UI
-                        // element location prefetch part,
-                        // it means this test step shouldn't be reported because the execution is to be
-                        // halted after verification
-                        // failure for the previous step
+                        // element location prefetch part, it means this test step shouldn't be reported because the execution is to be
+                        // halted after verification failure for the previous step
                         var errorMessage = "Error while executing action '%s'. Root cause: %s"
                                 .formatted(actionInstruction, actionResult.getMessage());
                         addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
@@ -253,7 +251,7 @@ public class UiTestAgent {
                         try {
                             sleepMillis(ACTION_VERIFICATION_DELAY_MILLIS);
                             LOG.info("Executing verification of: '{}'", verificationInstruction);
-                            var verificationExecutionResult = testStepVerificationAgent.executeWithRetry(() -> {
+                            var agentExecutionResult = testStepVerificationAgent.executeWithRetry(() -> {
                                 var screenshot = captureScreen();
                                 context.setVisualState(new VisualState(screenshot));
                                 return testStepVerificationAgent.verify(verificationInstruction, actionInstruction, testDataString,
@@ -261,14 +259,14 @@ public class UiTestAgent {
                             }, result -> result == null || !result.success());
                             resetToolCallUsage();
 
-                            if (!verificationExecutionResult.isSuccess()) {
+                            if (!agentExecutionResult.isSuccess()) {
                                 var errorMessage = "Failure while verifying test step '%s'. Root cause: %s"
-                                        .formatted(actionInstruction, verificationExecutionResult.getMessage());
+                                        .formatted(actionInstruction, agentExecutionResult.getMessage());
                                 addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
                                         context.getVisualState().screenshot(), TestStepResultStatus.ERROR);
                                 return false;
                             } else {
-                                VerificationExecutionResult verificationResult = verificationExecutionResult.getResultPayload();
+                                VerificationExecutionResult verificationResult = agentExecutionResult.getResultPayload();
                                 if (verificationResult == null) {
                                     var errorMessage = "Verification result got back empty.";
                                     addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
