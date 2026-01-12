@@ -18,7 +18,7 @@ package org.tarik.ta.agents;
 import dev.langchain4j.service.Result;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
-import org.tarik.ta.core.dto.AgentExecutionResult;
+import org.tarik.ta.core.dto.OperationExecutionResult;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,8 +30,8 @@ import java.awt.image.BufferedImage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
 class UiTestStepActionUiTestAgentTest {
 
@@ -54,7 +54,8 @@ class UiTestStepActionUiTestAgentTest {
     void shouldHandleSuccessfulExecution() {
         UiTestStepActionAgent agent = mock(UiTestStepActionAgent.class, CALLS_REAL_METHODS);
 
-        AgentExecutionResult<EmptyExecutionResult> result = agent.executeAndGetResult(() -> Result.<EmptyExecutionResult>builder().content(new EmptyExecutionResult()).build());
+        OperationExecutionResult<EmptyExecutionResult>
+                result = agent.executeAndGetResult(() -> Result.<EmptyExecutionResult>builder().content(new EmptyExecutionResult()).build());
 
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
         assertThat(result.isSuccess()).isTrue();

@@ -21,7 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
-import org.tarik.ta.core.dto.AgentExecutionResult;
+import org.tarik.ta.core.dto.OperationExecutionResult;
 import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.image.BufferedImage;
@@ -29,8 +29,8 @@ import java.awt.image.BufferedImage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
 class UiTestStepVerificationUiTestAgentTest {
 
@@ -53,7 +53,8 @@ class UiTestStepVerificationUiTestAgentTest {
 
         VerificationExecutionResult verificationResult = new VerificationExecutionResult(true, "Verified");
 
-        AgentExecutionResult<VerificationExecutionResult> result = agent.executeAndGetResult(() -> Result.<VerificationExecutionResult>builder().content(verificationResult).build());
+        OperationExecutionResult<VerificationExecutionResult>
+                result = agent.executeAndGetResult(() -> Result.<VerificationExecutionResult>builder().content(verificationResult).build());
 
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
         assertThat(result.isSuccess()).isTrue();

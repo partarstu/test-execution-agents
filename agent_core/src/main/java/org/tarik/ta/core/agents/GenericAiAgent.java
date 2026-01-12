@@ -20,8 +20,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.core.dto.AgentExecutionResult;
-import org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus;
+import org.tarik.ta.core.dto.OperationExecutionResult;
+import org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus;
 import org.tarik.ta.core.dto.FinalResult;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
@@ -31,87 +31,107 @@ import java.util.function.Supplier;
 
 import static java.lang.System.currentTimeMillis;
 
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.*;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.*;
 import static org.tarik.ta.core.error.ErrorCategory.TERMINATION_BY_USER;
 import static org.tarik.ta.core.error.ErrorCategory.VERIFICATION_FAILED;
 import static org.tarik.ta.core.manager.BudgetManager.checkAllBudgets;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 
-public interface GenericAiAgent<T extends FinalResult, R extends AgentExecutionResult<T>> {
+public interface GenericAiAgent<T extends FinalResult> {
     Logger LOG = LoggerFactory.getLogger(GenericAiAgent.class);
 
     default void checkBudget() {
         checkAllBudgets();
     }
 
-    R createSuccessResult(T result);
+    default OperationExecutionResult<T> createSuccessResult(T result) {
+        return new OperationExecutionResult<>(SUCCESS, "Execution successful", result);
+    }
 
-    R createErrorResult(ExecutionStatus status, String message, @Nullable Throwable t);
+    default OperationExecutionResult<T> createErrorResult(ExecutionStatus status, String message, T result) {
+        return new OperationExecutionResult<>(status, message, result);
+    }
 
     RetryPolicy getRetryPolicy();
 
     String getAgentTaskDescription();
 
+    /**
+     * Executes an operation and returns the execution result. Any exception thrown during this execution will result in the immediate
+     * interruption of the execution, no retries will be applied. The concept of each agent is to execute everything using tools,
+     * including returning a result. Any exception thrown by {@link org.tarik.ta.core.model.DefaultToolErrorHandler} is treated as the
+     * one that implies no retries.
+     *
+     * @param operation - operation to execute
+     * @return - execution result containing the optional operation result
+     */
     @NotNull
-    default R executeAndGetResult(Supplier<Result<?>> action) {
+    default OperationExecutionResult<T> executeAndGetResult(Supplier<Result<?>> operation) {
         checkBudget();
         try {
-            Result<?> resultWrapper = action.get();
+            Result<?> resultWrapper = operation.get();
             T result = extractResult(resultWrapper);
             return createSuccessResult(result);
         } catch (Throwable e) {
-            LOG.error("Error executing agent action", e);
-            return createErrorResult(ERROR, e.getMessage(), e);
-        }
-    }
-
-    @NotNull
-    default R executeWithRetry(Supplier<Result<?>> action, Predicate<T> retryCondition) {
-        RetryPolicy policy = getRetryPolicy();
-        int attempt = 0;
-        long startTime = currentTimeMillis();
-        String taskDescription = getAgentTaskDescription();
-
-        while (true) {
-            attempt++;
-            checkBudget();
-            try {
-                Result<?> resultWrapper = action.get();
-                T result = extractResult(resultWrapper);
-                if (retryCondition != null && retryCondition.test(result)) {
-                    String message = "Retry explicitly requested by the task because it has the following result: " + result;
-                    R retryResult = retry(attempt, startTime, policy, message, taskDescription);
-                    if (retryResult != null) {
-                        return retryResult;
-                    }
-                    continue;
+            String taskDescription = getAgentTaskDescription();
+            switch (e) {
+                case ToolExecutionException tee when tee.getErrorCategory() == TERMINATION_BY_USER -> {
+                    LOG.error("User decided to interrupt execution while agent was {}", taskDescription);
+                    return createErrorResult(INTERRUPTED_BY_USER, e.getMessage(), null);
                 }
-                return createSuccessResult(result);
-            } catch (Throwable e) {
-                switch (e) {
-                    case ToolExecutionException tee when tee.getErrorCategory() == TERMINATION_BY_USER -> {
-                        LOG.error("User decided to interrupt execution");
-                        return createErrorResult(INTERRUPTED_BY_USER, e.getMessage(), e);
-                    }
-                    case ToolExecutionException tee when tee.getErrorCategory() == VERIFICATION_FAILED -> {
-                        return createErrorResult(VERIFICATION_FAILURE, e.getMessage(), e);
-                    }
-                    case ToolExecutionException _ -> {
-                        String message = "Agent execution failed: %s".formatted(e.getMessage());
-                        LOG.error(message, e);
-                        return createErrorResult(ERROR, e.getMessage(), e);
-                    }
-                    default -> {
-                    }
+                case ToolExecutionException tee when tee.getErrorCategory() == VERIFICATION_FAILED -> {
+                    return createErrorResult(VERIFICATION_FAILURE, e.getMessage(), null);
                 }
-
-                LOG.error("Got error while executing action for task: {}. Retrying...", taskDescription, e);
-                R errorResult = retry(attempt, startTime, policy, e.getMessage(), taskDescription);
-                if (errorResult != null) {
-                    return errorResult;
+                case ToolExecutionException _ -> {
+                    String message = "Got tool error while %s : %s".formatted(taskDescription, e.getMessage());
+                    LOG.error(message, e);
+                    return createErrorResult(ERROR, e.getMessage(), null);
+                }
+                default -> {
+                    String message = "Error while %s".formatted(taskDescription);
+                    LOG.error(message, e);
+                    return createErrorResult(ERROR, e.getMessage(), null);
                 }
             }
         }
+    }
+
+
+    /**
+     * This method doesn't handle any exceptions - the concept of each agent is to execute everything using tools, including returning a
+     * result. That's why any exception thrown during execution will be either an unexpected Exception or a {@link ToolExecutionException}
+     * thrown by {@link org.tarik.ta.core.model.DefaultToolErrorHandler}. Because the latter already handles exceptions related to the
+     * retry, none of those two exceptions need a retry.
+     */
+    @NotNull
+    default OperationExecutionResult<T> executeWithRetry(Supplier<Result<?>> action, @NotNull Predicate<T> shouldRetry) {
+        RetryPolicy policy = getRetryPolicy();
+        int attempts = 0;
+        long startTime = currentTimeMillis();
+        String taskDescription = getAgentTaskDescription();
+
+        long elapsedTime = currentTimeMillis() - startTime;
+        OperationExecutionResult<T> operationResult;
+        do {
+            operationResult = executeAndGetResult(action);
+            ++attempts;
+            if (!operationResult.isSuccess()) {
+                LOG.warn("Got error while {}, no retries will be made.", taskDescription);
+                return operationResult;
+            }
+            var result = operationResult.getResultPayload();
+            if (!shouldRetry.test(result)) {
+                return operationResult;
+            } else {
+                var message = "Retry needs to be done after %d attempt(s) because %s has the following result: '%s'".formatted(
+                        attempts, taskDescription, result);
+                LOG.info(message);
+                sleepMillis(policy.delayMillis());
+            }
+        } while (elapsedTime < policy.timeoutMillis() && (attempts - 1) <= policy.maxRetries());
+        LOG.warn("{} failed after {} attempts (elapsed: {}ms). Last result: {}",
+                taskDescription, attempts, elapsedTime, operationResult.getResultPayload());
+        return operationResult;
     }
 
     @SuppressWarnings("unchecked")
@@ -137,29 +157,5 @@ public interface GenericAiAgent<T extends FinalResult, R extends AgentExecutionR
             }
         }
         return null;
-    }
-
-    @Nullable
-    default R retry(int attempt, long startTime, RetryPolicy policy, String message,
-                    String taskDescription) {
-        long elapsedTime = currentTimeMillis() - startTime;
-        boolean isTimeout = policy.timeoutMillis() > 0 && elapsedTime > policy.timeoutMillis();
-        boolean isMaxRetriesReached = attempt > policy.maxRetries();
-
-        if (isTimeout || isMaxRetriesReached) {
-            LOG.error("Operation for task '{}' failed after {} attempts (elapsed: {}ms). Last error: {}", taskDescription, attempt,
-                    elapsedTime, message);
-            return createErrorResult(ERROR, message, null);
-        }
-
-        long delayMillis = (long) (policy.initialDelayMillis() * Math.pow(policy.backoffMultiplier(), attempt - 1));
-        delayMillis = Math.min(delayMillis, policy.maxDelayMillis());
-        LOG.warn("Attempt {} for task '{}' failed: {}. Retrying in {}ms...", attempt, taskDescription, message, delayMillis);
-        sleepMillis((int) delayMillis);
-        return null;
-    }
-
-    default R executeWithRetry(Supplier<Result<?>> action) {
-        return executeWithRetry(action, null);
     }
 }

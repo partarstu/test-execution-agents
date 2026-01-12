@@ -17,20 +17,19 @@ package org.tarik.ta.dto;
 
 import dev.langchain4j.model.output.structured.Description;
 import org.jetbrains.annotations.Nullable;
-import org.tarik.ta.core.dto.AgentExecutionResult;
+import org.tarik.ta.core.dto.OperationExecutionResult;
 
 import java.awt.image.BufferedImage;
-import java.time.Instant;
 import java.util.Objects;
 
 @Description("Result of a tool execution containing status, message, optional screenshot, typed payload, and timestamp")
-public final class UiAgentExecutionResult<T> extends AgentExecutionResult<T> {
+public final class UiOperationExecutionResult<T> extends OperationExecutionResult<T> {
     @Description("Optional screenshot captured during execution (nullable)")
     private final @Nullable BufferedImage screenshot;
 
-    public UiAgentExecutionResult(ExecutionStatus executionStatus, String message, boolean retryMakesSense, @Nullable T resultPayload,
-                                 @Nullable BufferedImage screenshot,  Instant timestamp) {
-        super(executionStatus, message, retryMakesSense, resultPayload, timestamp);
+    public UiOperationExecutionResult(ExecutionStatus executionStatus, String message, @Nullable T resultPayload,
+                                      @Nullable BufferedImage screenshot) {
+        super(executionStatus, message, resultPayload);
         this.screenshot = screenshot;
     }
 
@@ -40,7 +39,7 @@ public final class UiAgentExecutionResult<T> extends AgentExecutionResult<T> {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof UiAgentExecutionResult<?> that)) {
+        if (!(o instanceof UiOperationExecutionResult<?> that)) {
             return false;
         }
         if (!super.equals(o)) {

@@ -30,7 +30,7 @@ import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryState;
 import org.tarik.ta.core.manager.BudgetManager;
-import org.tarik.ta.core.model.DefaultErrorHandler;
+import org.tarik.ta.core.model.DefaultToolErrorHandler;
 import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.tools.ApiAssertionTools;
 import org.tarik.ta.core.tools.TestContextDataTools;
@@ -242,7 +242,7 @@ public class ApiTestAgent {
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .tools(requestTools, assertionTools, dataTools, VerificationExecutionResult.empty())
-                .toolExecutionErrorHandler(new DefaultErrorHandler(ApiTestStepActionAgent.RETRY_POLICY, retryState))
+                .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiTestStepActionAgent.RETRY_POLICY, retryState))
                 .maxSequentialToolsInvocations(getAgentToolCallsBudget())
                 .build();
     }
@@ -256,7 +256,7 @@ public class ApiTestAgent {
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .tools(requestTools, assertionTools, dataTools, VerificationExecutionResult.empty())
-                .toolExecutionErrorHandler(new DefaultErrorHandler(ApiPreconditionActionAgent.RETRY_POLICY, retryState))
+                .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiPreconditionActionAgent.RETRY_POLICY, retryState))
                 .maxSequentialToolsInvocations(getAgentToolCallsBudget())
                 .build();
     }

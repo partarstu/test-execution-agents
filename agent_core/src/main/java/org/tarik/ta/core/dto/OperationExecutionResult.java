@@ -18,35 +18,27 @@ package org.tarik.ta.core.dto;
 import dev.langchain4j.model.output.structured.Description;
 import org.jetbrains.annotations.Nullable;
 
-import java.time.Instant;
 import java.util.Objects;
 
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
-@Description("Result of a tool execution containing status, message, optional screenshot, typed payload, and timestamp")
-public class AgentExecutionResult<T> {
+@Description("Result of executing a single operation")
+public class OperationExecutionResult<T> {
     @Description("Execution status indicating success, error, or user interruption")
     protected final ExecutionStatus executionStatus;
     @Description("Human-readable message describing the execution result")
     protected final String message;
-    @Description("Indicates whether retrying this operation makes sense")
-    protected final boolean retryMakesSense;
     @Description("Strongly-typed payload containing the specific result data (nullable)")
     protected final @Nullable T resultPayload;
-    @Description("Timestamp when the tool execution completed")
-    protected final Instant timestamp;
 
-    public AgentExecutionResult(ExecutionStatus executionStatus, String message, boolean retryMakesSense, @Nullable T resultPayload,
-                                Instant timestamp) {
+    public OperationExecutionResult(ExecutionStatus executionStatus, String message, @Nullable T resultPayload) {
         this.executionStatus = executionStatus;
         this.message = message;
-        this.retryMakesSense = retryMakesSense;
         this.resultPayload = resultPayload;
-        this.timestamp = timestamp;
     }
 
-    public AgentExecutionResult(ExecutionStatus executionStatus, String message, boolean retryMakesSense, Instant timestamp) {
-        this(executionStatus, message, retryMakesSense, null, timestamp);
+    public OperationExecutionResult(ExecutionStatus executionStatus, String message) {
+        this(executionStatus, message, null);
     }
 
     /**
@@ -64,16 +56,8 @@ public class AgentExecutionResult<T> {
         return message;
     }
 
-    public boolean isRetryMakingSense() {
-        return retryMakesSense;
-    }
-
     public @Nullable T getResultPayload() {
         return resultPayload;
-    }
-
-    public Instant getTimestamp() {
-        return timestamp;
     }
 
     @Override
@@ -84,27 +68,23 @@ public class AgentExecutionResult<T> {
         if (obj == null || obj.getClass() != this.getClass()) {
             return false;
         }
-        var that = (AgentExecutionResult<?>) obj;
+        var that = (OperationExecutionResult<?>) obj;
         return Objects.equals(this.executionStatus, that.executionStatus) &&
                 Objects.equals(this.message, that.message) &&
-                this.retryMakesSense == that.retryMakesSense &&
-                Objects.equals(this.resultPayload, that.resultPayload) &&
-                Objects.equals(this.timestamp, that.timestamp);
+                Objects.equals(this.resultPayload, that.resultPayload);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(executionStatus, message, retryMakesSense, resultPayload, timestamp);
+        return Objects.hash(executionStatus, message, resultPayload);
     }
 
     @Override
     public String toString() {
-        return "AgentExecutionResult[" +
+        return "OperationExecutionResult[" +
                 "executionStatus=" + executionStatus + ", " +
                 "message=" + message + ", " +
-                "retryMakesSense=" + retryMakesSense + ", " +
-                "resultPayload=" + resultPayload + ", " +
-                "timestamp=" + timestamp + ']';
+                "resultPayload=" + resultPayload + ", ";
     }
 
     public enum ExecutionStatus {

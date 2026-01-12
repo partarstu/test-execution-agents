@@ -29,8 +29,8 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
 class UiPreconditionVerificationUiTestAgentTest {
 

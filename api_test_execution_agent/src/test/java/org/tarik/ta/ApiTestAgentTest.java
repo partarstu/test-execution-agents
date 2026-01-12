@@ -7,7 +7,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.tarik.ta.agents.ApiPreconditionActionAgent;
 import org.tarik.ta.agents.ApiTestStepActionAgent;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.AgentConfig;
@@ -49,8 +48,8 @@ class ApiTestAgentTest {
                 String message = "run test";
                 TestStep step = new TestStep("step 1", List.of(), "result 1");
                 TestCase expectedTestCase = new TestCase("Test Case 1", Collections.emptyList(), List.of(step));
-                AgentExecutionResult<TestCase> executionResult = new AgentExecutionResult<>(
-                                AgentExecutionResult.ExecutionStatus.SUCCESS, "Success", true, expectedTestCase,
+                OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
+                                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", true, expectedTestCase,
                                 java.time.Instant.now());
 
                 try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
@@ -95,8 +94,8 @@ class ApiTestAgentTest {
         @Test
         void extractTestCase_shouldReturnEmpty_whenAgentFails() {
                 String message = "run test";
-                AgentExecutionResult<TestCase> executionResult = new AgentExecutionResult<>(
-                                AgentExecutionResult.ExecutionStatus.ERROR, "Failed", false, null,
+                OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
+                                OperationExecutionResult.ExecutionStatus.ERROR, "Failed", false, null,
                                 java.time.Instant.now());
 
                 try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
@@ -135,11 +134,11 @@ class ApiTestAgentTest {
                 TestStep step = new TestStep("step 1", List.of(), "result 1");
                 TestCase expectedTestCase = new TestCase("Test Case 1", Collections.emptyList(), List.of(step));
 
-                AgentExecutionResult<TestCase> extractionResult = new AgentExecutionResult<>(
-                                AgentExecutionResult.ExecutionStatus.SUCCESS, "Success", true, expectedTestCase,
+                OperationExecutionResult<TestCase> extractionResult = new OperationExecutionResult<>(
+                                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", true, expectedTestCase,
                                 java.time.Instant.now());
-                AgentExecutionResult<VerificationExecutionResult> actionResult = new AgentExecutionResult<>(
-                                AgentExecutionResult.ExecutionStatus.SUCCESS, "Action Success", true,
+                OperationExecutionResult<VerificationExecutionResult> actionResult = new OperationExecutionResult<>(
+                                OperationExecutionResult.ExecutionStatus.SUCCESS, "Action Success", true,
                                 new VerificationExecutionResult(true, "Passed"),
                                 java.time.Instant.now());
 

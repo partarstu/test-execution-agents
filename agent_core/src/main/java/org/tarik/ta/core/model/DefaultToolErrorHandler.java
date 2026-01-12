@@ -15,19 +15,18 @@ import java.util.Objects;
 
 import static org.tarik.ta.core.error.ErrorCategory.*;
 
-public class DefaultErrorHandler implements ToolExecutionErrorHandler {
-    private static final Logger LOG = LoggerFactory.getLogger(DefaultErrorHandler.class);
-    private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT,
-            VERIFICATION_FAILED);
+public class DefaultToolErrorHandler implements ToolExecutionErrorHandler {
+    private static final Logger LOG = LoggerFactory.getLogger(DefaultToolErrorHandler.class);
+    private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT, VERIFICATION_FAILED);
     private final RetryPolicy retryPolicy;
     private final RetryState retryState;
     private final boolean failOnTimeout;
 
-    public DefaultErrorHandler(RetryPolicy retryPolicy, RetryState retryState) {
+    public DefaultToolErrorHandler(RetryPolicy retryPolicy, RetryState retryState) {
         this(retryPolicy, retryState, true);
     }
 
-    public DefaultErrorHandler(RetryPolicy retryPolicy, RetryState retryState, boolean failOnTimeout) {
+    public DefaultToolErrorHandler(RetryPolicy retryPolicy, RetryState retryState, boolean failOnTimeout) {
         this.retryPolicy = retryPolicy;
         this.retryState = retryState;
         this.failOnTimeout = failOnTimeout;
@@ -54,31 +53,17 @@ public class DefaultErrorHandler implements ToolExecutionErrorHandler {
         retryState.startIfNotStarted();
         int attempts = retryState.incrementAttempts();
         long elapsedTime = retryState.getElapsedTime();
-        boolean isTimeout = retryPolicy.timeoutMillis() > 0
-                && elapsedTime > retryPolicy.timeoutMillis();
+        boolean isTimeout = retryPolicy.timeoutMillis() > 0 && elapsedTime > retryPolicy.timeoutMillis();
         boolean isMaxRetriesReached = attempts > retryPolicy.maxRetries();
 
         if (isTimeout && failOnTimeout) {
-            throw new ToolExecutionException(
-                    "Retry policy exceeded because of timeout. Original error: " + message,
-                    TIMEOUT);
+            throw new ToolExecutionException("Retry policy exceeded because of timeout. Original error: " + message, TIMEOUT);
         } else if (isMaxRetriesReached && failOnTimeout) {
-            throw new ToolExecutionException(
-                    "Retry policy exceeded because of max retries. Original error: "
-                            + message,
-                    TIMEOUT);
+            throw new ToolExecutionException("Retry policy exceeded because of max retries. Original error: " + message, TIMEOUT);
         } else {
             LOG.info("Passing the following tool execution error to the agent: '{}'", message);
             return new ToolErrorHandlerResult(message);
         }
-    }
-
-    public RetryPolicy retryPolicy() {
-        return retryPolicy;
-    }
-
-    public RetryState retryState() {
-        return retryState;
     }
 
     @Override
@@ -89,9 +74,8 @@ public class DefaultErrorHandler implements ToolExecutionErrorHandler {
         if (obj == null || obj.getClass() != this.getClass()) {
             return false;
         }
-        var that = (DefaultErrorHandler) obj;
-        return Objects.equals(this.retryPolicy, that.retryPolicy) &&
-                Objects.equals(this.retryState, that.retryState);
+        var that = (DefaultToolErrorHandler) obj;
+        return Objects.equals(this.retryPolicy, that.retryPolicy) && Objects.equals(this.retryState, that.retryState);
     }
 
     @Override
@@ -101,9 +85,6 @@ public class DefaultErrorHandler implements ToolExecutionErrorHandler {
 
     @Override
     public String toString() {
-        return "DefaultErrorHandler[" +
-                "retryPolicy=" + retryPolicy + ", " +
-                "retryState=" + retryState + ']';
+        return "DefaultToolErrorHandler[" + "retryPolicy=" + retryPolicy + ", " + "retryState=" + retryState + ']';
     }
-
 }

@@ -24,7 +24,7 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.agents.TestCaseExtractionAgent;
-import org.tarik.ta.core.dto.AgentExecutionResult;
+import org.tarik.ta.core.dto.OperationExecutionResult;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.model.GenAiModel;
@@ -55,8 +55,8 @@ class TestCaseExtractorTest {
         String message = "run test";
         TestStep step = new TestStep("step 1", List.of(), "result 1");
         TestCase expectedTestCase = new TestCase("Test Case 1", Collections.emptyList(), List.of(step));
-        AgentExecutionResult<TestCase> executionResult = new AgentExecutionResult<>(
-                AgentExecutionResult.ExecutionStatus.SUCCESS, "Success", true, expectedTestCase,
+        OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
+                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", true, expectedTestCase,
                 Instant.now());
 
         try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
@@ -99,8 +99,8 @@ class TestCaseExtractorTest {
     @Test
     void extractTestCase_shouldReturnEmpty_whenAgentFails() {
         String message = "run test";
-        AgentExecutionResult<TestCase> executionResult = new AgentExecutionResult<>(
-                AgentExecutionResult.ExecutionStatus.ERROR, "Failed", false, null, Instant.now());
+        OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
+                OperationExecutionResult.ExecutionStatus.ERROR, "Failed", false, null, Instant.now());
 
         try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
                 MockedStatic<ModelFactory> modelFactory = mockStatic(ModelFactory.class);
@@ -147,8 +147,8 @@ class TestCaseExtractorTest {
         String message = "run test";
         TestStep step = new TestStep("step 1", List.of(), "result 1");
         TestCase invalidTestCase = new TestCase("", Collections.emptyList(), List.of(step));
-        AgentExecutionResult<TestCase> executionResult = new AgentExecutionResult<>(
-                AgentExecutionResult.ExecutionStatus.SUCCESS, "Success", true, invalidTestCase,
+        OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
+                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", true, invalidTestCase,
                 Instant.now());
 
         try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
@@ -183,8 +183,8 @@ class TestCaseExtractorTest {
     void extractTestCase_shouldReturnEmpty_whenTestCaseHasNoSteps() {
         String message = "run test";
         TestCase invalidTestCase = new TestCase("Test Case", Collections.emptyList(), Collections.emptyList());
-        AgentExecutionResult<TestCase> executionResult = new AgentExecutionResult<>(
-                AgentExecutionResult.ExecutionStatus.SUCCESS, "Success", true, invalidTestCase,
+        OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
+                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", true, invalidTestCase,
                 Instant.now());
 
         try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);

@@ -19,7 +19,7 @@ import dev.langchain4j.service.Result;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.core.agents.PreconditionActionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
-import org.tarik.ta.core.dto.AgentExecutionResult;
+import org.tarik.ta.core.dto.OperationExecutionResult;
 
 import org.mockito.MockedStatic;
 import org.tarik.ta.utils.UiCommonUtils;
@@ -28,8 +28,8 @@ import java.awt.image.BufferedImage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.ERROR;
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 
 class UiPreconditionActionUiTestAgentTest {
@@ -42,7 +42,8 @@ class UiPreconditionActionUiTestAgentTest {
 
             PreconditionActionAgent agent = (_, _) -> null;
 
-            AgentExecutionResult<EmptyExecutionResult> result = agent.executeAndGetResult(() -> Result.builder().content(new EmptyExecutionResult()).build());
+            OperationExecutionResult<EmptyExecutionResult>
+                    result = agent.executeAndGetResult(() -> Result.builder().content(new EmptyExecutionResult()).build());
 
             assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
             assertThat(result.isSuccess()).isTrue();
