@@ -15,8 +15,6 @@
  */
 package org.tarik.ta.agents;
 
-import org.tarik.ta.core.agents.BaseAiAgent;
-
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
@@ -25,7 +23,7 @@ import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.dto.UiStateCheckResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
-public interface UiStateCheckAgent extends BaseAiAgent<UiStateCheckResult> {
+public interface UiStateCheckAgent extends BaseUiAgent<UiStateCheckResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
 
     Result<String> verify(

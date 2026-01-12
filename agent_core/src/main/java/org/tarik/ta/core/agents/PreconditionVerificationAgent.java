@@ -22,7 +22,7 @@ import org.tarik.ta.core.dto.VerificationExecutionResult;
 /**
  * Agent responsible for verifying executed test case preconditions.
  */
-public interface PreconditionVerificationAgent extends BaseAiAgent<VerificationExecutionResult> {
+public interface PreconditionVerificationAgent extends GenericAiAgent<VerificationExecutionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
 
     @Override

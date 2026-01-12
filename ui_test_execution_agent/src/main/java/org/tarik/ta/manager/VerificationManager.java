@@ -17,6 +17,7 @@ package org.tarik.ta.manager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.dto.VerificationStatus;
 
 import java.util.concurrent.ExecutorService;
@@ -34,7 +35,7 @@ public class VerificationManager implements AutoCloseable {
     private final Lock lock = new ReentrantLock();
     private final Condition verificationFinished = lock.newCondition();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
-
+    private final long verificationRetryTimeoutMillis = AgentConfig.getVerificationRetryPolicy().timeoutMillis();
     private int activeVerifications = 0;
     private boolean lastSuccess = true;
 
@@ -60,15 +61,15 @@ public class VerificationManager implements AutoCloseable {
         });
     }
 
-    public VerificationStatus waitForVerificationToFinish(long timeoutMillis) {
+    public VerificationStatus waitForVerificationToFinish() {
         lock.lock();
         try {
             if (activeVerifications == 0) {
                 return new VerificationStatus(false, lastSuccess);
             }
 
-            LOG.info("Waiting for verification to finish (timeout: {} ms)...", timeoutMillis);
-            long remainingNanos = MILLISECONDS.toNanos(timeoutMillis);
+            LOG.info("Waiting for verification to finish (timeout: {} ms)...", verificationRetryTimeoutMillis);
+            long remainingNanos = MILLISECONDS.toNanos(verificationRetryTimeoutMillis);
             while (activeVerifications > 0) {
                 if (remainingNanos <= 0) {
                     LOG.warn("Timeout while waiting for verification to finish");

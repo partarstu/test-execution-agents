@@ -22,7 +22,7 @@ import org.tarik.ta.core.error.RetryPolicy;
 /**
  * Agent responsible for executing test steps.
  */
-public interface TestStepActionAgent extends BaseAiAgent<EmptyExecutionResult> {
+public interface TestStepActionAgent extends GenericAiAgent<EmptyExecutionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
     @Override

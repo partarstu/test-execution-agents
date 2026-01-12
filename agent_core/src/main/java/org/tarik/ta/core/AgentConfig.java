@@ -283,22 +283,6 @@ public class AgentConfig {
 
     // -----------------------------------------------------
     // Timeout and Retry Config
-    public static int getTestStepExecutionRetryTimeoutMillis() {
-        return TEST_STEP_EXECUTION_RETRY_TIMEOUT_MILLIS.value();
-    }
-
-    public static int getTestStepExecutionRetryIntervalMillis() {
-        return TEST_STEP_EXECUTION_RETRY_INTERVAL_MILLIS.value();
-    }
-
-    public static int getVerificationRetryTimeoutMillis() {
-        return VERIFICATION_RETRY_TIMEOUT_MILLIS.value();
-    }
-
-    public static int getActionVerificationDelayMillis() {
-        return ACTION_VERIFICATION_DELAY_MILLIS.value();
-    }
-
     public static int getMaxActionExecutionDurationMillis() {
         return MAX_ACTION_EXECUTION_DURATION_MILLIS.value();
     }
@@ -307,8 +291,6 @@ public class AgentConfig {
         return new RetryPolicy(
                 MAX_RETRIES.value(),
                 TEST_STEP_EXECUTION_RETRY_INTERVAL_MILLIS.value(),
-                TEST_STEP_EXECUTION_RETRY_TIMEOUT_MILLIS.value(),
-                1,
                 TEST_STEP_EXECUTION_RETRY_TIMEOUT_MILLIS.value());
     }
 
@@ -316,9 +298,11 @@ public class AgentConfig {
         return new RetryPolicy(
                 MAX_RETRIES.value(),
                 TEST_STEP_EXECUTION_RETRY_INTERVAL_MILLIS.value(),
-                VERIFICATION_RETRY_TIMEOUT_MILLIS.value(),
-                1,
                 VERIFICATION_RETRY_TIMEOUT_MILLIS.value());
+    }
+
+    public static int getActionVerificationDelayMillis() {
+        return ACTION_VERIFICATION_DELAY_MILLIS.value();
     }
 
     // -----------------------------------------------------

@@ -33,7 +33,6 @@ import java.net.URL;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.awt.Desktop.getDesktop;
 import static java.awt.Desktop.isDesktopSupported;
-import static org.tarik.ta.core.AgentConfig.getVerificationRetryTimeoutMillis;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
@@ -66,7 +65,7 @@ public class CommonTools extends UiAbstractTools {
     @Tool(value = "Waits for any running verifications to complete and returns the verification results, if any.")
     public VerificationStatus waitForVerification() {
         try {
-            var result = verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis());
+            var result = verificationManager.waitForVerificationToFinish();
             if (result.timedOut()) {
                 throw new ToolExecutionException("Verification timed out before completing", VERIFICATION_FAILED);
             }

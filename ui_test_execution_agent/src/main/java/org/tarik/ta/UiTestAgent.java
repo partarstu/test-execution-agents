@@ -292,14 +292,14 @@ public class UiTestAgent {
                         // The test case execution should be immediately interrupted after any verification failure
                         // or timeout, unless UI element location pre-fetching is activated (in this case it will
                         // fail while executing the next test step)
-                        var verificationStatus = verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis());
+                        var verificationStatus = verificationManager.waitForVerificationToFinish();
                         if (!verificationStatus.isCompleted()) {
                             // Verification with retries might last longer than the timeout, because the requests to the model for
                             // verification might last seconds. We need to wait for the final completion of the verification, should take
                             // no more than the general timeout (unless network issues occurred)
-                            LOG.warn("Verification '{}' exceeded the timeout of {} ms, waiting the same amount of time before " +
-                                    "interrupting the execution", verificationInstruction, getVerificationRetryTimeoutMillis());
-                            var refreshedStatus = verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis());
+                            LOG.warn("Verification '{}' exceeded the timeout, waiting the same amount of time before " +
+                                    "interrupting the execution", verificationInstruction);
+                            var refreshedStatus = verificationManager.waitForVerificationToFinish();
                             if (!refreshedStatus.isCompleted()) {
                                 var message = ("Verification '%s' hasn't completed within extended timeout")
                                         .formatted(verificationInstruction);
@@ -326,7 +326,7 @@ public class UiTestAgent {
         }
 
         if (isElementLocationPrefetchingEnabled()) {
-            verificationManager.waitForVerificationToFinish(Long.MAX_VALUE);
+            verificationManager.waitForVerificationToFinish();
         }
     }
 
