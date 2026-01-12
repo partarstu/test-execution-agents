@@ -49,8 +49,7 @@ class ApiTestAgentTest {
                 TestStep step = new TestStep("step 1", List.of(), "result 1");
                 TestCase expectedTestCase = new TestCase("Test Case 1", Collections.emptyList(), List.of(step));
                 OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
-                                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", true, expectedTestCase,
-                                java.time.Instant.now());
+                                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", expectedTestCase);
 
                 try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
                      MockedStatic<ModelFactory> modelFactory = mockStatic(ModelFactory.class);
@@ -95,8 +94,7 @@ class ApiTestAgentTest {
         void extractTestCase_shouldReturnEmpty_whenAgentFails() {
                 String message = "run test";
                 OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
-                                OperationExecutionResult.ExecutionStatus.ERROR, "Failed", false, null,
-                                java.time.Instant.now());
+                                OperationExecutionResult.ExecutionStatus.ERROR, "Failed", null);
 
                 try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
                      MockedStatic<ModelFactory> modelFactory = mockStatic(ModelFactory.class);
@@ -135,12 +133,10 @@ class ApiTestAgentTest {
                 TestCase expectedTestCase = new TestCase("Test Case 1", Collections.emptyList(), List.of(step));
 
                 OperationExecutionResult<TestCase> extractionResult = new OperationExecutionResult<>(
-                                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", true, expectedTestCase,
-                                java.time.Instant.now());
+                                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", expectedTestCase);
                 OperationExecutionResult<VerificationExecutionResult> actionResult = new OperationExecutionResult<>(
-                                OperationExecutionResult.ExecutionStatus.SUCCESS, "Action Success", true,
-                                new VerificationExecutionResult(true, "Passed"),
-                                java.time.Instant.now());
+                                OperationExecutionResult.ExecutionStatus.SUCCESS, "Action Success",
+                                new VerificationExecutionResult(true, "Passed"));
 
                 try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
                      MockedStatic<ModelFactory> modelFactory = mockStatic(ModelFactory.class);

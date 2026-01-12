@@ -18,7 +18,7 @@ package org.tarik.ta.agents;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.core.agents.BaseAiAgent;
+import org.tarik.ta.core.agents.GenericAiAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
@@ -43,7 +43,7 @@ import static org.tarik.ta.core.AgentConfig.getActionRetryPolicy;
  * <li>Verifying data state matches expectations</li>
  * </ul>
  */
-public interface ApiPreconditionActionAgent extends BaseAiAgent<VerificationExecutionResult> {
+public interface ApiPreconditionActionAgent extends GenericAiAgent<VerificationExecutionResult> {
     RetryPolicy RETRY_POLICY = getActionRetryPolicy();
 
     @UserMessage("""

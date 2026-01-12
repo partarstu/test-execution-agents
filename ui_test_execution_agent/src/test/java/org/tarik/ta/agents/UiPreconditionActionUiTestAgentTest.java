@@ -68,7 +68,7 @@ class UiPreconditionActionUiTestAgentTest {
             assertThat(result.getExecutionStatus()).isEqualTo(ERROR);
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.getMessage()).isEqualTo("Simulated error");
-            assertThat(result.screenshot()).isNotNull();
+            assertThat(((org.tarik.ta.dto.UiOperationExecutionResult<?>) result).screenshot()).isNotNull();
         }
     }
 }

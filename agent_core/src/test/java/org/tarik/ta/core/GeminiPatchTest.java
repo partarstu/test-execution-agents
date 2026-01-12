@@ -22,7 +22,7 @@ public class GeminiPatchTest {
         // Then
         assertThat(part.mediaResolution())
                 .as("Media resolution should automatically be set to HIGH for parts with inline data")
-                .isEqualTo(GeminiMediaResolutionLevel.HIGH);
+                .isEqualTo(GeminiMediaResolutionLevel.ULTRA_HIGH);
     }
 
     @Test

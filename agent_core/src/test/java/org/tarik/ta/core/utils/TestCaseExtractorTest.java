@@ -56,8 +56,7 @@ class TestCaseExtractorTest {
         TestStep step = new TestStep("step 1", List.of(), "result 1");
         TestCase expectedTestCase = new TestCase("Test Case 1", Collections.emptyList(), List.of(step));
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
-                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", true, expectedTestCase,
-                Instant.now());
+                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", expectedTestCase);
 
         try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
                 MockedStatic<ModelFactory> modelFactory = mockStatic(ModelFactory.class);
@@ -100,7 +99,7 @@ class TestCaseExtractorTest {
     void extractTestCase_shouldReturnEmpty_whenAgentFails() {
         String message = "run test";
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
-                OperationExecutionResult.ExecutionStatus.ERROR, "Failed", false, null, Instant.now());
+                OperationExecutionResult.ExecutionStatus.ERROR, "Failed", null);
 
         try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
                 MockedStatic<ModelFactory> modelFactory = mockStatic(ModelFactory.class);
@@ -148,8 +147,7 @@ class TestCaseExtractorTest {
         TestStep step = new TestStep("step 1", List.of(), "result 1");
         TestCase invalidTestCase = new TestCase("", Collections.emptyList(), List.of(step));
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
-                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", true, invalidTestCase,
-                Instant.now());
+                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", invalidTestCase);
 
         try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
                 MockedStatic<ModelFactory> modelFactory = mockStatic(ModelFactory.class);
@@ -184,8 +182,7 @@ class TestCaseExtractorTest {
         String message = "run test";
         TestCase invalidTestCase = new TestCase("Test Case", Collections.emptyList(), Collections.emptyList());
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
-                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", true, invalidTestCase,
-                Instant.now());
+                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", invalidTestCase);
 
         try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
                 MockedStatic<ModelFactory> modelFactory = mockStatic(ModelFactory.class);

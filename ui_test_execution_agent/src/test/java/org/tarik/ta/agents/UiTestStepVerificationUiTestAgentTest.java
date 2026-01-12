@@ -72,6 +72,6 @@ class UiTestStepVerificationUiTestAgentTest {
         assertThat(result.getExecutionStatus()).isEqualTo(ERROR);
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getMessage()).isEqualTo("Verification error");
-        assertThat(result.screenshot()).isNotNull();
+        assertThat(((org.tarik.ta.dto.UiOperationExecutionResult<?>) result).screenshot()).isNotNull();
     }
 }
