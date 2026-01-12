@@ -74,6 +74,7 @@ import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("unchecked")
 class UiTestAgentTest {
 
         private GenAiModel mockModel;

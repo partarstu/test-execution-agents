@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
-@SuppressWarnings("ALL")
+@SuppressWarnings({"ALL", "unchecked"})
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CoreUtils Tests")
 class CommonUtilsTest {

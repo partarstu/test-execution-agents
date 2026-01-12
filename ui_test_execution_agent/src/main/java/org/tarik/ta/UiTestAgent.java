@@ -306,7 +306,8 @@ public class UiTestAgent {
                                 LOG.error("Verification '{}' is stuck, interrupting execution", verificationInstruction);
                                 addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(), captureScreen(),
                                         TestStepResultStatus.ERROR);
-                            } else if (!verificationStatus.isSuccessful().orElse(false)) {
+                                return;
+                            } else if (!refreshedStatus.isSuccessful().orElse(false)) {
                                 return;
                             }
                         } else if (!verificationStatus.isSuccessful().orElse(false)) {

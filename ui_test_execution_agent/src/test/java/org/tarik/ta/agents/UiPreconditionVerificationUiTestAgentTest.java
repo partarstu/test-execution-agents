@@ -32,6 +32,7 @@ import static org.mockito.Mockito.*;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
+@SuppressWarnings("unchecked")
 class UiPreconditionVerificationUiTestAgentTest {
 
     private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
