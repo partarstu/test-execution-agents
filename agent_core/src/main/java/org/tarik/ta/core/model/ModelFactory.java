@@ -40,21 +40,25 @@ public class ModelFactory {
     private static final int GEMINI_THINKING_BUDGET = getGeminiThinkingBudget();
 
     public static GenAiModel getModel(String modelName, ModelProvider modelProvider) {
+        return getModel(modelName, modelProvider, MAX_RETRIES);
+    }
+
+    public static GenAiModel getModel(String modelName, ModelProvider modelProvider, int maxRetries) {
         return switch (modelProvider) {
-            case GOOGLE -> new GenAiModel(getGeminiModel(modelName));
-            case OPENAI -> new GenAiModel(getOpenAiModel(modelName));
-            case GROQ -> new GenAiModel(getGroqModel(modelName));
-            case ANTHROPIC -> new GenAiModel(getAnthropicModel(modelName));
+            case GOOGLE -> new GenAiModel(getGeminiModel(modelName, maxRetries));
+            case OPENAI -> new GenAiModel(getOpenAiModel(modelName, maxRetries));
+            case GROQ -> new GenAiModel(getGroqModel(modelName, maxRetries));
+            case ANTHROPIC -> new GenAiModel(getAnthropicModel(modelName, maxRetries));
         };
     }
 
-    private static ChatModel getGeminiModel(String modelName) {
+    private static ChatModel getGeminiModel(String modelName, int maxRetries) {
         var provider = getGoogleApiProvider();
         return switch (provider) {
             case STUDIO_AI -> GoogleAiGeminiChatModel.builder()
                     .apiKey(getGoogleApiToken())
                     .modelName(modelName)
-                    .maxRetries(MAX_RETRIES)
+                    .maxRetries(maxRetries)
                     .maxOutputTokens(MAX_OUTPUT_TOKENS)
                     .temperature(TEMPERATURE)
                     .topP(TOP_P)
@@ -74,7 +78,7 @@ public class ModelFactory {
                     .project(getGoogleProject())
                     .location(getGoogleLocation())
                     .modelName(modelName)
-                    .maxRetries(MAX_RETRIES)
+                    .maxRetries(maxRetries)
                     .maxOutputTokens(MAX_OUTPUT_TOKENS)
                     .temperature((float) TEMPERATURE)
                     .topP((float) TOP_P)
@@ -84,9 +88,9 @@ public class ModelFactory {
         };
     }
 
-    private static ChatModel getOpenAiModel(String modelName) {
+    private static ChatModel getOpenAiModel(String modelName, int maxRetries) {
         return AzureOpenAiChatModel.builder()
-                .maxRetries(MAX_RETRIES)
+                .maxRetries(maxRetries)
                 .apiKey(getOpenAiApiKey())
                 .deploymentName(modelName)
                 .maxTokens(MAX_OUTPUT_TOKENS)
@@ -97,11 +101,11 @@ public class ModelFactory {
                 .build();
     }
 
-    private static ChatModel getGroqModel(String modelName) {
+    private static ChatModel getGroqModel(String modelName, int maxRetries) {
         return OpenAiChatModel.builder()
                 .baseUrl(getGroqEndpoint())
                 .modelName(modelName)
-                .maxRetries(MAX_RETRIES)
+                .maxRetries(maxRetries)
                 .apiKey(getGroqApiKey())
                 .maxTokens(MAX_OUTPUT_TOKENS)
                 .temperature(TEMPERATURE)
@@ -110,7 +114,7 @@ public class ModelFactory {
                 .build();
     }
 
-    private static ChatModel getAnthropicModel(String modelName) {
+    private static ChatModel getAnthropicModel(String modelName, int maxRetries) {
         var provider = getAnthropicApiProvider();
         return switch (provider) {
             case ANTHROPIC_API -> {
@@ -125,7 +129,7 @@ public class ModelFactory {
                         .sendThinking(false)
                         .apiKey(apiKey)
                         .modelName(modelName)
-                        .maxRetries(MAX_RETRIES)
+                        .maxRetries(maxRetries)
                         .maxTokens(MAX_OUTPUT_TOKENS)
                         .temperature(TEMPERATURE)
                         .toolChoice(ToolChoice.REQUIRED)

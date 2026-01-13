@@ -37,7 +37,6 @@ import org.tarik.ta.core.model.ModelFactory;
 import org.tarik.ta.core.utils.CommonUtils;
 import org.tarik.ta.core.utils.PromptUtils;
 import org.tarik.ta.dto.UiOperationExecutionResult;
-import org.tarik.ta.dto.VerificationStatus;
 import org.tarik.ta.manager.VerificationManager;
 import org.tarik.ta.rag.RetrieverFactory;
 import org.tarik.ta.rag.UiElementRetriever;
@@ -47,6 +46,7 @@ import org.tarik.ta.core.error.RetryPolicy;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -193,11 +193,11 @@ class UiTestAgentTimeoutTest {
         try (MockedConstruction<VerificationManager> mockedVerificationManager = mockConstruction(VerificationManager.class,
                 (mock, context) -> {
                     // First timeout
-                    VerificationStatus timeoutStatus = new VerificationStatus(true, null);
+                    Optional<VerificationExecutionResult> timeoutStatus = Optional.empty();
                     // Second timeout (extended)
-                    VerificationStatus extendedTimeoutStatus = new VerificationStatus(true, null);
+                    Optional<VerificationExecutionResult> extendedTimeoutStatus = Optional.empty();
 
-                    when(mock.waitForVerificationToFinish())
+                    when(mock.waitForCurrentVerificationToFinish())
                             .thenReturn(timeoutStatus) // First call
                             .thenReturn(extendedTimeoutStatus); // Second call
                 })) {
@@ -234,11 +234,11 @@ class UiTestAgentTimeoutTest {
         try (MockedConstruction<VerificationManager> mockedVerificationManager = mockConstruction(VerificationManager.class,
                 (mock, context) -> {
                     // First timeout
-                    VerificationStatus timeoutStatus = new VerificationStatus(true, null);
+                    Optional<VerificationExecutionResult> timeoutStatus = Optional.empty();
                     // Second call returns completed but FAILED
-                    VerificationStatus delayedFailureStatus = new VerificationStatus(false, false);
+                    Optional<VerificationExecutionResult> delayedFailureStatus = Optional.of(new VerificationExecutionResult(false, "Delayed failure"));
                     
-                    when(mock.waitForVerificationToFinish())
+                    when(mock.waitForCurrentVerificationToFinish())
                             .thenReturn(timeoutStatus) // First call
                             .thenReturn(delayedFailureStatus); // Second call
                 })) {

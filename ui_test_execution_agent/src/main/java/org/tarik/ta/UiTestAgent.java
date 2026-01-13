@@ -61,11 +61,9 @@ import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
+import static org.tarik.ta.core.utils.CommonUtils.*;
 import static org.tarik.ta.rag.RetrieverFactory.getUiElementRetriever;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.VERIFICATION_FAILURE;
-import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
-import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
-import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
@@ -242,77 +240,31 @@ public class UiTestAgent {
 
                 if (isNotBlank(verificationInstruction)) {
                     String testDataString = testStep.testData() == null ? null : join(", ", testStep.testData());
-                    verificationManager.submitVerification(() -> {
-                        try {
-                            sleepMillis(ACTION_VERIFICATION_DELAY_MILLIS);
-                            LOG.info("Executing verification of: '{}'", verificationInstruction);
-                            var agentExecutionResult = testStepVerificationAgent.executeWithRetry(() -> {
-                                var screenshot = captureScreen();
-                                context.setVisualState(new VisualState(screenshot));
-                                return testStepVerificationAgent.verify(verificationInstruction, actionInstruction, testDataString,
-                                        context.getSharedData().toString(), singleImageContent(screenshot));
-                            }, result -> result == null || !result.success());
-                            resetToolCallUsage();
+                    sleepMillis(getActionVerificationDelayMillis());
+                    verificationManager.submitVerification(testStepVerificationAgent, context, verificationInstruction,
+                            actionInstruction, testDataString);
 
-                            if (!agentExecutionResult.isSuccess()) {
-                                var errorMessage = "Failure while verifying test step '%s'. Root cause: %s"
-                                        .formatted(actionInstruction, agentExecutionResult.getMessage());
-                                addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
-                                        context.getVisualState().screenshot(), TestStepResultStatus.ERROR);
-                                return false;
-                            } else {
-                                VerificationExecutionResult verificationResult = agentExecutionResult.getResultPayload();
-                                if (verificationResult == null) {
-                                    var errorMessage = "Verification result got back empty.";
-                                    addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
-                                            context.getVisualState().screenshot(), FAILURE);
-                                    return false;
-                                }
-                                if (!verificationResult.success()) {
-                                    var errorMessage = "Verification failed. %s".formatted(verificationResult.message());
-                                    addFailedTestStep(context, testStep, errorMessage, verificationResult.message(),
-                                            executionStartTimestamp, now(), context.getVisualState().screenshot(),
-                                            FAILURE);
-                                    return false;
-                                }
-                                LOG.info("Verification execution complete.");
-                                context.addStepResult(new UiTestStepResult(testStep, SUCCESS, null,
-                                        verificationResult.message(), null, executionStartTimestamp, now()));
-                                return true;
-                            }
-                        } catch (Exception e) {
-                            LOG.error("Unexpected error during async verification", e);
-                            addFailedTestStep(context, testStep, e.getMessage(), null, executionStartTimestamp, now(),
-                                    captureScreen(), TestStepResultStatus.ERROR);
-                            return false;
-                        }
-                    });
+                    var verificationResultOptional = verificationManager.waitForCurrentVerificationToFinish();
+                    if (verificationResultOptional.isEmpty()) {
+                        var message = "There was an error while verifying that '%s'. Please see logs for details"
+                                .formatted(verificationInstruction);
+                        LOG.error(message);
+                        addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(), captureScreen(),
+                                TestStepResultStatus.ERROR);
+                        return;
+                    }
 
-                    if (!isElementLocationPrefetchingEnabled()) {
-                        // The test case execution should be immediately interrupted after any verification failure
-                        // or timeout, unless UI element location pre-fetching is activated (in this case it will
-                        // fail while executing the next test step)
-                        var verificationStatus = verificationManager.waitForVerificationToFinish();
-                        if (!verificationStatus.isCompleted()) {
-                            // Verification with retries might last longer than the timeout, because the requests to the model for
-                            // verification might last seconds. We need to wait for the final completion of the verification, should take
-                            // no more than the general timeout (unless network issues occurred)
-                            LOG.warn("Verification '{}' exceeded the timeout, waiting the same amount of time before " +
-                                    "interrupting the execution", verificationInstruction);
-                            var refreshedStatus = verificationManager.waitForVerificationToFinish();
-                            if (!refreshedStatus.isCompleted()) {
-                                var message = ("Verification '%s' hasn't completed within extended timeout")
-                                        .formatted(verificationInstruction);
-                                LOG.error("Verification '{}' is stuck, interrupting execution", verificationInstruction);
-                                addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(), captureScreen(),
-                                        TestStepResultStatus.ERROR);
-                                return;
-                            } else if (!refreshedStatus.isSuccessful().orElse(false)) {
-                                return;
-                            }
-                        } else if (!verificationStatus.isSuccessful().orElse(false)) {
-                            return;
-                        }
+                    VerificationExecutionResult verificationResult = verificationResultOptional.get();
+                    if (!verificationResult.success()) {
+                        var generalMessage = "Verification failed. %s".formatted(verificationResult.message());
+                        LOG.warn("Interrupting test case execution because the verification failed. {}", verificationResult.message());
+                        addFailedTestStep(context, testStep, generalMessage, verificationResult.message(), executionStartTimestamp, now(),
+                                context.getVisualState().screenshot(), FAILURE);
+                        return;
+                    } else {
+                        LOG.info("Verification succeeded.");
+                        context.addStepResult(new UiTestStepResult(testStep, SUCCESS, null, verificationResult.message(), null,
+                                executionStartTimestamp, now()));
                     }
                 } else {
                     context.addStepResult(new UiTestStepResult(testStep, SUCCESS, null, "No verification required",
@@ -320,14 +272,9 @@ public class UiTestAgent {
                 }
             } catch (Exception e) {
                 LOG.error("Unexpected error while executing the test step: '{}'", testStep.stepDescription(), e);
-                addFailedTestStep(context, testStep, e.getMessage(), null, now(), now(), captureScreen(),
-                        TestStepResultStatus.ERROR);
+                addFailedTestStep(context, testStep, e.getMessage(), null, now(), now(), captureScreen(), TestStepResultStatus.ERROR);
                 return;
             }
-        }
-
-        if (isElementLocationPrefetchingEnabled()) {
-            verificationManager.waitForVerificationToFinish();
         }
     }
 
@@ -342,7 +289,7 @@ public class UiTestAgent {
 
     private static UiTestStepVerificationAgent getTestStepVerificationAgent(RetryState retryState) {
         var testStepVerificationAgentModel = getModel(getTestStepVerificationAgentModelName(),
-                getTestStepVerificationAgentModelProvider());
+                getTestStepVerificationAgentModelProvider(), getVerificationModelMaxRetries());
         var testStepVerificationAgentPrompt = loadSystemPrompt("test_step/verifier",
                 getTestStepVerificationAgentPromptVersion(), "verification_execution_prompt.txt");
         return builder(UiTestStepVerificationAgent.class)
@@ -380,7 +327,7 @@ public class UiTestAgent {
 
     private static UiPreconditionVerificationAgent getPreconditionVerificationAgent(RetryState retryState) {
         var preconditionVerificationAgentModel = getModel(getPreconditionVerificationAgentModelName(),
-                getPreconditionVerificationAgentModelProvider());
+                getPreconditionVerificationAgentModelProvider(), getVerificationModelMaxRetries());
         var preconditionVerificationAgentPrompt = loadSystemPrompt("precondition/verifier",
                 getPreconditionVerificationAgentPromptVersion(), "precondition_verification_prompt.txt");
         return builder(UiPreconditionVerificationAgent.class)

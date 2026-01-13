@@ -18,7 +18,7 @@ package org.tarik.ta.tools;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.tarik.ta.agents.UiStateCheckAgent;
-import org.tarik.ta.dto.VerificationStatus;
+import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.manager.VerificationManager;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.apache.commons.io.IOUtils;
@@ -63,14 +63,15 @@ public class CommonTools extends UiAbstractTools {
     }
 
     @Tool(value = "Waits for any running verifications to complete and returns the verification results, if any.")
-    public VerificationStatus waitForVerification() {
+    public VerificationExecutionResult waitForVerification() {
         try {
-            var result = verificationManager.waitForVerificationToFinish();
-            if (result.timedOut()) {
+            var resultOptional = verificationManager.waitForCurrentVerificationToFinish();
+            if (resultOptional.isEmpty()) {
                 throw new ToolExecutionException("Verification timed out before completing", VERIFICATION_FAILED);
             }
-            if (!(result.isSuccessful().orElse(false))) {
-                throw new ToolExecutionException("The latest verification failed, interrupting further tool execution",
+            var result = resultOptional.get();
+            if (!result.success()) {
+                throw new ToolExecutionException("The latest verification failed: " + result.message(),
                         VERIFICATION_FAILED);
             }
             return result;
