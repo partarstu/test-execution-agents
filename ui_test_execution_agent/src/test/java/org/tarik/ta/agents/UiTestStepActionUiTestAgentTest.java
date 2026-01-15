@@ -17,6 +17,7 @@ package org.tarik.ta.agents;
 
 import dev.langchain4j.service.Result;
 import org.junit.jupiter.api.Test;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.OperationExecutionResult;
 
@@ -36,16 +37,21 @@ import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUC
 class UiTestStepActionUiTestAgentTest {
 
     private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
+    private MockedStatic<UiTestAgentConfig> configMockedStatic;
 
     @BeforeEach
     void setUp() {
         commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS);
         commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
+
+        configMockedStatic = mockStatic(UiTestAgentConfig.class);
+        configMockedStatic.when(UiTestAgentConfig::isUnattendedMode).thenReturn(false);
     }
 
     @AfterEach
     void tearDown() {
         commonUtilsMockedStatic.close();
+        configMockedStatic.close();
     }
 
 

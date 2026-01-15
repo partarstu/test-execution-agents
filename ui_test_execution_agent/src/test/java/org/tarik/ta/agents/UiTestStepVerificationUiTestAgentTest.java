@@ -20,6 +20,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.dto.OperationExecutionResult;
 import org.tarik.ta.utils.UiCommonUtils;
@@ -35,16 +36,21 @@ import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUC
 class UiTestStepVerificationUiTestAgentTest {
 
     private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
+    private MockedStatic<UiTestAgentConfig> configMockedStatic;
 
     @BeforeEach
     void setUp() {
         commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
+
+        configMockedStatic = mockStatic(UiTestAgentConfig.class);
+        configMockedStatic.when(UiTestAgentConfig::isUnattendedMode).thenReturn(false);
     }
 
     @AfterEach
     void tearDown() {
         commonUtilsMockedStatic.close();
+        configMockedStatic.close();
     }
 
     @Test
