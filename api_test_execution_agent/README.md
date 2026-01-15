@@ -3,15 +3,52 @@
 ## Overview
 
 This module provides the API Test Execution Agent capabilities, enabling automated API testing through LLM-driven orchestration.
+It is implemented as a standalone Cloud Run-deployable service that communicates via the A2A (Agent-to-Agent) protocol.
+
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                   API Test Execution Agent                        │
+├──────────────────────────────────────────────────────────────────┤
+│  Server (extends AbstractServer)                                  │
+│    └─► ApiAgentExecutor (extends AbstractAgentExecutor)           │
+│          └─► ApiTestAgent (main entry point)                      │
+│                ├─► ApiPreconditionActionAgent                     │
+│                └─► ApiTestStepActionAgent                         │
+├──────────────────────────────────────────────────────────────────┤
+│  Context & Tools                                                  │
+│    ├─► ApiContext (session/cookie/config management)             │
+│    ├─► ApiRequestTools (HTTP requests, auth handling)            │
+│    ├─► ApiAssertionTools (schema/OpenAPI validation)             │
+│    └─► TestContextDataTools (JSON/CSV data loading)              │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+## Key Classes
+
+| Class | Description |
+|-------|-------------|
+| `Server` | HTTP server entry point, extends `AbstractServer` from core |
+| `ApiAgentExecutor` | Handles A2A task execution, extends `AbstractAgentExecutor` |
+| `ApiTestAgent` | Main orchestrator for API test execution |
+| `ApiTestAgentConfig` | API-specific configuration properties |
+| `ApiContext` | Session state management (cookies, variables, last response) |
+| `ApiPreconditionActionAgent` | Executes and verifies test preconditions |
+| `ApiTestStepActionAgent` | Executes and verifies individual test steps |
 
 ## Features
 
-- **HTTP Request Execution:** Supports GET, POST, PUT, DELETE, etc.
+- **HTTP Request Execution:** Supports GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, etc.
 - **Authentication:** Supports Basic (Preemptive), Bearer Token, and API Key (Header/Query).
-- **Context Management:** Maintains cookies, session variables, and base configuration across steps.
-- **Data Driven Testing:** Loads test data from JSON and CSV files.
-- **Assertions:** Validates Status Codes, JSON Paths, JSON Schemas, and OpenAPI Specifications.
+- **Context Management:** Maintains cookies, session variables, and base configuration across steps via `ApiContext`.
+- **Data Driven Testing:** Loads test data from JSON and CSV files using `TestContextDataTools`.
+- **Assertions:** Validates Status Codes, JSON Paths, JSON Schemas, and OpenAPI Specifications via `ApiAssertionTools`.
 - **Variable Substitution:** Dynamically replaces `${variableName}` in URLs, Headers, and Bodies.
+- **A2A Protocol:** Full support for Agent-to-Agent communication protocol.
+- **Execution Logging:** Captures and returns execution logs with test results.
+- **System Info:** Includes device/OS/environment information in test results.
 
 ## Configuration
 
@@ -113,33 +150,41 @@ Executes individual API test steps and verifies expected results.
 
 ## Agents
 
-The API Test Execution Agent uses two specialized AI agents:
+The API Test Execution Agent uses two specialized AI agents that extend `GenericAiAgent` from the core module:
 
 ### ApiPreconditionActionAgent
 
-Responsible for executing and verifying test case preconditions. Handles setup operations such as:
+Responsible for executing **and verifying** test case preconditions in a single operation. Handles setup operations such as:
 
 - Creating test data via API calls
 - Setting up authentication tokens
 - Initializing session state
 - Creating required resources before test execution
-- Checking API response status codes and bodies
-- Validating that expected resources were created
-- Confirming authentication tokens are valid
-- Verifying data state matches expectations
+
+After execution, it also verifies:
+- API response status codes and bodies
+- Expected resources were created
+- Authentication tokens are valid
+- Data state matches expectations
+
+**Location:** `org.tarik.ta.agents.ApiPreconditionActionAgent`
 
 ### ApiTestStepActionAgent
 
-Responsible for executing and verifying individual API test steps:
+Responsible for executing **and verifying** individual API test steps in a single operation:
 
 - Sending HTTP requests with various methods and authentication
 - Processing request/response data
 - Storing extracted values in context for later use
 - Handling data-driven test scenarios
-- Validating API response status codes match expectations
-- Checking response body content against expected values
-- Verifying JSON path values and structure
-- Validating response schema compliance
+
+After execution, it also verifies:
+- API response status codes match expectations
+- Response body content against expected values
+- JSON path values and structure
+- Response schema compliance
+
+**Location:** `org.tarik.ta.agents.ApiTestStepActionAgent`
 
 ## Tools
 
@@ -167,7 +212,50 @@ The API Test Execution Agent uses the following tools:
 - `loadJsonData(filePath, variableName)` - Loads JSON data into context
 - `loadCsvData(filePath, variableName)` - Loads CSV data into context
 
+## Deployment
+
+### Cloud Run Deployment
+
+The API agent is designed to be deployed on Google Cloud Run. Use the provided Cloud Build configuration:
+
+```bash
+# Standalone deployment
+gcloud builds submit --config=api_test_execution_agent/deployment/cloud/cloudbuild.yaml
+
+# Or via parent project
+gcloud builds submit --config=cloudbuild.yaml --substitutions=_DEPLOY_TARGET=api
+```
+
+### Configuration for Deployment
+
+Key environment variables for Cloud Run:
+
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Server port (default: 8005) |
+| `EXTERNAL_URL` | Public URL for A2A agent card |
+| `GOOGLE_API_KEY` | API key for Google AI models |
+| `MODEL_PROVIDER` | AI model provider (google, openai, etc.) |
+
+### Local Development
+
+Run the agent locally:
+
+```bash
+# Build the module
+mvn clean package -pl api_test_execution_agent -am -DskipTests
+
+# Run the server
+java -jar api_test_execution_agent/target/api-test-execution-agent-*-shaded.jar
+```
+
 ## Usage
 
-The `ApiTestAgent.executeTestCase(String message)` method is the entry point. It parses the user message to extract a Test Case, initializes
-the `ApiContext` from configuration, and executes the steps using the specialized agents.
+The `ApiTestAgent.executeTestCase(String message)` method is the main entry point. It:
+
+1. Parses the user message using `TestCaseExtractor` to extract a structured `TestCase`
+2. Initializes `ApiContext` from `ApiTestAgentConfig`
+3. Creates the necessary tools (`ApiRequestTools`, `ApiAssertionTools`, `TestContextDataTools`)
+4. Executes preconditions using `ApiPreconditionActionAgent`
+5. Executes test steps using `ApiTestStepActionAgent`
+6. Returns a `TestExecutionResult` with logs and system info

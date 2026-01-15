@@ -48,7 +48,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
       control:
         * **Time Budget:** Configurable maximum execution time for the test case execution(`agent.execution.time.budget.seconds`).
         * **Token Budget:** Limits total token consumption across all models during test case execution (`agent.token.budget`).
-        * **Tool Call Budget:** Limits max tool calls for each agent in unattended (`agent.tool.calls.budget.unattended`) and attended (`agent.tool.calls.budget.attended`) modes.
+        * **Tool Call Budget:** Limits max tool calls for each agent (`agent.tool.calls.budget`).
         * Tracks token usage per model (input, output, cached, total).
         * Automatically interrupts execution in unattended mode if budget is exceeded.
 
@@ -62,11 +62,13 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * Structured error handling with [ErrorCategory](../agent_core/src/main/java/org/tarik/ta/core/error/ErrorCategory.java) enum:
         * `TERMINATION_BY_USER`: User-initiated interruption (no retry).
         * `VERIFICATION_FAILED`: Verification failures (retryable).
-        * `TRANSIENT_TOOL_ERROR`: Temporary failures like network issues (exponential backoff retry).
+        * `TRANSIENT_TOOL_ERROR`: Temporary failures like network issues (retryable).
         * `NON_RETRYABLE_ERROR`: Fatal errors (no retry).
         * `TIMEOUT`: Execution timeouts (bounded retry if budget allows).
     * [RetryPolicy](../agent_core/src/main/java/org/tarik/ta/core/error/RetryPolicy.java) for configurable retry behavior:
-        * Maximum retries, initial delay, max delay, backoff multiplier, and total timeout.
+        * Maximum retries, delay between retries, and total timeout.
+    * [DefaultToolErrorHandler](../agent_core/src/main/java/org/tarik/ta/core/model/DefaultToolErrorHandler.java) provides centralized
+      error handling with retry logic.
     * [RetryState](../agent_core/src/main/java/org/tarik/ta/core/error/RetryState.java) for tracking retry attempts and elapsed time.
 
 * **Element Location Prefetching:**
@@ -100,8 +102,9 @@ a part of this framework for executing a sample test case inside Google Cloud.
 * **RAG:**
     * Employs a Retrieval-Augmented Generation (RAG) approach to manage information about UI elements.
     * Uses a vector database to store and retrieve UI element details (name, element description, location description, parent element description,
-      and screenshot). It currently supports only Chroma DB (`AgentConfig.getVectorDbProvider` -> `chroma`), configured via `vector.db.url`
-      in `config.properties`.
+      and screenshot). It currently supports only Chroma DB, configured via `vector.db.url` in `config.properties`.
+    * RAG components are located in the UI module: [RetrieverFactory](src/main/java/org/tarik/ta/rag/RetrieverFactory.java),
+      [ChromaRetriever](src/main/java/org/tarik/ta/rag/ChromaRetriever.java), and [UiElementRetriever](src/main/java/org/tarik/ta/rag/UiElementRetriever.java).
     * Stores UI element information as `UiElement` records, which include a name, self-description, description of surrounding
       elements (anchors), a parent element description, and a screenshot (`UiElement.Screenshot`).
     * Retrieves the top N (`retriever.top.n` in config) most relevant UI elements based on semantic similarity between the query (derived
@@ -152,7 +155,8 @@ a part of this framework for executing a sample test case inside Google Cloud.
       pipelines. Budget checks are automatically enforced in this mode.
 
 * **Server mode:**
-    * The [Server](src/main/java/org/tarik/ta/Server.java) class is the entry point where a Javalin web server is started.
+    * The [Server](src/main/java/org/tarik/ta/Server.java) class extends [AbstractServer](../agent_core/src/main/java/org/tarik/ta/core/AbstractServer.java)
+      and is the entry point where a Javalin web server is started.
       The agent registers its capabilities and listens for A2A JSON-RPC requests on the root endpoint (`/`) (port configured via `port`
       in `config.properties`). The server accepts only one test case execution at a time (the agent has been designed as a static utility
       for simplicity purposes). Upon receiving a valid request when idle, it returns `200 OK` and starts the test case execution. If busy,
@@ -160,13 +164,13 @@ a part of this framework for executing a sample test case inside Google Cloud.
 
 ## Test Case Execution Workflow
 
-The test execution process, orchestrated by the `Agent` class, follows these steps:
+The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/tarik/ta/UiTestAgent.java) class, follows these steps:
 
-1. **Test Case Processing:** The agent parses the received message (task), extracts the required information and converts it into a test
-   case object. This file contains the overall test case name, optional `preconditions` (natural language description of the required state
-   before execution), and a list of `TestStep`s. Each `TestStep` includes a `stepDescription` (natural language instruction), optional
-   `testData` (inputs for the step), and `expectedResults` (natural language description of the expected state after
-   the step).
+1. **Test Case Processing:** The agent parses the received message (task) using [TestCaseExtractor](../agent_core/src/main/java/org/tarik/ta/core/utils/TestCaseExtractor.java),
+   extracts the required information and converts it into a test case object. This file contains the overall test case name, optional
+   `preconditions` (natural language description of the required state before execution), and a list of `TestStep`s. Each `TestStep`
+   includes a `stepDescription` (natural language instruction), optional `testData` (inputs for the step), and `expectedResults`
+   (natural language description of the expected state after the step).
 2. **Precondition Execution and Verification:** If preconditions are defined, the agent executes and verifies them against the current UI
    state using a vision model. If preconditions are not met, the test case execution fails.
 3. **Step Iteration:** The agent iterates through each `TestStep` sequentially, executing each test step.
@@ -341,8 +345,7 @@ override properties file settings.**
 
 * `agent.token.budget` (Env: `AGENT_TOKEN_BUDGET`): Maximum total tokens that can be consumed across all models. Default: `1000000`.
 
-* `agent.tool.calls.budget.unattended` (Env: `AGENT_TOOL_CALLS_BUDGET_UNATTENDED`): Maximum tool calls in unattended mode. Default: `5`.
-* `agent.tool.calls.budget.attended` (Env: `AGENT_TOOL_CALLS_BUDGET_ATTENDED`): Maximum tool calls in attended mode. Default: `100`.
+* `agent.tool.calls.budget` (Env: `AGENT_TOOL_CALLS_BUDGET`): Maximum tool calls per agent. Default: `10`.
 * `agent.execution.time.budget.seconds` (Env: `AGENT_EXECUTION_TIME_BUDGET_SECONDS`): Maximum execution time in seconds. Default: `3000`.
 
 **Screen Recording Configuration:**
@@ -616,9 +619,10 @@ Remember to use the VNC password you set in the Dockerfile when prompted.
 * **Project Scope:** This project is developed as a prototype of an agent, a minimum working example, and thus a basis for further
   extensions and enhancements. It's not a production-ready instance or a product developed according to all the requirements/standards
   of an SDLC (however many of them have been taken into account during development).
-* **Modular Architecture:** The agent now uses a modular architecture with specialized AI agents (e.g., `PreconditionActionAgent`,
-  `TestStepVerificationAgent`, `ElementBoundingBoxAgent`). Each agent can be independently configured with its own AI model and prompt
-  version, allowing for fine-tuned performance optimization. The `BaseAiAgent<T>` interface provides common retry and execution logic.
+* **Modular Architecture:** The agent now uses a modular architecture with specialized AI agents (e.g., `UiPreconditionActionAgent`,
+  `UiTestStepVerificationAgent`, `ElementBoundingBoxAgent`). Each agent can be independently configured with its own AI model and prompt
+  version, allowing for fine-tuned performance optimization. The `GenericAiAgent<T>` interface provides common retry and execution logic.
+  UI-specific configuration is managed by [UiTestAgentConfig](src/main/java/org/tarik/ta/UiTestAgentConfig.java).
 * **Budget Management:** The `BudgetManager` provides guardrails for execution in unattended mode, preventing runaway costs by limiting
   time, tokens, and tool calls. This is particularly important for CI/CD integration.
 * **Async Verification:** The `VerificationManager` enables asynchronous verification processing, improving overall execution performance

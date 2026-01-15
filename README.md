@@ -1,7 +1,14 @@
 # AI-Powered Test Execution Agents (Parent Project)
 
 This repository contains a multi-module Maven project for AI-powered test execution agents. It is designed to be modular and scalable, 
-separating core agent logic from specific testing agent implementations.
+separating orchestration logic from specific testing agent implementations. All agents in this project use A2A protocol for 
+communication and have already been integrated and show-cased as a part of QuAIA™ (Quality Assurance with Intelligent Agents) Framework.
+
+## Demo
+
+Watch a demo of both UI and API test execution agents running as a part of QuAIA™ in action:
+
+[QuAIA™ Framework Demo](https://youtu.be/LUf6ydlKfIU)
 
 ## Project Structure
 
@@ -26,10 +33,52 @@ D:\Projects\test-execution-agents\
 
 ### Module Overview
 
-*   **`agent_core`**: A shared library module containing the core framework logic, data transfer objects (DTOs), base agent classes, budget management, and generic utilities. This module is designed to be reused by different types of test execution agents.
-    *   **`TestCaseExtractor`**: A utility class (`org.tarik.ta.core.utils.TestCaseExtractor`) that provides shared test case extraction functionality using an AI model. Both UI and API agents use this class to parse test case information from incoming messages.
-*   **`ui_test_execution_agent`**: The executable application module that implements the specific logic for UI testing. It includes the server, UI-specific agents (e.g., for visual grounding, element interaction), computer vision capabilities (using OpenCV), and tools for mouse/keyboard control. Deployed as a **GCE VM** with VNC access.
-*   **`api_test_execution_agent`**: The executable application module that implements the specific logic for API testing. It includes REST request execution, authentication handling, assertions, and data-driven testing capabilities. Deployed as a **Cloud Run** service.
+*   **`agent_core`**: A shared library module containing the core framework logic, data transfer objects (DTOs), base agent classes, budget management, and generic utilities. This module provides:
+    *   **`AbstractServer`**: Base class for agent servers providing common HTTP server initialization and A2A endpoint configuration.
+    *   **`AbstractAgentExecutor`**: Base class for agent executors handling test case execution lifecycle and artifact management.
+    *   **`GenericAiAgent`**: Core interface for all AI agents with retry logic and budget management.
+    *   **`TestCaseExtractor`**: Utility class that provides shared test case extraction functionality using an AI model.
+    *   **`TestContextDataTools`**: Shared tools for loading and managing test data (JSON, CSV).
+    *   **`DefaultToolErrorHandler`**: Centralized tool error handling with configurable retry policies.
+    *   **`LogCapture`**: Utility for capturing execution logs to include in test results.
+    *   **`SystemInfo`**: DTO for capturing device/OS/browser information.
+
+*   **`ui_test_execution_agent`**: The executable application module that implements the specific logic for UI testing. It includes:
+    *   **`UiTestAgent`**: Main entry point for UI test execution.
+    *   **`UiTestAgentConfig`**: UI-specific configuration (element locator, dialogs, video recording, vision agents).
+    *   **`UiTestExecutionContext`**: Extended context with visual state management.
+    *   UI-specific agents for visual grounding, element interaction, and verification.
+    *   Computer vision capabilities using OpenCV.
+    *   Tools for mouse/keyboard control.
+    *   RAG integration with ChromaDB for element retrieval.
+    *   Deployed as a **GCE VM** with VNC access.
+
+*   **`api_test_execution_agent`**: The executable application module that implements the specific logic for API testing. It includes:
+    *   **`ApiTestAgent`**: Main entry point for API test execution.
+    *   **`ApiTestAgentConfig`**: API-specific configuration (HTTP client, proxy, timeouts, authentication).
+    *   **`ApiPreconditionActionAgent`**: Executes and verifies API preconditions (auth setup, data creation).
+    *   **`ApiTestStepActionAgent`**: Executes and verifies individual API test steps.
+    *   **`ApiRequestTools`**: HTTP request execution with multiple authentication types (Basic, Bearer, API Key).
+    *   **`ApiAssertionTools`**: Response validation (JSON Schema, OpenAPI spec, status codes, JSON paths).
+    *   **`ApiContext`**: Session management (cookies, variables, configuration).
+    *   Deployed as a **Cloud Run** service.
+
+### Core Architecture
+
+The core module provides shared abstractions that both UI and API agents extend:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                         agent_core                               │
+├──────────────────────────────────────────────────────────────────┤
+│  AbstractServer ◄──────────── UI Server, API Server              │
+│  AbstractAgentExecutor ◄───── UiAgentExecutor, ApiAgentExecutor  │
+│  GenericAiAgent ◄──────────── All specialized agents             │
+│  OperationExecutionResult ─── Unified execution results          │
+│  TestExecutionContext ──────► Shared execution context           │
+│  DefaultToolErrorHandler ──── Centralized error handling         │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 ### Module Dependency Diagram
 
@@ -46,10 +95,12 @@ D:\Projects\test-execution-agents\
 │    agent_core       │ │ui_test_execution_   │ │api_test_execution_      │
 │  (Shared Library)   │ │       agent         │ │       agent             │
 │                     │ │  (UI Testing)       │ │  (API Testing)          │
-│ • BaseAiAgent       │ │                     │ │                         │
-│ • BudgetManager     │◄│ • Server            │ │ • Server                │
-│ • Core DTOs         │ │ • UI Agents         │ │ • API Agents            │
-│ • Error Handling    │ │ • OpenCV Tools      │ │ • REST Tools            │
+│ • AbstractServer    │ │                     │ │                         │
+│ • AbstractExecutor  │◄│ • UiTestAgent       │ │ • ApiTestAgent          │
+│ • GenericAiAgent    │ │ • UI Agents         │ │ • API Agents            │
+│ • BudgetManager     │ │ • OpenCV Tools      │ │ • REST Tools            │
+│ • Core DTOs         │ │ • RAG Integration   │ │ • Schema Validation     │
+│ • Error Handling    │ │ • Visual Grounding  │ │ • Auth Handling         │
 └─────────────────────┘ └─────────────────────┘ └─────────────────────────┘
                               │                       │
                               ▼                       ▼
@@ -58,6 +109,27 @@ D:\Projects\test-execution-agents\
                         │  (VNC)    │           │           │
                         └───────────┘           └───────────┘
 ```
+
+## Key Features
+
+### Shared Across Agents
+- **A2A Protocol Support**: Both agents implement the Agent-to-Agent (A2A) protocol for inter-agent communication.
+- **Test Case Extraction**: AI-powered parsing of natural language test cases into structured format.
+- **Budget Management**: Token and time budget controls to prevent runaway executions.
+- **Structured Logging**: Execution logs captured and included in test results.
+- **System Info Capture**: Device, OS, browser, and environment information in results.
+
+### UI Test Agent Specific
+- **Visual Grounding**: AI-powered element location using screenshots and descriptions.
+- **Screen Recording**: Captures video of test execution for debugging.
+- **Element RAG**: Vector database integration for efficient element retrieval.
+- **Attended/Unattended Modes**: Interactive or fully automated execution.
+
+### API Test Agent Specific
+- **Multiple Auth Types**: Basic, Bearer Token, and API Key authentication.
+- **Schema Validation**: JSON Schema and OpenAPI specification validation.
+- **Variable Substitution**: Dynamic `${variableName}` replacement in requests.
+- **Cookie Management**: Automatic session handling across requests.
 
 ## Building the Project
 
@@ -85,12 +157,29 @@ mvn clean package -pl api_test_execution_agent -am -DskipTests
 
 ## Configuration
 
+### Core Configuration
+
+The following configuration properties are shared across agents (defined in `AgentConfig`):
+
+| Property | Environment Variable | Default | Description |
+|----------|---------------------|---------|-------------|
+| `port` | `PORT` | `8005` | Server port |
+| `host` | `AGENT_HOST` | (required) | Server host |
+| `external.url` | `EXTERNAL_URL` | `http://localhost:{port}` | External URL for A2A card |
+| `model.provider` | `MODEL_PROVIDER` | `google` | AI model provider (google, openai, groq, anthropic) |
+| `model.name` | `MODEL_NAME` | `gemini-3-flash-preview` | Default model name |
+| `gemini.thinking.level` | `GEMINI_THINKING_LEVEL` | `MINIMAL` | Gemini thinking configuration level |
+| `model.max.retries` | `MAX_RETRIES` | `10` | Maximum model API retries |
+| `verification.model.max.retries` | `VERIFICATION_MODEL_MAX_RETRIES` | `0` | Retries for verification models |
+
+### Agent-Specific Configuration
+
 Each agent has its own configuration file template with agent-specific settings:
 
 | Agent | Configuration Template | Purpose |
 |-------|----------------------|---------|
 | UI Test Execution Agent | `ui_test_execution_agent/config.properties.example` | UI-specific settings (dialogs, element locator, video recording, vision agents) |
-| API Test Execution Agent | `api_test_execution_agent/config.properties.example` | API-specific settings (HTTP client, proxy, timeouts, schema validation) |
+| API Test Execution Agent | `api_test_execution_agent/config.properties.example` | API-specific settings (HTTP client, proxy, timeouts, schema validation, authentication) |
 
 ### Setup
 
@@ -180,12 +269,28 @@ gcloud builds submit --config=cloudbuild.yaml \
 
 ### Deployment Details
 
-| Agent | Deployment Target | Access |
-|-------|------------------|--------|
-| UI Test Execution Agent | GCE VM | noVNC (HTTPS) + Agent Server |
-| API Test Execution Agent | Cloud Run | HTTP (internal by default) |
+| Agent | Deployment Target | Port | Access |
+|-------|------------------|------|--------|
+| UI Test Execution Agent | GCE VM | 8005 | noVNC (HTTPS) + Agent Server |
+| API Test Execution Agent | Cloud Run | 8005 | HTTP (internal by default) |
 
+## Test Execution Results
 
+Both agents return structured `TestExecutionResult` objects containing:
+
+| Field | Description |
+|-------|-------------|
+| `testCaseName` | Name of the executed test case |
+| `testExecutionStatus` | PASSED, FAILED, or ERROR |
+| `preconditionResults` | Results for each precondition |
+| `stepResults` | Results for each test step |
+| `executionStartTimestamp` | When execution started |
+| `executionEndTimestamp` | When execution completed |
+| `generalErrorMessage` | Overall error message if any |
+| `systemInfo` | Device, OS, browser, environment info |
+| `logs` | Captured execution logs |
+
+UI agent results additionally include screenshots and video recordings.
 
 ## Documentation
 
