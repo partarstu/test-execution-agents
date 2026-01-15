@@ -25,12 +25,13 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.UiElementDescriptionAgent;
 import org.tarik.ta.dto.*;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
-import org.tarik.ta.core.rag.UiElementRetriever;
-import org.tarik.ta.core.rag.UiElementRetriever.RetrievedUiElementItem;
-import org.tarik.ta.core.rag.model.UiElement;
+import org.tarik.ta.rag.UiElementRetriever;
+import org.tarik.ta.rag.UiElementRetriever.RetrievedUiElementItem;
+import org.tarik.ta.rag.model.UiElement;
 import org.tarik.ta.user_dialogs.*;
 import org.tarik.ta.user_dialogs.UiElementInfoPopup.UiElementInfo;
 import org.tarik.ta.user_dialogs.UiElementScreenshotCaptureWindow.UiElementCaptureResult;
@@ -48,15 +49,16 @@ import static dev.langchain4j.service.AiServices.builder;
 import static java.lang.String.format;
 import static java.util.Comparator.comparingDouble;
 import static java.util.UUID.randomUUID;
+import static org.tarik.ta.UiTestAgentConfig.getElementRetrievalMinGeneralScore;
 import static org.tarik.ta.dto.ElementRefinementOperation.Operation.DONE;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
-import static org.tarik.ta.core.rag.model.UiElement.Screenshot.fromBufferedImage;
+import static org.tarik.ta.rag.model.UiElement.Screenshot.fromBufferedImage;
 
 import org.tarik.ta.core.utils.PromptUtils;
-import static org.tarik.ta.utils.CommonUtils.*;
-import static org.tarik.ta.core.utils.CoreUtils.*;
-import static org.tarik.ta.core.utils.PromptUtils.singleImageContent;
+import static org.tarik.ta.utils.UiCommonUtils.*;
+import static org.tarik.ta.core.utils.CommonUtils.*;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
 /**
  * Default implementation of UserInteractionService that coordinates UI dialogs.
@@ -64,10 +66,10 @@ import static org.tarik.ta.core.utils.PromptUtils.singleImageContent;
  * responses,
  * converting them to structured result objects.
  */
-public class UserInteractionTools extends AbstractTools {
+public class UserInteractionTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(UserInteractionTools.class);
     private final UiElementRetriever uiElementRetriever;
-    private static final String BOUNDING_BOX_COLOR_NAME = AgentConfig.getElementBoundingBoxColorName();
+    private static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
     private static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
     private static final int USER_DIALOG_DISMISS_DELAY_MILLIS = 2000;
 
@@ -114,7 +116,7 @@ public class UserInteractionTools extends AbstractTools {
 
             // Step 4: Prompt user to refine the suggested by the model element info
             var uiElementInfo = new UiElementInfo(describedUiElement.name(), describedUiElement.ownDescription(),
-                    describedUiElement.locationDescription(), describedUiElement.pageSummary(), false, false, List.of());
+                    describedUiElement.locationDescription(), describedUiElement.pageSummary(), false, false);
             return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, uiElementInfo)
                     .map(clarifiedByUserElement -> {
                         // Step 5: Persist the element
@@ -137,7 +139,7 @@ public class UserInteractionTools extends AbstractTools {
     public ElementRefinementResult promptUserToRefineExistingElements(
             @P("Initial description or hint about the element") String elementDescription) {
         List<UiElement> elementsToRefine = uiElementRetriever.retrieveUiElements(elementDescription, AgentConfig.getRetrieverTopN(),
-                        AgentConfig.getElementRetrievalMinGeneralScore())
+                        getElementRetrievalMinGeneralScore())
                 .stream()
                 .sorted(comparingDouble(RetrievedUiElementItem::mainScore).reversed())
                 .map(RetrievedUiElementItem::element)
@@ -338,7 +340,7 @@ public class UserInteractionTools extends AbstractTools {
         var screenshot = singleImageContent(capture.wholeScreenshotWithBoundingBox());
         var boundingBoxColorName = getColorName(BOUNDING_BOX_COLOR).toLowerCase();
         return uiElementDescriptionAgent.executeAndGetResult(() ->
-                        uiElementDescriptionAgent.describeUiElement(elementDescription, boundingBoxColorName, screenshot))
+                        uiElementDescriptionAgent.describeUiElement(elementDescription, screenshot, boundingBoxColorName))
                 .getResultPayload();
     }
 
@@ -346,7 +348,7 @@ public class UserInteractionTools extends AbstractTools {
         var screenshot = fromBufferedImage(elementScreenshot, "png");
         UiElement uiElementToStore = new UiElement(randomUUID(), uiElement.name(), uiElement.description(),
                 uiElement.locationDetails(), uiElement.pageSummary(), screenshot, uiElement.zoomInRequired(),
-                uiElement.dataDependentAttributes());
+                uiElement.isDataDependent());
         uiElementRetriever.storeElement(uiElementToStore);
     }
 
@@ -363,8 +365,8 @@ public class UserInteractionTools extends AbstractTools {
                     var newScreenshot = fromBufferedImage(captureResult.elementScreenshot(), "png");
                     var elementWithNewScreenshot = new UiElement(
                             elementToUpdate.uuid(), elementToUpdate.name(), elementToUpdate.description(),
-                            elementToUpdate.locationDetails(), elementToUpdate.pageSummary(), newScreenshot,
-                            elementToUpdate.zoomInRequired(), elementToUpdate.dataDependentAttributes());
+                            elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(), newScreenshot,
+                            elementToUpdate.zoomInRequired(), elementToUpdate.isDataDependent());
                     uiElementRetriever.updateElement(elementToUpdate, elementWithNewScreenshot);
                     LOG.debug("Persisted updated screenshot for element: {}", elementToUpdate.name());
                     return elementWithNewScreenshot;
@@ -376,15 +378,15 @@ public class UserInteractionTools extends AbstractTools {
         LOG.info("User chose to update info for element: {}", elementToUpdate.name());
 
         var currentInfo = new UiElementInfo(elementToUpdate.name(), elementToUpdate.description(),
-                elementToUpdate.locationDetails(), elementToUpdate.pageSummary(), elementToUpdate.zoomInRequired(),
-                false, elementToUpdate.dataDependentAttributes());
+                elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(), elementToUpdate.zoomInRequired(),
+                elementToUpdate.isDataDependent());
 
         return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, currentInfo)
                 .map(newInfo -> {
                     var updatedElement = new UiElement(elementToUpdate.uuid(), newInfo.name(), newInfo.description(),
                             newInfo.locationDetails(), newInfo.pageSummary(), elementToUpdate.screenshot(),
                             newInfo.zoomInRequired(),
-                            newInfo.dataDependentAttributes());
+                            newInfo.isDataDependent());
                     uiElementRetriever.updateElement(elementToUpdate, updatedElement);
                     LOG.debug("Persisted updated info for element: {}", updatedElement.name());
                     return updatedElement;
@@ -414,9 +416,9 @@ public class UserInteractionTools extends AbstractTools {
     }
 
     private static UiElementDescriptionAgent getUiElementDescriptionAgent() {
-        var model = getModel(AgentConfig.getUiElementDescriptionAgentModelName(),
-                AgentConfig.getUiElementDescriptionAgentModelProvider());
-        var prompt = PromptUtils.loadSystemPrompt("element_describer", AgentConfig.getUiElementDescriptionAgentPromptVersion(),
+        var model = getModel(UiTestAgentConfig.getUiElementDescriptionAgentModelName(),
+                UiTestAgentConfig.getUiElementDescriptionAgentModelProvider());
+        var prompt = PromptUtils.loadSystemPrompt("element_describer", UiTestAgentConfig.getUiElementDescriptionAgentPromptVersion(),
                 "element_description_prompt.txt");
         return builder(UiElementDescriptionAgent.class)
                 .chatModel(model.chatModel())

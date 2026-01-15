@@ -45,7 +45,7 @@ public interface UiTestStepVerificationAgent extends BaseUiAgent<VerificationExe
             The test case action executed before this verification: {{actionDescription}}.
             The test data for this action was: {{actionTestData}}
             
-            Shared data: {{sharedData}}
+            Test context execution data: {{sharedData}}
             
             The screenshot of the application under test is attached.
             """)

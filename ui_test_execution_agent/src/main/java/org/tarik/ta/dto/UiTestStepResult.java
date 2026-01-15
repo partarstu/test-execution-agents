@@ -28,20 +28,30 @@ import java.util.Objects;
 public class UiTestStepResult extends TestStepResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
 
-    public UiTestStepResult(@NotNull TestStep testStep, TestStepResultStatus executionStatus, @Nullable String errorMessage, @Nullable String actualResult, @Nullable BufferedImage screenshot, @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
+    public UiTestStepResult(
+            @NotNull TestStep testStep,
+            TestStepResultStatus executionStatus,
+            @Nullable String errorMessage,
+            @Nullable String actualResult,
+            @Nullable BufferedImage screenshot,
+            @Nullable Instant executionStartTimestamp,
+            @Nullable Instant executionEndTimestamp) {
         super(testStep, executionStatus, errorMessage, actualResult, executionStartTimestamp, executionEndTimestamp);
         this.screenshot = screenshot;
     }
 
-    public @Nullable BufferedImage screenshot() {
+    public @Nullable BufferedImage getScreenshot() {
         return screenshot;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        if (!super.equals(o))
+            return false;
         UiTestStepResult that = (UiTestStepResult) o;
         return Objects.equals(screenshot, that.screenshot);
     }
@@ -55,18 +65,21 @@ public class UiTestStepResult extends TestStepResult {
     public @NotNull String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("TestStepResult:\n");
-        sb.append("  - Step: ").append(testStep()).append("\n");
-        sb.append("  - Status: ").append(executionStatus()).append("\n");
+        sb.append("  - Step: ").append(getTestStep()).append("\n");
+        sb.append("  - Status: ").append(getExecutionStatus()).append("\n");
 
-        if (executionStatus() != TestStepResultStatus.SUCCESS && errorMessage() != null && !errorMessage().trim().isEmpty()) {
-            sb.append("  - Error: ").append(errorMessage()).append("\n");
+        if (getExecutionStatus() != TestStepResultStatus.SUCCESS && getErrorMessage() != null
+                && !getErrorMessage().trim().isEmpty()) {
+            sb.append("  - Error: ").append(getErrorMessage()).append("\n");
         }
 
         boolean screenshotExists = screenshot != null;
         sb.append("  - Screenshot: ").append(screenshotExists ? "Available" : "Not Available").append("\n");
-        sb.append("  - Start Time: ").append(executionStartTimestamp() != null ? executionStartTimestamp().toString() : "N/A")
+        sb.append("  - Start Time: ")
+                .append(getExecutionStartTimestamp() != null ? getExecutionStartTimestamp().toString() : "N/A")
                 .append("\n");
-        sb.append("  - End Time: ").append(executionEndTimestamp() != null ? executionEndTimestamp().toString() : "N/A");
+        sb.append("  - End Time: ")
+                .append(getExecutionEndTimestamp() != null ? getExecutionEndTimestamp().toString() : "N/A");
 
         return sb.toString();
     }

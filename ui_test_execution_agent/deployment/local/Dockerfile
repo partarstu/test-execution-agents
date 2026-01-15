@@ -14,13 +14,14 @@
 # limitations under the License.
 #
 
-# Use the accetto VNC image as the base
-# Using the 'latest' tag is convenient, but for production, you might want to pin to a specific version.
-FROM accetto/ubuntu-vnc-xfce-chromium-g3:latest
+# Use the custom VNC + Chrome base image
+# Build the base image first: docker build -t ui-testing-agent-base -f deployment/Dockerfile.base deployment/
+FROM ui-testing-agent-base:latest
 
 ARG APP_DIR=/app
 ARG APP_LOG_DIR=${APP_DIR}/log
-ARG SOURCE_JAR_PATH=target/ui_test_java-1.0.0-SNAPSHOT.jar
+ARG APP_SCREENSHOTS_DIR=${APP_DIR}/screenshots
+ARG SOURCE_JAR_PATH=target/ui-test-execution-agent-1.0.0-SNAPSHOT.jar
 ARG DESTINATION_JAR_PATH=${APP_DIR}/app.jar
 ARG SOURCE_START_SCRIPT=deployment/agent_startup.sh
 ARG DESTINATION_START_SCRIPT=${APP_DIR}/agent_startup.sh
@@ -48,32 +49,87 @@ RUN apt-get clean
 COPY ${SOURCE_JAR_PATH} ${DESTINATION_JAR_PATH}
 RUN mkdir -p ${APP_LOG_DIR}
 RUN chmod 777 -R ${APP_LOG_DIR}
+RUN mkdir -p ${APP_SCREENSHOTS_DIR}
+RUN chmod 777 -R ${APP_SCREENSHOTS_DIR}
 
 # This script will be executed after the main VNC and desktop services are running.
 COPY ${SOURCE_START_SCRIPT} ${DESTINATION_START_SCRIPT}
 RUN chmod 777 ${DESTINATION_START_SCRIPT}
 
-# --- Environment Variables (Optional) ---
+# --- Environment Variables ---
 ENV APP_JAR_PATH=${DESTINATION_JAR_PATH}
 ENV DISPLAY=:1
-ENV GROQ_API_KEY=""
-ENV GOOGLE_API_KEY=""
-ENV GROQ_ENDPOINT="https://api.groq.com/openai/v1"
-ENV INSTRUCTION_MODEL_NAME="gemini-2.5-flash"
-ENV INSTRUCTION_MODEL_PROVIDER="google"
-ENV LOG_LEVEL="INFO"
-ENV logging.level.dev.langchain4j="INFO"
-ENV VERIFICATION_VISION_MODEL_NAME="gemini-2.5-flash"
-ENV VERIFICATION_VISION_MODEL_PROVIDER="google"
-ENV UNATTENDED_MODE="false"
-ENV VECTOR_DB_URL=""
-ENV SCREENSHOTS_SAVE_FOLDER="${APP_DIR}/screenshots"
+ENV BROWSER_COMMAND="google-chrome-stable"
+ENV SCREENSHOTS_SAVE_FOLDER="${APP_SCREENSHOTS_DIR}"
 ENV LOG_DIR=${APP_LOG_DIR}
-ENV DEBUG_MODE="true"
 ENV DEPLOYMENT_ENV="local"
-ENV ANTHROPIC_API_KEY=""
-ENV ANTHROPIC_ENDPOINT="https://api.anthropic.com"
-ENV BBOX_IDENTIFICATION_MODEL_NAME="meta-llama/llama-4-maverick-17b-128e-instruct"
-ENV BBOX_IDENTIFICATION_MODEL_PROVIDER="groq"
-#ENV EXTERNAL_URL="http://localhost:8080"
 ENV SCREEN_RECORDING_FOLDER="${APP_DIR}/log/videos"
+
+# Screenshot and bounding box settings
+ENV BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS="5000"
+ENV BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS="10"
+ENV BOUNDING_BOX_ALREADY_NORMALIZED="true"
+
+# Debug and logging settings
+ENV DEBUG_MODE="true"
+ENV LOG_LEVEL="DEBUG"
+ENV logging.level.dev.langchain4j="INFO"
+ENV UNATTENDED_MODE="true"
+
+# Element Bounding Box Agent
+ENV ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME="gemini-3-flash-preview"
+ENV ELEMENT_BOUNDING_BOX_AGENT_MODEL_PROVIDER="google"
+ENV ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION="v1.0.0"
+
+# Element Selection Agent
+ENV ELEMENT_SELECTION_AGENT_MODEL_NAME="gemini-3-flash-preview"
+ENV ELEMENT_SELECTION_AGENT_MODEL_PROVIDER="google"
+ENV ELEMENT_SELECTION_AGENT_PROMPT_VERSION="v1.0.0"
+
+# Page Description Agent
+ENV PAGE_DESCRIPTION_AGENT_MODEL_NAME="gemini-3-flash-preview"
+ENV PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER="google"
+ENV PAGE_DESCRIPTION_AGENT_PROMPT_VERSION="v1.0.0"
+
+# Precondition Agent
+ENV PRECONDITION_AGENT_MODEL_NAME="gemini-3-flash-preview"
+ENV PRECONDITION_AGENT_MODEL_PROVIDER="google"
+ENV PRECONDITION_AGENT_PROMPT_VERSION="v1.0.0"
+
+# Precondition Verification Agent
+ENV PRECONDITION_VERIFICATION_AGENT_MODEL_NAME="gemini-3-flash-preview"
+ENV PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER="google"
+ENV PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION="v1.0.0"
+
+# Test Case Extraction Agent
+ENV TEST_CASE_EXTRACTION_AGENT_MODEL_NAME="gemini-3-flash-preview"
+ENV TEST_CASE_EXTRACTION_AGENT_MODEL_PROVIDER="google"
+ENV TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION="v1.0.0"
+
+# Test Step Action Agent
+ENV TEST_STEP_ACTION_AGENT_MODEL_NAME="gemini-3-flash-preview"
+ENV TEST_STEP_ACTION_AGENT_MODEL_PROVIDER="google"
+ENV TEST_STEP_ACTION_AGENT_PROMPT_VERSION="v1.0.0"
+
+# Test Step Verification Agent
+ENV TEST_STEP_VERIFICATION_AGENT_MODEL_NAME="gemini-3-flash-preview"
+ENV TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER="google"
+ENV TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION="v1.0.0"
+
+# UI Element Description Agent
+ENV UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME="gemini-3-flash-preview"
+ENV UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER="google"
+ENV UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION="v1.0.0"
+
+# UI State Check Agent
+ENV UI_STATE_CHECK_AGENT_MODEL_NAME="gemini-3-flash-preview"
+ENV UI_STATE_CHECK_AGENT_MODEL_PROVIDER="google"
+ENV UI_STATE_CHECK_AGENT_PROMPT_VERSION="v1.0.0"
+
+# API Keys and Endpoints
+# GOOGLE_API_KEY passed at runtime from host environment
+# GROQ_API_KEY passed at runtime from host environment
+# Vector DB (VECTOR_DB_URL passed at runtime from host environment)
+ENV GOOGLE_LOCATION=""
+ENV GOOGLE_PROJECT=""
+ENV GROQ_ENDPOINT="https://api.groq.com/openai/v1"

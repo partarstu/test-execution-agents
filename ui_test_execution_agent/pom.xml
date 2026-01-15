@@ -89,7 +89,7 @@
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-embeddings-all-minilm-l6-v2</artifactId>
+            <artifactId>langchain4j-embeddings-bge-small-en-v15</artifactId>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -99,6 +99,7 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
         </dependency>
+
         <dependency>
             <groupId>io.javalin</groupId>
             <artifactId>javalin</artifactId>

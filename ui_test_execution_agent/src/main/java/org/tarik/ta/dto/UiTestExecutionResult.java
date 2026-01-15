@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.tarik.ta.core.dto.PreconditionResult;
+import org.tarik.ta.core.dto.SystemInfo;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStepResult;
 
@@ -29,33 +30,51 @@ import java.util.Objects;
 
 public class UiTestExecutionResult extends TestExecutionResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
+    private final @Nullable String videoPath;
 
-    public UiTestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus,
-                                 @NotNull List<PreconditionResult> preconditionResults,
-                                 @NotNull List<TestStepResult> stepResults,
-                                 @Nullable BufferedImage screenshot,
-                                 @Nullable Instant executionStartTimestamp,
-                                 @Nullable Instant executionEndTimestamp,
-                                 @Nullable String generalErrorMessage) {
-        super(testCaseName, testExecutionStatus, preconditionResults, stepResults, executionStartTimestamp, executionEndTimestamp, generalErrorMessage);
+    public UiTestExecutionResult(
+            @NotNull String testCaseName,
+            @NotNull TestExecutionStatus testExecutionStatus,
+            @NotNull List<PreconditionResult> preconditionResults,
+            @NotNull List<TestStepResult> stepResults,
+            @Nullable BufferedImage screenshot,
+            @Nullable SystemInfo systemInfo,
+            @Nullable String videoPath,
+            @Nullable List<String> logs,
+            @Nullable Instant executionStartTimestamp,
+            @Nullable Instant executionEndTimestamp,
+            @Nullable String generalErrorMessage) {
+        super(testCaseName, testExecutionStatus, preconditionResults, stepResults, executionStartTimestamp,
+                executionEndTimestamp, generalErrorMessage, systemInfo, logs);
         this.screenshot = screenshot;
+        this.videoPath = videoPath;
     }
 
-    public @Nullable BufferedImage screenshot() {
+    @Nullable
+    public BufferedImage getScreenshot() {
         return screenshot;
+    }
+
+    @Nullable
+    public String getVideoPath() {
+        return videoPath;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        if (!super.equals(o))
+            return false;
         UiTestExecutionResult that = (UiTestExecutionResult) o;
-        return Objects.equals(screenshot, that.screenshot);
+        return Objects.equals(screenshot, that.screenshot) &&
+                Objects.equals(videoPath, that.videoPath);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), screenshot);
+        return Objects.hash(super.hashCode(), screenshot, videoPath);
     }
 }

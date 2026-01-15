@@ -35,9 +35,11 @@ a part of this framework for executing a sample test case inside Google Cloud.
           suggestions in order accelerate the execution in attended mode.
         * **[UiStateCheckAgent](src/main/java/org/tarik/ta/agents/UiStateCheckAgent.java):** Checks the current state of the UI against
           an expected one.
-        * **[PageDescriptionAgent](src/main/java/org/tarik/ta/agents/PageDescriptionAgent.java):** Describes the current page context
-          (in case multiple UI elements have same or similar names - the one will be selected which has the parent element most
-          semantically similar to this context).
+        * **[UiElementFromCandidatesSelectionAgent](src/main/java/org/tarik/ta/agents/UiElementFromCandidatesSelectionAgent.java):** When multiple UI 
+          elements in the database match the description (same or similar names), this agent analyzes the current screenshot and selects the best
+          matching element based on all element information (name, description, location details/parent context, and parent element info).
+        * **[PageDescriptionAgent](src/main/java/org/tarik/ta/agents/PageDescriptionAgent.java):** Describes the current page context. This can be
+          used for various purposes such as understanding the current UI state.
     * Each agent can be independently configured with its own AI model (name and provider) and system prompt version via
       `config.properties`.
 
@@ -46,8 +48,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
       control:
         * **Time Budget:** Configurable maximum execution time for the test case execution(`agent.execution.time.budget.seconds`).
         * **Token Budget:** Limits total token consumption across all models during test case execution (`agent.token.budget`).
-        * **Tool Call Budget:** Limits max tool calls for each agent in attended (`agent.tool.calls.budget.attended`) and unattended (
-          `agent.tool.calls.budget.unattended`) modes.
+        * **Tool Call Budget:** Limits max tool calls for each agent (`agent.tool.calls.budget`).
         * Tracks token usage per model (input, output, cached, total).
         * Automatically interrupts execution in unattended mode if budget is exceeded.
 
@@ -61,11 +62,13 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * Structured error handling with [ErrorCategory](../agent_core/src/main/java/org/tarik/ta/core/error/ErrorCategory.java) enum:
         * `TERMINATION_BY_USER`: User-initiated interruption (no retry).
         * `VERIFICATION_FAILED`: Verification failures (retryable).
-        * `TRANSIENT_TOOL_ERROR`: Temporary failures like network issues (exponential backoff retry).
+        * `TRANSIENT_TOOL_ERROR`: Temporary failures like network issues (retryable).
         * `NON_RETRYABLE_ERROR`: Fatal errors (no retry).
         * `TIMEOUT`: Execution timeouts (bounded retry if budget allows).
     * [RetryPolicy](../agent_core/src/main/java/org/tarik/ta/core/error/RetryPolicy.java) for configurable retry behavior:
-        * Maximum retries, initial delay, max delay, backoff multiplier, and total timeout.
+        * Maximum retries, delay between retries, and total timeout.
+    * [DefaultToolErrorHandler](../agent_core/src/main/java/org/tarik/ta/core/model/DefaultToolErrorHandler.java) provides centralized
+      error handling with retry logic.
     * [RetryState](../agent_core/src/main/java/org/tarik/ta/core/error/RetryState.java) for tracking retry attempts and elapsed time.
 
 * **Element Location Prefetching:**
@@ -98,11 +101,12 @@ a part of this framework for executing a sample test case inside Google Cloud.
 
 * **RAG:**
     * Employs a Retrieval-Augmented Generation (RAG) approach to manage information about UI elements.
-    * Uses a vector database to store and retrieve UI element details (name, element description, anchor element descriptions, page summary,
-      and screenshot). It currently supports only Chroma DB (`AgentConfig.getVectorDbProvider` -> `chroma`), configured via `vector.db.url`
-      in `config.properties`.
+    * Uses a vector database to store and retrieve UI element details (name, element description, location description, parent element description,
+      and screenshot). It currently supports only Chroma DB, configured via `vector.db.url` in `config.properties`.
+    * RAG components are located in the UI module: [RetrieverFactory](src/main/java/org/tarik/ta/rag/RetrieverFactory.java),
+      [ChromaRetriever](src/main/java/org/tarik/ta/rag/ChromaRetriever.java), and [UiElementRetriever](src/main/java/org/tarik/ta/rag/UiElementRetriever.java).
     * Stores UI element information as `UiElement` records, which include a name, self-description, description of surrounding
-      elements (anchors), a page summary, and a screenshot (`UiElement.Screenshot`).
+      elements (anchors), a parent element description, and a screenshot (`UiElement.Screenshot`).
     * Retrieves the top N (`retriever.top.n` in config) most relevant UI elements based on semantic similarity between the query (derived
       from the test step action) and based on the stored element names. Minimum similarity scores (`element.retrieval.min.target.score`,
       `element.retrieval.min.general.score`, `element.retrieval.min.page.relevance.score` in config) are used to filter results for target
@@ -136,19 +140,23 @@ a part of this framework for executing a sample test case inside Google Cloud.
       opening the Chrome browser.
     * [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java ) provides the whole logic for locating a specific
       UI element on the screen based on its description.
+    * [UserInteractionTools](src/main/java/org/tarik/ta/tools/UserInteractionTools.java) facilitates user interactions via dialogs for 
+      element creation, refinement, and verification. **Note:** These tools are only available when running in attended mode 
+      (`unattended.mode=false`).
 
 * **Attended and Unattended Modes:**
     * Supports two execution modes controlled by the `unattended.mode` flag in `config.properties`.
     * **Attended ("Trainee") Mode (`unattended.mode=false`):** Designed for initial test case runs or when execution in unattended mode
       fails for debugging/fixing purposes. In this mode the agent behaves as a trainee, who needs assistance from the human tutor/mentor
-      in order to identify all the information which is required for the unattended (without supervision) execution of the test case.
+      in order to identify all the information which is required for the unattended (without supervision) execution of the test case. Tool call limits are significantly relaxed in this mode (default 100), configurable via `agent.tool.calls.budget.attended`.
     * **Unattended Mode (`unattended.mode=true`):** The agent executes the test case without any human assistance. It relies entirely on the
       information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored data.
       Errors during element location or verification will cause the execution to fail. This mode is suitable for integration into CI/CD
       pipelines. Budget checks are automatically enforced in this mode.
 
 * **Server mode:**
-    * The [Server](src/main/java/org/tarik/ta/Server.java) class is the entry point where a Javalin web server is started.
+    * The [Server](src/main/java/org/tarik/ta/Server.java) class extends [AbstractServer](../agent_core/src/main/java/org/tarik/ta/core/AbstractServer.java)
+      and is the entry point where a Javalin web server is started.
       The agent registers its capabilities and listens for A2A JSON-RPC requests on the root endpoint (`/`) (port configured via `port`
       in `config.properties`). The server accepts only one test case execution at a time (the agent has been designed as a static utility
       for simplicity purposes). Upon receiving a valid request when idle, it returns `200 OK` and starts the test case execution. If busy,
@@ -156,13 +164,13 @@ a part of this framework for executing a sample test case inside Google Cloud.
 
 ## Test Case Execution Workflow
 
-The test execution process, orchestrated by the `Agent` class, follows these steps:
+The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/tarik/ta/UiTestAgent.java) class, follows these steps:
 
-1. **Test Case Processing:** The agent parses the received message (task), extracts the required information and converts it into a test
-   case object. This file contains the overall test case name, optional `preconditions` (natural language description of the required state
-   before execution), and a list of `TestStep`s. Each `TestStep` includes a `stepDescription` (natural language instruction), optional
-   `testData` (inputs for the step), and `expectedResults` (natural language description of the expected state after
-   the step).
+1. **Test Case Processing:** The agent parses the received message (task) using [TestCaseExtractor](../agent_core/src/main/java/org/tarik/ta/core/utils/TestCaseExtractor.java),
+   extracts the required information and converts it into a test case object. This file contains the overall test case name, optional
+   `preconditions` (natural language description of the required state before execution), and a list of `TestStep`s. Each `TestStep`
+   includes a `stepDescription` (natural language instruction), optional `testData` (inputs for the step), and `expectedResults`
+   (natural language description of the expected state after the step).
 2. **Precondition Execution and Verification:** If preconditions are defined, the agent executes and verifies them against the current UI
    state using a vision model. If preconditions are not met, the test case execution fails.
 3. **Step Iteration:** The agent iterates through each `TestStep` sequentially, executing each test step.
@@ -218,9 +226,7 @@ combination of RAG, computer vision, analysis, and potentially user interaction 
       `MIN_GENERAL_RETRIEVAL_SCORE`:
         * **Attended Mode:** The agent displays a popup showing a list of the low-scoring potential UI element candidates. The user can
           choose to:
-            * **Update** one of the candidates by refining its name, description, anchors, or page summary and save the updated information
-              to the
-              vector DB.
+            * **Update** one of the candidates by refining its name, description, anchors, or parent element info and save the updated information to the vector DB.
             * **Delete** a deprecated element from the vector DB.
             * **Create New Element** (see below).
             * **Retry Search** (useful if elements were manually updated).
@@ -230,9 +236,9 @@ combination of RAG, computer vision, analysis, and potentially user interaction 
         * **Attended Mode:** The user is guided through the new element creation flow:
             1. The user draws a bounding box around the target element on a full-screen capture.
             2. The captured element screenshot with its description are sent to the vision model to generate a suggested detailed name,
-               self-description, surrounding elements (anchors) description, and page summary.
+               self-description, surrounding elements (anchors) description, and parent element info.
             3. The user reviews and confirms/edits the information suggested by the model.
-            4. The new `UiElement` record (with UUID, name, descriptions, page summary, screenshot) is stored into the vector DB.
+            4. The new `UiElement` record (with UUID, name, descriptions, parent element info, screenshot) is stored into the vector DB.
         * **Unattended Mode:** The location process fails.
 
 ## Setup Instructions
@@ -338,8 +344,8 @@ override properties file settings.**
 **Budget Management Configuration:**
 
 * `agent.token.budget` (Env: `AGENT_TOKEN_BUDGET`): Maximum total tokens that can be consumed across all models. Default: `1000000`.
-* `agent.tool.calls.budget.attended` (Env: `AGENT_TOOL_CALLS_BUDGET_ATTENDED`): Maximum tool calls in attended mode. Default: `100`.
-* `agent.tool.calls.budget.unattended` (Env: `AGENT_TOOL_CALLS_BUDGET_UNATTENDED`): Maximum tool calls in unattended mode. Default: `5`.
+
+* `agent.tool.calls.budget` (Env: `AGENT_TOOL_CALLS_BUDGET`): Maximum tool calls per agent. Default: `10`.
 * `agent.execution.time.budget.seconds` (Env: `AGENT_EXECUTION_TIME_BUDGET_SECONDS`): Maximum execution time in seconds. Default: `3000`.
 
 **Screen Recording Configuration:**
@@ -377,6 +383,10 @@ override properties file settings.**
 * `element.locator.zoom.scale.factor` (Env: `ELEMENT_LOCATOR_ZOOM_SCALE_FACTOR`): Zoom scale factor for element location. Default: `1`.
 * `element.locator.algorithmic.search.enabled` (Env: `ALGORITHMIC_SEARCH_ENABLED`): Enable/disable OpenCV algorithmic search. Default:
   `false`.
+* `element.locator.skip.model.selection.vision.only` (Env: `SKIP_UI_ELEMENT_SELECTION_FOR_VISION`): When enabled, skip the model 
+  selection step when only visual grounding results are available (no algorithmic matches). In this case, the first identified element 
+  from the visual grounding results is returned directly without additional model validation. This can speed up element location when 
+  algorithmic search is disabled. Default: `false`.
 * `bounding.box.already.normalized` (Env: `BOUNDING_BOX_ALREADY_NORMALIZED`): Whether bounding boxes are pre-normalized. Default: `false`.
 * `bbox.screenshot.longest.allowed.dimension.pixels` (Env: `BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS`): Maximum screenshot
   dimension. Default: `1568`.
@@ -402,12 +412,13 @@ Available agents and their configuration prefixes:
 * `ui.state.check.agent.*`: UI State Check Agent
 * `element.bounding.box.agent.*`: Element Bounding Box Agent
 * `element.selection.agent.*`: Element Selection Agent
+* `element.candidate.selection.agent.*`: Element Candidate Selection Agent (uses same model as Element Selection Agent)
 * `page.description.agent.*`: Page Description Agent
 
 **Example agent configuration:**
 
 ```properties
-precondition.agent.model.name=gemini-2.5-flash
+precondition.agent.model.name=gemini-3-flash-preview
 precondition.agent.model.provider=google
 precondition.agent.prompt.version=v1.0.0
 ```
@@ -483,24 +494,52 @@ using the provided `cloudbuild_chroma.yaml` configuration.
    ```bash
    cd <project_root_directory>
    ```
-2. **Adapt the deployment script:**
-   `deployment/cloud/deploy_vm.sh` script has some predefined values which need to be adapted, e.g. network name, exposed ports etc. if
-   you want to use the agent as the part of already existing network (e.g. together
-   with [Agentic QA Framework](https://github.com/partarstu/agentic-qa-framework) ), you must carefully adapt all parameters to not
-   destroy any existing settings.
-3. **Execute the deployment script:**
-   ```bash
-   ./deployment/cloud/deploy_vm.sh
-   ```
-   This script will:
-    * Enable necessary GCP services.
-    * Build the agent application using Maven.
-    * Build the Docker image for the agent using `deployment/cloud/Dockerfile.cloud` and push it to Google Container Registry.
-    * Set up VPC network and firewall rules (if they don't exist).
-    * Create a GCE Spot VM instance
-    * Start the agent container inside created VM using a corresponding startup script.
 
-   **Note:** The script uses default values for region, zone, instance name, etc. You can override these by setting them in `gcloud` CLI.
+2. **Configure deployment substitutions:**
+
+   The deployment is configured via Cloud Build substitutions in `deployment/cloud/cloudbuild.yaml`. This file contains all configurable 
+   parameters as substitutions that can be overridden when running the build.
+
+   **Key configuration categories:**
+   
+   * **GCP Configuration:** Region, zone, instance name, network settings, machine type
+   * **Port Configuration:** noVNC, VNC, and agent server ports
+   * **Application Settings:** VNC resolution, log level, unattended/debug mode
+   * **Screenshot and Bounding Box Settings:** Image dimension limits and normalization settings
+   * **Agent Model Configuration:** Model names, providers, and prompt versions for each agent
+   * **API Endpoints:** Groq, Google Cloud location and project settings
+   * **Additional GCP Configuration:** Firewall rules, disk settings, VM provisioning model, etc.
+   * **Base Image configuration:** `_BUILD_BASE_IMAGE` (default `false`) controls whether to rebuild the base image or use the cached one.
+
+   **Important notes:**
+   * **Empty values use defaults:** If a substitution value is empty (e.g., `_ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME: ''`), 
+     the application will use defaults from `config.properties`.
+   * **Override substitutions:** Pass custom values when running `gcloud builds submit`.
+
+3. **Deploy using Cloud Build:**
+   ```bash
+   gcloud builds submit --config=ui_test_execution_agent/deployment/cloud/cloudbuild.yaml .
+   ```
+   
+   To override specific substitutions:
+   ```bash
+   gcloud builds submit --config=ui_test_execution_agent/deployment/cloud/cloudbuild.yaml \
+     --substitutions=_MACHINE_TYPE=e2-standard-4,_LOG_LEVEL=DEBUG .
+   ```
+
+   The build will:
+    * Build the Maven project.
+    * Build or pull the Docker base image (conditional on `_BUILD_BASE_IMAGE`).
+    * Build the Docker application image.
+    * Push the Docker image to Google Container Registry.
+    * Enable necessary GCP services.
+    * Set up VPC network and firewall rules (if they don't exist).
+    * Create a GCE Spot VM instance.
+    * Start the agent container inside the created VM.
+
+   If you want to use the agent as part of an already existing network (e.g., together
+   with [Agentic QA Framework](https://github.com/partarstu/agentic-qa-framework)), you must carefully update the substitutions 
+   in the YAML file to avoid destroying existing settings.
 
 #### Accessing the Deployed Agent
 
@@ -516,16 +555,32 @@ using the provided `cloudbuild_chroma.yaml` configuration.
 
 For local development and testing, you can run the agent within a Docker container on your machine.
 
+#### Docker Image Architecture
+
+The agent uses a two-layer Docker image architecture:
+
+1. **Base Image (`ui-testing-agent-base`)**: Built from `deployment/Dockerfile.base`, provides:
+   - Ubuntu 24.04 LTS
+   - Xfce desktop environment
+   - TigerVNC server
+   - noVNC (web-based VNC access)
+   - **Google Chrome Stable** (latest version)
+   - Common utilities (wget, curl, git, zip, unzip, jq, etc.)
+
+2. **Application Image (`ui-test-execution-agent`)**: Built from `deployment/local/Dockerfile`, adds:
+   - Java 25 runtime
+   - Agent application JAR
+   - Application-specific configuration
+
 #### Prerequisites for Local Docker Deployment
 
 * **Docker Desktop:** Ensure Docker Desktop is installed and running on your system.
 
 #### Building and Running the Docker Image
 
-The `build_and_run_docker.bat` script (for Windows) simplifies the process of building the Docker image and running the container.
+The `build_and_run_docker.bat` script (for Windows) simplifies the process of building the application and Docker image, and running the container.
 
-1. **Build the project:** The maven must be used for that, be sure to use the maven profiles "server" and "linux" for the build.
-2. **Adapt `deployment/local/Dockerfile`:**
+1. **Adapt `deployment/local/Dockerfile`:**
     * **IMPORTANT:** Before running the script, open `deployment/local/Dockerfile` and replace the placeholder `VNC_PW` environment variable
       with a strong password of your choice. For example:
       ```dockerfile
@@ -534,12 +589,14 @@ The `build_and_run_docker.bat` script (for Windows) simplifies the process of bu
       (Note: The `build_and_run_docker.bat` script also sets `VNC_PW` to `123456` for convenience, but it's recommended to set it directly
       in the Dockerfile for consistency and security.)
 
-3. **Execute the batch script:**
+2. **Execute the batch script:**
    ```bash
    deployment\local\build_and_run_docker.bat
    ```
    This script will:
-    * Build the Docker image named `ui-test-execution-agent` using `deployment/local/Dockerfile`.
+    * Build the `ui_test_execution_agent` module (and its dependencies) using Maven.
+    * Build the base Docker image `ui-testing-agent-base` from `deployment/Dockerfile.base` (Ubuntu 24.04 + VNC + Chrome).
+    * Build the application Docker image `ui-test-execution-agent` using `deployment/local/Dockerfile`.
     * Stop and remove any existing container named `ui-agent`.
     * Run a new Docker container, mapping ports `5901` (VNC), `6901` (noVNC), and `8005` (agent server) to your local machine.
 
@@ -562,9 +619,10 @@ Remember to use the VNC password you set in the Dockerfile when prompted.
 * **Project Scope:** This project is developed as a prototype of an agent, a minimum working example, and thus a basis for further
   extensions and enhancements. It's not a production-ready instance or a product developed according to all the requirements/standards
   of an SDLC (however many of them have been taken into account during development).
-* **Modular Architecture:** The agent now uses a modular architecture with specialized AI agents (e.g., `PreconditionActionAgent`,
-  `TestStepVerificationAgent`, `ElementBoundingBoxAgent`). Each agent can be independently configured with its own AI model and prompt
-  version, allowing for fine-tuned performance optimization. The `BaseAiAgent<T>` interface provides common retry and execution logic.
+* **Modular Architecture:** The agent now uses a modular architecture with specialized AI agents (e.g., `UiPreconditionActionAgent`,
+  `UiTestStepVerificationAgent`, `ElementBoundingBoxAgent`). Each agent can be independently configured with its own AI model and prompt
+  version, allowing for fine-tuned performance optimization. The `GenericAiAgent<T>` interface provides common retry and execution logic.
+  UI-specific configuration is managed by [UiTestAgentConfig](src/main/java/org/tarik/ta/UiTestAgentConfig.java).
 * **Budget Management:** The `BudgetManager` provides guardrails for execution in unattended mode, preventing runaway costs by limiting
   time, tokens, and tool calls. This is particularly important for CI/CD integration.
 * **Async Verification:** The `VerificationManager` enables asynchronous verification processing, improving overall execution performance

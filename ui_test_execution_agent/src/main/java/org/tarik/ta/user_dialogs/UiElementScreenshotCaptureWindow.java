@@ -15,8 +15,6 @@
  */
 package org.tarik.ta.user_dialogs;
 
-import org.tarik.ta.core.utils.CoreImageUtils;
-
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,8 +28,8 @@ import java.util.Optional;
 import static java.util.Optional.ofNullable;
 import static javax.swing.JOptionPane.YES_OPTION;
 import static org.tarik.ta.utils.BoundingBoxUtil.drawBoundingBox;
-import static org.tarik.ta.utils.CommonUtils.captureScreen;
-import static org.tarik.ta.core.utils.CoreImageUtils.*;
+import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
+import static org.tarik.ta.utils.ImageUtils.*;
 
 public class UiElementScreenshotCaptureWindow extends AbstractDialog {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementScreenshotCaptureWindow.class);

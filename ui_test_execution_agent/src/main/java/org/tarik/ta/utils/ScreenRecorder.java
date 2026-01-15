@@ -20,7 +20,7 @@ import org.bytedeco.javacv.FFmpegFrameRecorder;
 import org.bytedeco.javacv.Java2DFrameConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.UiTestAgentConfig;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 import static java.awt.image.BufferedImage.TYPE_3BYTE_BGR;
 import static java.nio.file.Files.createDirectories;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.tarik.ta.utils.CommonUtils.getMouseLocation;
+import static org.tarik.ta.utils.UiCommonUtils.getMouseLocation;
 
 public class ScreenRecorder {
     private static final Logger LOG = LoggerFactory.getLogger(ScreenRecorder.class);
@@ -46,9 +46,10 @@ public class ScreenRecorder {
     private ScheduledExecutorService executorService;
     private final Robot robot;
     private final Java2DFrameConverter converter;
+    private String currentRecordingPath;
 
     public ScreenRecorder() {
-        this.recordingEnabled = AgentConfig.getScreenRecordingEnabled();
+        this.recordingEnabled = UiTestAgentConfig.getScreenRecordingEnabled();
         if (recordingEnabled) {
             try {
                 this.robot = new Robot();
@@ -67,7 +68,7 @@ public class ScreenRecorder {
             return;
         }
 
-        String folder = AgentConfig.getScreenRecordingFolder();
+        String folder = UiTestAgentConfig.getScreenRecordingFolder();
         File videoFolder = new File(folder);
         if (!videoFolder.exists()) {
             try {
@@ -77,21 +78,22 @@ public class ScreenRecorder {
             }
         }
 
-        String format = AgentConfig.getRecordingFormat();
+        String format = UiTestAgentConfig.getRecordingFormat();
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
         String fileName = Paths.get(folder, "test_run_" + timestamp + "." + format).toString();
+        this.currentRecordingPath = fileName;
 
         try {
             Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
             recorder = new FFmpegFrameRecorder(fileName, screenSize.width, screenSize.height);
             recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
             recorder.setFormat(format);
-            recorder.setFrameRate(AgentConfig.getRecordingFrameRate());
-            recorder.setVideoBitrate(AgentConfig.getRecordingBitrate());
+            recorder.setFrameRate(UiTestAgentConfig.getRecordingFrameRate());
+            recorder.setVideoBitrate(UiTestAgentConfig.getRecordingBitrate());
             recorder.start();
 
             executorService = Executors.newSingleThreadScheduledExecutor();
-            executorService.scheduleAtFixedRate(this::captureFrame, 0, 1000 / AgentConfig.getRecordingFrameRate(), MILLISECONDS);
+            executorService.scheduleAtFixedRate(this::captureFrame, 0, 1000 / UiTestAgentConfig.getRecordingFrameRate(), MILLISECONDS);
             LOG.info("Started video recording to file: {}", fileName);
         } catch (Exception e) {
             LOG.error("Failed to start video recording", e);
@@ -141,5 +143,9 @@ public class ScreenRecorder {
         } catch (Exception e) {
             LOG.error("Failed to stop video recording", e);
         }
+    }
+
+    public String getCurrentRecordingPath() {
+        return currentRecordingPath;
     }
 }

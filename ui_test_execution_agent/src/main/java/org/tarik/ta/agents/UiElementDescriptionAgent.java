@@ -15,9 +15,6 @@
  */
 package org.tarik.ta.agents;
 
-
-import org.tarik.ta.core.agents.BaseAiAgent;
-
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
@@ -26,18 +23,18 @@ import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.dto.UiElementDescriptionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
-public interface UiElementDescriptionAgent extends BaseAiAgent<UiElementDescriptionResult> {
+public interface UiElementDescriptionAgent extends BaseUiAgent<UiElementDescriptionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
-    @UserMessage("""
-            The target UI element info: {{original_element_description}}.
-            
-            The screenshot is attached.
-            """)
     Result<String> describeUiElement(
+            @UserMessage("""
+                    The target UI element info: {{original_element_description}}.
+                    
+                    The screenshot is attached.
+                    """)
             @V("original_element_description") String originalElementDescription,
-            @V("bounding_box_color") String boundingBoxColor,
-            @UserMessage ImageContent screenshot);
+            @UserMessage ImageContent screenshot,
+            @V("bounding_box_color") String boundingBoxColor);
 
     @Override
     default String getAgentTaskDescription() {

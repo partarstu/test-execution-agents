@@ -1,0 +1,85 @@
+#
+# Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Cloud Build configuration for deploying the API Test Execution Agent to Cloud Run.
+# This file can be used for standalone API agent deployment.
+
+steps:
+  # ============================================
+  # Stage 1: Build Maven modules
+  # ============================================
+  - name: 'maven:3.9.11-eclipse-temurin-25'
+    id: 'maven-build'
+    dir: '/workspace'
+    args: [ 'mvn', 'clean', 'install', '-DskipTests', '-P', 'linux' ]
+
+  # ============================================
+  # Stage 2: Build and Push Docker Image
+  # ============================================
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build-api-agent'
+    dir: '/workspace'
+    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$_IMAGE_TAG', '-f', 'api_test_execution_agent/deployment/Dockerfile.cloud', '.' ]
+    waitFor: [ 'maven-build' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push-api-agent'
+    args: [ 'push', 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$_IMAGE_TAG' ]
+    waitFor: [ 'docker-build-api-agent' ]
+
+  # ============================================
+  # Stage 3: Deploy to Cloud Run
+  # ============================================
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-api-agent-cloud-run'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '$_SERVICE_NAME'
+      - '--image=gcr.io/$PROJECT_ID/$_SERVICE_NAME:$_IMAGE_TAG'
+      - '--region=$_REGION'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--port=$_PORT'
+      - '--memory=$_MEMORY'
+      - '--cpu=$_CPU'
+      - '--timeout=$_TIMEOUT'
+      - '--concurrency=$_CONCURRENCY'
+      - '--min-instances=$_MIN_INSTANCES'
+      - '--max-instances=$_MAX_INSTANCES'
+      - '--set-env-vars=DEPLOYMENT_ENV=cloud,AGENT_HOST=0.0.0.0,EXTERNAL_URL=$_EXTERNAL_URL'
+      - '--set-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest'
+    waitFor: [ 'docker-push-api-agent' ]
+
+# ============================================
+# Substitutions - All configurable parameters
+# ============================================
+substitutions:
+  _SERVICE_NAME: 'api-test-execution-agent'
+  _IMAGE_TAG: 'latest'
+  _REGION: 'us-central1'
+  _PORT: '8005'
+  _MEMORY: '2Gi'
+  _CPU: '1'
+  _TIMEOUT: '300'
+  _CONCURRENCY: '2'
+  _MIN_INSTANCES: '0'
+  _MAX_INSTANCES: '1'
+  _EXTERNAL_URL: ''
+
+options:
+  logging: CLOUD_LOGGING_ONLY

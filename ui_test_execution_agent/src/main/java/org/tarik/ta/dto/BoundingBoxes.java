@@ -27,7 +27,7 @@ import java.util.List;
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 @Description("the list of all identified bounding boxes")
-public record BoundingBoxes(List<BoundingBox> boundingBoxes) implements FinalResult<BoundingBoxes> {
+public record BoundingBoxes(List<BoundingBox> boundingBoxes) implements FinalResult {
     private static final Logger LOG = LoggerFactory.getLogger(BoundingBoxes.class);
 
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)

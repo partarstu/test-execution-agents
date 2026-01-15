@@ -34,7 +34,7 @@ public class BudgetManager {
     private static final int TOKEN_BUDGET = AgentConfig.getAgentTokenBudget();
     private static final int TOOL_CALLS_BUDGET = AgentConfig.getAgentToolCallsBudget();
     private static final AtomicInteger toolCallUsage = new AtomicInteger(0);
-    private static final AtomicReference<Instant> startTime = new AtomicReference<>(now());
+    private static final AtomicReference<Instant> startTime = new AtomicReference<>(null);
     private static final Map<String, ModelUsage> tokenUsagePerModel = new ConcurrentHashMap<>();
 
     public record ModelUsage(AtomicInteger input, AtomicInteger output, AtomicInteger cached, AtomicInteger total) {
@@ -95,7 +95,8 @@ public class BudgetManager {
     }
 
     public static int getAccumulatedTotalTokens(String modelName) {
-        return getAccumulatedInputTokens(modelName) + getAccumulatedOutputTokens(modelName) + getAccumulatedCachedTokens(modelName);
+        return getAccumulatedInputTokens(modelName) + getAccumulatedOutputTokens(modelName)
+                + getAccumulatedCachedTokens(modelName);
     }
 
     public static void consumeToolCalls(int count) {
@@ -103,9 +104,15 @@ public class BudgetManager {
     }
 
     public static void checkTimeBudget() {
-        long elapsedSeconds = Duration.between(now(), startTime.get()).getSeconds();
+        var start = startTime.get();
+        if (start == null) {
+            // Time budget not yet activated (reset() has not been called)
+            return;
+        }
+        long elapsedSeconds = Duration.between(start, now()).getSeconds();
         if (TIME_BUDGET_SECONDS > 0 && elapsedSeconds > TIME_BUDGET_SECONDS) {
-            throw new RuntimeException("Execution time budget exceeded: " + elapsedSeconds + "s > " + TIME_BUDGET_SECONDS + "s");
+            throw new RuntimeException(
+                    "Execution time budget exceeded: " + elapsedSeconds + "s > " + TIME_BUDGET_SECONDS + "s");
         }
     }
 

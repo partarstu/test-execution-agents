@@ -15,7 +15,7 @@
  */
 package org.tarik.ta.core.dto;
 
-public interface FinalResult<T extends FinalResult<T>> {
+public interface FinalResult {
     String TOOL_DESCRIPTION = "Ends the execution and returns the final result, if any.";
     String FINAL_RESULT_PARAM_DESCRIPTION = "The final result of the execution";
 }

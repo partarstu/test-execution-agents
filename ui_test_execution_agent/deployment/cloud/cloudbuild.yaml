@@ -1,0 +1,283 @@
+#
+# Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Cloud Build configuration for deploying the UI Test Execution Agent to a GCE VM.
+# This file contains all configurable substitutions for the deployment.
+
+steps:
+  # ============================================
+  # Stage 1: Build Maven modules
+  # ============================================
+  - name: 'maven:3.9.11-eclipse-temurin-25'
+    id: 'maven-build'
+    dir: '/workspace'
+    args: [ 'mvn', 'clean', 'install', '-DskipTests', '-P', 'linux' ]
+
+  # ============================================
+  # Stage 2: Build and Push Docker Images
+  # ============================================
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'prepare-ui-base-image'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "$_BUILD_BASE_IMAGE" == "true" ]; then
+          echo "Building base image..."
+          docker build -t gcr.io/$PROJECT_ID/ui-testing-agent-base:latest -f ui_test_execution_agent/deployment/Dockerfile.base .
+          docker push gcr.io/$PROJECT_ID/ui-testing-agent-base:latest
+        else
+          echo "Pulling base image..."
+          if ! docker pull gcr.io/$PROJECT_ID/ui-testing-agent-base:latest; then
+            echo "Base image not found, building..."
+            docker build -t gcr.io/$PROJECT_ID/ui-testing-agent-base:latest -f ui_test_execution_agent/deployment/Dockerfile.base .
+            docker push gcr.io/$PROJECT_ID/ui-testing-agent-base:latest
+          fi
+        fi
+        docker tag gcr.io/$PROJECT_ID/ui-testing-agent-base:latest ui-testing-agent-base:latest
+    waitFor: [ 'maven-build' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build-ui-agent'
+    dir: '/workspace'
+    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$_IMAGE_TAG', '-f', 'ui_test_execution_agent/deployment/cloud/Dockerfile', '.' ]
+    waitFor: [ 'prepare-ui-base-image' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push-ui-agent'
+    args: [ 'push', 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$_IMAGE_TAG' ]
+    waitFor: [ 'docker-build-ui-agent' ]
+
+  # ============================================
+  # Stage 3: Deploy VM
+  # ============================================
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-ui-agent-chmod'
+    entrypoint: 'bash'
+    args: [ '-c', 'chmod +x ui_test_execution_agent/deployment/cloud/deploy_vm.sh' ]
+    dir: '/workspace'
+    waitFor: [ 'docker-push-ui-agent' ]
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-ui-agent-vm'
+    entrypoint: 'bash'
+    args: [ '-c', 'ui_test_execution_agent/deployment/cloud/deploy_vm.sh' ]
+    dir: '/workspace'
+    env:
+      # --- GCP Configuration ---
+      - 'REGION=$_REGION'
+      - 'ZONE=$_ZONE'
+      - 'INSTANCE_NAME=$_INSTANCE_NAME'
+      - 'NETWORK_NAME=$_NETWORK_NAME'
+      - 'SUBNET_NAME=$_SUBNET_NAME'
+      - 'MACHINE_TYPE=$_MACHINE_TYPE'
+      - 'SERVICE_NAME=$_SERVICE_NAME'
+      - 'IMAGE_TAG=$_IMAGE_TAG'
+      # --- Port Configuration ---
+      - 'NO_VNC_PORT=$_NO_VNC_PORT'
+      - 'VNC_PORT=$_VNC_PORT'
+      - 'AGENT_SERVER_PORT=$_AGENT_SERVER_PORT'
+      # --- Application Settings ---
+      - 'VNC_RESOLUTION=$_VNC_RESOLUTION'
+      - 'LOG_LEVEL=$_LOG_LEVEL'
+      - 'UNATTENDED_MODE=$_UNATTENDED_MODE'
+      - 'DEBUG_MODE=$_DEBUG_MODE'
+      - 'JAVA_APP_STARTUP_SCRIPT=$_JAVA_APP_STARTUP_SCRIPT'
+      # --- Screenshot and Bounding Box Settings ---
+      - 'BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS=$_BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS'
+      - 'BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS=$_BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS'
+      - 'BOUNDING_BOX_ALREADY_NORMALIZED=$_BOUNDING_BOX_ALREADY_NORMALIZED'
+      # --- Agent Model Configuration ---
+      # Element Bounding Box Agent
+      - 'ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME=$_ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME'
+      - 'ELEMENT_BOUNDING_BOX_AGENT_MODEL_PROVIDER=$_ELEMENT_BOUNDING_BOX_AGENT_MODEL_PROVIDER'
+      - 'ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION=$_ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION'
+      # Element Selection Agent
+      - 'ELEMENT_SELECTION_AGENT_MODEL_NAME=$_ELEMENT_SELECTION_AGENT_MODEL_NAME'
+      - 'ELEMENT_SELECTION_AGENT_MODEL_PROVIDER=$_ELEMENT_SELECTION_AGENT_MODEL_PROVIDER'
+      - 'ELEMENT_SELECTION_AGENT_PROMPT_VERSION=$_ELEMENT_SELECTION_AGENT_PROMPT_VERSION'
+      # Page Description Agent
+      - 'PAGE_DESCRIPTION_AGENT_MODEL_NAME=$_PAGE_DESCRIPTION_AGENT_MODEL_NAME'
+      - 'PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER=$_PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER'
+      - 'PAGE_DESCRIPTION_AGENT_PROMPT_VERSION=$_PAGE_DESCRIPTION_AGENT_PROMPT_VERSION'
+      # Precondition Agent
+      - 'PRECONDITION_AGENT_MODEL_NAME=$_PRECONDITION_AGENT_MODEL_NAME'
+      - 'PRECONDITION_AGENT_MODEL_PROVIDER=$_PRECONDITION_AGENT_MODEL_PROVIDER'
+      - 'PRECONDITION_AGENT_PROMPT_VERSION=$_PRECONDITION_AGENT_PROMPT_VERSION'
+      # Precondition Verification Agent
+      - 'PRECONDITION_VERIFICATION_AGENT_MODEL_NAME=$_PRECONDITION_VERIFICATION_AGENT_MODEL_NAME'
+      - 'PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER=$_PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER'
+      - 'PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION=$_PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION'
+      # Test Case Extraction Agent
+      - 'TEST_CASE_EXTRACTION_AGENT_MODEL_NAME=$_TEST_CASE_EXTRACTION_AGENT_MODEL_NAME'
+      - 'TEST_CASE_EXTRACTION_AGENT_MODEL_PROVIDER=$_TEST_CASE_EXTRACTION_AGENT_MODEL_PROVIDER'
+      - 'TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION=$_TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION'
+      # Test Step Action Agent
+      - 'TEST_STEP_ACTION_AGENT_MODEL_NAME=$_TEST_STEP_ACTION_AGENT_MODEL_NAME'
+      - 'TEST_STEP_ACTION_AGENT_MODEL_PROVIDER=$_TEST_STEP_ACTION_AGENT_MODEL_PROVIDER'
+      - 'TEST_STEP_ACTION_AGENT_PROMPT_VERSION=$_TEST_STEP_ACTION_AGENT_PROMPT_VERSION'
+      # Test Step Verification Agent
+      - 'TEST_STEP_VERIFICATION_AGENT_MODEL_NAME=$_TEST_STEP_VERIFICATION_AGENT_MODEL_NAME'
+      - 'TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER=$_TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER'
+      - 'TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION=$_TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION'
+      # UI Element Description Agent
+      - 'UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME=$_UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME'
+      - 'UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER=$_UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER'
+      - 'UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION=$_UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION'
+      # UI State Check Agent
+      - 'UI_STATE_CHECK_AGENT_MODEL_NAME=$_UI_STATE_CHECK_AGENT_MODEL_NAME'
+      - 'UI_STATE_CHECK_AGENT_MODEL_PROVIDER=$_UI_STATE_CHECK_AGENT_MODEL_PROVIDER'
+      - 'UI_STATE_CHECK_AGENT_PROMPT_VERSION=$_UI_STATE_CHECK_AGENT_PROMPT_VERSION'
+      # --- API Endpoints ---
+      - 'GROQ_ENDPOINT=$_GROQ_ENDPOINT'
+      - 'GOOGLE_LOCATION=$_GOOGLE_LOCATION'
+      - 'GOOGLE_PROJECT=$_GOOGLE_PROJECT'
+      # --- Additional GCP Configuration ---
+      - 'GCP_SERVICES=$_GCP_SERVICES'
+      - 'FIREWALL_NOVNC_SOURCE_RANGES=$_FIREWALL_NOVNC_SOURCE_RANGES'
+      - 'FIREWALL_APP_INTERNAL_PORTS=$_FIREWALL_APP_INTERNAL_PORTS'
+      - 'FIREWALL_APP_INTERNAL_SOURCE_RANGES=$_FIREWALL_APP_INTERNAL_SOURCE_RANGES'
+      - 'FIREWALL_AGENT_SERVER_SOURCE_RANGES=$_FIREWALL_AGENT_SERVER_SOURCE_RANGES'
+      - 'FIREWALL_SSH_PORT=$_FIREWALL_SSH_PORT'
+      - 'FIREWALL_SSH_SOURCE_RANGES=$_FIREWALL_SSH_SOURCE_RANGES'
+      - 'GCE_IMAGE=$_GCE_IMAGE'
+      - 'BOOT_DISK_SIZE=$_BOOT_DISK_SIZE'
+      - 'BOOT_DISK_TYPE=$_BOOT_DISK_TYPE'
+      - 'GRACEFUL_SHUTDOWN_DURATION=$_GRACEFUL_SHUTDOWN_DURATION'
+      - 'MAX_VM_RUN_DURATION=$_MAX_VM_RUN_DURATION'
+      - 'INSTANCE_STATUS_CHECK_INTERVAL=$_INSTANCE_STATUS_CHECK_INTERVAL'
+      - 'SECRET_REPLICATION_POLICY=$_SECRET_REPLICATION_POLICY'
+      - 'NETWORK_SUBNET_MODE=$_NETWORK_SUBNET_MODE'
+      - 'NETWORK_MTU=$_NETWORK_MTU'
+      - 'NETWORK_BGP_ROUTING_MODE=$_NETWORK_BGP_ROUTING_MODE'
+      - 'DEFAULT_VNC_PASSWORD=$_DEFAULT_VNC_PASSWORD'
+      - 'CONTAINER_VM_LABEL=$_CONTAINER_VM_LABEL'
+      - 'SECRET_ACCESSOR_ROLE=$_SECRET_ACCESSOR_ROLE'
+      - 'CLOUD_PLATFORM_SCOPE=$_CLOUD_PLATFORM_SCOPE'
+      - 'PROVISIONING_MODEL=$_PROVISIONING_MODEL'
+      - 'INSTANCE_TERMINATION_ACTION=$_INSTANCE_TERMINATION_ACTION'
+      - 'STATIC_IP_ADDRESS_NAME=$_STATIC_IP_ADDRESS_NAME'
+    waitFor: [ 'deploy-ui-agent-chmod' ]
+
+# ============================================
+# Substitutions - All configurable parameters
+# ============================================
+# Empty values will use defaults from config.properties at runtime.
+substitutions:
+  # --- GCP Configuration ---
+  _REGION: 'us-central1'
+  _ZONE: 'us-central1-a'
+  _INSTANCE_NAME: 'ui-test-execution-agent-vm'
+  _NETWORK_NAME: 'agent-network'
+  _SUBNET_NAME: 'agent-network'
+  _MACHINE_TYPE: 't2d-standard-2'
+  _SERVICE_NAME: 'ui-test-execution-agent'
+  _IMAGE_TAG: 'latest'
+  _BUILD_BASE_IMAGE: 'false'
+
+  # --- Port Configuration ---
+  _NO_VNC_PORT: '6901'
+  _VNC_PORT: '5901'
+  _AGENT_SERVER_PORT: '443'
+
+  # --- Application Settings ---
+  _VNC_RESOLUTION: '1920x1080'
+  _LOG_LEVEL: 'INFO'
+  _UNATTENDED_MODE: 'true'
+  _DEBUG_MODE: 'true'
+  _JAVA_APP_STARTUP_SCRIPT: '/app/agent_startup.sh'
+
+  # --- Screenshot and Bounding Box Settings ---
+  _BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS: '5000'
+  _BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS: '10'
+  _BOUNDING_BOX_ALREADY_NORMALIZED: 'false'
+
+  # --- Agent Model Configuration ---
+  # Empty values will use defaults from config.properties
+  # Element Bounding Box Agent
+  _ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME: ''
+  _ELEMENT_BOUNDING_BOX_AGENT_MODEL_PROVIDER: ''
+  _ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION: ''
+  # Element Selection Agent
+  _ELEMENT_SELECTION_AGENT_MODEL_NAME: ''
+  _ELEMENT_SELECTION_AGENT_MODEL_PROVIDER: ''
+  _ELEMENT_SELECTION_AGENT_PROMPT_VERSION: ''
+  # Page Description Agent
+  _PAGE_DESCRIPTION_AGENT_MODEL_NAME: ''
+  _PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER: ''
+  _PAGE_DESCRIPTION_AGENT_PROMPT_VERSION: ''
+  # Precondition Agent
+  _PRECONDITION_AGENT_MODEL_NAME: ''
+  _PRECONDITION_AGENT_MODEL_PROVIDER: ''
+  _PRECONDITION_AGENT_PROMPT_VERSION: ''
+  # Precondition Verification Agent
+  _PRECONDITION_VERIFICATION_AGENT_MODEL_NAME: ''
+  _PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER: ''
+  _PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION: ''
+  # Test Case Extraction Agent
+  _TEST_CASE_EXTRACTION_AGENT_MODEL_NAME: ''
+  _TEST_CASE_EXTRACTION_AGENT_MODEL_PROVIDER: ''
+  _TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION: ''
+  # Test Step Action Agent
+  _TEST_STEP_ACTION_AGENT_MODEL_NAME: ''
+  _TEST_STEP_ACTION_AGENT_MODEL_PROVIDER: ''
+  _TEST_STEP_ACTION_AGENT_PROMPT_VERSION: ''
+  # Test Step Verification Agent
+  _TEST_STEP_VERIFICATION_AGENT_MODEL_NAME: ''
+  _TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER: ''
+  _TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION: ''
+  # UI Element Description Agent
+  _UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME: ''
+  _UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER: ''
+  _UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION: ''
+  # UI State Check Agent
+  _UI_STATE_CHECK_AGENT_MODEL_NAME: ''
+  _UI_STATE_CHECK_AGENT_MODEL_PROVIDER: ''
+  _UI_STATE_CHECK_AGENT_PROMPT_VERSION: ''
+
+  # --- API Endpoints ---
+  _GROQ_ENDPOINT: 'https://api.groq.com/openai/v1'
+  _GOOGLE_LOCATION: ''
+  _GOOGLE_PROJECT: ''
+
+  # --- Additional GCP Configuration ---
+  _GCP_SERVICES: 'compute.googleapis.com containerregistry.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com'
+  _FIREWALL_NOVNC_SOURCE_RANGES: '0.0.0.0/0'
+  _FIREWALL_APP_INTERNAL_PORTS: '8000-8100'
+  _FIREWALL_APP_INTERNAL_SOURCE_RANGES: '10.128.0.0/9'
+  _FIREWALL_AGENT_SERVER_SOURCE_RANGES: '0.0.0.0/0'
+  _FIREWALL_SSH_PORT: '22'
+  _FIREWALL_SSH_SOURCE_RANGES: '35.235.240.0/20'
+  _GCE_IMAGE: 'projects/cos-cloud/global/images/cos-121-18867-90-106'
+  _BOOT_DISK_SIZE: '20GB'
+  _BOOT_DISK_TYPE: 'pd-balanced'
+  _GRACEFUL_SHUTDOWN_DURATION: '1m'
+  _MAX_VM_RUN_DURATION: '3600s'
+  _INSTANCE_STATUS_CHECK_INTERVAL: '5'
+  _SECRET_REPLICATION_POLICY: 'automatic'
+  _NETWORK_SUBNET_MODE: 'auto'
+  _NETWORK_MTU: '1460'
+  _NETWORK_BGP_ROUTING_MODE: 'regional'
+  _DEFAULT_VNC_PASSWORD: '123456'
+  _CONTAINER_VM_LABEL: 'cos-121-18867-90-106'
+  _SECRET_ACCESSOR_ROLE: 'roles/secretmanager.secretAccessor'
+  _CLOUD_PLATFORM_SCOPE: 'https://www.googleapis.com/auth/cloud-platform'
+  _PROVISIONING_MODEL: 'SPOT'
+  _INSTANCE_TERMINATION_ACTION: 'STOP'
+  _STATIC_IP_ADDRESS_NAME: 'ui-agent-ip'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -34,6 +34,7 @@ public class ElementLocationException extends RuntimeException {
     public enum ElementLocationStatus {
         NO_ELEMENTS_FOUND_IN_DB,
         SIMILAR_ELEMENTS_IN_DB_BUT_SCORE_TOO_LOW,
+        MODEL_COULD_NOT_SELECT_FROM_DB_CANDIDATES,
         ELEMENT_NOT_FOUND_ON_SCREEN_VISUAL_AND_ALGORITHMIC_FAILED,
         ELEMENT_NOT_FOUND_ON_SCREEN_VALIDATION_FAILED,
         UNKNOWN_ERROR

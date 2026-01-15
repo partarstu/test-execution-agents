@@ -18,7 +18,7 @@ package org.tarik.ta.user_dialogs;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.UiTestAgentConfig;
 
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
@@ -34,8 +34,8 @@ import static javax.swing.text.StyleConstants.setAlignment;
 
 public abstract class AbstractDialog extends JDialog {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractDialog.class);
-    private static final int DIALOG_DEFAULT_VERTICAL_GAP = AgentConfig.getDialogDefaultVerticalGap();
-    private static final int DIALOG_DEFAULT_HORIZONTAL_GAP = AgentConfig.getDialogDefaultHorizontalGap();
+    private static final int DIALOG_DEFAULT_VERTICAL_GAP = UiTestAgentConfig.getDialogDefaultVerticalGap();
+    private static final int DIALOG_DEFAULT_HORIZONTAL_GAP = UiTestAgentConfig.getDialogDefaultHorizontalGap();
 
     public AbstractDialog(Window owner, String title) throws HeadlessException {
         super(owner, title, ModalityType.APPLICATION_MODAL);
@@ -55,9 +55,12 @@ public abstract class AbstractDialog extends JDialog {
         super.pack();
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
         Dimension dialogSize = getSize();
-        int newWidth = Math.min(dialogSize.width, (int) (screenSize.width * 0.95));
-        int newHeight = Math.min(dialogSize.height, (int) (screenSize.height * 0.95));
-        setSize(newWidth, newHeight);
+        // Only limit size if it exceeds 95% of screen dimensions
+        if (dialogSize.width > screenSize.width * 0.95 || dialogSize.height > screenSize.height * 0.95) {
+            int newWidth = Math.min(dialogSize.width, (int) (screenSize.width * 0.95));
+            int newHeight = Math.min(dialogSize.height, (int) (screenSize.height * 0.95));
+            setSize(newWidth, newHeight);
+        }
     }
 
     protected abstract void onDialogClosing();
@@ -77,7 +80,7 @@ public abstract class AbstractDialog extends JDialog {
         messageArea.setEditable(false);
         messageArea.setOpaque(false);
         // Use AgentConfig to get font type
-        messageArea.setFont(new Font(AgentConfig.getDialogDefaultFontType(), Font.PLAIN, fontSize));
+        messageArea.setFont(new Font(UiTestAgentConfig.getDialogDefaultFontType(), Font.PLAIN, fontSize));
         var styledDocument = messageArea.getStyledDocument();
         SimpleAttributeSet center = new SimpleAttributeSet();
         setAlignment(center, StyleConstants.ALIGN_CENTER);
@@ -94,11 +97,11 @@ public abstract class AbstractDialog extends JDialog {
     @NotNull
     protected static JTextPane getUserMessageArea(String message) {
         // Use AgentConfig to get default font size
-        return getUserMessageArea(message, AgentConfig.getDialogDefaultFontSize());
+        return getUserMessageArea(message, UiTestAgentConfig.getDialogDefaultFontSize());
     }
 
     protected static void setHoverAsClick(JComponent component, Runnable actionAfterClick) {
-        if (AgentConfig.isDialogHoverAsClick()) {
+        if (UiTestAgentConfig.isDialogHoverAsClick()) {
             component.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent e) {
@@ -130,7 +133,8 @@ public abstract class AbstractDialog extends JDialog {
     @NotNull
     protected static JPanel getButtonsPanel(JButton... buttons) {
         // Use AgentConfig to get gaps
-        var panel = new JPanel(new FlowLayout(FlowLayout.CENTER, DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
+        var panel = new JPanel(
+                new FlowLayout(FlowLayout.CENTER, DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
         for (JButton button : buttons) {
             panel.add(button);
         }
@@ -147,16 +151,8 @@ public abstract class AbstractDialog extends JDialog {
         setLocationRelativeTo(null);
     }
 
-    private void setDefaultSize(double widthRatio, double heightRatio) {
-        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        var desiredWidth = screenSize.getWidth() * widthRatio;
-        var desiredHeight = screenSize.getHeight() * heightRatio;
-        setSize(new Dimension((int) desiredWidth, (int) desiredHeight));
-    }
-
-    protected void setDefaultSizeAndPosition(double widthRatio, double heightRatio) {
+    protected void setDefaultSizeAndPosition() {
         pack();
-        setDefaultSize(widthRatio, heightRatio);
         setDefaultPosition();
     }
 }

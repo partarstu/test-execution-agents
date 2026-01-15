@@ -29,9 +29,9 @@ public record VerificationExecutionResult (
         @Description("indicates whether the verification succeeded (true) or failed (false).")
         boolean success,
         @Description("contains a detailed description of the failure, if the verification failed. If the verification " +
-                "succeeded, this field should contain the justification of the positive verification result, i.e. the explicit " +
+                "succeeded, this field must contain the justification of the positive verification result, i.e. the explicit " +
                 "description of the actual state and why this state means that the verification result is successful.")
-        String message) implements FinalResult<VerificationExecutionResult> {
+        String message) implements FinalResult {
     private static final Logger LOG = LoggerFactory.getLogger(VerificationExecutionResult.class);
 
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
@@ -39,5 +39,9 @@ public record VerificationExecutionResult (
             @P(value = FINAL_RESULT_PARAM_DESCRIPTION) VerificationExecutionResult result) {
         LOG.debug("Ending execution and returning the final result of type {}: {}", VerificationExecutionResult.class.getSimpleName(), result);
         return result;
+    }
+
+    public static VerificationExecutionResult empty() {
+        return new VerificationExecutionResult(false, "");
     }
 }

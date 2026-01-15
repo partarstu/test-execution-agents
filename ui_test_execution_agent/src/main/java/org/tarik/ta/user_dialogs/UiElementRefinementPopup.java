@@ -15,11 +15,9 @@
  */
 package org.tarik.ta.user_dialogs;
 
-import org.tarik.ta.core.utils.CoreUtils;
-
 import org.jetbrains.annotations.NotNull;
 import org.tarik.ta.dto.ElementRefinementOperation;
-import org.tarik.ta.core.rag.model.UiElement;
+import org.tarik.ta.rag.model.UiElement;
 
 import javax.swing.*;
 import javax.swing.border.MatteBorder;
@@ -31,7 +29,7 @@ import java.util.Optional;
 
 import static java.awt.Image.SCALE_AREA_AVERAGING;
 import static java.util.Optional.ofNullable;
-import static org.tarik.ta.core.utils.CoreUtils.isNotBlank;
+import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 
 public class UiElementRefinementPopup extends AbstractDialog {
     private static final String DIALOG_TITLE = "UI Elements Refinement";
@@ -41,8 +39,6 @@ public class UiElementRefinementPopup extends AbstractDialog {
     private static final String UPDATE_BUTTON_TEXT = "Update Element";
     private static final String DELETE_BUTTON_TEXT = "Delete Element";
     private static final String ELEMENT_ACTION_DIALOG_MESSAGE = "What do you want to do with this element ?";
-    private static final int ELEMENT_ACTION_DIALOG_WIDTH = 300;
-    private static final int ELEMENT_ACTION_DIALOG_HEIGHT = 150;
     private static final int ELEMENT_DESCRIPTION_FONT_SIZE = 8;
     private static final int IMAGE_TARGET_WIDTH = 100;
     private static final int ELEMENT_DESCRIPTION_LENGTH = 550;
@@ -83,14 +79,17 @@ public class UiElementRefinementPopup extends AbstractDialog {
         JPanel buttonsPanel = getButtonsPanel(doneButton);
         mainPanel.add(buttonsPanel, BorderLayout.SOUTH);
         add(mainPanel);
-        setDefaultSizeAndPosition(0.5, 0.6);
+        setDefaultSizeAndPosition();
         setVisible(true);
         toFront();
     }
 
     private void showElementActionDialog(UiElement element) {
         JDialog dialog = new JDialog(this, ELEMENT_ACTION_DIALOG_TITLE, true);
-        dialog.setLayout(new FlowLayout());
+        dialog.setLayout(new BorderLayout(10, 10));
+
+        JPanel messagePanel = new JPanel();
+        messagePanel.add(new JLabel(ELEMENT_ACTION_DIALOG_MESSAGE));
 
         JButton updateButton = new JButton(UPDATE_BUTTON_TEXT);
         setHoverAsClick(updateButton);
@@ -116,20 +115,25 @@ public class UiElementRefinementPopup extends AbstractDialog {
             UiElementRefinementPopup.this.dispose();
         });
 
-        dialog.add(new JLabel(ELEMENT_ACTION_DIALOG_MESSAGE));
-        dialog.add(updateButton);
-        dialog.add(deleteButton);
-        dialog.add(newScreenshotButton);
-        dialog.setSize(ELEMENT_ACTION_DIALOG_WIDTH, ELEMENT_ACTION_DIALOG_HEIGHT);
+        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        buttonsPanel.add(updateButton);
+        buttonsPanel.add(deleteButton);
+        buttonsPanel.add(newScreenshotButton);
+
+        dialog.add(messagePanel, BorderLayout.NORTH);
+        dialog.add(buttonsPanel, BorderLayout.CENTER);
+        dialog.pack();
         dialog.setLocationRelativeTo(this);
         dialog.setVisible(true);
     }
 
     @NotNull
     private JLabel getElementLabel(UiElement element) {
-        var elementFullName =
-                isNotBlank(element.pageSummary()) ? "%s belonging to %s".formatted(element.name(), element.pageSummary()) : element.name();
-        String labelText = String.format(ELEMENT_LABEL_FORMAT, ELEMENT_DESCRIPTION_LENGTH, ELEMENT_DESCRIPTION_FONT_SIZE, elementFullName,
+        var elementFullName = isNotBlank(element.parentElementSummary())
+                ? "%s belonging to %s".formatted(element.name(), element.parentElementSummary())
+                : element.name();
+        String labelText = String.format(ELEMENT_LABEL_FORMAT, ELEMENT_DESCRIPTION_LENGTH,
+                ELEMENT_DESCRIPTION_FONT_SIZE, elementFullName,
                 element.description());
         JLabel label = new JLabel(labelText);
         label.setIcon(getImageIcon(element));
@@ -147,12 +151,13 @@ public class UiElementRefinementPopup extends AbstractDialog {
         var originalWidth = elementScreenshot.getWidth();
         var scalingRatio = ((double) IMAGE_TARGET_WIDTH) / originalWidth;
         var imageTargetHeight = (int) (elementScreenshot.getHeight() * scalingRatio);
-        return new ImageIcon(elementScreenshot.getScaledInstance(IMAGE_TARGET_WIDTH, imageTargetHeight, SCALE_AREA_AVERAGING));
+        return new ImageIcon(
+                elementScreenshot.getScaledInstance(IMAGE_TARGET_WIDTH, imageTargetHeight, SCALE_AREA_AVERAGING));
     }
 
     public static Optional<ElementRefinementOperation> displayAndGetChoice(Window owner,
-                                                                          @NotNull String message,
-                                                                          @NotNull List<UiElement> elementsToRefine) {
+            @NotNull String message,
+            @NotNull List<UiElement> elementsToRefine) {
         UiElementRefinementPopup popup = new UiElementRefinementPopup(owner, message, elementsToRefine);
         return ofNullable(popup.result);
     }
@@ -164,6 +169,3 @@ public class UiElementRefinementPopup extends AbstractDialog {
         }
     }
 }
-
-
-

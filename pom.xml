@@ -13,6 +13,7 @@
     <modules>
         <module>agent_core</module>
         <module>ui_test_execution_agent</module>
+        <module>api_test_execution_agent</module>
     </modules>
 
     <developers>
@@ -25,8 +26,8 @@
     <properties>
         <jdk.version>25</jdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <langchain4j.version>1.9.1</langchain4j.version>
-        <langchain4j.beta.version>1.9.1-beta17</langchain4j.beta.version>
+        <langchain4j.version>1.10.0</langchain4j.version>
+        <langchain4j.beta.version>1.10.0-beta18</langchain4j.beta.version>
         <logback.version>1.5.18</logback.version>
         <junit.version>5.12.1</junit.version>
         <license.maven.plugin.version>5.0.0</license.maven.plugin.version>
@@ -36,7 +37,7 @@
         <maven.surefire.plugin.version>3.5.3</maven.surefire.plugin.version>
         <mockito.version>5.16.1</mockito.version>
         <slf4j.version>2.0.13</slf4j.version>
-        <javalin.version>6.7.0</javalin.version>
+        <javalin.version>7.0.0-beta.1</javalin.version>
         <jackson.version>2.19.1</jackson.version>
         <guava.version>33.4.8-jre</guava.version>
         <opencv.version>4.10.0-1.5.11</opencv.version>
@@ -45,8 +46,13 @@
         <ffmpeg.version>7.1-${bytedeco.version}</ffmpeg.version>
         <javacv.version>${bytedeco.version}</javacv.version>
         <commons-math3.version>3.6.1</commons-math3.version>
-        <a2a.sdk.version>0.3.0.Beta1</a2a.sdk.version>
+        <a2a.sdk.version>0.3.3.Final</a2a.sdk.version>
         <jetbrains.annotations.version>24.1.0</jetbrains.annotations.version>
+        <restassured.version>5.5.6</restassured.version>
+        <opencsv.version>5.12.0</opencsv.version>
+        <swagger-request-validator.version>2.46.0</swagger-request-validator.version>
+        <jacoco.version>0.8.14</jacoco.version>
+
     </properties>
 
     <dependencyManagement>
@@ -102,6 +108,11 @@
                 <artifactId>langchain4j-embeddings-all-minilm-l6-v2</artifactId>
                 <version>${langchain4j.beta.version}</version>
             </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-embeddings-bge-small-en-v15</artifactId>
+                <version>${langchain4j.beta.version}</version>
+            </dependency>
 
             <!-- Logging -->
             <dependency>
@@ -114,6 +125,7 @@
                 <artifactId>logback-classic</artifactId>
                 <version>${logback.version}</version>
             </dependency>
+
 
             <!-- Utils -->
             <dependency>
@@ -193,6 +205,28 @@
                 <version>${assertj.version}</version>
                 <scope>test</scope>
             </dependency>
+
+            <!-- API Testing -->
+            <dependency>
+                <groupId>io.rest-assured</groupId>
+                <artifactId>rest-assured</artifactId>
+                <version>${restassured.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.rest-assured</groupId>
+                <artifactId>json-schema-validator</artifactId>
+                <version>${restassured.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.opencsv</groupId>
+                <artifactId>opencsv</artifactId>
+                <version>${opencsv.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.atlassian.oai</groupId>
+                <artifactId>swagger-request-validator-restassured</artifactId>
+                <version>${swagger-request-validator.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -205,7 +239,7 @@
                     <version>${maven.surefire.plugin.version}</version>
                      <configuration>
                         <argLine>
-                            -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
+                            @{argLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
                         </argLine>
                     </configuration>
                 </plugin>
@@ -243,12 +277,35 @@
                         </licenseSets>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco.version}</version>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>com.mycila</groupId>
                 <artifactId>license-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -28,7 +28,8 @@ public class PreconditionResult {
     private final @Nullable Instant executionStartTimestamp;
     private final @Nullable Instant executionEndTimestamp;
 
-    public PreconditionResult(@NotNull String precondition, boolean success, @Nullable String errorMessage, @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
+    public PreconditionResult(@NotNull String precondition, boolean success, @Nullable String errorMessage,
+            @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
         this.precondition = precondition;
         this.success = success;
         this.errorMessage = errorMessage;
@@ -36,32 +37,37 @@ public class PreconditionResult {
         this.executionEndTimestamp = executionEndTimestamp;
     }
 
-    public @NotNull String precondition() {
+    public @NotNull String getPrecondition() {
         return precondition;
     }
 
-    public boolean success() {
+    public boolean isSuccess() {
         return success;
     }
 
-    public @Nullable String errorMessage() {
+    public @Nullable String getErrorMessage() {
         return errorMessage;
     }
 
-    public @Nullable Instant executionStartTimestamp() {
+    public @Nullable Instant getExecutionStartTimestamp() {
         return executionStartTimestamp;
     }
 
-    public @Nullable Instant executionEndTimestamp() {
+    public @Nullable Instant getExecutionEndTimestamp() {
         return executionEndTimestamp;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         PreconditionResult that = (PreconditionResult) o;
-        return success == that.success && Objects.equals(precondition, that.precondition) && Objects.equals(errorMessage, that.errorMessage) && Objects.equals(executionStartTimestamp, that.executionStartTimestamp) && Objects.equals(executionEndTimestamp, that.executionEndTimestamp);
+        return success == that.success && Objects.equals(precondition, that.precondition)
+                && Objects.equals(errorMessage, that.errorMessage)
+                && Objects.equals(executionStartTimestamp, that.executionStartTimestamp)
+                && Objects.equals(executionEndTimestamp, that.executionEndTimestamp);
     }
 
     @Override

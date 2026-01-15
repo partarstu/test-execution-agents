@@ -31,7 +31,7 @@ public record UiStateCheckResult(
         @Description("indicates whether the expected and actual states match.")
         boolean success,
         @Description("contains a detailed justification of the match or mismatch.")
-        String message) implements FinalResult<UiStateCheckResult> {
+        String message) implements FinalResult {
     private static final Logger LOG = LoggerFactory.getLogger(UiStateCheckResult.class);
 
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)

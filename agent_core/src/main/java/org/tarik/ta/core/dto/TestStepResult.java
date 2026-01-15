@@ -32,7 +32,9 @@ public class TestStepResult {
     private final @Nullable Instant executionStartTimestamp;
     private final @Nullable Instant executionEndTimestamp;
 
-    public TestStepResult(@NotNull TestStep testStep, TestStepResultStatus executionStatus, @Nullable String errorMessage, @Nullable String actualResult, @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
+    public TestStepResult(@NotNull TestStep testStep, TestStepResultStatus executionStatus,
+                          @Nullable String errorMessage, @Nullable String actualResult, @Nullable Instant executionStartTimestamp,
+                          @Nullable Instant executionEndTimestamp) {
         this.testStep = testStep;
         this.executionStatus = executionStatus;
         this.errorMessage = errorMessage;
@@ -41,36 +43,43 @@ public class TestStepResult {
         this.executionEndTimestamp = executionEndTimestamp;
     }
 
-    public @NotNull TestStep testStep() {
+    public @NotNull TestStep getTestStep() {
         return testStep;
     }
 
-    public TestStepResultStatus executionStatus() {
+    public TestStepResultStatus getExecutionStatus() {
         return executionStatus;
     }
 
-    public @Nullable String errorMessage() {
+    public @Nullable String getErrorMessage() {
         return errorMessage;
     }
 
-    public @Nullable String actualResult() {
+    public @Nullable String getActualResult() {
         return actualResult;
     }
 
-    public @Nullable Instant executionStartTimestamp() {
+    public @Nullable Instant getExecutionStartTimestamp() {
         return executionStartTimestamp;
     }
 
-    public @Nullable Instant executionEndTimestamp() {
+    public @Nullable Instant getExecutionEndTimestamp() {
         return executionEndTimestamp;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         TestStepResult that = (TestStepResult) o;
-        return Objects.equals(testStep, that.testStep) && executionStatus == that.executionStatus && Objects.equals(errorMessage, that.errorMessage) && Objects.equals(actualResult, that.actualResult) && Objects.equals(executionStartTimestamp, that.executionStartTimestamp) && Objects.equals(executionEndTimestamp, that.executionEndTimestamp);
+        return Objects.equals(testStep, that.testStep) && executionStatus == that.executionStatus
+                && Objects.equals(errorMessage, that.errorMessage) && Objects.equals(actualResult, that.actualResult)
+                && Objects.equals(executionStartTimestamp, that.executionStartTimestamp)
+                && Objects.equals(executionEndTimestamp, that.executionEndTimestamp);
     }
 
     @Override
@@ -79,7 +88,8 @@ public class TestStepResult {
     }
 
     /**
-     * Provides a human-friendly string representation of the TestStepResult instance.
+     * Provides a human-friendly string representation of the TestStepResult
+     * instance.
      * The output is formatted for console readability.
      *
      * @return A formatted string representing the test step result.
@@ -95,7 +105,8 @@ public class TestStepResult {
             sb.append("  - Error: ").append(errorMessage).append("\n");
         }
 
-        sb.append("  - Start Time: ").append(executionStartTimestamp != null ? executionStartTimestamp.toString() : "N/A")
+        sb.append("  - Start Time: ")
+                .append(executionStartTimestamp != null ? executionStartTimestamp.toString() : "N/A")
                 .append("\n");
         sb.append("  - End Time: ").append(executionEndTimestamp != null ? executionEndTimestamp.toString() : "N/A");
 

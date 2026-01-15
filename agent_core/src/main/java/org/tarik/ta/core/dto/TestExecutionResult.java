@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.core.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,8 +34,20 @@ public class TestExecutionResult {
     private final @Nullable Instant executionStartTimestamp;
     private final @Nullable Instant executionEndTimestamp;
     private final @Nullable String generalErrorMessage;
+    private final @Nullable SystemInfo systemInfo;
+    @JsonIgnore
+    private final @Nullable List<String> logs;
 
-    public TestExecutionResult(String testCaseName, @NotNull TestExecutionStatus testExecutionStatus, @NotNull List<PreconditionResult> preconditionResults, @NotNull List<TestStepResult> stepResults, @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp, @Nullable String generalErrorMessage) {
+    public TestExecutionResult(
+            @NotNull String testCaseName,
+            @NotNull TestExecutionStatus testExecutionStatus,
+            @NotNull List<PreconditionResult> preconditionResults,
+            @NotNull List<TestStepResult> stepResults,
+            @Nullable Instant executionStartTimestamp,
+            @Nullable Instant executionEndTimestamp,
+            @Nullable String generalErrorMessage,
+            @Nullable SystemInfo systemInfo,
+            @Nullable List<String> logs) {
         this.testCaseName = testCaseName;
         this.testExecutionStatus = testExecutionStatus;
         this.preconditionResults = preconditionResults;
@@ -42,47 +55,67 @@ public class TestExecutionResult {
         this.executionStartTimestamp = executionStartTimestamp;
         this.executionEndTimestamp = executionEndTimestamp;
         this.generalErrorMessage = generalErrorMessage;
+        this.systemInfo = systemInfo;
+        this.logs = logs;
     }
 
-    public String testCaseName() {
+    public String getTestCaseName() {
         return testCaseName;
     }
 
-    public @NotNull TestExecutionStatus testExecutionStatus() {
+    public @NotNull TestExecutionStatus getTestExecutionStatus() {
         return testExecutionStatus;
     }
 
-    public @NotNull List<PreconditionResult> preconditionResults() {
+    public @NotNull List<PreconditionResult> getPreconditionResults() {
         return preconditionResults;
     }
 
-    public @NotNull List<TestStepResult> stepResults() {
+    public @NotNull List<TestStepResult> getStepResults() {
         return stepResults;
     }
 
-    public @Nullable Instant executionStartTimestamp() {
+    public @Nullable Instant getExecutionStartTimestamp() {
         return executionStartTimestamp;
     }
 
-    public @Nullable Instant executionEndTimestamp() {
+    public @Nullable Instant getExecutionEndTimestamp() {
         return executionEndTimestamp;
     }
 
-    public @Nullable String generalErrorMessage() {
+    public @Nullable String getGeneralErrorMessage() {
         return generalErrorMessage;
+    }
+
+    public @Nullable SystemInfo getSystemInfo() {
+        return systemInfo;
+    }
+
+    public @Nullable List<String> getLogs() {
+        return logs;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         TestExecutionResult that = (TestExecutionResult) o;
-        return Objects.equals(testCaseName, that.testCaseName) && testExecutionStatus == that.testExecutionStatus && Objects.equals(preconditionResults, that.preconditionResults) && Objects.equals(stepResults, that.stepResults) && Objects.equals(executionStartTimestamp, that.executionStartTimestamp) && Objects.equals(executionEndTimestamp, that.executionEndTimestamp) && Objects.equals(generalErrorMessage, that.generalErrorMessage);
+        return Objects.equals(testCaseName, that.testCaseName) && testExecutionStatus == that.testExecutionStatus
+                && Objects.equals(preconditionResults, that.preconditionResults)
+                && Objects.equals(stepResults, that.stepResults)
+                && Objects.equals(executionStartTimestamp, that.executionStartTimestamp)
+                && Objects.equals(executionEndTimestamp, that.executionEndTimestamp)
+                && Objects.equals(generalErrorMessage, that.generalErrorMessage)
+                && Objects.equals(systemInfo, that.systemInfo)
+                && Objects.equals(logs, that.logs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(testCaseName, testExecutionStatus, preconditionResults, stepResults, executionStartTimestamp, executionEndTimestamp, generalErrorMessage);
+        return Objects.hash(testCaseName, testExecutionStatus, preconditionResults, stepResults,
+                executionStartTimestamp, executionEndTimestamp, generalErrorMessage, systemInfo, logs);
     }
 
     @Override
@@ -94,8 +127,13 @@ public class TestExecutionResult {
         if (generalErrorMessage != null && !generalErrorMessage.isBlank()) {
             sb.append("Error Message: ").append(generalErrorMessage).append("\n");
         }
-        sb.append("Start Time: ").append(executionStartTimestamp != null ? executionStartTimestamp.toString() : "N/A").append("\n");
-        sb.append("End Time: ").append(executionEndTimestamp != null ? executionEndTimestamp.toString() : "N/A").append("\n");
+        sb.append("Start Time: ").append(executionStartTimestamp != null ? executionStartTimestamp.toString() : "N/A")
+                .append("\n");
+        sb.append("End Time: ").append(executionEndTimestamp != null ? executionEndTimestamp.toString() : "N/A")
+                .append("\n");
+        if (systemInfo != null) {
+            sb.append("System Info: ").append(systemInfo).append("\n");
+        }
         sb.append("============================================================\n");
 
         if (!preconditionResults.isEmpty()) {
@@ -103,10 +141,10 @@ public class TestExecutionResult {
             for (int i = 0; i < preconditionResults.size(); i++) {
                 PreconditionResult result = preconditionResults.get(i);
                 sb.append("\n[Precondition ").append(i + 1).append("]\n");
-                sb.append("  - Description: ").append(result.precondition()).append("\n");
-                sb.append("  - Status: ").append(result.success() ? "SUCCESS" : "FAILURE").append("\n");
-                if (!result.success() && result.errorMessage() != null) {
-                    sb.append("  - Error: ").append(result.errorMessage()).append("\n");
+                sb.append("  - Description: ").append(result.getPrecondition()).append("\n");
+                sb.append("  - Status: ").append(result.isSuccess() ? "SUCCESS" : "FAILURE").append("\n");
+                if (!result.isSuccess() && result.getErrorMessage() != null) {
+                    sb.append("  - Error: ").append(result.getErrorMessage()).append("\n");
                 }
             }
             sb.append("------------------------------------------------------------\n");
@@ -121,7 +159,7 @@ public class TestExecutionResult {
                 TestStepResult result = stepResults.get(i);
                 sb.append("\n[Step ").append(i + 1).append("]\n");
                 // Indent the output from the TestStepResult.toString() for better hierarchy
-                String indentedStepResult = "  " + result.toString().replaceAll("\n", "\n  ");
+                String indentedStepResult = "  " + result.toString().replace("\n", "\n  ");
                 sb.append(indentedStepResult).append("\n");
             }
         }

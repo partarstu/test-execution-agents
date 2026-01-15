@@ -17,72 +17,104 @@ package org.tarik.ta.manager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.dto.VerificationStatus;
+import org.tarik.ta.agents.UiTestStepVerificationAgent;
+import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.core.dto.VerificationExecutionResult;
+import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.dto.UiOperationExecutionResult;
+import org.tarik.ta.model.UiTestExecutionContext;
+import org.tarik.ta.model.VisualState;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
+import java.util.Optional;
+import java.util.concurrent.*;
 
+import static java.lang.System.currentTimeMillis;
+import static java.util.Optional.*;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
+import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
+import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
+import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 public class VerificationManager implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(VerificationManager.class);
-    private final Lock lock = new ReentrantLock();
-    private final Condition verificationFinished = lock.newCondition();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final static RetryPolicy retryPolicy = AgentConfig.getVerificationRetryPolicy();
+    private Future<UiOperationExecutionResult<VerificationExecutionResult>> currentVerification;
+    private volatile UiOperationExecutionResult<VerificationExecutionResult> lastResult;
 
-    private int activeVerifications = 0;
-    private boolean lastSuccess = true;
+    public void submitVerification(UiTestStepVerificationAgent testStepVerificationAgent,
+                                   UiTestExecutionContext context,
+                                   String verificationInstruction,
+                                   String actionInstruction,
+                                   String testDataString) {
+        lastResult = null;
+        currentVerification = CompletableFuture.supplyAsync(() -> {
+            int attempts = 0;
+            long startTime = currentTimeMillis();
+            LOG.info("Starting the retriable verification that: '{}'", verificationInstruction);
+            do {
+                LOG.info("Attempt: {}", attempts + 1);
+                try {
+                    lastResult =
+                            (UiOperationExecutionResult<VerificationExecutionResult>) testStepVerificationAgent.executeAndGetResult(() -> {
+                                var screenshot = captureScreen();
+                                context.setVisualState(new VisualState(screenshot));
+                                return testStepVerificationAgent.verify(verificationInstruction, actionInstruction, testDataString,
+                                        context.getSharedData().toString(), singleImageContent(screenshot));
+                            });
+                    attempts++;
+                    resetToolCallUsage();
 
-    public void submitVerification(Supplier<Boolean> verificationTask) {
-        lock.lock();
-        try {
-            activeVerifications++;
-            this.lastSuccess = false;
-            LOG.info("Verification submitted. Active verifications: {}", activeVerifications);
-        } finally {
-            lock.unlock();
-        }
+                    if (!lastResult.isSuccess() || (lastResult.getResultPayload()!=null && lastResult.getResultPayload().success())) {
+                        return lastResult;
+                    }
 
-        executor.submit(() -> {
-            boolean success = false;
-            try {
-                success = verificationTask.get();
-            } catch (Exception e) {
-                LOG.error("Verification task failed unexpectedly", e);
-            } finally {
-                registerVerificationResult(success);
-            }
-        });
+                    sleepMillis(retryPolicy.delayMillis());
+                } catch (Exception e) {
+                    LOG.error("Unexpected error during verification", e);
+                    lastResult = new UiOperationExecutionResult<>(ERROR, e.getMessage(),
+                            new VerificationExecutionResult(false, e.getMessage()), captureScreen());
+                    return lastResult;
+                }
+            } while ((currentTimeMillis() - startTime) < retryPolicy.timeoutMillis() || (attempts - 1) <= retryPolicy.maxRetries());
+            LOG.warn("Verification timed out after {} attempts and {}ms. Returning the latest recorded verification result",
+                    attempts, currentTimeMillis() - startTime);
+            return lastResult;
+        }, executor);
+        LOG.info("Verification submitted.");
     }
 
-    public VerificationStatus waitForVerificationToFinish(long timeoutMillis) {
-        lock.lock();
-        try {
-            if (activeVerifications == 0) {
-                return new VerificationStatus(false, lastSuccess);
-            }
+    public Optional<VerificationExecutionResult> waitForCurrentVerificationToFinish() {
+        if (currentVerification == null) {
+            LOG.info("No verification is currently running, nothing to wait for");
+            return empty();
+        }
 
-            LOG.info("Waiting for verification to finish (timeout: {} ms)...", timeoutMillis);
-            long remainingNanos = MILLISECONDS.toNanos(timeoutMillis);
-            while (activeVerifications > 0) {
-                if (remainingNanos <= 0) {
-                    return new VerificationStatus(true, false);
-                }
-                try {
-                    remainingNanos = verificationFinished.awaitNanos(remainingNanos);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return new VerificationStatus(false, false);
-                }
+        LOG.info("Waiting for verification to finish (timeout: {} ms)...", retryPolicy.timeoutMillis());
+        UiOperationExecutionResult<VerificationExecutionResult> result;
+        try {
+            result = currentVerification.get(retryPolicy.timeoutMillis(), MILLISECONDS);
+        } catch (TimeoutException e) {
+            LOG.warn("Timeout while waiting for verification to finish. Cancelling verification task and returning last known result.");
+            currentVerification.cancel(true);
+            result = lastResult;
+        } catch (Exception e) {
+            LOG.error("Verification task failed unexpectedly", e);
+            result = lastResult;
+            if (result == null) {
+                return of(new VerificationExecutionResult(false, "Verification error: " + e.getMessage()));
             }
-            return new VerificationStatus(false, lastSuccess);
-        } finally {
-            lock.unlock();
+        }
+
+        if (result == null) {
+            return empty();
+        } else if (!result.isSuccess()) {
+            return of(new VerificationExecutionResult(false, result.getMessage()));
+        } else {
+            return ofNullable(result.getResultPayload());
         }
     }
 
@@ -93,22 +125,8 @@ public class VerificationManager implements AutoCloseable {
             if (!executor.awaitTermination(5, SECONDS)) {
                 LOG.warn("Executor did not terminate in time");
             }
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    private void registerVerificationResult(boolean success) {
-        lock.lock();
-        try {
-            activeVerifications--;
-            this.lastSuccess = success;
-            LOG.debug("Verification finished. Success: {}. Active verifications: {}", success, activeVerifications);
-            if (activeVerifications == 0) {
-                verificationFinished.signalAll();
-            }
-        } finally {
-            lock.unlock();
         }
     }
 }

@@ -31,7 +31,7 @@ public interface UiPreconditionActionAgent extends BaseUiAgent<EmptyExecutionRes
     @UserMessage("""
             The precondition you need to execute: {{precondition}}.
             
-            Shared data: {{sharedData}}
+            Test context execution data: {{sharedData}}
             """)
     Result<String> execute(
             @V("precondition") String precondition,

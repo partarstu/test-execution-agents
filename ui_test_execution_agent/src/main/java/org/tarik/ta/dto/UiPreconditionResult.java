@@ -28,21 +28,24 @@ public class UiPreconditionResult extends PreconditionResult {
     private final @Nullable @JsonIgnore BufferedImage screenshot;
 
     public UiPreconditionResult(@NotNull String precondition, boolean success, @Nullable String errorMessage,
-                                @Nullable BufferedImage screenshot,
-                                @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
+            @Nullable BufferedImage screenshot,
+            @Nullable Instant executionStartTimestamp, @Nullable Instant executionEndTimestamp) {
         super(precondition, success, errorMessage, executionStartTimestamp, executionEndTimestamp);
         this.screenshot = screenshot;
     }
 
-    public @Nullable BufferedImage screenshot() {
+    public @Nullable BufferedImage getScreenshot() {
         return screenshot;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        if (!super.equals(o))
+            return false;
         UiPreconditionResult that = (UiPreconditionResult) o;
         return Objects.equals(screenshot, that.screenshot);
     }
@@ -55,11 +58,11 @@ public class UiPreconditionResult extends PreconditionResult {
     @Override
     public String toString() {
         return "UiPreconditionResult[" +
-                "precondition=" + precondition() + ", " +
-                "success=" + success() + ", " +
-                "errorMessage=" + errorMessage() + ", " +
+                "precondition=" + getPrecondition() + ", " +
+                "success=" + isSuccess() + ", " +
+                "errorMessage=" + getErrorMessage() + ", " +
                 "screenshot=" + screenshot + ", " +
-                "executionStartTimestamp=" + executionStartTimestamp() + ", " +
-                "executionEndTimestamp=" + executionEndTimestamp() + ']';
+                "executionStartTimestamp=" + getExecutionStartTimestamp() + ", " +
+                "executionEndTimestamp=" + getExecutionEndTimestamp() + ']';
     }
 }

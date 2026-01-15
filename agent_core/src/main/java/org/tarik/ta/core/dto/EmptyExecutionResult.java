@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 @Description("Empty execution result")
-public record EmptyExecutionResult() implements FinalResult<EmptyExecutionResult> {
+public record EmptyExecutionResult() implements FinalResult {
     private static final Logger LOG = LoggerFactory.getLogger(EmptyExecutionResult.class);
 
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)

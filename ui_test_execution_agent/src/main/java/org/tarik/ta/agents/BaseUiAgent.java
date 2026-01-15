@@ -15,34 +15,41 @@
  */
 package org.tarik.ta.agents;
 
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.agents.GenericAiAgent;
-import org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus;
+import org.tarik.ta.core.dto.OperationExecutionResult;
+import org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus;
 import org.tarik.ta.core.dto.FinalResult;
-import org.tarik.ta.dto.UiAgentExecutionResult;
-import org.tarik.ta.utils.CommonUtils;
+import org.tarik.ta.dto.UiOperationExecutionResult;
+import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.image.BufferedImage;
 
-import static java.time.Instant.now;
-import static org.tarik.ta.core.dto.AgentExecutionResult.ExecutionStatus.SUCCESS;
+import static org.tarik.ta.UiTestAgentConfig.isUnattendedMode;
+import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
-public interface BaseUiAgent<T extends FinalResult<T>> extends GenericAiAgent<T, UiAgentExecutionResult<T>> {
+public interface BaseUiAgent<T extends FinalResult> extends GenericAiAgent<T> {
     Logger LOG = LoggerFactory.getLogger(BaseUiAgent.class);
 
     default BufferedImage captureErrorScreenshot() {
-        return CommonUtils.captureScreen();
+        return UiCommonUtils.captureScreen();
     }
 
     @Override
-    default UiAgentExecutionResult<T> createSuccessResult(T result) {
-        return new UiAgentExecutionResult<>(SUCCESS, "Execution successful", true, result, null, now());
+    default UiOperationExecutionResult<T> createSuccessResult(T result) {
+        return new UiOperationExecutionResult<>(SUCCESS, "Execution successful", result, null);
     }
 
     @Override
-    default UiAgentExecutionResult<T> createErrorResult(ExecutionStatus status, String message, @Nullable Throwable t) {
-        return new UiAgentExecutionResult<>(status, message, false, null, captureErrorScreenshot(), now());
+    default OperationExecutionResult<T> createErrorResult(ExecutionStatus status, String message, T result) {
+        return new UiOperationExecutionResult<>(status, message,  result, captureErrorScreenshot());
+    }
+
+    @Override
+    default void checkBudget() {
+        if (isUnattendedMode()) {
+            GenericAiAgent.super.checkBudget();
+        }
     }
 }

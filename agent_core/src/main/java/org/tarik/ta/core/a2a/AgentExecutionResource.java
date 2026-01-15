@@ -17,7 +17,6 @@ package org.tarik.ta.core.a2a;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.a2a.server.ServerCallContext;
-import org.tarik.ta.core.a2a.AgentExecutor;
 import io.a2a.server.auth.UnauthenticatedUser;
 import io.a2a.server.events.InMemoryQueueManager;
 import io.a2a.server.requesthandlers.DefaultRequestHandler;
@@ -34,21 +33,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.Set;
 
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 
 public class AgentExecutionResource {
     private static final Logger LOG = LoggerFactory.getLogger(AgentExecutionResource.class);
     private static final PushNotificationConfigStore pushNotificationConfigStore = new InMemoryPushNotificationConfigStore();
-    private final DefaultRequestHandler httpRequestHandler;
     private final JSONRPCHandler jsonRpcHandler;
     private final ObjectMapper objectMapper;
 
     public AgentExecutionResource(AgentExecutor agentExecutor, AgentCard agentCard) {
-        this.httpRequestHandler = new DefaultRequestHandler(agentExecutor,
-                new InMemoryTaskStore(), new InMemoryQueueManager(), pushNotificationConfigStore,
-                new BasePushNotificationSender(pushNotificationConfigStore), newSingleThreadExecutor());
-        this.jsonRpcHandler = new JSONRPCHandler(agentCard, httpRequestHandler);
+        var executor = newSingleThreadExecutor();
+        var taskStore = new InMemoryTaskStore();
+        var queueManager = new InMemoryQueueManager(taskStore);
+        DefaultRequestHandler httpRequestHandler = DefaultRequestHandler.create(agentExecutor,
+                taskStore, queueManager, pushNotificationConfigStore,
+                new BasePushNotificationSender(pushNotificationConfigStore), executor);
+        this.jsonRpcHandler = new JSONRPCHandler(agentCard, httpRequestHandler, executor);
         this.objectMapper = new ObjectMapper().findAndRegisterModules();
     }
 
@@ -62,21 +64,25 @@ public class AgentExecutionResource {
             var body = context.body();
             var request = objectMapper.readValue(body, java.util.Map.class);
             var method = (String) request.get("method");
-            ServerCallContext serverCallContext = new ServerCallContext(UnauthenticatedUser.INSTANCE, new HashMap<>());
+            ServerCallContext serverCallContext = new ServerCallContext(UnauthenticatedUser.INSTANCE, new HashMap<>(),
+                    Set.of());
             JSONRPCResponse<?> response = switch (method) {
                 case GetTaskRequest.METHOD ->
-                        jsonRpcHandler.onGetTask(objectMapper.readValue(body, GetTaskRequest.class), serverCallContext);
+                    jsonRpcHandler.onGetTask(objectMapper.readValue(body, GetTaskRequest.class), serverCallContext);
                 case CancelTaskRequest.METHOD ->
-                        jsonRpcHandler.onCancelTask(objectMapper.readValue(body, CancelTaskRequest.class), serverCallContext);
+                    jsonRpcHandler.onCancelTask(objectMapper.readValue(body, CancelTaskRequest.class),
+                            serverCallContext);
                 case SendMessageRequest.METHOD ->
-                        jsonRpcHandler.onMessageSend(objectMapper.readValue(body, SendMessageRequest.class), serverCallContext);
+                    jsonRpcHandler.onMessageSend(objectMapper.readValue(body, SendMessageRequest.class),
+                            serverCallContext);
                 default -> new JSONRPCErrorResponse(null, new UnsupportedOperationError());
             };
             return objectMapper.writeValueAsString(response);
         } catch (Exception e) {
             try {
                 LOG.error("Got error while processing agent task request", e);
-                return objectMapper.writeValueAsString(new JSONRPCErrorResponse(null, new InternalError(e.getMessage())));
+                return objectMapper
+                        .writeValueAsString(new JSONRPCErrorResponse(null, new InternalError(e.getMessage())));
             } catch (Exception ex) {
                 return "{}";
             }

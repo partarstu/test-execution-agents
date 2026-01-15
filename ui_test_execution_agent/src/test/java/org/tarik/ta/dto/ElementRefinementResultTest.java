@@ -17,7 +17,7 @@ package org.tarik.ta.dto;
 
 import org.junit.jupiter.api.Test;
 import dev.langchain4j.model.output.structured.Description;
-import org.tarik.ta.core.rag.model.UiElement;
+import org.tarik.ta.rag.model.UiElement;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
@@ -143,7 +143,7 @@ class ElementRefinementResultTest {
                 UiElement.Screenshot.fromBufferedImage(
                         new BufferedImage(50, 50, BufferedImage.TYPE_INT_RGB), "png"),
                 false,
-                List.of()
+                false
         );
     }
 }

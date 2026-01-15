@@ -15,12 +15,10 @@
  */
 package org.tarik.ta.tools;
 
-import org.tarik.ta.core.AgentConfig;
-
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.tarik.ta.agents.UiStateCheckAgent;
-import org.tarik.ta.dto.VerificationStatus;
+import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.manager.VerificationManager;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.apache.commons.io.IOUtils;
@@ -35,12 +33,10 @@ import java.net.URL;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.awt.Desktop.getDesktop;
 import static java.awt.Desktop.isDesktopSupported;
-import static org.tarik.ta.core.AgentConfig.getVerificationRetryTimeoutMillis;
 import static org.tarik.ta.core.error.ErrorCategory.*;
-import static org.tarik.ta.utils.CommonUtils.*;
-import static org.tarik.ta.core.utils.CoreUtils.*;
+import static org.tarik.ta.core.utils.CommonUtils.*;
 
-public class CommonTools extends AbstractTools {
+public class CommonTools extends UiAbstractTools {
     private static final int BROWSER_OPEN_TIME_SECONDS = 1;
     private static final Logger LOG = LoggerFactory.getLogger(CommonTools.class);
     private static final String HTTP_PROTOCOL = "http://";
@@ -67,15 +63,18 @@ public class CommonTools extends AbstractTools {
     }
 
     @Tool(value = "Waits for any running verifications to complete and returns the verification results, if any.")
-    public VerificationStatus waitForVerification() {
+    public VerificationExecutionResult waitForVerification() {
         try {
-            var result= verificationManager.waitForVerificationToFinish(getVerificationRetryTimeoutMillis());
-            if (!result.success()){
-                throw new ToolExecutionException("The latest verification failed, interrupting further tool execution",
-                        VERIFICATION_FAILED);
-            } else {
-                return new VerificationStatus(false, true);
+            var resultOptional = verificationManager.waitForCurrentVerificationToFinish();
+            if (resultOptional.isEmpty()) {
+                throw new ToolExecutionException("Verification timed out before completing", VERIFICATION_FAILED);
             }
+            var result = resultOptional.get();
+            if (!result.success()) {
+                throw new ToolExecutionException("The latest verification failed: " + result.message(),
+                        VERIFICATION_FAILED);
+            }
+            return result;
         } catch (Exception e) {
             throw rethrowAsToolException(e, "waiting for verification to complete");
         }
@@ -86,7 +85,8 @@ public class CommonTools extends AbstractTools {
         try {
             sleepSeconds(secondsAmount);
         } catch (Exception e) {
-            throw new ToolExecutionException("Failed to wait for " + secondsAmount + " seconds: " + e.getMessage(), UNKNOWN);
+            throw new ToolExecutionException("Failed to wait for " + secondsAmount + " seconds: " + e.getMessage(),
+                    UNKNOWN);
         }
     }
 
@@ -98,8 +98,10 @@ public class CommonTools extends AbstractTools {
             }
 
             String sanitizedUrl = url;
-            if (!sanitizedUrl.toLowerCase().startsWith(HTTP_PROTOCOL) && !sanitizedUrl.toLowerCase().startsWith(HTTPS_PROTOCOL)) {
-                LOG.warn("Provided URL '{}' doesn't have the protocol defined, using HTTP as the default one", sanitizedUrl);
+            if (!sanitizedUrl.toLowerCase().startsWith(HTTP_PROTOCOL)
+                    && !sanitizedUrl.toLowerCase().startsWith(HTTPS_PROTOCOL)) {
+                LOG.warn("Provided URL '{}' doesn't have the protocol defined, using HTTP as the default one",
+                        sanitizedUrl);
                 sanitizedUrl = HTTP_PROTOCOL + sanitizedUrl;
             }
 
@@ -113,11 +115,12 @@ public class CommonTools extends AbstractTools {
             try {
                 closeBrowser(); // Close any existing browser instance
 
-                if (isDesktopSupported() && getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                    getDesktop().browse(finalUrl.toURI());
-                } else {
-                    LOG.debug("Java AWT Desktop is not supported on the current OS, falling back to alternative method.");
-                    String os = System.getProperty(OS_NAME_SYS_PROPERTY).toLowerCase();
+                String os = System.getProperty(OS_NAME_SYS_PROPERTY).toLowerCase();
+
+                // On Linux (Docker), always use ProcessBuilder with custom flags to ensure
+                // Chrome starts with proper configuration (skip first-run, no-sandbox, etc.)
+                // Desktop.browse() would bypass these flags and cause Chrome welcome dialogs
+                if (os.contains("linux")) {
                     String[] command = buildBrowserStartupCommand(os, finalUrl.toString());
                     LOG.debug("Executing command: {}", String.join(" ", command));
                     browserProcess = new ProcessBuilder(command).start();
@@ -126,6 +129,13 @@ public class CommonTools extends AbstractTools {
                                 .formatted(IOUtils.toString(browserProcess.getErrorStream(), UTF_8));
                         throw new ToolExecutionException(errorMessage, TRANSIENT_TOOL_ERROR);
                     }
+                } else if (isDesktopSupported() && getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                    getDesktop().browse(finalUrl.toURI());
+                } else {
+                    LOG.debug(
+                            "Java AWT Desktop is not supported on the current OS, falling back to alternative method.");
+                    throw new ToolExecutionException("Current OS doesn't support opening a browser.",
+                            NON_RETRYABLE_ERROR);
                 }
                 sleepSeconds(BROWSER_OPEN_TIME_SECONDS);
             } catch (Exception e) {
@@ -155,18 +165,27 @@ public class CommonTools extends AbstractTools {
 
     private static String[] buildBrowserStartupCommand(String os, String url) {
         if (os.contains("win")) {
-            return new String[]{"cmd.exe", "/c", "start", url};
+            return new String[] { "cmd.exe", "/c", "start", url };
         } else if (os.contains("mac")) {
-            return new String[]{"open", url};
+            return new String[] { "open", url };
         } else {
             String browserCommand = System.getenv("BROWSER_COMMAND");
             if (browserCommand == null || browserCommand.trim().isEmpty()) {
                 browserCommand = "chromium-browser";
             }
-            return new String[]{browserCommand, "--no-sandbox", "--start-maximized", url};
+            return new String[] {
+                    browserCommand,
+                    "--no-sandbox",
+                    "--test-type",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--start-maximized",
+                    "--disable-gpu",
+                    "--disable-dev-shm-usage",
+                    "--force-device-scale-factor=1",
+                    "--in-process-gpu",
+                    url
+            };
         }
     }
 }
-
-
-

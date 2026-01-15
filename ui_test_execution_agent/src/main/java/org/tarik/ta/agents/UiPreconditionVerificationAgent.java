@@ -29,12 +29,12 @@ import org.tarik.ta.core.error.RetryPolicy;
 public interface UiPreconditionVerificationAgent extends BaseUiAgent<VerificationExecutionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
 
-    @UserMessage("""
-            The test case precondition is: {{precondition}}.
-            
-            Shared data: {{sharedData}}
-            """)
     Result<String> verify(
+            @UserMessage("""
+                    The test case precondition is: {{precondition}}.
+                    
+                    Test context execution data: {{sharedData}}
+                    """)
             @V("precondition") String precondition,
             @V("sharedData") String sharedData,
             @UserMessage ImageContent screenshot);

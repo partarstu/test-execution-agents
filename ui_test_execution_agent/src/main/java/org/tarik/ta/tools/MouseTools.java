@@ -30,13 +30,13 @@ import static java.lang.System.currentTimeMillis;
 import static org.tarik.ta.core.AgentConfig.getMaxActionExecutionDurationMillis;
 import static org.tarik.ta.core.error.ErrorCategory.TIMEOUT;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
-import static org.tarik.ta.utils.CommonUtils.*;
-import static org.tarik.ta.core.utils.CoreUtils.*;
-import static org.tarik.ta.core.utils.PromptUtils.singleImageContent;
+import static org.tarik.ta.utils.UiCommonUtils.*;
+import static org.tarik.ta.core.utils.CommonUtils.*;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
-public class MouseTools extends AbstractTools {
+public class MouseTools extends UiAbstractTools {
     private static final int MOUSE_ACTION_DELAY_MILLIS = 100;
-    private static final int RETRIABLE_ACTION_DELAY_MILLIS = AgentConfig.getActionVerificationDelayMillis() * 2;
+    private static final long RETRIABLE_ACTION_DELAY_MILLIS = AgentConfig.getActionRetryPolicy().delayMillis() * 2;
 
     public MouseTools() {
         super();
