@@ -53,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
+import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.ERROR;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
@@ -111,6 +112,7 @@ class UiTestAgentTimeoutTest {
 
         mockModel = new GenAiModel(mockChatModel);
         modelFactoryMockedStatic.when(() -> ModelFactory.getModel(any(), any())).thenReturn(mockModel);
+        modelFactoryMockedStatic.when(() -> ModelFactory.getModel(any(), any(), anyInt())).thenReturn(mockModel);
 
         coreUtilsMockedStatic.when(() -> CommonUtils.isNotBlank(anyString())).thenCallRealMethod();
         coreUtilsMockedStatic.when(() -> CommonUtils.isNotBlank(null)).thenReturn(false);
@@ -209,7 +211,7 @@ class UiTestAgentTimeoutTest {
             assertThat(result.getTestExecutionStatus()).isEqualTo(TestExecutionStatus.ERROR);
             assertThat(result.getStepResults()).hasSize(1);
             assertThat(result.getStepResults().getFirst().getTestStep()).isEqualTo(step1);
-            assertThat(result.getStepResults().getFirst().getErrorMessage()).contains("hasn't completed within extended timeout");
+            assertThat(result.getStepResults().getFirst().getErrorMessage()).contains("There was an error while verifying that");
             
             // Verify Step 2 action was NEVER executed
             verify(uiTestStepActionAgentMock, times(1)).executeAndGetResult(any(Supplier.class));
@@ -248,9 +250,8 @@ class UiTestAgentTimeoutTest {
 
             // Then
             // Step 1 fails, Step 2 should not run.
-            // In this specific mock scenario (no lambda execution), step 1 is not recorded as "failed" in the results list
-            // because the addFailedTestStep is supposed to happen in the lambda.
-            assertThat(result.getStepResults()).isEmpty();
+            assertThat(result.getStepResults()).hasSize(1);
+            assertThat(result.getStepResults().getFirst().getExecutionStatus()).isEqualTo(ERROR);
 
             verify(uiTestStepActionAgentMock, times(1)).executeAndGetResult(any(Supplier.class));
         }

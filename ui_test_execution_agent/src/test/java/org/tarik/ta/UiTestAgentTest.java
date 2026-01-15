@@ -209,6 +209,7 @@ class UiTestAgentTest {
                 mockModel = new GenAiModel(mockChatModel);
 
                 modelFactoryMockedStatic.when(() -> ModelFactory.getModel(any(), any())).thenReturn(mockModel);
+                modelFactoryMockedStatic.when(() -> ModelFactory.getModel(any(), any(), anyInt())).thenReturn(mockModel);
 
                 // Common Utils & Core Utils
                 coreUtilsMockedStatic.when(() -> CommonUtils.isNotBlank(anyString())).thenCallRealMethod();
@@ -304,7 +305,7 @@ class UiTestAgentTest {
 
                 doReturn(new UiOperationExecutionResult<>(SUCCESS, "Verification executed",
                                 new VerificationExecutionResult(true, "Verified"), mockScreenshot))
-                                .when(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
+                                .when(uiTestStepVerificationAgentMock).executeAndGetResult(any(Supplier.class));
 
                 // When
                 TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
@@ -316,7 +317,7 @@ class UiTestAgentTest {
                                 .isEqualTo(TestStepResultStatus.SUCCESS);
 
                 verify(uiTestStepActionAgentMock).executeAndGetResult(any(Supplier.class));
-                verify(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
+                verify(uiTestStepVerificationAgentMock).executeAndGetResult(any(Supplier.class));
         }
 
         @Test
@@ -462,7 +463,7 @@ assertThat(result.getTestExecutionStatus()).isEqualTo(TestExecutionStatus.ERROR)
 
                 doReturn(new UiOperationExecutionResult<>(SUCCESS, "Verification executed",
                                 new VerificationExecutionResult(false, "Verification failed"), mockScreenshot))
-                                .when(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
+                                .when(uiTestStepVerificationAgentMock).executeAndGetResult(any(Supplier.class));
 
                 // When
                 TestExecutionResult result = UiTestAgent.executeTestCase("test case message");
@@ -472,7 +473,7 @@ assertThat(result.getTestExecutionStatus()).isEqualTo(TestExecutionStatus.ERROR)
                 assertThat(result.getStepResults().getFirst().getExecutionStatus())
                                 .isEqualTo(TestStepResultStatus.FAILURE);
                 verify(uiTestStepActionAgentMock).executeAndGetResult(any(Supplier.class));
-                verify(uiTestStepVerificationAgentMock).executeWithRetry(any(Supplier.class), any());
+                                verify(uiTestStepVerificationAgentMock, atLeastOnce()).executeAndGetResult(any(Supplier.class));
         }
 
         @Test
