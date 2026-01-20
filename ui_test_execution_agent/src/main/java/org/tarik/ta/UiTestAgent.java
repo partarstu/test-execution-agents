@@ -43,6 +43,7 @@ import org.tarik.ta.model.VisualState;
 import org.tarik.ta.exceptions.ElementLocationException;
 import org.tarik.ta.manager.VerificationManager;
 import org.tarik.ta.tools.*;
+import org.tarik.ta.user_dialogs.TestStepSelectionPopup;
 import org.tarik.ta.utils.ScreenRecorder;
 
 import java.awt.image.BufferedImage;
@@ -101,7 +102,13 @@ public class UiTestAgent {
 
             try (VerificationManager verificationManager = new VerificationManager()) {
                 var context = new UiTestExecutionContext(testCase, new VisualState(captureScreen()));
-                var userInteractionTools = new UserInteractionTools(getUiElementRetriever());
+                
+                // Get mode-specific user interaction tools
+                var userInteractionTools = switch (getExecutionMode()) {
+                    case ATTENDED -> new AttendedModeUserInteractionTools(getUiElementRetriever(), context);
+                    case SEMI_ATTENDED -> new SemiAttendedModeUserInteractionTools(getUiElementRetriever(), context);
+                    case UNATTENDED -> null;
+                };
                 var preconditionCommonTools = new CommonTools();
                 var testStepCommonTools = new CommonTools(verificationManager);
 
@@ -116,8 +123,17 @@ public class UiTestAgent {
                     }
                 }
 
+                // Select starting step for attended/semi-attended modes
+                int startingStepIndex = 0;
+                if (!isFullyUnattended()) {
+                    startingStepIndex = TestStepSelectionPopup.displayAndGetSelection(testCase.testSteps());
+                    if (startingStepIndex > 0) {
+                        LOG.info("Operator selected to start from step #{} (0-indexed)", startingStepIndex);
+                    }
+                }
+
                 var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, userInteractionTools, new RetryState());
-                executeTestSteps(context, testStepActionAgent, verificationManager);
+                executeTestSteps(context, testStepActionAgent, verificationManager, startingStepIndex);
                 if (hasStepFailures(context)) {
                     var lastStep = context.getTestStepExecutionHistory().getLast();
                     if (lastStep.getExecutionStatus() == FAILURE) {
@@ -210,9 +226,11 @@ public class UiTestAgent {
     }
 
     private static void executeTestSteps(UiTestExecutionContext context, UiTestStepActionAgent uiTestStepActionAgent,
-                                         VerificationManager verificationManager) {
+                                         VerificationManager verificationManager, int startingStepIndex) {
         var testStepVerificationAgent = getTestStepVerificationAgent(new RetryState());
-        for (TestStep testStep : context.getTestCase().testSteps()) {
+        var testSteps = context.getTestCase().testSteps();
+        for (int i = startingStepIndex; i < testSteps.size(); i++) {
+            TestStep testStep = testSteps.get(i);
             var actionInstruction = testStep.stepDescription();
             var testData = ofNullable(testStep.testData()).map(Object::toString).orElse("");
             var verificationInstruction = testStep.expectedResults();
@@ -220,7 +238,7 @@ public class UiTestAgent {
                 var executionStartTimestamp = now();
                 LOG.info("Executing test step: {}", actionInstruction);
                 var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) uiTestStepActionAgent.executeAndGetResult(() -> {
-                    uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(), !isUnattendedMode());
+                    uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(), !isFullyUnattended());
                     return null;
                 }));
                 resetToolCallUsage();
@@ -240,7 +258,7 @@ public class UiTestAgent {
 
                 if (isNotBlank(verificationInstruction)) {
                     String testDataString = testStep.testData() == null ? null : join(", ", testStep.testData());
-                    sleepMillis(getActionVerificationDelayMillis());
+                    sleepMillis(ACTION_VERIFICATION_DELAY_MILLIS);
                     verificationManager.submitVerification(testStepVerificationAgent, context, verificationInstruction,
                             actionInstruction, testDataString);
 
@@ -302,7 +320,7 @@ public class UiTestAgent {
     }
 
     private static UiTestStepActionAgent getTestStepActionAgent(CommonTools commonTools,
-                                                                UserInteractionTools userInteractionTools,
+                                                                UserInteractionToolsBase userInteractionTools,
                                                                 RetryState retryState) {
         var testStepActionAgentModel = getModel(getTestStepActionAgentModelName(),
                 getTestStepActionAgentModelProvider());
@@ -313,7 +331,7 @@ public class UiTestAgent {
                 .systemMessageProvider(_ -> testStepActionAgentPrompt)
                 .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState));
 
-        if (isUnattendedMode()) {
+        if (isFullyUnattended()) {
             agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
                     new EmptyExecutionResult());
         } else {
@@ -340,7 +358,7 @@ public class UiTestAgent {
     }
 
     private static UiPreconditionActionAgent getPreconditionActionAgent(CommonTools commonTools,
-                                                                        UserInteractionTools userInteractionTools,
+                                                                        UserInteractionToolsBase userInteractionTools,
                                                                         RetryState retryState) {
         var preconditionAgentModel = getModel(getPreconditionActionAgentModelName(),
                 getPreconditionActionAgentModelProvider());
@@ -351,7 +369,7 @@ public class UiTestAgent {
                 .systemMessageProvider(_ -> preconditionAgentPrompt)
                 .toolExecutionErrorHandler(new UiToolErrorHandler(PreconditionActionAgent.RETRY_POLICY, retryState));
 
-        if (isUnattendedMode()) {
+        if (isFullyUnattended()) {
             agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
                     new EmptyExecutionResult());
         } else {
@@ -422,7 +440,7 @@ public class UiTestAgent {
                 TERMINATION_BY_USER, VERIFICATION_FAILED);
 
         public UiToolErrorHandler(RetryPolicy retryPolicy, RetryState retryState) {
-            super(retryPolicy, retryState, isUnattendedMode());
+            super(retryPolicy, retryState, isFullyUnattended());
         }
 
         @Override
@@ -449,6 +467,6 @@ public class UiTestAgent {
     }
 
     private static int getEffectiveToolCallsBudget() {
-        return isUnattendedMode() ? getAgentToolCallsBudget() : getAgentToolCallsBudgetAttended();
+        return isFullyUnattended() ? getAgentToolCallsBudget() : getAgentToolCallsBudgetAttended();
     }
 }

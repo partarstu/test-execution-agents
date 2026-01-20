@@ -27,11 +27,49 @@ public class UiTestAgentConfig extends AgentConfig {
         return SCREENSHOTS_SAVE_FOLDER.value();
     }
 
-    private static final ConfigProperty<Boolean> UNATTENDED_MODE = loadProperty("unattended.mode", "UNATTENDED_MODE",
-            "false", Boolean::parseBoolean, false);
+    // -----------------------------------------------------
+    // Execution Mode Configuration
+    private static final ConfigProperty<ExecutionMode> EXECUTION_MODE = loadProperty(
+            "execution.mode", "EXECUTION_MODE", "UNATTENDED",
+            s -> ExecutionMode.valueOf(s.toUpperCase()), false);
 
-    public static boolean isUnattendedMode() {
-        return UNATTENDED_MODE.value();
+    /**
+     * Returns the current execution mode.
+     */
+    public static ExecutionMode getExecutionMode() {
+        return EXECUTION_MODE.value();
+    }
+
+    /**
+     * Returns true if the agent is running in fully unattended mode (no operator interaction).
+     */
+    public static boolean isFullyUnattended() {
+        return getExecutionMode() == ExecutionMode.UNATTENDED;
+    }
+
+    /**
+     * Returns true if the agent is running in semi-attended mode (autonomous with halt option).
+     */
+    public static boolean isSemiAttended() {
+        return getExecutionMode() == ExecutionMode.SEMI_ATTENDED;
+    }
+
+    /**
+     * Returns true if the agent is running in fully attended mode (all actions supervised).
+     */
+    public static boolean isFullyAttended() {
+        return getExecutionMode() == ExecutionMode.ATTENDED;
+    }
+
+    
+    private static final ConfigProperty<Integer> SEMI_ATTENDED_COUNTDOWN_SECONDS = loadPropertyAsInteger(
+            "semi.attended.countdown.seconds", "SEMI_ATTENDED_COUNTDOWN_SECONDS", "5", false);
+
+    /**
+     * Returns the countdown duration in seconds for semi-attended mode halt popup.
+     */
+    public static int getSemiAttendedCountdownSeconds() {
+        return SEMI_ATTENDED_COUNTDOWN_SECONDS.value();
     }
 
     private static final ConfigProperty<Integer> AGENT_TOOL_CALLS_BUDGET_ATTENDED = loadPropertyAsInteger(
@@ -241,7 +279,7 @@ public class UiTestAgentConfig extends AgentConfig {
             "PREFETCHING_ENABLED", "true", Boolean::parseBoolean, false);
 
     public static boolean isElementLocationPrefetchingEnabled() {
-        return PREFETCHING_ENABLED.value() && isUnattendedMode();
+        return PREFETCHING_ENABLED.value() && isFullyUnattended();
     }
 
     // UI Element Description Agent

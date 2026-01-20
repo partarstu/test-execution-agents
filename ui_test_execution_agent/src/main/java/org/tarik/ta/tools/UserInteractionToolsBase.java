@@ -18,17 +18,14 @@ package org.tarik.ta.tools;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Optional;
-
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.UiElementDescriptionAgent;
-import org.tarik.ta.dto.*;
+import org.tarik.ta.model.UiTestExecutionContext;
+import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
+import org.tarik.ta.dto.*;
 import org.tarik.ta.rag.UiElementRetriever;
 import org.tarik.ta.rag.UiElementRetriever.RetrievedUiElementItem;
 import org.tarik.ta.rag.model.UiElement;
@@ -46,49 +43,50 @@ import java.util.Set;
 import java.util.UUID;
 
 import static dev.langchain4j.service.AiServices.builder;
-import static java.lang.String.format;
 import static java.util.Comparator.comparingDouble;
 import static java.util.UUID.randomUUID;
 import static org.tarik.ta.UiTestAgentConfig.getElementRetrievalMinGeneralScore;
-import static org.tarik.ta.dto.ElementRefinementOperation.Operation.DONE;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
-import static org.tarik.ta.rag.model.UiElement.Screenshot.fromBufferedImage;
-
-import org.tarik.ta.core.utils.PromptUtils;
-import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
+import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
+import static org.tarik.ta.dto.ElementRefinementOperation.Operation.DONE;
+import static org.tarik.ta.rag.model.UiElement.Screenshot.fromBufferedImage;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
+import static org.tarik.ta.utils.UiCommonUtils.*;
 
 /**
- * Default implementation of UserInteractionService that coordinates UI dialogs.
- * This service manages the lifecycle of user dialogs and handles user
- * responses,
- * converting them to structured result objects.
+ * Abstract base class for user interaction tools that coordinates UI dialogs.
+ * This class provides common functionality for element creation, refinement,
+ * and operator interaction that is shared across all execution modes.
  */
-public class UserInteractionTools extends UiAbstractTools {
-    private static final Logger LOG = LoggerFactory.getLogger(UserInteractionTools.class);
-    private final UiElementRetriever uiElementRetriever;
-    private static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
-    private static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
-    private static final int USER_DIALOG_DISMISS_DELAY_MILLIS = 2000;
-
+public abstract class UserInteractionToolsBase extends UiAbstractTools {
+    private static final Logger LOG = LoggerFactory.getLogger(UserInteractionToolsBase.class);
     private final UiElementDescriptionAgent uiElementDescriptionAgent;
+    protected static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
+    protected static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
+    protected static final int USER_DIALOG_DISMISS_DELAY_MILLIS = 2000;
+    protected final UiElementRetriever uiElementRetriever;
+    protected final UiTestExecutionContext executionContext;
 
     /**
-     * Constructs a new UserInteractionServiceImpl.
+     * Constructs a new UserInteractionToolsBase.
      *
-     * @param uiElementRetriever        The retriever for persisting and querying UI elements
+     * @param uiElementRetriever The retriever for persisting and querying UI elements
+     * @param executionContext   The current UI test execution context
      */
-    public UserInteractionTools(UiElementRetriever uiElementRetriever) {
+    protected UserInteractionToolsBase(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext) {
         this.uiElementRetriever = uiElementRetriever;
+        this.executionContext = executionContext;
         this.uiElementDescriptionAgent = getUiElementDescriptionAgent();
     }
 
     @Tool("Prompts the user to create a new UI element. Use this tool when you need to create a new " +
             "UI element which is not present in the database")
     public NewElementCreationResult promptUserToCreateNewElement(
-            @P("Initial description of the target element, not its name.") String elementDescription) {
+            @P("Initial description of the target element, not its name.") String elementDescription,
+            @P("Relevant test data that helps identify the element but should NOT be part of the element metadata")
+            String relevantTestData) {
         if (isBlank(elementDescription)) {
             throw new ToolExecutionException("Element description cannot be empty", TRANSIENT_TOOL_ERROR);
         }
@@ -112,7 +110,7 @@ public class UserInteractionTools extends UiAbstractTools {
             // Step 3: Prompt the model to suggest the new element info based on the element
             // position on the screenshot
             var capture = captureResult.get();
-            var describedUiElement = getUiElementInfoSuggestionFromModel(elementDescription, capture);
+            var describedUiElement = getUiElementInfoSuggestionFromModel(elementDescription, relevantTestData, capture);
 
             // Step 4: Prompt user to refine the suggested by the model element info
             var uiElementInfo = new UiElementInfo(describedUiElement.name(), describedUiElement.ownDescription(),
@@ -198,47 +196,6 @@ public class UserInteractionTools extends UiAbstractTools {
         }
     }
 
-    @Tool("Asks the user to confirm that a located element is correct. Use this tool when you have located an element but want to ensure " +
-            "it is the correct one before proceeding.")
-    public LocationConfirmationResult confirmLocatedElement(
-            @P("Description of the element being confirmed") String elementDescription,
-            @P("The bounding box of the located element") BoundingBox boundingBox) {
-        try {
-            if (isBlank(elementDescription)) {
-                throw new ToolExecutionException("Element description cannot be empty", TRANSIENT_TOOL_ERROR);
-            }
-            if (boundingBox == null) {
-                throw new ToolExecutionException("Bounding box cannot be null", TRANSIENT_TOOL_ERROR);
-            }
-
-            var screenshot = captureScreen();
-            Rectangle boundingBoxRectangle = getPhysicalBoundingBox(getBoundingBoxRectangle(boundingBox));
-            LOG.info("Prompting user to confirm located element: {}", elementDescription);
-            var choice =
-                    LocatedElementConfirmationDialog.displayAndGetUserChoice(null, screenshot, boundingBoxRectangle, BOUNDING_BOX_COLOR,
-                            elementDescription);
-
-            return switch (choice) {
-                case CORRECT -> {
-                    LOG.info("User confirmed element location as correct, returning the result after {} millis",
-                            USER_DIALOG_DISMISS_DELAY_MILLIS);
-                    sleepMillis(USER_DIALOG_DISMISS_DELAY_MILLIS);
-                    yield LocationConfirmationResult.correct();
-                }
-                case INCORRECT -> {
-                    LOG.info("User marked element location as incorrect.");
-                    yield LocationConfirmationResult.incorrect();
-                }
-                case INTERRUPTED -> {
-                    LOG.info("User interrupted location confirmation.");
-                    yield LocationConfirmationResult.interrupted();
-                }
-            };
-        } catch (Exception e) {
-            throw rethrowAsToolException(e, "confirming located element correctness");
-        }
-    }
-
     @Tool("Prompts the user to choose the next action.")
     public NextActionResult promptUserForNextAction(
             @P("Description of the reason of prompting the user") String reason) {
@@ -311,40 +268,30 @@ public class UserInteractionTools extends UiAbstractTools {
         }
     }
 
-    @Tool("Informs the user .")
+    @Tool("Informs the user about the verification failure.")
     public void displayVerificationFailure(
             @P("Description of the verification") String verificationDescription,
-            @P("Expected state") String expectedState,
-            @P("Actual state") String actualState,
-            @P("Reason for failure") String failureReason) {
+            @P("Short explanation of why the verification failed") String failureReason) {
         try {
             LOG.info("Displaying verification failure for: {}", verificationDescription);
-
-            String message = format(
-                    "<html><body style='width: 400px'>" +
-                            "<h3>Verification Failed</h3>" +
-                            "<p><b>Verification:</b> %s</p>" +
-                            "<p><b>Expected State:</b> %s</p>" +
-                            "<p><b>Actual State:</b> %s</p>" +
-                            "<p><b>Reason:</b> %s</p>" +
-                            "</body></html>",
-                    verificationDescription, expectedState, actualState, failureReason);
-            displayInformationalPopup("Verification Failure", message, null, PopupType.ERROR);
+            var screenshot = executionContext.getVisualState().screenshot();
+            VerificationFailurePopup.display(verificationDescription, failureReason, screenshot);
         } catch (Exception e) {
             LOG.error("Error displaying verification failure", e);
         }
     }
 
-    private UiElementDescriptionResult getUiElementInfoSuggestionFromModel(String elementDescription,
-                                                                           UiElementCaptureResult capture) {
+    protected UiElementDescriptionResult getUiElementInfoSuggestionFromModel(String elementDescription,
+                                                                             String relevantTestData,
+                                                                             UiElementCaptureResult capture) {
         var screenshot = singleImageContent(capture.wholeScreenshotWithBoundingBox());
         var boundingBoxColorName = getColorName(BOUNDING_BOX_COLOR).toLowerCase();
         return uiElementDescriptionAgent.executeAndGetResult(() ->
-                        uiElementDescriptionAgent.describeUiElement(elementDescription, screenshot, boundingBoxColorName))
+                        uiElementDescriptionAgent.describeUiElement(elementDescription, screenshot, boundingBoxColorName, relevantTestData))
                 .getResultPayload();
     }
 
-    private void saveNewUiElementIntoDb(BufferedImage elementScreenshot, UiElementInfo uiElement) {
+    protected void saveNewUiElementIntoDb(BufferedImage elementScreenshot, UiElementInfo uiElement) {
         var screenshot = fromBufferedImage(elementScreenshot, "png");
         UiElement uiElementToStore = new UiElement(randomUUID(), uiElement.name(), uiElement.description(),
                 uiElement.locationDetails(), uiElement.pageSummary(), screenshot, uiElement.zoomInRequired(),
@@ -352,7 +299,7 @@ public class UserInteractionTools extends UiAbstractTools {
         uiElementRetriever.storeElement(uiElementToStore);
     }
 
-    private Optional<UiElement> updateElementScreenshot(List<UiElement> elements, UUID elementId) {
+    protected java.util.Optional<UiElement> updateElementScreenshot(List<UiElement> elements, UUID elementId) {
         UiElement elementToUpdate = findElementById(elements, elementId);
         LOG.info("User chose to update screenshot for element: {}", elementToUpdate.name());
 
@@ -373,7 +320,7 @@ public class UserInteractionTools extends UiAbstractTools {
                 });
     }
 
-    private Optional<UiElement> updateElementInfo(List<UiElement> elements, UUID elementId) {
+    protected java.util.Optional<UiElement> updateElementInfo(List<UiElement> elements, UUID elementId) {
         UiElement elementToUpdate = findElementById(elements, elementId);
         LOG.info("User chose to update info for element: {}", elementToUpdate.name());
 
@@ -393,7 +340,7 @@ public class UserInteractionTools extends UiAbstractTools {
                 });
     }
 
-    private UiElement deleteElement(List<UiElement> elements, UUID elementId) {
+    protected UiElement deleteElement(List<UiElement> elements, UUID elementId) {
         UiElement elementToDelete = findElementById(elements, elementId);
         LOG.info("User chose to delete element: {}", elementToDelete.name());
         uiElementRetriever.removeElement(elementToDelete);
@@ -401,7 +348,7 @@ public class UserInteractionTools extends UiAbstractTools {
         return elementToDelete;
     }
 
-    private UiElement findElementById(List<UiElement> selection, UUID elementId) {
+    protected UiElement findElementById(List<UiElement> selection, UUID elementId) {
         return selection.stream()
                 .filter(el -> el.uuid().equals(elementId))
                 .findFirst()
@@ -410,7 +357,7 @@ public class UserInteractionTools extends UiAbstractTools {
     }
 
     @NotNull
-    private static Rectangle getBoundingBoxRectangle(@NotNull BoundingBox boundingBox) {
+    protected static Rectangle getBoundingBoxRectangle(@NotNull BoundingBox boundingBox) {
         return new Rectangle(boundingBox.x1(), boundingBox.y1(), boundingBox.x2() - boundingBox.x1(),
                 boundingBox.y2() - boundingBox.y1());
     }
@@ -418,12 +365,12 @@ public class UserInteractionTools extends UiAbstractTools {
     private static UiElementDescriptionAgent getUiElementDescriptionAgent() {
         var model = getModel(UiTestAgentConfig.getUiElementDescriptionAgentModelName(),
                 UiTestAgentConfig.getUiElementDescriptionAgentModelProvider());
-        var prompt = PromptUtils.loadSystemPrompt("element_describer", UiTestAgentConfig.getUiElementDescriptionAgentPromptVersion(),
+        var prompt = loadSystemPrompt("element_describer", UiTestAgentConfig.getUiElementDescriptionAgentPromptVersion(),
                 "element_description_prompt.txt");
         return builder(UiElementDescriptionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .tools(new UiElementDescriptionResult("","","",""))
+                .tools(new UiElementDescriptionResult("", "", "", ""))
                 .build();
     }
 

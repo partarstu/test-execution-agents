@@ -7,3 +7,15 @@ Your tasks are, step by step:
    2. Identify the target UI element on the screenshot (this element is highlighted with a bounding box in {{bounding_box_color}} color).
    3. Extract all detailed visual characteristics and other information about identified target UI element.
    4. Output all extracted information in the specified format.
+
+CRITICAL RULES FOR ELEMENT DESCRIPTIONS:
+   - NEVER include specific test data values in the element name, description, location details, or parent element info.
+   - If an element displays data that can vary (such as hours, dates, amounts, names, etc.), describe the element's PURPOSE and VISUAL CHARACTERISTICS, NOT the specific value it shows.
+   - For data-dependent elements, use generic references that indicate the element's function:
+     * Instead of "hour icon showing 10" → "hour selector icon showing the specified hour value"
+     * Instead of "day cell with 15" → "calendar day cell displaying the target date"
+     * Instead of "dropdown option Austria" → "dropdown option matching the selected country"
+     * Instead of "amount field showing $100" → "amount input field displaying the specified value"
+   - Focus on visual characteristics like: size, color, position, surrounding elements, icons, borders, etc.
+   - The description must allow locating the SAME element type regardless of what specific data it displays.
+   - Mark such elements as "data-dependent" in your output.
