@@ -127,7 +127,8 @@ class UiTestAgentTimeoutTest {
         agentConfigMockedStatic.when(AgentConfig::getActionRetryPolicy).thenReturn(new RetryPolicy(3, 100, 5000));
         agentConfigMockedStatic.when(AgentConfig::getVerificationRetryPolicy).thenReturn(new RetryPolicy(3, 100, 5000));
         uiAgentConfigMockedStatic.when(UiTestAgentConfig::isElementLocationPrefetchingEnabled).thenReturn(false);
-        uiAgentConfigMockedStatic.when(UiTestAgentConfig::isUnattendedMode).thenReturn(false);
+        uiAgentConfigMockedStatic.when(UiTestAgentConfig::isFullyUnattended).thenReturn(true);
+        uiAgentConfigMockedStatic.when(UiTestAgentConfig::getExecutionMode).thenReturn(ExecutionMode.UNATTENDED);
         
         // Mock minimal necessary config for agents to be built
         agentConfigMockedStatic.when(AgentConfig::getTestCaseExtractionAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);

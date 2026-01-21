@@ -141,18 +141,26 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java ) provides the whole logic for locating a specific
       UI element on the screen based on its description.
     * [UserInteractionTools](src/main/java/org/tarik/ta/tools/UserInteractionTools.java) facilitates user interactions via dialogs for 
-      element creation, refinement, and verification. **Note:** These tools are only available when running in attended mode 
-      (`unattended.mode=false`).
+      element creation, refinement, and verification. **Note:** These tools are only available when running in attended or semi-attended modes 
+      (`execution.mode=ATTENDED` or `execution.mode=SEMI_ATTENDED`).
 
-* **Attended and Unattended Modes:**
-    * Supports two execution modes controlled by the `unattended.mode` flag in `config.properties`.
-    * **Attended ("Trainee") Mode (`unattended.mode=false`):** Designed for initial test case runs or when execution in unattended mode
+* **Execution Modes:**
+    * Supports three execution modes controlled by the `execution.mode` property in `config.properties`.
+    * **Attended ("Trainee") Mode (`execution.mode=ATTENDED`):** Designed for initial test case runs or when execution in unattended mode
       fails for debugging/fixing purposes. In this mode the agent behaves as a trainee, who needs assistance from the human tutor/mentor
-      in order to identify all the information which is required for the unattended (without supervision) execution of the test case. Tool call limits are significantly relaxed in this mode (default 100), configurable via `agent.tool.calls.budget.attended`.
-    * **Unattended Mode (`unattended.mode=true`):** The agent executes the test case without any human assistance. It relies entirely on the
-      information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored data.
-      Errors during element location or verification will cause the execution to fail. This mode is suitable for integration into CI/CD
-      pipelines. Budget checks are automatically enforced in this mode.
+      in order to identify all the information which is required for the unattended (without supervision) execution of the test case. Key features:
+        * Agent asks for confirmation after locating elements.
+        * User can create new elements or refine existing ones.
+        * User can manually select the next action at any point.
+        * Tool call limits are significantly relaxed.
+    * **Semi-Attended Mode (`execution.mode=SEMI_ATTENDED`):** The agent operates autonomously but allows the operator to intervene.
+        * **Countdown Halt:** Displays a countdown popup (configurable duration) after test step actions, allowing the operator to click "Halt".
+        * **Operator Intervention:** On halt, error, or verification failure, the operator can choose the next action (Retry, Refine, Terminate, etc.).
+        * Suitable for monitoring execution without constant clicking, while retaining control to fix issues on the fly.
+    * **Unattended Mode (`execution.mode=UNATTENDED`):** The agent executes the test case without any human assistance. It relies entirely on the
+        information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored data.
+        Errors during element location or verification will cause the execution to fail. This mode is suitable for integration into CI/CD
+        pipelines. Budget checks are automatically enforced in this mode.
 
 * **Server mode:**
     * The [Server](src/main/java/org/tarik/ta/Server.java) class extends [AbstractServer](../agent_core/src/main/java/org/tarik/ta/core/AbstractServer.java)
@@ -281,7 +289,8 @@ override properties file settings.**
 
 **Basic Agent Configuration:**
 
-* `unattended.mode` (Env: `UNATTENDED_MODE`): `true` for unattended execution, `false` for attended (trainee) mode. Default: `false`.
+* `execution.mode` (Env: `EXECUTION_MODE`): Mode of execution (`ATTENDED`, `SEMI_ATTENDED`, `UNATTENDED`). Default: `UNATTENDED`.
+* `semi.attended.countdown.seconds` (Env: `SEMI_ATTENDED_COUNTDOWN_SECONDS`): Duration in seconds for the countdown popup in semi-attended mode. Default: `5`.
 * `debug.mode` (Env: `DEBUG_MODE`): `true` enables debug mode, which saves intermediate screenshots (e.g., with bounding boxes drawn)
   during element location for debugging purposes. `false` disables this. Default: `false`.
 * `port` (Env: `PORT`): Port for the server mode. Default: `8005`.

@@ -22,6 +22,7 @@ import org.apache.commons.math3.ml.clustering.Clusterable;
 import org.apache.commons.math3.ml.clustering.DBSCANClusterer;
 import org.apache.commons.math3.ml.distance.DistanceMeasure;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.AgentConfig;
@@ -87,7 +88,6 @@ public class ElementLocatorTools extends UiAbstractTools {
     private static final int VISUAL_GROUNDING_MODEL_VOTE_COUNT = UiTestAgentConfig.getElementLocatorVisualGroundingVoteCount();
     private static final int VALIDATION_MODEL_VOTE_COUNT = UiTestAgentConfig.getElementLocatorValidationVoteCount();
     private static final double BBOX_CLUSTERING_MIN_INTERSECTION_RATIO = UiTestAgentConfig.getBboxClusteringMinIntersectionRatio();
-    private static final double ZOOM_IN_EXTENSION_RATIO_PROPORTIONAL_TO_ELEMENT = 15.0;
     private static final int BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS =
             UiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels();
     private static final double BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS = UiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels();
@@ -375,58 +375,16 @@ public class ElementLocatorTools extends UiAbstractTools {
 
     private UiElementLocationInternalResult getFinalElementLocation(UiElement elementRetrievedFromMemory,
                                                                     String elementTestData) {
-        var elementScreenshot = elementRetrievedFromMemory.screenshot().toBufferedImage();
+        var elementScreenshot = elementRetrievedFromMemory.screenshot() != null ? elementRetrievedFromMemory.screenshot().toBufferedImage() : null;
         BufferedImage wholeScreenshot = captureScreen();
-        if (elementRetrievedFromMemory.zoomInRequired()) {
-            LOG.info("Zoom-in is needed for element '{}'. Performing initial wide-area search.",
-                    elementRetrievedFromMemory.name());
-            List<Rectangle> initialCandidates = identifyBoundingBoxesUsingVision(elementRetrievedFromMemory,
-                    wholeScreenshot, elementTestData);
-            if (initialCandidates.isEmpty()) {
-                return new UiElementLocationInternalResult(false, false, null,
-                        elementRetrievedFromMemory,
-                        wholeScreenshot);
-            }
-
-            var zoomInOriginalRegion = getCommonArea(initialCandidates);
-            var zoomInExtendedRegion = extendZoomInRegion(zoomInOriginalRegion, elementScreenshot,
-                    wholeScreenshot);
-            var zoomInImage = cloneImage(
-                    wholeScreenshot.getSubimage(zoomInExtendedRegion.x, zoomInExtendedRegion.y,
-                            zoomInExtendedRegion.width, zoomInExtendedRegion.height));
-            var scaleFactor = min(wholeScreenshot.getWidth() / ((double) zoomInImage.getWidth()),
-                    UiTestAgentConfig.getElementLocatorZoomScaleFactor());
-            var zoomedInScreenshot = getScaledUpImage(zoomInImage, scaleFactor);
-            var elementLocationResult = getUiElementLocationResult(elementRetrievedFromMemory,
-                    elementTestData,
-                    zoomedInScreenshot, elementScreenshot, false);
-            if (elementLocationResult.boundingBox() != null) {
-                var finalBox = getActualBox(elementLocationResult.boundingBox(), zoomInExtendedRegion,
-                        scaleFactor);
-                return new UiElementLocationInternalResult(
-                        elementLocationResult.algorithmicMatchFound(),
-                        elementLocationResult.visualGroundingMatchFound(), finalBox,
-                        elementLocationResult.elementUsedForLocation(),
-                        wholeScreenshot);
-            } else {
-                return elementLocationResult;
-            }
-        } else {
-            boolean useAlgorithmicSearch = UiTestAgentConfig.isAlgorithmicSearchEnabled()
-                    && !(elementRetrievedFromMemory.isDataDependent());
-            return getUiElementLocationResult(elementRetrievedFromMemory, elementTestData, wholeScreenshot,
-                    elementScreenshot,
-                    useAlgorithmicSearch);
-        }
+        boolean useAlgorithmicSearch = UiTestAgentConfig.isAlgorithmicSearchEnabled()
+                && !(elementRetrievedFromMemory.isDataDependent()) && elementScreenshot != null;
+        return getUiElementLocationResult(elementRetrievedFromMemory, elementTestData, wholeScreenshot,
+                elementScreenshot,
+                useAlgorithmicSearch);
     }
 
-    @NotNull
-    private Rectangle getActualBox(Rectangle scaledBox, Rectangle zoomInExtendedRegion, double scaleFactor) {
-        var rescaledBoundingBox = getRescaledBox(scaledBox, scaleFactor);
-        var actualX = zoomInExtendedRegion.x + rescaledBoundingBox.x;
-        var actualY = zoomInExtendedRegion.y + rescaledBoundingBox.y;
-        return new Rectangle(actualX, actualY, rescaledBoundingBox.width, rescaledBoundingBox.height);
-    }
+
 
     @NotNull
     private Rectangle getRescaledBox(Rectangle scaledBox, double scaleFactor) {
@@ -437,33 +395,18 @@ public class ElementLocatorTools extends UiAbstractTools {
         return new Rectangle(rescaledX, rescaledY, rescaledWidth, rescaledHeight);
     }
 
-    @NotNull
-    private Rectangle extendZoomInRegion(Rectangle zoomInOriginalRegion, BufferedImage elementScreenshot, BufferedImage wholeScreenshot) {
-        var extensionRatio = (elementScreenshot.getWidth() * ZOOM_IN_EXTENSION_RATIO_PROPORTIONAL_TO_ELEMENT) / zoomInOriginalRegion.width;
-        if (extensionRatio >= 1.0) {
-            int newWidth = (int) (zoomInOriginalRegion.width * extensionRatio);
-            int newHeight = (int) (zoomInOriginalRegion.height * extensionRatio);
-            newWidth = min(newWidth, wholeScreenshot.getWidth() / 2);
-            newHeight = min(newHeight, wholeScreenshot.getHeight() / 2);
-            int newLeftX = Math.max(0, zoomInOriginalRegion.x - (newWidth - zoomInOriginalRegion.width) / 2);
-            int newTopY = Math.max(0, zoomInOriginalRegion.y - (newHeight - zoomInOriginalRegion.height) / 2);
-            int newRightX = min(wholeScreenshot.getWidth() - 1, newLeftX + newWidth);
-            int newBottomY = min(wholeScreenshot.getHeight() - 1, newTopY + newHeight);
-            zoomInOriginalRegion = new Rectangle(newLeftX, newTopY, newRightX - newLeftX, newBottomY - newTopY);
-        }
-        return zoomInOriginalRegion;
-    }
+
 
     private UiElementLocationInternalResult getUiElementLocationResult(UiElement elementRetrievedFromMemory,
                                                                        String elementTestData,
                                                                        BufferedImage wholeScreenshot,
-                                                                       BufferedImage elementScreenshot,
+                                                                       @Nullable BufferedImage elementScreenshot,
                                                                        boolean useAlgorithmicSearch) {
         var identifiedByVisionBoundingBoxes = identifyBoundingBoxesUsingVision(elementRetrievedFromMemory,
                 wholeScreenshot, elementTestData);
         List<Rectangle> featureMatchedBoundingBoxes = new LinkedList<>();
         List<Rectangle> templateMatchedBoundingBoxes = new LinkedList<>();
-        if (useAlgorithmicSearch) {
+        if (useAlgorithmicSearch && elementScreenshot != null) {
             var featureMatchedBoundingBoxesByElementFuture = supplyAsync(
                     () -> findMatchingRegionsWithORB(wholeScreenshot, elementScreenshot));
             var templateMatchedBoundingBoxesByElementFuture = supplyAsync(() -> mergeOverlappingRectangles(

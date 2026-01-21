@@ -18,6 +18,7 @@ package org.tarik.ta.rag.model;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.segment.TextSegment;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.awt.image.BufferedImage;
 import java.util.*;
@@ -35,7 +36,6 @@ public class UiElement {
     private final String anchorsDescription;
     private final String parentElementSummary;
     private final Screenshot screenshot;
-    private final boolean zoomInRequired;
     private final boolean isDataDependent;
 
     public UiElement(@NotNull UUID uuid,
@@ -43,8 +43,7 @@ public class UiElement {
                      @NotNull String ownDescription,
                      @NotNull String anchorsDescription,
                      @NotNull String parentElementSummary,
-                     Screenshot screenshot,
-                     boolean zoomInRequired,
+                     @Nullable Screenshot screenshot,
                      boolean isDataDependent) {
         this.uuid = uuid;
         this.name = name;
@@ -52,7 +51,6 @@ public class UiElement {
         this.anchorsDescription = anchorsDescription;
         this.parentElementSummary = parentElementSummary;
         this.screenshot = screenshot;
-        this.zoomInRequired = zoomInRequired;
         this.isDataDependent = isDataDependent;
     }
 
@@ -80,9 +78,7 @@ public class UiElement {
         return screenshot;
     }
 
-    public boolean zoomInRequired() {
-        return zoomInRequired;
-    }
+
 
     public boolean isDataDependent() {
         return isDataDependent;
@@ -97,7 +93,6 @@ public class UiElement {
         SCREENSHOT_FILE_EXTENSION(Metadata::getString, String.class),
         SCREENSHOT_MIME_TYPE(Metadata::getString, String.class),
         SCREENSHOT_IMAGE(Metadata::getString, String.class),
-        ZOOM_IN_REQUIRED(Metadata::getString, String.class),
         IS_DATA_DEPENDENT(Metadata::getString, String.class);
 
         private final ValueProvider<?> valueProvider;
@@ -133,18 +128,20 @@ public class UiElement {
         var ownDescription = OWN_DESCRIPTION.<String>getValueFromMetadata(metadata).orElseThrow();
         var anchorsDescription = ANCHORS_DESCRIPTION.<String>getValueFromMetadata(metadata).orElse("");
         var pageSummary = PAGE_SUMMARY.<String>getValueFromMetadata(metadata).orElse("");
-        var screenshotFileExtension = SCREENSHOT_FILE_EXTENSION.<String>getValueFromMetadata(metadata).orElseThrow();
-        var screenshotMimeType = SCREENSHOT_MIME_TYPE.<String>getValueFromMetadata(metadata).orElseThrow();
-        var screenshotEncodedString = SCREENSHOT_IMAGE.<String>getValueFromMetadata(metadata).orElseThrow();
-        var zoomInNeeded = ZOOM_IN_REQUIRED.<String>getValueFromMetadata(metadata).map(Boolean::parseBoolean).orElse(false);
+        var screenshotFileExtension = SCREENSHOT_FILE_EXTENSION.<String>getValueFromMetadata(metadata).orElse(null);
+        var screenshotMimeType = SCREENSHOT_MIME_TYPE.<String>getValueFromMetadata(metadata).orElse(null);
+        var screenshotEncodedString = SCREENSHOT_IMAGE.<String>getValueFromMetadata(metadata).orElse(null);
         var isDataDependent = IS_DATA_DEPENDENT.<String>getValueFromMetadata(metadata).map(Boolean::parseBoolean).orElse(false);
 
-        return new UiElement(id, name, ownDescription, anchorsDescription, pageSummary,
-                new Screenshot(screenshotFileExtension, screenshotMimeType, screenshotEncodedString), zoomInNeeded,
-                isDataDependent);
+        boolean screenshotPresent = screenshotEncodedString != null;
+        Screenshot screenshot = screenshotPresent ?
+                new Screenshot(screenshotFileExtension, screenshotMimeType, screenshotEncodedString)
+                : null;
+
+        return new UiElement(id, name, ownDescription, anchorsDescription, pageSummary, screenshot, isDataDependent);
     }
 
-    public record Screenshot(String fileExtension, String mimeType, String base64EncodedImage) {
+    public record Screenshot(@NotNull String fileExtension, @NotNull String mimeType, @NotNull String base64EncodedImage) {
         public static Screenshot fromBufferedImage(BufferedImage image, String fileExtension) {
             String mimeType = "image/" + fileExtension;
             String base64EncodedImage = convertImageToBase64(image, fileExtension);
@@ -164,7 +161,6 @@ public class UiElement {
                 .add("ownDescription='" + ownDescription + "'")
                 .add("locationDescription='" + anchorsDescription + "'")
                 .add("parentElementSummary='" + parentElementSummary + "'")
-                .add("zoomInRequired=" + zoomInRequired)
                 .add("isDataDependent=" + isDataDependent)
                 .toString();
     }
@@ -185,7 +181,6 @@ public class UiElement {
             metadata.put(SCREENSHOT_MIME_TYPE.name(), screenshot.mimeType());
             metadata.put(SCREENSHOT_IMAGE.name(), screenshot.base64EncodedImage());
         }
-        metadata.put(ZOOM_IN_REQUIRED.name(), String.valueOf(zoomInRequired));
         metadata.put(IS_DATA_DEPENDENT.name(), String.valueOf(isDataDependent));
         return metadata;
     }

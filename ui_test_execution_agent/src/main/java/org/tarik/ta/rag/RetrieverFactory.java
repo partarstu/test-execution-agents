@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.rag;
 
+import static org.tarik.ta.core.AgentConfig.getVectorDbToken;
 import static org.tarik.ta.core.AgentConfig.getVectorDbProvider;
 import static org.tarik.ta.core.AgentConfig.getVectorDbUrl;
 
@@ -22,11 +23,18 @@ public class RetrieverFactory {
     public static UiElementRetriever getUiElementRetriever() {
         return switch (getVectorDbProvider()) {
             case CHROMA -> createChromaRetriever();
+            case QDRANT -> createQdrantRetriever();
         };
     }
 
     private static UiElementRetriever createChromaRetriever() {
         var url = getVectorDbUrl();
         return new ChromaRetriever(url);
+    }
+
+    private static UiElementRetriever createQdrantRetriever() {
+        var url = getVectorDbUrl();
+        var key = getVectorDbToken();
+        return new QdrantRetriever(url, key);
     }
 }

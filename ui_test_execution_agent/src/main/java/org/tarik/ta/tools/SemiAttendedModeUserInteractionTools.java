@@ -27,14 +27,31 @@ import org.tarik.ta.user_dialogs.CountdownHaltPopup;
 
 import java.awt.image.BufferedImage;
 
+import org.tarik.ta.agents.UiElementExtendedDescriptionAgent;
+import org.tarik.ta.core.exceptions.ToolExecutionException;
+import org.tarik.ta.dto.NewElementCreationResult;
+import org.tarik.ta.dto.UiElementDescriptionResult;
+import org.tarik.ta.user_dialogs.UiElementInfoPopup.UiElementInfo;
+
+import static dev.langchain4j.service.AiServices.builder;
+import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.tarik.ta.UiTestAgentConfig.getSemiAttendedCountdownSeconds;
+import static org.tarik.ta.UiTestAgentConfig.getUiElementDescriptionMatcherAgentModelName;
+import static org.tarik.ta.UiTestAgentConfig.getUiElementDescriptionMatcherAgentModelProvider;
+import static org.tarik.ta.UiTestAgentConfig.getUiElementDescriptionMatcherAgentPromptVersion;
+import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
+import static org.tarik.ta.core.model.ModelFactory.getModel;
+import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 import static org.tarik.ta.user_dialogs.CountdownHaltPopup.Result.HALTED;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
+import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 /**
  * User interaction tools for SEMI_ATTENDED execution mode.
  */
 public class SemiAttendedModeUserInteractionTools extends UserInteractionToolsBase {
     private static final Logger LOG = LoggerFactory.getLogger(SemiAttendedModeUserInteractionTools.class);
+    private final UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
 
     /**
      * Constructs SemiAttendedModeUserInteractionTools.
@@ -44,6 +61,57 @@ public class SemiAttendedModeUserInteractionTools extends UserInteractionToolsBa
      */
     public SemiAttendedModeUserInteractionTools(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext) {
         super(uiElementRetriever, executionContext);
+        this.uiElementExtendedDescriptionAgent = createUiElementDescriptionMatcherAgent();
+    }
+
+    @Tool("Creates a new UI element record in DB based on its description")
+    public NewElementCreationResult createNewElementInDb(
+            @P("Original description of UI element. If any related to this element data is provided, don't use " +
+                    "that data as a part of its description")
+            String elementDescription,
+            @P(value = "Any data related to this element or the action involving this element", required = false)
+            String relevantTestData) {
+        if (isBlank(elementDescription)) {
+            throw new ToolExecutionException("Element description cannot be empty", TRANSIENT_TOOL_ERROR);
+        }
+
+        try {
+            LOG.info("Starting new element creation workflow for: {}", elementDescription);
+            var screenshot = captureScreen();
+            var descriptionResult = getElementDescription(elementDescription, relevantTestData, screenshot);
+            LOG.info("Automatically identified element '{}'. proceeding with creation.", elementDescription);
+            return processElementCreation(descriptionResult);
+        } catch (Exception e) {
+            throw rethrowAsToolException(e, "creating a new UI element automatically");
+        }
+    }
+
+    private UiElementDescriptionResult getElementDescription(String elementDescription, String relevantTestData,
+                                                             BufferedImage screenshot) {
+        var imageContent = singleImageContent(screenshot);
+        return uiElementExtendedDescriptionAgent.executeAndGetResult(() ->
+                        uiElementExtendedDescriptionAgent.findAndDescribeElement(elementDescription, relevantTestData, imageContent))
+                .getResultPayload();
+    }
+
+    private NewElementCreationResult processElementCreation(UiElementDescriptionResult result) {
+        var uiElementInfo = new UiElementInfo(result.name(), result.ownDescription(), result.locationDescription(),
+                result.pageSummary(), result.elementIsDataDependent());
+        saveNewUiElementIntoDb(null, uiElementInfo);
+        return NewElementCreationResult.asSuccess();
+    }
+
+    private static UiElementExtendedDescriptionAgent createUiElementDescriptionMatcherAgent() {
+        var model = getModel(getUiElementDescriptionMatcherAgentModelName(),
+                getUiElementDescriptionMatcherAgentModelProvider());
+        var prompt = loadSystemPrompt("element_describer/description_based",
+                getUiElementDescriptionMatcherAgentPromptVersion(),
+                "description_matcher_prompt.txt");
+        return builder(UiElementExtendedDescriptionAgent.class)
+                .chatModel(model.chatModel())
+                .systemMessageProvider(ignored -> prompt)
+                .tools(new UiElementDescriptionResult("", "", "", "", false))
+                .build();
     }
 
     @Tool("Pauses execution with a countdown popup, allowing the operator to halt if needed. " +
@@ -68,10 +136,10 @@ public class SemiAttendedModeUserInteractionTools extends UserInteractionToolsBa
     @Tool("Reports an error to the operator and prompts for the next action. " +
             "Use this tool when an error occurs during execution to notify the operator.")
     public NextActionResult reportErrorAndPrompt(
-            @P("Description of the error that occurred") String errorDescription,
-            @P("Screenshot at the time of error (optional)") BufferedImage screenshot) {
+            @P("Description of the error that occurred") String errorDescription) {
         try {
             LOG.warn("Reporting error to operator: {}", errorDescription);
+            var screenshot = captureScreen();
             displayInformationalPopup("Error During Execution", errorDescription, screenshot, PopupType.ERROR);
             return promptUserForNextAction("Error occurred: " + errorDescription);
         } catch (Exception e) {

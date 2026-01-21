@@ -166,6 +166,9 @@ The following configuration properties are shared across agents (defined in `Age
 | `port` | `PORT` | `8005` | Server port |
 | `host` | `AGENT_HOST` | (required) | Server host |
 | `external.url` | `EXTERNAL_URL` | `http://localhost:{port}` | External URL for A2A card |
+| `vector.db.provider` | `VECTOR_DB_PROVIDER` | `chroma` | RAG Vector DB provider (chroma, qdrant) |
+| `vector.db.url` | `VECTOR_DB_URL` | (required) | URL for the vector database |
+| `vector.db.key` | `VECTOR_DB_KEY` | | API Key/Token for the vector database |
 | `model.provider` | `MODEL_PROVIDER` | `google` | AI model provider (google, openai, groq, anthropic) |
 | `model.name` | `MODEL_NAME` | `gemini-3-flash-preview` | Default model name |
 | `gemini.thinking.level` | `GEMINI_THINKING_LEVEL` | `MINIMAL` | Gemini thinking configuration level |

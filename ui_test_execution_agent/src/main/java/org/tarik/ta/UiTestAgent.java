@@ -15,9 +15,11 @@
  */
 package org.tarik.ta;
 
+import dev.langchain4j.model.input.PromptTemplate;
 import dev.langchain4j.service.tool.ToolErrorContext;
 import dev.langchain4j.service.tool.ToolErrorHandlerResult;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.*;
@@ -49,6 +51,7 @@ import org.tarik.ta.utils.ScreenRecorder;
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static dev.langchain4j.service.AiServices.builder;
 import static java.lang.String.join;
@@ -326,9 +329,15 @@ public class UiTestAgent {
                 getTestStepActionAgentModelProvider());
         var testStepActionAgentPrompt = loadSystemPrompt("test_step/executor",
                 getTestStepActionAgentPromptVersion(), "test_step_action_agent_system_prompt.txt");
+        var modeSpecificRulesFileName = getModeSpecificSystemPromptFileName();
+        var modeSpecificRules = loadSystemPrompt("test_step/executor",
+                getTestStepActionAgentPromptVersion(), modeSpecificRulesFileName);
+        var finalPrompt = PromptTemplate.from(testStepActionAgentPrompt)
+                .apply(Map.of("mode_specific_rules", modeSpecificRules))
+                .text();
         var agentBuilder = builder(UiTestStepActionAgent.class)
                 .chatModel(testStepActionAgentModel.chatModel())
-                .systemMessageProvider(_ -> testStepActionAgentPrompt)
+                .systemMessageProvider(_ -> finalPrompt)
                 .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState));
 
         if (isFullyUnattended()) {
@@ -341,6 +350,15 @@ public class UiTestAgent {
         }
 
         return agentBuilder.maxSequentialToolsInvocations(getEffectiveToolCallsBudget()).build();
+    }
+
+    private static @NonNull String getModeSpecificSystemPromptFileName() {
+        String modeSpecificRulesFileName = switch (getExecutionMode()) {
+            case ATTENDED -> "attended_mode_rules.txt";
+            case SEMI_ATTENDED -> "semi_attended_mode_rules.txt";
+            case UNATTENDED -> "";
+        };
+        return modeSpecificRulesFileName;
     }
 
     private static UiPreconditionVerificationAgent getPreconditionVerificationAgent(RetryState retryState) {

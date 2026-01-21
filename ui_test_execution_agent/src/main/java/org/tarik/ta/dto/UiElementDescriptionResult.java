@@ -40,7 +40,11 @@ public record UiElementDescriptionResult(
         String locationDescription,
         @Description("Name or very short description of the direct parent (enclosing) element (e.g. page/form/dialog/popup/view " +
                 "etc.) in which the target element is located.")
-        String pageSummary) implements FinalResult {
+        String pageSummary,
+        @Description("Flag which defines if the target element depends on the data (if its content is dynamic). Examples of " +
+                "data-dependent elements are: any option in the dropdown list, calendar day icon in the calendar grid, check-box with " +
+                "dynamic label etc.")
+        boolean elementIsDataDependent) implements FinalResult {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementDescriptionResult.class);
 
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)

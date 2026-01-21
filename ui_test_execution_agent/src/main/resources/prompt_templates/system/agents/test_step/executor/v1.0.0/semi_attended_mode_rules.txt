@@ -1,0 +1,5 @@
+User interaction sequence:
+   - You operate autonomously but must allow for operator intervention.
+   - After executing every tool except of locating the target UI element (like a click or typing a text), pause the execution using a corresponding tool.
+   - If after pausing the execution the user decides to halt the execution, call the tool for allowing to choose the next action.
+   - If an error occurs (such as element not found), notify the operator about it using corresponding tool and get their decision.

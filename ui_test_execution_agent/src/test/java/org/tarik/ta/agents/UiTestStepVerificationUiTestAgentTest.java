@@ -44,7 +44,7 @@ class UiTestStepVerificationUiTestAgentTest {
         commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
 
         configMockedStatic = mockStatic(UiTestAgentConfig.class);
-        configMockedStatic.when(UiTestAgentConfig::isUnattendedMode).thenReturn(false);
+        configMockedStatic.when(UiTestAgentConfig::isFullyUnattended).thenReturn(false);
     }
 
     @AfterEach

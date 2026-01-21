@@ -142,7 +142,6 @@ class ElementRefinementResultTest {
                 "Test Page",
                 UiElement.Screenshot.fromBufferedImage(
                         new BufferedImage(50, 50, BufferedImage.TYPE_INT_RGB), "png"),
-                false,
                 false
         );
     }

@@ -18,10 +18,11 @@ package org.tarik.ta.tools;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.agents.UiElementDescriptionAgent;
+
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
@@ -39,20 +40,17 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
-import static dev.langchain4j.service.AiServices.builder;
 import static java.util.Comparator.comparingDouble;
+import java.util.UUID;
 import static java.util.UUID.randomUUID;
 import static org.tarik.ta.UiTestAgentConfig.getElementRetrievalMinGeneralScore;
 import static org.tarik.ta.core.error.ErrorCategory.*;
-import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.core.utils.CommonUtils.*;
-import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 import static org.tarik.ta.dto.ElementRefinementOperation.Operation.DONE;
 import static org.tarik.ta.rag.model.UiElement.Screenshot.fromBufferedImage;
-import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.*;
 
 /**
@@ -62,12 +60,12 @@ import static org.tarik.ta.utils.UiCommonUtils.*;
  */
 public abstract class UserInteractionToolsBase extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(UserInteractionToolsBase.class);
-    private final UiElementDescriptionAgent uiElementDescriptionAgent;
     protected static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
     protected static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
     protected static final int USER_DIALOG_DISMISS_DELAY_MILLIS = 2000;
     protected final UiElementRetriever uiElementRetriever;
     protected final UiTestExecutionContext executionContext;
+
 
     /**
      * Constructs a new UserInteractionToolsBase.
@@ -78,59 +76,12 @@ public abstract class UserInteractionToolsBase extends UiAbstractTools {
     protected UserInteractionToolsBase(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext) {
         this.uiElementRetriever = uiElementRetriever;
         this.executionContext = executionContext;
-        this.uiElementDescriptionAgent = getUiElementDescriptionAgent();
+
     }
 
-    @Tool("Prompts the user to create a new UI element. Use this tool when you need to create a new " +
-            "UI element which is not present in the database")
-    public NewElementCreationResult promptUserToCreateNewElement(
-            @P("Initial description of the target element, not its name.") String elementDescription,
-            @P("Relevant test data that helps identify the element but should NOT be part of the element metadata")
-            String relevantTestData) {
-        if (isBlank(elementDescription)) {
-            throw new ToolExecutionException("Element description cannot be empty", TRANSIENT_TOOL_ERROR);
-        }
-
-        try {
-            LOG.info("Starting new element creation workflow for: {}", elementDescription);
-
-            // Step 1: Inform user that bounding box capture is needed
-            BoundingBoxCaptureNeededPopup.display(null);
-            sleepMillis(USER_DIALOG_DISMISS_DELAY_MILLIS);
-
-            // Step 2: Capture bounding box
-            LOG.debug("Prompting user to capture element screenshot");
-            var captureResult = UiElementScreenshotCaptureWindow.displayAndGetResult(null, BOUNDING_BOX_COLOR);
-            if (captureResult.isEmpty()) {
-                var message = "User cancelled screenshot capture";
-                LOG.info(message);
-                return NewElementCreationResult.interrupted(message);
-            }
-
-            // Step 3: Prompt the model to suggest the new element info based on the element
-            // position on the screenshot
-            var capture = captureResult.get();
-            var describedUiElement = getUiElementInfoSuggestionFromModel(elementDescription, relevantTestData, capture);
-
-            // Step 4: Prompt user to refine the suggested by the model element info
-            var uiElementInfo = new UiElementInfo(describedUiElement.name(), describedUiElement.ownDescription(),
-                    describedUiElement.locationDescription(), describedUiElement.pageSummary(), false, false);
-            return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, uiElementInfo)
-                    .map(clarifiedByUserElement -> {
-                        // Step 5: Persist the element
-                        LOG.debug("Persisting new element to database");
-                        saveNewUiElementIntoDb(capture.elementScreenshot(), clarifiedByUserElement);
-                        LOG.info("Successfully created new element: {}", clarifiedByUserElement.name());
-                        return NewElementCreationResult.asSuccess();
-                    })
-                    .orElseGet(() -> {
-                        var message = "User interrupted element creation by closing the element creation popup";
-                        LOG.info(message);
-                        return NewElementCreationResult.interrupted(message);
-                    });
-        } catch (Exception e) {
-            throw rethrowAsToolException(e, "creating a new UI element");
-        }
+    protected static @NonNull UiElementInfo getUiElementInfo(UiElementDescriptionResult describedUiElement) {
+        return new UiElementInfo(describedUiElement.name(), describedUiElement.ownDescription(),
+                describedUiElement.locationDescription(), describedUiElement.pageSummary(), describedUiElement.elementIsDataDependent());
     }
 
     @Tool("Prompts the user to refine existing UI elements.")
@@ -281,25 +232,17 @@ public abstract class UserInteractionToolsBase extends UiAbstractTools {
         }
     }
 
-    protected UiElementDescriptionResult getUiElementInfoSuggestionFromModel(String elementDescription,
-                                                                             String relevantTestData,
-                                                                             UiElementCaptureResult capture) {
-        var screenshot = singleImageContent(capture.wholeScreenshotWithBoundingBox());
-        var boundingBoxColorName = getColorName(BOUNDING_BOX_COLOR).toLowerCase();
-        return uiElementDescriptionAgent.executeAndGetResult(() ->
-                        uiElementDescriptionAgent.describeUiElement(elementDescription, screenshot, boundingBoxColorName, relevantTestData))
-                .getResultPayload();
-    }
+
 
     protected void saveNewUiElementIntoDb(BufferedImage elementScreenshot, UiElementInfo uiElement) {
         var screenshot = fromBufferedImage(elementScreenshot, "png");
         UiElement uiElementToStore = new UiElement(randomUUID(), uiElement.name(), uiElement.description(),
-                uiElement.locationDetails(), uiElement.pageSummary(), screenshot, uiElement.zoomInRequired(),
+                uiElement.locationDetails(), uiElement.pageSummary(), screenshot,
                 uiElement.isDataDependent());
         uiElementRetriever.storeElement(uiElementToStore);
     }
 
-    protected java.util.Optional<UiElement> updateElementScreenshot(List<UiElement> elements, UUID elementId) {
+    protected Optional<UiElement> updateElementScreenshot(List<UiElement> elements, UUID elementId) {
         UiElement elementToUpdate = findElementById(elements, elementId);
         LOG.info("User chose to update screenshot for element: {}", elementToUpdate.name());
 
@@ -313,26 +256,25 @@ public abstract class UserInteractionToolsBase extends UiAbstractTools {
                     var elementWithNewScreenshot = new UiElement(
                             elementToUpdate.uuid(), elementToUpdate.name(), elementToUpdate.description(),
                             elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(), newScreenshot,
-                            elementToUpdate.zoomInRequired(), elementToUpdate.isDataDependent());
+                            elementToUpdate.isDataDependent());
                     uiElementRetriever.updateElement(elementToUpdate, elementWithNewScreenshot);
                     LOG.debug("Persisted updated screenshot for element: {}", elementToUpdate.name());
                     return elementWithNewScreenshot;
                 });
     }
 
-    protected java.util.Optional<UiElement> updateElementInfo(List<UiElement> elements, UUID elementId) {
+    protected Optional<UiElement> updateElementInfo(List<UiElement> elements, UUID elementId) {
         UiElement elementToUpdate = findElementById(elements, elementId);
         LOG.info("User chose to update info for element: {}", elementToUpdate.name());
 
         var currentInfo = new UiElementInfo(elementToUpdate.name(), elementToUpdate.description(),
-                elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(), elementToUpdate.zoomInRequired(),
+                elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(),
                 elementToUpdate.isDataDependent());
 
         return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, currentInfo)
                 .map(newInfo -> {
                     var updatedElement = new UiElement(elementToUpdate.uuid(), newInfo.name(), newInfo.description(),
                             newInfo.locationDetails(), newInfo.pageSummary(), elementToUpdate.screenshot(),
-                            newInfo.zoomInRequired(),
                             newInfo.isDataDependent());
                     uiElementRetriever.updateElement(elementToUpdate, updatedElement);
                     LOG.debug("Persisted updated info for element: {}", updatedElement.name());
@@ -362,17 +304,9 @@ public abstract class UserInteractionToolsBase extends UiAbstractTools {
                 boundingBox.y2() - boundingBox.y1());
     }
 
-    private static UiElementDescriptionAgent getUiElementDescriptionAgent() {
-        var model = getModel(UiTestAgentConfig.getUiElementDescriptionAgentModelName(),
-                UiTestAgentConfig.getUiElementDescriptionAgentModelProvider());
-        var prompt = loadSystemPrompt("element_describer", UiTestAgentConfig.getUiElementDescriptionAgentPromptVersion(),
-                "element_description_prompt.txt");
-        return builder(UiElementDescriptionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .tools(new UiElementDescriptionResult("", "", "", ""))
-                .build();
-    }
+
+
+
 
     /**
      * Enum representing the type of informational popup to display.

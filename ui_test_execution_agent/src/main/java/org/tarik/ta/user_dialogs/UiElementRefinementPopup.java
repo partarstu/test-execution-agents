@@ -19,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
 import org.tarik.ta.dto.ElementRefinementOperation;
 import org.tarik.ta.rag.model.UiElement;
 
+import java.awt.image.BufferedImage;
 import javax.swing.*;
 import javax.swing.border.MatteBorder;
 import java.awt.*;
@@ -147,6 +148,10 @@ public class UiElementRefinementPopup extends AbstractDialog {
 
     @NotNull
     private static ImageIcon getImageIcon(UiElement element) {
+        if (element.screenshot() == null) {
+            BufferedImage placeholder = new BufferedImage(IMAGE_TARGET_WIDTH, IMAGE_TARGET_WIDTH / 2, BufferedImage.TYPE_INT_ARGB);
+            return new ImageIcon(placeholder);
+        }
         var elementScreenshot = element.screenshot().toBufferedImage();
         var originalWidth = elementScreenshot.getWidth();
         var scalingRatio = ((double) IMAGE_TARGET_WIDTH) / originalWidth;

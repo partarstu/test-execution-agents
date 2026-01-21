@@ -54,7 +54,7 @@ public class AgentConfig {
     }
 
     public enum RagDbProvider {
-        CHROMA // Add other providers here if needed
+        CHROMA, QDRANT
     }
 
     // -----------------------------------------------------
@@ -71,7 +71,7 @@ public class AgentConfig {
 
     // RAG Config
     private static final ConfigProperty<RagDbProvider> VECTOR_DB_PROVIDER = getProperty("vector.db.provider",
-            "VECTOR_DB_PROVIDER", "chroma", s -> stream(RagDbProvider.values())
+            "VECTOR_DB_PROVIDER", "qdrant", s -> stream(RagDbProvider.values())
                     .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
                     .findAny()
                     .orElseThrow(() -> new IllegalArgumentException(
@@ -80,6 +80,8 @@ public class AgentConfig {
             false);
     private static final ConfigProperty<String> VECTOR_DB_URL = getRequiredProperty("vector.db.url", "VECTOR_DB_URL",
             false);
+    private static final ConfigProperty<String> VECTOR_DB_KEY = loadProperty("vector.db.key", "VECTOR_DB_KEY", "", s -> s, true);
+
     private static final ConfigProperty<Integer> RETRIEVER_TOP_N = loadPropertyAsInteger("retriever.top.n",
             "RETRIEVER_TOP_N", "5", false);
     private static final ConfigProperty<Integer> MAX_OUTPUT_TOKENS = loadPropertyAsInteger("model.max.output.tokens",
@@ -182,6 +184,10 @@ public class AgentConfig {
 
     public static String getVectorDbUrl() {
         return VECTOR_DB_URL.value();
+    }
+
+    public static String getVectorDbToken() {
+        return VECTOR_DB_KEY.value();
     }
 
     public static int getRetrieverTopN() {

@@ -164,7 +164,8 @@ class UiTestAgentTest {
                                 .thenReturn(new RetryPolicy(3, 100, 5000));
                 uiAgentConfigMockedStatic.when(UiTestAgentConfig::isElementLocationPrefetchingEnabled)
                                 .thenReturn(false);
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::isUnattendedMode).thenReturn(false);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::isFullyUnattended).thenReturn(true);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getExecutionMode).thenReturn(ExecutionMode.UNATTENDED);
                 agentConfigMockedStatic.when(AgentConfig::getTestCaseExtractionAgentModelProvider)
                                 .thenReturn(AgentConfig.ModelProvider.GOOGLE);
                 agentConfigMockedStatic.when(AgentConfig::getPreconditionActionAgentModelProvider)

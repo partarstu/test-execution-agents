@@ -23,25 +23,24 @@ import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.dto.UiElementDescriptionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
-public interface UiElementDescriptionAgent extends BaseUiAgent<UiElementDescriptionResult> {
+public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElementDescriptionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
-    Result<String> describeUiElement(
+    Result<String> findAndDescribeElement(
             @UserMessage("""
-                    The target UI element info: {{original_element_description}}.
+                    Target Element Description: {{target_element_description}}
                     
                     Relevant Data Context: {{relevant_data}}
                     
                     The screenshot is attached.
                     """)
-            @V("original_element_description") String originalElementDescription,
-            @V("bounding_box_color") String boundingBoxColor,
+            @V("target_element_description") String targetElementDescription,
             @V("relevant_data") String relevantData,
             @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {
-        return "Generating the description of selected UI element";
+        return "Finding and describing UI element based on description";
     }
 
     @Override
@@ -49,5 +48,3 @@ public interface UiElementDescriptionAgent extends BaseUiAgent<UiElementDescript
         return RETRY_POLICY;
     }
 }
-
-

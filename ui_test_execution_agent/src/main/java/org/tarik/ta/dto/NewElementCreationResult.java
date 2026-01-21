@@ -22,7 +22,7 @@ import dev.langchain4j.model.output.structured.Description;
  * This workflow includes capturing element screenshot, collecting element information,
  * and persisting the element to the database.
  */
-@Description("Result of creating a new UI element through user interaction")
+@Description("Result of creating a new UI element in DB")
 public record NewElementCreationResult(
         @Description("Whether the element was successfully created") boolean success,
         @Description("Whether the user interrupted the creation process") boolean interrupted,

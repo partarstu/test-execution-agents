@@ -225,6 +225,13 @@ public class UiTestAgentConfig extends AgentConfig {
             "element.locator.algorithmic.search.enabled", "ALGORITHMIC_SEARCH_ENABLED", "true", Boolean::parseBoolean,
             false);
 
+    private static final ConfigProperty<Integer> VERIFICATION_MODEL_MAX_RETRIES = loadProperty(
+            "verification.model.max.retries", "VERIFICATION_MODEL_MAX_RETRIES", "3", Integer::parseInt, false);
+
+    public static int getVerificationModelMaxRetries() {
+        return VERIFICATION_MODEL_MAX_RETRIES.value();
+    }
+
     public static boolean isAlgorithmicSearchEnabled() {
         return ALGORITHMIC_SEARCH_ENABLED.value();
     }
@@ -305,6 +312,31 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public static String getUiElementDescriptionAgentPromptVersion() {
         return UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION.value();
+    }
+
+    // UI Element Description Agent
+    private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME = loadProperty(
+            "ui.element.description.matcher.agent.model.name", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME", "gemini-3-flash-preview",
+            s -> s, false);
+
+    public static String getUiElementDescriptionMatcherAgentModelName() {
+        return UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME.value();
+    }
+
+    private static final ConfigProperty<ModelProvider> UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_PROVIDER = getProperty(
+            "ui.element.description.matcher.agent.model.provider", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_PROVIDER", "google",
+            AgentConfig::getModelProvider, false);
+
+    public static ModelProvider getUiElementDescriptionMatcherAgentModelProvider() {
+        return UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_PROVIDER.value();
+    }
+
+    private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_PROMPT_VERSION = loadProperty(
+            "ui.element.description.matcher.agent.prompt.version", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_PROMPT_VERSION", "v1.0.0",
+            s -> s, false);
+
+    public static String getUiElementDescriptionMatcherAgentPromptVersion() {
+        return UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_PROMPT_VERSION.value();
     }
 
     // UI State Check Agent

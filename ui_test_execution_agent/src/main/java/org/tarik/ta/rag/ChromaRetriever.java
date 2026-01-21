@@ -16,34 +16,28 @@
 package org.tarik.ta.rag;
 
 import dev.langchain4j.data.segment.TextSegment;
-import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.embedding.onnx.bgesmallenv15.BgeSmallEnV15EmbeddingModel;
-import dev.langchain4j.store.embedding.*;
+import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.rag.model.UiElement;
 
 import java.time.Duration;
-import java.util.Comparator;
-import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static dev.langchain4j.store.embedding.CosineSimilarity.between;
-import static dev.langchain4j.store.embedding.RelevanceScore.fromCosineSimilarity;
 import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 
-public class ChromaRetriever implements UiElementRetriever {
+public class ChromaRetriever extends UiElementRetriever {
     private static final Logger LOG = LoggerFactory.getLogger(ChromaRetriever.class);
-    private static final String COLLECTION_NAME = "ui_elements";
     private static final int CONNECTION_TIMEOUT_SECONDS = 20;
-    private final EmbeddingStore<TextSegment> embeddingStore;
-    private final EmbeddingModel embeddingModel = new BgeSmallEnV15EmbeddingModel();
 
     public ChromaRetriever(String url) {
+        super(createEmbeddingStore(url));
+    }
+
+    private static EmbeddingStore<TextSegment> createEmbeddingStore(String url) {
         checkArgument(isNotBlank(url));
         try {
-            embeddingStore = ChromaEmbeddingStore
+            return ChromaEmbeddingStore
                     .builder()
                     .baseUrl(url)
                     .collectionName(COLLECTION_NAME)
@@ -56,66 +50,5 @@ public class ChromaRetriever implements UiElementRetriever {
             LOG.error(errorMessage, e);
             throw e;
         }
-    }
-
-    @Override
-    public void storeElement(UiElement uiElement) {
-        var segment = uiElement.asTextSegment();
-        var embedding = embeddingModel.embed(segment).content();
-        embeddingStore.addAll(List.of(uiElement.uuid().toString()), List.of(embedding), List.of(segment));
-        LOG.info("Inserted UiElement '{}' into the vector DB", uiElement.name());
-    }
-
-    @Override
-    public List<RetrievedUiElementItem> retrieveUiElements(String nameQuery, int topN, double minScore) {
-        return retrieveUiElements(nameQuery, "", topN, minScore);
-    }
-
-    public List<RetrievedUiElementItem> retrieveUiElements(String nameQuery, String actualPageDescription,
-                                                           int topN, double minScore) {
-        var queryEmbedding = embeddingModel.embed(nameQuery).content();
-        var searchRequest = EmbeddingSearchRequest.builder()
-                .queryEmbedding(queryEmbedding)
-                .minScore(minScore)
-                .maxResults(topN)
-                .build();
-        var result = embeddingStore.search(searchRequest);
-        var resultingItems = result.matches().stream()
-                .sorted(Comparator.<EmbeddingMatch<TextSegment>>comparingDouble(EmbeddingMatch::score).reversed())
-                .map(match -> {
-                    var element = UiElement.fromTextSegment(match.embedded());
-                    var pageRelevanceScore = getPageRelevanceScore(actualPageDescription, element);
-                    return new RetrievedUiElementItem(element, match.score(), pageRelevanceScore);
-                })
-                .peek(item -> LOG.info("Retrieved UI element from DB: name='{}', mainScore={}, pageRelevanceScore={}",
-                        item.element().name(), item.mainScore(), item.pageRelevanceScore()))
-                .distinct()
-                .toList();
-        LOG.info("Retrieved {} most matching results to the query '{}'", resultingItems.size(), nameQuery);
-        return resultingItems;
-    }
-
-    private double getPageRelevanceScore(String actualPageDescription, UiElement uiElement) {
-        if (isNotBlank(actualPageDescription)) {
-            var pageDescriptionEmbedding = embeddingModel.embed(actualPageDescription).content();
-            var elementOverallDescription = "%s %s".formatted(uiElement.description(), uiElement.locationDetails());
-            var elementDescriptionEmbedding = embeddingModel.embed(elementOverallDescription).content();
-            double cosineSimilarity = between(pageDescriptionEmbedding, elementDescriptionEmbedding);
-            return fromCosineSimilarity(cosineSimilarity);
-        } else {
-            return 0;
-        }
-    }
-
-    @Override
-    public void updateElement(UiElement originalUiElement, UiElement updatedUiElement) {
-        removeElement(originalUiElement);
-        storeElement(updatedUiElement);
-    }
-
-    @Override
-    public void removeElement(UiElement uiElement) {
-        embeddingStore.remove(uiElement.uuid().toString());
-        LOG.info("Removed UiElement '{}' from the vector DB", uiElement.name());
     }
 }
