@@ -75,6 +75,7 @@ import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 public class UiTestAgent {
     private static final Logger LOG = LoggerFactory.getLogger(UiTestAgent.class);
     protected static final int ACTION_VERIFICATION_DELAY_MILLIS = getActionVerificationDelayMillis();
+    public static final String MODE_SPECIFIC_RULES_PLACEHOLDER = "mode_specific_rules";
 
     private UiTestAgent() {
     }
@@ -105,11 +106,13 @@ public class UiTestAgent {
 
             try (VerificationManager verificationManager = new VerificationManager()) {
                 var context = new UiTestExecutionContext(testCase, new VisualState(captureScreen()));
-                
-                // Get mode-specific user interaction tools
-                var userInteractionTools = switch (getExecutionMode()) {
-                    case ATTENDED -> new AttendedModeUserInteractionTools(getUiElementRetriever(), context);
-                    case SEMI_ATTENDED -> new SemiAttendedModeUserInteractionTools(getUiElementRetriever(), context);
+
+                // Get common and mode-specific user interaction tools (separate instances for LangChain4j tool scanning)
+                var commonUserInteractionTools = isFullyUnattended() ? null
+                        : new CommonUserInteractionTools(getUiElementRetriever(), context);
+                var modeSpecificUserInteractionTools = switch (getExecutionMode()) {
+                    case ATTENDED -> new AttendedModeCommonUserInteractionTools(getUiElementRetriever(), context);
+                    case SEMI_ATTENDED -> new SemiAttendedModeCommonUserInteractionTools(getUiElementRetriever(), context);
                     case UNATTENDED -> null;
                 };
                 var preconditionCommonTools = new CommonTools();
@@ -117,7 +120,8 @@ public class UiTestAgent {
 
                 if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
                     executePreconditions(context,
-                            getPreconditionActionAgent(preconditionCommonTools, userInteractionTools, new RetryState()));
+                            getPreconditionActionAgent(preconditionCommonTools, commonUserInteractionTools,
+                                    modeSpecificUserInteractionTools, new RetryState()));
                     if (hasPreconditionFailures(context)) {
                         var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
                         return getTestExecutionResultWithError(context, testExecutionStartTimestamp,
@@ -135,8 +139,9 @@ public class UiTestAgent {
                     }
                 }
 
-                var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, userInteractionTools, new RetryState());
-                executeTestSteps(context, testStepActionAgent, verificationManager, startingStepIndex);
+                var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, commonUserInteractionTools,
+                        modeSpecificUserInteractionTools, new RetryState());
+                executeTestSteps(context, testStepActionAgent, verificationManager, commonUserInteractionTools, startingStepIndex);
                 if (hasStepFailures(context)) {
                     var lastStep = context.getTestStepExecutionHistory().getLast();
                     if (lastStep.getExecutionStatus() == FAILURE) {
@@ -229,8 +234,9 @@ public class UiTestAgent {
     }
 
     private static void executeTestSteps(UiTestExecutionContext context, UiTestStepActionAgent uiTestStepActionAgent,
-                                         VerificationManager verificationManager, int startingStepIndex) {
-        var testStepVerificationAgent = getTestStepVerificationAgent(new RetryState());
+                                         VerificationManager verificationManager,
+                                         CommonUserInteractionTools userInteractionTools, int startingStepIndex) {
+        var testStepVerificationAgent = getTestStepVerificationAgent(userInteractionTools, new RetryState());
         var testSteps = context.getTestCase().testSteps();
         for (int i = startingStepIndex; i < testSteps.size(); i++) {
             TestStep testStep = testSteps.get(i);
@@ -308,57 +314,76 @@ public class UiTestAgent {
                 .anyMatch(s -> s != SUCCESS);
     }
 
-    private static UiTestStepVerificationAgent getTestStepVerificationAgent(RetryState retryState) {
+    private static UiTestStepVerificationAgent getTestStepVerificationAgent(CommonUserInteractionTools userInteractionTools,
+                                                                            RetryState retryState) {
         var testStepVerificationAgentModel = getModel(getTestStepVerificationAgentModelName(),
                 getTestStepVerificationAgentModelProvider(), getVerificationModelMaxRetries());
         var testStepVerificationAgentPrompt = loadSystemPrompt("test_step/verifier",
                 getTestStepVerificationAgentPromptVersion(), "verification_execution_prompt.txt");
-        return builder(UiTestStepVerificationAgent.class)
+        var modeSpecificPrompt = getVerifierModeSpecificSystemPrompt();
+        var finalPrompt = PromptTemplate.from(testStepVerificationAgentPrompt)
+                .apply(Map.of(MODE_SPECIFIC_RULES_PLACEHOLDER, modeSpecificPrompt))
+                .text()
+                .trim();
+        var agentBuilder = builder(UiTestStepVerificationAgent.class)
                 .chatModel(testStepVerificationAgentModel.chatModel())
-                .systemMessageProvider(_ -> testStepVerificationAgentPrompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY, retryState))
-                .tools(new VerificationExecutionResult(false, ""))
+                .systemMessageProvider(_ -> finalPrompt)
                 .maxSequentialToolsInvocations(getEffectiveToolCallsBudget())
-                .build();
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY, retryState));
+        if (isFullyUnattended() || userInteractionTools == null) {
+            agentBuilder.tools(new VerificationExecutionResult(false, ""));
+        } else {
+            agentBuilder.tools(userInteractionTools, new VerificationExecutionResult(false, ""));
+        }
+
+        return agentBuilder.build();
+    }
+
+    private static @NonNull String getVerifierModeSpecificSystemPrompt() {
+        var fileName = switch (getExecutionMode()) {
+            case ATTENDED, SEMI_ATTENDED -> "attended_mode_rules.txt";
+            case UNATTENDED -> "unattended_mode_rules.txt";
+        };
+        return loadSystemPrompt("test_step/verifier", getTestStepVerificationAgentPromptVersion(), fileName);
     }
 
     private static UiTestStepActionAgent getTestStepActionAgent(CommonTools commonTools,
-                                                                UserInteractionToolsBase userInteractionTools,
+                                                                CommonUserInteractionTools commonUserInteractionTools,
+                                                                CommonUserInteractionTools modeSpecificUserInteractionTools,
                                                                 RetryState retryState) {
         var testStepActionAgentModel = getModel(getTestStepActionAgentModelName(),
                 getTestStepActionAgentModelProvider());
         var testStepActionAgentPrompt = loadSystemPrompt("test_step/executor",
                 getTestStepActionAgentPromptVersion(), "test_step_action_agent_system_prompt.txt");
-        var modeSpecificRulesFileName = getModeSpecificSystemPromptFileName();
-        var modeSpecificRules = loadSystemPrompt("test_step/executor",
-                getTestStepActionAgentPromptVersion(), modeSpecificRulesFileName);
+        var modeSpecificPrompt = getModeSpecificTestStepActionSystemPrompt();
         var finalPrompt = PromptTemplate.from(testStepActionAgentPrompt)
-                .apply(Map.of("mode_specific_rules", modeSpecificRules))
-                .text();
+                .apply(Map.of("mode_specific_rules", modeSpecificPrompt))
+                .text()
+                .trim();
         var agentBuilder = builder(UiTestStepActionAgent.class)
                 .chatModel(testStepActionAgentModel.chatModel())
                 .systemMessageProvider(_ -> finalPrompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState));
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState))
+                .maxSequentialToolsInvocations(getEffectiveToolCallsBudget());
 
         if (isFullyUnattended()) {
             agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
                     new EmptyExecutionResult());
         } else {
             agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                    userInteractionTools,
-                    new EmptyExecutionResult());
+                    commonUserInteractionTools, modeSpecificUserInteractionTools, new EmptyExecutionResult());
         }
 
-        return agentBuilder.maxSequentialToolsInvocations(getEffectiveToolCallsBudget()).build();
+        return agentBuilder.build();
     }
 
-    private static @NonNull String getModeSpecificSystemPromptFileName() {
-        String modeSpecificRulesFileName = switch (getExecutionMode()) {
+    private static @NonNull String getModeSpecificTestStepActionSystemPrompt() {
+        var fileName = switch (getExecutionMode()) {
             case ATTENDED -> "attended_mode_rules.txt";
             case SEMI_ATTENDED -> "semi_attended_mode_rules.txt";
-            case UNATTENDED -> "";
+            case UNATTENDED -> "unattended_mode_rules.txt";
         };
-        return modeSpecificRulesFileName;
+        return loadSystemPrompt("test_step/executor", getTestStepActionAgentPromptVersion(), fileName);
     }
 
     private static UiPreconditionVerificationAgent getPreconditionVerificationAgent(RetryState retryState) {
@@ -376,7 +401,8 @@ public class UiTestAgent {
     }
 
     private static UiPreconditionActionAgent getPreconditionActionAgent(CommonTools commonTools,
-                                                                        UserInteractionToolsBase userInteractionTools,
+                                                                        CommonUserInteractionTools commonUserInteractionTools,
+                                                                        CommonUserInteractionTools modeSpecificUserInteractionTools,
                                                                         RetryState retryState) {
         var preconditionAgentModel = getModel(getPreconditionActionAgentModelName(),
                 getPreconditionActionAgentModelProvider());
@@ -392,7 +418,7 @@ public class UiTestAgent {
                     new EmptyExecutionResult());
         } else {
             agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                    userInteractionTools,
+                    commonUserInteractionTools, modeSpecificUserInteractionTools,
                     new EmptyExecutionResult());
         }
 
