@@ -316,6 +316,7 @@ override properties file settings.**
 * `model.logging.enabled` (Env: `LOG_MODEL_OUTPUT`): Enable/disable model logging. Default: `false`.
 * `thinking.output.enabled` (Env: `OUTPUT_THINKING`): Enable/disable thinking process output. Default: `false`.
 * `gemini.thinking.budget` (Env: `GEMINI_THINKING_BUDGET`): Budget for Gemini thinking process. Default: `0`.
+* `verification.model.max.retries` (Env: `VERIFICATION_MODEL_MAX_RETRIES`): Retries for verification models. Default: `3`.
 
 **Google API Configuration:**
 

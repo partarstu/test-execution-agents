@@ -97,8 +97,6 @@ public class AgentConfig {
             "gemini.thinking.budget", "GEMINI_THINKING_BUDGET", "5000", false);
     private static final ConfigProperty<Integer> MAX_RETRIES = loadPropertyAsInteger("model.max.retries", "MAX_RETRIES",
             "10", false);
-    private static final ConfigProperty<Integer> VERIFICATION_MODEL_MAX_RETRIES = loadPropertyAsInteger(
-            "verification.model.max.retries", "VERIFICATION_MODEL_MAX_RETRIES", "0", false);
     private static final ConfigProperty<String> GEMINI_THINKING_LEVEL = loadProperty(
             "gemini.thinking.level", "GEMINI_THINKING_LEVEL", "MINIMAL", s -> s, false);
 
@@ -233,9 +231,7 @@ public class AgentConfig {
         return MAX_RETRIES.value();
     }
 
-    public static int getVerificationModelMaxRetries() {
-        return VERIFICATION_MODEL_MAX_RETRIES.value();
-    }
+
 
     public static String getGeminiThinkingLevel() {
         return GEMINI_THINKING_LEVEL.value();

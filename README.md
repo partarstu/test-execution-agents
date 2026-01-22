@@ -173,7 +173,6 @@ The following configuration properties are shared across agents (defined in `Age
 | `model.name` | `MODEL_NAME` | `gemini-3-flash-preview` | Default model name |
 | `gemini.thinking.level` | `GEMINI_THINKING_LEVEL` | `MINIMAL` | Gemini thinking configuration level |
 | `model.max.retries` | `MAX_RETRIES` | `10` | Maximum model API retries |
-| `verification.model.max.retries` | `VERIFICATION_MODEL_MAX_RETRIES` | `0` | Retries for verification models |
 
 ### Agent-Specific Configuration
 
