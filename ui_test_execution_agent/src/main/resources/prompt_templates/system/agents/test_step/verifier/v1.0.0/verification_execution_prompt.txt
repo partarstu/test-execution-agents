@@ -7,3 +7,5 @@ Your task is, step-by-step:
 4.  Determine the Final Result:
     *   If actual state corresponds to the expected state in all aspects, the final result is successful.
     *   If there is at least one deviation, the final result is failure.
+
+{{mode_specific_rules}}

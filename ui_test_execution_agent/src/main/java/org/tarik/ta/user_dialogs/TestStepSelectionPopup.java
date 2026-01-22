@@ -46,13 +46,14 @@ public class TestStepSelectionPopup extends AbstractDialog {
         instructionLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
 
         // Create table model
-        String[] columnNames = {"#", "Step Description", "Expected Result"};
-        Object[][] data = new Object[testSteps.size()][3];
+        String[] columnNames = {"#", "Step Description", "Test Data", "Expected Result"};
+        Object[][] data = new Object[testSteps.size()][4];
         for (int i = 0; i < testSteps.size(); i++) {
             TestStep step = testSteps.get(i);
             data[i][0] = i + 1;
             data[i][1] = step.stepDescription();
-            data[i][2] = step.expectedResults() != null ? step.expectedResults() : "N/A";
+            data[i][2] = formatTestData(step.testData());
+            data[i][3] = step.expectedResults() != null ? step.expectedResults() : "N/A";
         }
 
         DefaultTableModel model = new DefaultTableModel(data, columnNames) {
@@ -68,11 +69,12 @@ public class TestStepSelectionPopup extends AbstractDialog {
         stepTable.getColumnModel().getColumn(0).setPreferredWidth(30);
         stepTable.getColumnModel().getColumn(0).setMaxWidth(50);
         stepTable.getColumnModel().getColumn(1).setPreferredWidth(300);
-        stepTable.getColumnModel().getColumn(2).setPreferredWidth(200);
+        stepTable.getColumnModel().getColumn(2).setPreferredWidth(150);
+        stepTable.getColumnModel().getColumn(3).setPreferredWidth(200);
         stepTable.setRowHeight(25);
 
         JScrollPane scrollPane = new JScrollPane(stepTable);
-        scrollPane.setPreferredSize(new Dimension(600, Math.min(testSteps.size() * 25 + 30, 400)));
+        scrollPane.setPreferredSize(new Dimension(750, Math.min(testSteps.size() * 25 + 30, 400)));
 
         // Buttons
         JButton startButton = new JButton("Start from Selected Step");
@@ -121,5 +123,18 @@ public class TestStepSelectionPopup extends AbstractDialog {
         }
         var popup = new TestStepSelectionPopup(null, testSteps);
         return popup.selectedStepIndex;
+    }
+
+    /**
+     * Formats the test data list into a displayable string.
+     *
+     * @param testData List of test data strings
+     * @return Formatted string representation of test data
+     */
+    private static String formatTestData(List<String> testData) {
+        if (testData == null || testData.isEmpty()) {
+            return "N/A";
+        }
+        return String.join(", ", testData);
     }
 }

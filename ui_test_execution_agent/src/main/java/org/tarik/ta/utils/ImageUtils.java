@@ -48,7 +48,7 @@ public class ImageUtils {
     private static final Logger LOG = LoggerFactory.getLogger(ImageUtils.class);
     private static final String DEFAULT_IMAGE_FORMAT = "png";
 
-    public static Image getImage(String base64Image, String format) {
+    public static Image getImage(@NotNull String base64Image, @NotNull String format) {
         return Image.builder()
                 .mimeType("image/" + format)
                 .base64Data(base64Image)
@@ -56,7 +56,7 @@ public class ImageUtils {
     }
 
     @NotNull
-    public static BufferedImage toBufferedImage(java.awt.Image image, int targetWidth, int targetHeight) {
+    public static BufferedImage toBufferedImage(@NotNull java.awt.Image image, int targetWidth, int targetHeight) {
         if (image instanceof BufferedImage result) {
             return result;
         } else {
@@ -69,7 +69,7 @@ public class ImageUtils {
         }
     }
 
-    public static byte[] imageToByteArray(BufferedImage image, String formatName) {
+    public static byte[] imageToByteArray(@NotNull BufferedImage image, @NotNull String formatName) {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             write(image, formatName, stream);
             return stream.toByteArray();
@@ -78,11 +78,11 @@ public class ImageUtils {
         }
     }
 
-    public static Image getImage(BufferedImage bufferedImage, String format) {
+    public static Image getImage(@NotNull BufferedImage bufferedImage, @NotNull String format) {
         return getImage(convertImageToBase64(bufferedImage, format), format);
     }
 
-    public static String convertImageToBase64(BufferedImage image, String format) {
+    public static String convertImageToBase64(@NotNull BufferedImage image, @NotNull String format) {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             write(image, format, stream);
             byte[] imageBytes = stream.toByteArray();
@@ -92,7 +92,7 @@ public class ImageUtils {
         }
     }
 
-    public static BufferedImage convertBase64ToImage(String encodedString) {
+    public static BufferedImage convertBase64ToImage(@NotNull String encodedString) {
         byte[] imageBytes = Base64.getDecoder().decode(encodedString);
         try (ByteArrayInputStream bis = new ByteArrayInputStream(imageBytes)) {
             return ImageIO.read(bis);

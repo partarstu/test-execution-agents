@@ -49,22 +49,22 @@ import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 /**
  * User interaction tools for SEMI_ATTENDED execution mode.
  */
-public class SemiAttendedModeUserInteractionTools extends UserInteractionToolsBase {
-    private static final Logger LOG = LoggerFactory.getLogger(SemiAttendedModeUserInteractionTools.class);
+public class SemiAttendedModeCommonUserInteractionTools extends CommonUserInteractionTools {
+    private static final Logger LOG = LoggerFactory.getLogger(SemiAttendedModeCommonUserInteractionTools.class);
     private final UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
 
     /**
-     * Constructs SemiAttendedModeUserInteractionTools.
+     * Constructs SemiAttendedModeCommonUserInteractionTools.
      *
      * @param uiElementRetriever The retriever for persisting and querying UI elements
      * @param executionContext   The current UI test execution context
      */
-    public SemiAttendedModeUserInteractionTools(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext) {
+    public SemiAttendedModeCommonUserInteractionTools(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext) {
         super(uiElementRetriever, executionContext);
         this.uiElementExtendedDescriptionAgent = createUiElementDescriptionMatcherAgent();
     }
 
-    @Tool("Creates a new UI element record in DB based on its description")
+    @Tool("Creates a new UI element record in DB based on its description.")
     public NewElementCreationResult createNewElementInDb(
             @P("Original description of UI element. If any related to this element data is provided, don't use " +
                     "that data as a part of its description")
@@ -79,43 +79,14 @@ public class SemiAttendedModeUserInteractionTools extends UserInteractionToolsBa
             LOG.info("Starting new element creation workflow for: {}", elementDescription);
             var screenshot = captureScreen();
             var descriptionResult = getElementDescription(elementDescription, relevantTestData, screenshot);
-            LOG.info("Automatically identified element '{}'. proceeding with creation.", elementDescription);
+            LOG.info("Automatically identified element '{}'. Proceeding with creation.", elementDescription);
             return processElementCreation(descriptionResult);
         } catch (Exception e) {
             throw rethrowAsToolException(e, "creating a new UI element automatically");
         }
     }
 
-    private UiElementDescriptionResult getElementDescription(String elementDescription, String relevantTestData,
-                                                             BufferedImage screenshot) {
-        var imageContent = singleImageContent(screenshot);
-        return uiElementExtendedDescriptionAgent.executeAndGetResult(() ->
-                        uiElementExtendedDescriptionAgent.findAndDescribeElement(elementDescription, relevantTestData, imageContent))
-                .getResultPayload();
-    }
-
-    private NewElementCreationResult processElementCreation(UiElementDescriptionResult result) {
-        var uiElementInfo = new UiElementInfo(result.name(), result.ownDescription(), result.locationDescription(),
-                result.pageSummary(), result.elementIsDataDependent());
-        saveNewUiElementIntoDb(null, uiElementInfo);
-        return NewElementCreationResult.asSuccess();
-    }
-
-    private static UiElementExtendedDescriptionAgent createUiElementDescriptionMatcherAgent() {
-        var model = getModel(getUiElementDescriptionMatcherAgentModelName(),
-                getUiElementDescriptionMatcherAgentModelProvider());
-        var prompt = loadSystemPrompt("element_describer/description_based",
-                getUiElementDescriptionMatcherAgentPromptVersion(),
-                "description_matcher_prompt.txt");
-        return builder(UiElementExtendedDescriptionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(ignored -> prompt)
-                .tools(new UiElementDescriptionResult("", "", "", "", false))
-                .build();
-    }
-
-    @Tool("Pauses execution with a countdown popup, allowing the operator to halt if needed. " +
-            "Call this after completing each test step action to give the operator a chance to intervene.")
+    @Tool("Pauses execution with a countdown popup, allowing the operator to halt if needed.")
     public CountdownResult pauseWithCountdown(
             @P("Description of the completed operation") String operationDescription) {
         try {
@@ -145,5 +116,34 @@ public class SemiAttendedModeUserInteractionTools extends UserInteractionToolsBa
         } catch (Exception e) {
             throw rethrowAsToolException(e, "reporting error and prompting for next action");
         }
+    }
+
+    private UiElementDescriptionResult getElementDescription(String elementDescription, String relevantTestData,
+                                                             BufferedImage screenshot) {
+        var imageContent = singleImageContent(screenshot);
+        var relevantDataString = relevantTestData == null ? "" : relevantTestData;
+        return uiElementExtendedDescriptionAgent.executeAndGetResult(() ->
+                        uiElementExtendedDescriptionAgent.describeUiElement(elementDescription, relevantDataString, imageContent))
+                .getResultPayload();
+    }
+
+    private NewElementCreationResult processElementCreation(UiElementDescriptionResult result) {
+        var uiElementInfo = new UiElementInfo(result.name(), result.ownDescription(), result.locationDescription(),
+                result.pageSummary(), result.elementIsDataDependent());
+        saveNewUiElementIntoDb(null, uiElementInfo);
+        return NewElementCreationResult.asSuccess();
+    }
+
+    private static UiElementExtendedDescriptionAgent createUiElementDescriptionMatcherAgent() {
+        var model = getModel(getUiElementDescriptionMatcherAgentModelName(),
+                getUiElementDescriptionMatcherAgentModelProvider());
+        var prompt = loadSystemPrompt("element_describer/description_based",
+                getUiElementDescriptionMatcherAgentPromptVersion(),
+                "description_matcher_prompt.txt");
+        return builder(UiElementExtendedDescriptionAgent.class)
+                .chatModel(model.chatModel())
+                .systemMessageProvider(ignored -> prompt)
+                .tools(new UiElementDescriptionResult("", "", "", "", false))
+                .build();
     }
 }

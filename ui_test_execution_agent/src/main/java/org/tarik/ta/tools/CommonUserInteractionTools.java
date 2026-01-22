@@ -44,7 +44,9 @@ import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Comparator.comparingDouble;
+
 import java.util.UUID;
+
 import static java.util.UUID.randomUUID;
 import static org.tarik.ta.UiTestAgentConfig.getElementRetrievalMinGeneralScore;
 import static org.tarik.ta.core.error.ErrorCategory.*;
@@ -58,8 +60,8 @@ import static org.tarik.ta.utils.UiCommonUtils.*;
  * This class provides common functionality for element creation, refinement,
  * and operator interaction that is shared across all execution modes.
  */
-public abstract class UserInteractionToolsBase extends UiAbstractTools {
-    private static final Logger LOG = LoggerFactory.getLogger(UserInteractionToolsBase.class);
+public class CommonUserInteractionTools extends UiAbstractTools {
+    private static final Logger LOG = LoggerFactory.getLogger(CommonUserInteractionTools.class);
     protected static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
     protected static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
     protected static final int USER_DIALOG_DISMISS_DELAY_MILLIS = 2000;
@@ -68,12 +70,12 @@ public abstract class UserInteractionToolsBase extends UiAbstractTools {
 
 
     /**
-     * Constructs a new UserInteractionToolsBase.
+     * Constructs a new CommonUserInteractionTools.
      *
      * @param uiElementRetriever The retriever for persisting and querying UI elements
      * @param executionContext   The current UI test execution context
      */
-    protected UserInteractionToolsBase(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext) {
+    public CommonUserInteractionTools(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext) {
         this.uiElementRetriever = uiElementRetriever;
         this.executionContext = executionContext;
 
@@ -152,7 +154,7 @@ public abstract class UserInteractionToolsBase extends UiAbstractTools {
             @P("Description of the reason of prompting the user") String reason) {
         try {
             if (isBlank(reason)) {
-                throw new ToolExecutionException("Reason cannot be empty", TRANSIENT_TOOL_ERROR);
+                throw new ToolExecutionException("Reason for prompting the user cannot be empty", TRANSIENT_TOOL_ERROR);
             }
 
             LOG.info("Prompting user for next action, root cause: {}", reason);
@@ -202,10 +204,15 @@ public abstract class UserInteractionToolsBase extends UiAbstractTools {
 
             Object content = message;
             if (screenshot != null) {
+                // Scale screenshot to fit popup (handles high DPI displays)
+                int maxWidth = 600;
+                int maxHeight = 400;
+                Image scaledImage = scaleImageToFit(screenshot, maxWidth, maxHeight);
+
                 // Create a panel with the message and screenshot
                 JPanel panel = new JPanel(new BorderLayout());
                 panel.add(new JLabel(message), BorderLayout.NORTH);
-                panel.add(new JLabel(new ImageIcon(screenshot)), BorderLayout.CENTER);
+                panel.add(new JLabel(new ImageIcon(scaledImage)), BorderLayout.CENTER);
                 content = panel;
             }
 
@@ -219,26 +226,49 @@ public abstract class UserInteractionToolsBase extends UiAbstractTools {
         }
     }
 
-    @Tool("Informs the user about the verification failure.")
+    private static Image scaleImageToFit(BufferedImage original, int maxWidth, int maxHeight) {
+        int width = original.getWidth();
+        int height = original.getHeight();
+
+        if (width <= maxWidth && height <= maxHeight) {
+            return original;
+        }
+
+        double scaleX = (double) maxWidth / width;
+        double scaleY = (double) maxHeight / height;
+        double scale = Math.min(scaleX, scaleY);
+
+        int newWidth = (int) (width * scale);
+        int newHeight = (int) (height * scale);
+
+        return original.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
+    }
+
+    @Tool("Informs the user about the verification failure. Allows user to continue or terminate the execution.")
     public void displayVerificationFailure(
             @P("Description of the verification") String verificationDescription,
             @P("Short explanation of why the verification failed") String failureReason) {
         try {
             LOG.info("Displaying verification failure for: {}", verificationDescription);
             var screenshot = executionContext.getVisualState().screenshot();
-            VerificationFailurePopup.display(verificationDescription, failureReason, screenshot);
+            var decision = VerificationFailurePopup.display(verificationDescription, failureReason, screenshot);
+            if (decision == VerificationFailurePopup.UserDecision.TERMINATE) {
+                LOG.info("User chose to terminate execution from verification failure popup");
+                throw new ToolExecutionException("User chose to terminate execution", TERMINATION_BY_USER);
+            }
+            LOG.info("User chose to continue after verification failure notification");
+        } catch (ToolExecutionException e) {
+            throw e;
         } catch (Exception e) {
             LOG.error("Error displaying verification failure", e);
         }
     }
 
 
-
     protected void saveNewUiElementIntoDb(BufferedImage elementScreenshot, UiElementInfo uiElement) {
-        var screenshot = fromBufferedImage(elementScreenshot, "png");
+        var screenshot = elementScreenshot == null ? null : fromBufferedImage(elementScreenshot, "png");
         UiElement uiElementToStore = new UiElement(randomUUID(), uiElement.name(), uiElement.description(),
-                uiElement.locationDetails(), uiElement.pageSummary(), screenshot,
-                uiElement.isDataDependent());
+                uiElement.locationDetails(), uiElement.pageSummary(), screenshot, uiElement.isDataDependent());
         uiElementRetriever.storeElement(uiElementToStore);
     }
 
@@ -303,9 +333,6 @@ public abstract class UserInteractionToolsBase extends UiAbstractTools {
         return new Rectangle(boundingBox.x1(), boundingBox.y1(), boundingBox.x2() - boundingBox.x1(),
                 boundingBox.y2() - boundingBox.y1());
     }
-
-
-
 
 
     /**

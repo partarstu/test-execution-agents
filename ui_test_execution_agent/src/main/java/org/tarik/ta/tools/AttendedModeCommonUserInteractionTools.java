@@ -17,6 +17,8 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import dev.langchain4j.model.input.PromptTemplate;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
@@ -32,6 +34,7 @@ import org.tarik.ta.user_dialogs.UiElementInfoPopup;
 
 import java.awt.*;
 
+import static org.tarik.ta.UiTestAgentConfig.getUiElementDescriptionAgentPromptVersion;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
@@ -52,18 +55,18 @@ import static org.tarik.ta.utils.UiCommonUtils.getColorName;
 /**
  * User interaction tools for ATTENDED execution mode.
  */
-public class AttendedModeUserInteractionTools extends UserInteractionToolsBase {
-    private static final Logger LOG = LoggerFactory.getLogger(AttendedModeUserInteractionTools.class);
+public class AttendedModeCommonUserInteractionTools extends CommonUserInteractionTools {
+    private static final Logger LOG = LoggerFactory.getLogger(AttendedModeCommonUserInteractionTools.class);
 
     private final UiElementDescriptionAgent uiElementDescriptionAgent;
 
     /**
-     * Constructs AttendedModeUserInteractionTools.
+     * Constructs AttendedModeCommonUserInteractionTools.
      *
      * @param uiElementRetriever The retriever for persisting and querying UI elements
      * @param executionContext   The current UI test execution context
      */
-    public AttendedModeUserInteractionTools(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext) {
+    public AttendedModeCommonUserInteractionTools(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext) {
         super(uiElementRetriever, executionContext);
         this.uiElementDescriptionAgent = getUiElementDescriptionAgent();
     }
@@ -163,20 +166,24 @@ public class AttendedModeUserInteractionTools extends UserInteractionToolsBase {
                                                                              String relevantTestData,
                                                                              UiElementCaptureResult capture) {
         var screenshot = singleImageContent(capture.wholeScreenshotWithBoundingBox());
-        var boundingBoxColorName = getColorName(BOUNDING_BOX_COLOR).toLowerCase();
         return uiElementDescriptionAgent.executeAndGetResult(() ->
-                        uiElementDescriptionAgent.describeUiElement(elementDescription, boundingBoxColorName, relevantTestData, screenshot))
+                        uiElementDescriptionAgent.describeUiElement(elementDescription, relevantTestData, screenshot))
                 .getResultPayload();
     }
 
     private static UiElementDescriptionAgent getUiElementDescriptionAgent() {
         var model = getModel(UiTestAgentConfig.getUiElementDescriptionAgentModelName(),
                 UiTestAgentConfig.getUiElementDescriptionAgentModelProvider());
-        var prompt = loadSystemPrompt("element_describer/screenshot_based", UiTestAgentConfig.getUiElementDescriptionAgentPromptVersion(),
+        var boundingBoxColorName = getColorName(BOUNDING_BOX_COLOR).toLowerCase();
+        var prompt = loadSystemPrompt("element_describer/screenshot_based", getUiElementDescriptionAgentPromptVersion(),
                 "element_description_prompt.txt");
+        var finalPrompt = PromptTemplate.from(prompt)
+                .apply(Map.of("bounding_box_color", boundingBoxColorName))
+                .text()
+                .trim();
         return builder(UiElementDescriptionAgent.class)
                 .chatModel(model.chatModel())
-                .systemMessageProvider(ignored -> prompt)
+                .systemMessageProvider(ignored -> finalPrompt)
                 .tools(new UiElementDescriptionResult("", "", "", "", false))
                 .build();
     }

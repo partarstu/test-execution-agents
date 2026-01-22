@@ -26,7 +26,7 @@ import org.tarik.ta.core.error.RetryPolicy;
 public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElementDescriptionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
-    Result<String> findAndDescribeElement(
+    Result<String> describeUiElement(
             @UserMessage("""
                     Target Element Description: {{target_element_description}}
                     
@@ -40,7 +40,7 @@ public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElement
 
     @Override
     default String getAgentTaskDescription() {
-        return "Finding and describing UI element based on description";
+        return "Describing the UI element based on description";
     }
 
     @Override

@@ -21,29 +21,47 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.String.format;
 
 /**
  * Modal popup that displays verification failure details with a screenshot.
- * The popup shows the failure information and has only an OK button.
+ * The popup shows the failure information and provides OK and Terminate buttons.
  * Used in both ATTENDED and SEMI_ATTENDED modes to inform the operator
- * about verification failures before interrupting execution.
+ * about verification failures before retrying or terminating execution.
  */
 public class VerificationFailurePopup extends AbstractDialog {
     private static final Logger LOG = LoggerFactory.getLogger(VerificationFailurePopup.class);
 
-    private VerificationFailurePopup(Window owner, String verificationDescription, String failureReason, BufferedImage screenshot) {
+    /**
+     * Represents the user's decision when viewing a verification failure.
+     */
+    public enum UserDecision {
+        /**
+         * User chose to continue (OK button), allowing the system to retry.
+         */
+        CONTINUE,
+        /**
+         * User chose to terminate execution.
+         */
+        TERMINATE
+    }
+
+    private final AtomicReference<UserDecision> userDecision = new AtomicReference<>(UserDecision.TERMINATE);
+
+    private VerificationFailurePopup(Window owner, String verificationDescription, String failureReason,
+                                     BufferedImage screenshot) {
         super(owner, "Verification Failure");
 
         JPanel mainPanel = getDefaultMainPanel();
 
-        // Create formatted message
         String message = format(
                 "<html><body style='width: 400px'>" +
                         "<h3 style='color: red'>Verification Failed</h3>" +
                         "<p><b>Verification:</b> %s</p>" +
                         "<p><b>Reason:</b> %s</p>" +
+                        "<p style='color: #555'><i>Click OK to retry the verification, or Terminate to stop the execution.</i></p>" +
                         "</body></html>",
                 escapeHtml(verificationDescription), escapeHtml(failureReason));
 
@@ -69,10 +87,23 @@ public class VerificationFailurePopup extends AbstractDialog {
         // OK button
         JButton okButton = new JButton("OK");
         okButton.setFont(new Font("Dialog", Font.BOLD, 12));
-        okButton.addActionListener(_ -> dispose());
+        okButton.addActionListener(_ -> {
+            userDecision.set(UserDecision.CONTINUE);
+            dispose();
+        });
         setHoverAsClick(okButton);
 
-        JPanel buttonPanel = getButtonsPanel(okButton);
+        // Terminate button
+        JButton terminateButton = new JButton("Terminate");
+        terminateButton.setFont(new Font("Dialog", Font.BOLD, 12));
+        terminateButton.setForeground(Color.RED);
+        terminateButton.addActionListener(_ -> {
+            userDecision.set(UserDecision.TERMINATE);
+            dispose();
+        });
+        setHoverAsClick(terminateButton);
+
+        JPanel buttonPanel = getButtonsPanel(okButton, terminateButton);
 
         mainPanel.add(centerPanel, BorderLayout.CENTER);
         mainPanel.add(buttonPanel, BorderLayout.SOUTH);
@@ -84,7 +115,8 @@ public class VerificationFailurePopup extends AbstractDialog {
 
     @Override
     protected void onDialogClosing() {
-        LOG.info("Verification failure popup closed");
+        LOG.info("Verification failure popup closed via window controls, treating as Terminate");
+        userDecision.set(UserDecision.TERMINATE);
     }
 
     private static Image scaleImage(BufferedImage original, int maxWidth, int maxHeight) {
@@ -115,14 +147,18 @@ public class VerificationFailurePopup extends AbstractDialog {
     }
 
     /**
-     * Displays the verification failure popup with screenshot and blocks until user acknowledges.
+     * Displays the verification failure popup with screenshot and blocks until user responds.
      *
      * @param verificationDescription Description of the verification that failed
      * @param failureReason           The reason for the failure
      * @param screenshot              Screenshot at the moment of failure (can be null)
+     * @return The user's decision (CONTINUE or TERMINATE)
      */
-    public static void display(String verificationDescription, String failureReason, BufferedImage screenshot) {
+    public static UserDecision display(String verificationDescription, String failureReason,
+                                       BufferedImage screenshot) {
         LOG.info("Displaying verification failure popup for: {}", verificationDescription);
-        new VerificationFailurePopup(null, verificationDescription, failureReason, screenshot);
+        var popup = new VerificationFailurePopup(null, verificationDescription, failureReason, screenshot);
+        return popup.userDecision.get();
     }
 }
+

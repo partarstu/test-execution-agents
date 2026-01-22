@@ -26,7 +26,7 @@ import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 @Description("the extracted by you information about the target UI element")
 public record UiElementDescriptionResult(
-        @Description("Identified by you name of the target element based on the original provided to you information.")
+        @Description("Identified by you name of the target element based on its original description.")
         String name,
         @Description("An accurate, specific, compact information about the visual appearance of the target element. " +
                 "This information must be enough for you to find this element on the screenshot, but at the same time this info shouldn't " +

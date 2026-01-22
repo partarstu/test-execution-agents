@@ -28,14 +28,13 @@ public interface UiElementDescriptionAgent extends BaseUiAgent<UiElementDescript
 
     Result<String> describeUiElement(
             @UserMessage("""
-                    The target UI element info: {{original_element_description}}.
+                    The target UI element description: {{original_element_description}}.
                     
                     Relevant Data Context: {{relevant_data}}
                     
                     The screenshot is attached.
                     """)
             @V("original_element_description") String originalElementDescription,
-            @V("bounding_box_color") String boundingBoxColor,
             @V("relevant_data") String relevantData,
             @UserMessage ImageContent screenshot);
 

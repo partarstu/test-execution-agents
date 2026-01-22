@@ -142,7 +142,7 @@ public class UiElement {
     }
 
     public record Screenshot(@NotNull String fileExtension, @NotNull String mimeType, @NotNull String base64EncodedImage) {
-        public static Screenshot fromBufferedImage(BufferedImage image, String fileExtension) {
+        public static Screenshot fromBufferedImage(@NotNull BufferedImage image, @NotNull String fileExtension) {
             String mimeType = "image/" + fileExtension;
             String base64EncodedImage = convertImageToBase64(image, fileExtension);
             return new Screenshot(fileExtension, mimeType, base64EncodedImage);

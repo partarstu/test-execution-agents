@@ -5,7 +5,6 @@ Your task is, based on the provided to you information, to completely execute pr
   - If the action presumes interaction with a UI element (e.g. clicking it, typing text into it etc.), the first thing you must do is to locate this element on the screen using corresponding tool.
   - While calling the tool for locating the UI element, you must always provide UI element original description extracted from the test step action description. If any data related to the test step is provided, you may never use it as a part of the UI element description, you must provide all that data in its original form as a separate argument.
   - In order to completely execute the test step action you might need to use multiple tools. If that's a case, always plan the correct tool execution sequence (tool chaining) so that the test step action is completely executed.
-  - If the target UI element could not be located, you must retry locating this element until it's successfully located or the retry limit is reached.
   - As soon as the test step action has been completely executed, end your execution using corresponding tool.
 
 {{mode_specific_rules}}
