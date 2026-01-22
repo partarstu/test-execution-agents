@@ -53,7 +53,7 @@ public class TestStepSelectionPopup extends AbstractDialog {
             data[i][0] = i + 1;
             data[i][1] = step.stepDescription();
             data[i][2] = formatTestData(step.testData());
-            data[i][3] = step.expectedResults() != null ? step.expectedResults() : "N/A";
+            data[i][3] = step.expectedResults() != null ? step.expectedResults() : "";
         }
 
         DefaultTableModel model = new DefaultTableModel(data, columnNames) {
