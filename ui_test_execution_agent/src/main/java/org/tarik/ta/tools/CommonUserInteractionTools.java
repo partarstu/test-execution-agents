@@ -184,6 +184,15 @@ public class CommonUserInteractionTools extends UiAbstractTools {
         }
     }
 
+    public SemiAttendedModeElementLocationConfirmationResult confirmElementSelection(UiElementInfo elementInfo, String actionDescription) {
+        try {
+            LOG.info("Requesting element selection confirmation for: {} Action: {}", elementInfo.name(), actionDescription);
+            return SemiAttendedModeElementLocationConfirmationPopup.displayAndGetDecision(null, elementInfo, actionDescription);
+        } catch (Exception e) {
+            throw rethrowAsToolException(e, "confirming element selection");
+        }
+    }
+
     @Tool("Displays an informational popup to the user. Use this tool when you need to simply show information, a warning, or an error message to the user.")
     public String displayInformationalPopup(
             @P("The title of the popup window") String title,

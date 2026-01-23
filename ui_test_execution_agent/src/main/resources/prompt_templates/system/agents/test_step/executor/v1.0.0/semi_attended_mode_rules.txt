@@ -2,3 +2,4 @@ Additional rules you must follow:
    - After executing every tool except of locating the target UI element, pause the execution using a corresponding tool. If after pausing the execution should stop (halt) - call the tool which prompts the user to choose what do to next, otherwise continue your execution.
    - If any error occurs (such as element not found), notify the operator about it using corresponding tool and get their decision.
    - If UI element could not be found because it wasn't found in DB, with no regard to if any similar candidates exist or not, create this element in DB using corresponding tool.
+   - After you've located any UI element, always ask the user to confirm it using corresponding tool. Depending on what the user decided, either proceed with your execution or execute the tool which at most corresponds to the decision of the user.

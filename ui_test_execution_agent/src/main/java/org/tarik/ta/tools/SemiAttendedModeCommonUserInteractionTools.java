@@ -29,8 +29,10 @@ import java.awt.image.BufferedImage;
 
 import org.tarik.ta.agents.UiElementExtendedDescriptionAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
+import org.tarik.ta.dto.SemiAttendedModeElementLocationConfirmationResult;
 import org.tarik.ta.dto.NewElementCreationResult;
 import org.tarik.ta.dto.UiElementDescriptionResult;
+import org.tarik.ta.user_dialogs.SemiAttendedModeElementLocationConfirmationPopup;
 import org.tarik.ta.user_dialogs.UiElementInfoPopup.UiElementInfo;
 
 import static dev.langchain4j.service.AiServices.builder;
@@ -60,8 +62,20 @@ public class SemiAttendedModeCommonUserInteractionTools extends CommonUserIntera
      * @param executionContext   The current UI test execution context
      */
     public SemiAttendedModeCommonUserInteractionTools(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext) {
+        this(uiElementRetriever, executionContext, createUiElementDescriptionMatcherAgent());
+    }
+
+    /**
+     * Constructs SemiAttendedModeCommonUserInteractionTools with injected agent.
+     *
+     * @param uiElementRetriever                The retriever for persisting and querying UI elements
+     * @param executionContext                  The current UI test execution context
+     * @param uiElementExtendedDescriptionAgent The agent for element description
+     */
+    public SemiAttendedModeCommonUserInteractionTools(UiElementRetriever uiElementRetriever, UiTestExecutionContext executionContext,
+                                                      UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent) {
         super(uiElementRetriever, executionContext);
-        this.uiElementExtendedDescriptionAgent = createUiElementDescriptionMatcherAgent();
+        this.uiElementExtendedDescriptionAgent = uiElementExtendedDescriptionAgent;
     }
 
     @Tool("Creates a new UI element record in DB based on its description.")
@@ -116,6 +130,23 @@ public class SemiAttendedModeCommonUserInteractionTools extends CommonUserIntera
         } catch (Exception e) {
             throw rethrowAsToolException(e, "reporting error and prompting for next action");
         }
+    }
+
+    @Tool("Confirms the selected element with the operator in semi-attended mode. Displays a countdown popup allowing intervention.")
+    public SemiAttendedModeElementLocationConfirmationResult confirmElementSelection(
+            @P("The name of the selected element") String elementName,
+            @P("The intended action description") String intendedAction) {
+        try {
+            LOG.info("Requesting operator confirmation for element: {} with action: {}", elementName, intendedAction);
+            return displayConfirmationPopup(elementName, intendedAction);
+        } catch (Exception e) {
+            throw rethrowAsToolException(e, "confirming element selection");
+        }
+    }
+
+    protected SemiAttendedModeElementLocationConfirmationResult displayConfirmationPopup(String elementName, String intendedAction) {
+        return SemiAttendedModeElementLocationConfirmationPopup.displayAndGetUserDecision(elementName, intendedAction, getSemiAttendedCountdownSeconds()
+        );
     }
 
     private UiElementDescriptionResult getElementDescription(String elementDescription, String relevantTestData,
