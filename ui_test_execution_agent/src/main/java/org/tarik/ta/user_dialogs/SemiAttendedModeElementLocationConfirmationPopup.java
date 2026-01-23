@@ -41,22 +41,23 @@ public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractDi
     private int remainingSeconds;
     private JButton proceedButton;
 
-    private SemiAttendedModeElementLocationConfirmationPopup(String elementName, String intendedAction, int seconds) {
+    private SemiAttendedModeElementLocationConfirmationPopup(String elementDescription, String elementName, String intendedAction, int seconds) {
         super(null, TITLE);
         this.remainingSeconds = seconds;
         // Default is APPLICATION_MODAL from AbstractDialog, which blocks execution
         
-        initializeComponents(elementName, intendedAction);
+        initializeComponents(elementDescription, elementName, intendedAction);
         startCountdown();
         displayPopup();
     }
 
-    private void initializeComponents(String elementName, String intendedAction) {
+    private void initializeComponents(String elementDescription, String elementName, String intendedAction) {
         JPanel mainPanel = getDefaultMainPanel();
         mainPanel.setLayout(new BorderLayout(10, 10));
 
         // Info message
         String message = "<html><body style='width: 300px; text-align: center;'>" +
+                "<b>Element Description:</b> " + elementDescription + "<br/><br/>" +
                 "<b>Selected Element:</b> " + elementName + "<br/><br/>" +
                 "<b>Intended Action:</b> " + intendedAction + "<br/><br/>" +
                 "Proceeding automatically in...</body></html>";
@@ -134,13 +135,14 @@ public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractDi
     /**
      * Displays the confirmation popup and blocks until the user makes a choice or the countdown expires.
      *
-     * @param elementName    The name of the selected element.
-     * @param intendedAction The intended action description.
-     * @param seconds        The countdown duration in seconds.
+     * @param elementDescription The description of the element.
+     * @param elementName        The name of the selected element.
+     * @param intendedAction     The intended action description.
+     * @param seconds            The countdown duration in seconds.
      * @return The result of the user's decision or the automatic countdown expiration.
      */
-    public static SemiAttendedModeElementLocationConfirmationResult displayAndGetUserDecision(String elementName, String intendedAction, int seconds) {
-        var popup = new SemiAttendedModeElementLocationConfirmationPopup(elementName, intendedAction, seconds);
+    public static SemiAttendedModeElementLocationConfirmationResult displayAndGetUserDecision(String elementDescription, String elementName, String intendedAction, int seconds) {
+        var popup = new SemiAttendedModeElementLocationConfirmationPopup(elementDescription, elementName, intendedAction, seconds);
         return popup.result.get();
     }
 }

@@ -134,19 +134,21 @@ public class SemiAttendedModeCommonUserInteractionTools extends CommonUserIntera
 
     @Tool("Confirms the selected element with the operator in semi-attended mode. Displays a countdown popup allowing intervention.")
     public SemiAttendedModeElementLocationConfirmationResult confirmElementSelection(
+            @P("The description of the element") String elementDescription,
             @P("The name of the selected element") String elementName,
             @P("The intended action description") String intendedAction) {
         try {
             LOG.info("Requesting operator confirmation for element: {} with action: {}", elementName, intendedAction);
-            return displayConfirmationPopup(elementName, intendedAction);
+            return displayConfirmationPopup(elementDescription, elementName, intendedAction);
         } catch (Exception e) {
             throw rethrowAsToolException(e, "confirming element selection");
         }
     }
 
-    protected SemiAttendedModeElementLocationConfirmationResult displayConfirmationPopup(String elementName, String intendedAction) {
-        return SemiAttendedModeElementLocationConfirmationPopup.displayAndGetUserDecision(elementName, intendedAction, getSemiAttendedCountdownSeconds()
-        );
+    protected SemiAttendedModeElementLocationConfirmationResult displayConfirmationPopup(String elementDescription, String elementName,
+                                                                                         String intendedAction) {
+        return SemiAttendedModeElementLocationConfirmationPopup.displayAndGetUserDecision(elementDescription, elementName, intendedAction,
+                getSemiAttendedCountdownSeconds()        );
     }
 
     private UiElementDescriptionResult getElementDescription(String elementDescription, String relevantTestData,

@@ -50,15 +50,16 @@ class SemiAttendedModeCommonUserInteractionToolsTest {
     @Test
     void confirmElementSelection_ShouldReturnResultFromPopup() {
         // Given
+        String elementDescription = "Test Description";
         String elementName = "Test Element";
         String action = "Click";
         SemiAttendedModeElementLocationConfirmationResult expectedResult = proceed();
 
         // Mock the protected method to avoid UI interaction
-        doReturn(expectedResult).when(tools).displayConfirmationPopup(anyString(), anyString());
+        doReturn(expectedResult).when(tools).displayConfirmationPopup(anyString(), anyString(), anyString());
 
         // When
-        SemiAttendedModeElementLocationConfirmationResult result = tools.confirmElementSelection(elementName, action);
+        SemiAttendedModeElementLocationConfirmationResult result = tools.confirmElementSelection(elementDescription, elementName, action);
 
         // Then
         assertThat(result).isEqualTo(expectedResult);
