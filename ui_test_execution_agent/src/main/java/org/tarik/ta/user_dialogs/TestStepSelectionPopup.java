@@ -133,7 +133,7 @@ public class TestStepSelectionPopup extends AbstractDialog {
      */
     private static String formatTestData(List<String> testData) {
         if (testData == null || testData.isEmpty()) {
-            return "N/A";
+            return "";
         }
         return String.join(", ", testData);
     }

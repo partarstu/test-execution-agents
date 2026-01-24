@@ -17,6 +17,9 @@ working with agentic systems.
 * Do not wrap lines that are under 140 characters, even if it improves readability.
 * You're working with a project which is always used in IntelliJ IDEA.
 * Always use imports instead of qualified names.
+* Never duplicate existing functionality. If you've noticed any existing logic or functionality which you need for your implementation, 
+  always reuse it. If reusing it directly can't be done, always extract it so that it's accessible (inheritance or composition) and then 
+  reuse it.
 * Never concatenate strings because of parameters, always use String.formatted() for that (except logging).
 * Prefer static imports everywhere, if possible.
 * Don't commit or push any changes into Git, unless explicitly asked for.

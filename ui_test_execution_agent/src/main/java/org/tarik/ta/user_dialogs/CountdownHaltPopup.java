@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Optional.ofNullable;
 
@@ -30,7 +29,7 @@ import static java.util.Optional.ofNullable;
  * If the operator clicks Halt before countdown completes, execution is halted.
  * If countdown completes without halt, execution proceeds automatically.
  */
-public class CountdownHaltPopup extends AbstractDialog {
+public class CountdownHaltPopup extends AbstractCountdownPopup<CountdownHaltPopup.Result> {
     private static final Logger LOG = LoggerFactory.getLogger(CountdownHaltPopup.class);
     private static final String TITLE = "Agent Running";
     public static final int TEXT_SIZE = 50;
@@ -40,17 +39,11 @@ public class CountdownHaltPopup extends AbstractDialog {
         HALTED
     }
 
-    private final AtomicReference<Result> result = new AtomicReference<>(Result.PROCEED);
-    private Timer countdownTimer;
-    private int remainingSeconds;
     private JLabel countdownLabel;
     private JButton haltButton;
 
     private CountdownHaltPopup(int seconds, String operationDescription) {
-        super(null, TITLE);
-        this.remainingSeconds = seconds;
-        setModalityType(ModalityType.MODELESS);
-        setUndecorated(true);
+        super(TITLE, Result.PROCEED, seconds);
 
         initializeComponents(operationDescription);
         startCountdown();
@@ -59,10 +52,7 @@ public class CountdownHaltPopup extends AbstractDialog {
 
     private void initializeComponents(String operationDescription) {
         JPanel mainPanel = getDefaultMainPanel();
-        mainPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Color.GRAY, 1),
-                BorderFactory.createEmptyBorder(10, 15, 10, 15)));
-        mainPanel.setBackground(new Color(255, 255, 224)); // Light yellow background
+        applyCommonPanelStyling(mainPanel);
 
         // Operation description
         JLabel descLabel = new JLabel("<html><b>Completed:</b> " + truncate(operationDescription) + "</html>");
@@ -96,7 +86,6 @@ public class CountdownHaltPopup extends AbstractDialog {
 
         add(mainPanel);
         setDefaultSizeAndPosition();
-        displayPopup();
     }
 
     private String getCountdownText() {
@@ -104,39 +93,20 @@ public class CountdownHaltPopup extends AbstractDialog {
     }
 
     @Override
-    protected void setDefaultPosition() {
-        pack();
-        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        Insets screenInsets = Toolkit.getDefaultToolkit().getScreenInsets(getGraphicsConfiguration());
-        int x = screenSize.width - getWidth() - 20 - screenInsets.right;
-        int y = screenSize.height - getHeight() - 40 - screenInsets.bottom;
-        setLocation(x, y);
+    protected void updateCountdownDisplay() {
+        countdownLabel.setText(getCountdownText());
+        haltButton.setText("Halt (" + remainingSeconds + ")");
     }
 
-    private void startCountdown() {
-        countdownTimer = new Timer(1000, _ -> {
-            remainingSeconds--;
-            if (remainingSeconds <= 0) {
-                LOG.info("Countdown completed, proceeding with execution");
-                stopCountdown();
-                dispose();
-            } else {
-                countdownLabel.setText(getCountdownText());
-                haltButton.setText("Halt (" + remainingSeconds + ")");
-            }
-        });
-        countdownTimer.start();
-    }
-
-    private void stopCountdown() {
-        if (countdownTimer != null) {
-            countdownTimer.stop();
-        }
+    @Override
+    protected void onCountdownFinished() {
+        LOG.info("Countdown completed, proceeding with execution");
+        // Result is already PROCEED by default
     }
 
     @Override
     protected void onDialogClosing() {
-        stopCountdown();
+        super.onDialogClosing();
         result.set(Result.PROCEED);
     }
 
@@ -155,6 +125,6 @@ public class CountdownHaltPopup extends AbstractDialog {
      */
     public static Result displayWithCountdown(int seconds, String operationDescription) {
         var popup = new CountdownHaltPopup(seconds, operationDescription);
-        return popup.result.get();
+        return popup.getResult();
     }
 }

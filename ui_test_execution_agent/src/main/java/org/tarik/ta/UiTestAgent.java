@@ -275,7 +275,6 @@ public class UiTestAgent {
                     if (verificationResultOptional.isEmpty()) {
                         var message = "There was an error while verifying that '%s'. Please see logs for details"
                                 .formatted(verificationInstruction);
-                        LOG.error(message);
                         addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(), captureScreen(),
                                 TestStepResultStatus.ERROR);
                         return;

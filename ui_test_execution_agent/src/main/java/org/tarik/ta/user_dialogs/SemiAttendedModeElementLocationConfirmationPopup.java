@@ -21,7 +21,6 @@ import org.tarik.ta.dto.SemiAttendedModeElementLocationConfirmationResult;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.tarik.ta.dto.SemiAttendedModeElementLocationConfirmationResult.createNewElement;
 import static org.tarik.ta.dto.SemiAttendedModeElementLocationConfirmationResult.otherAction;
@@ -32,18 +31,14 @@ import static org.tarik.ta.dto.SemiAttendedModeElementLocationConfirmationResult
  * Displays the selected element and intended action, with a countdown to automatically proceed.
  * Allows the user to intervene and choose to create a new element or perform another action.
  */
-public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractDialog {
+public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractCountdownPopup<SemiAttendedModeElementLocationConfirmationResult> {
     private static final Logger LOG = LoggerFactory.getLogger(SemiAttendedModeElementLocationConfirmationPopup.class);
     private static final String TITLE = "Confirm Element Selection";
 
-    private final AtomicReference<SemiAttendedModeElementLocationConfirmationResult> result = new AtomicReference<>(proceed());
-    private Timer countdownTimer;
-    private int remainingSeconds;
     private JButton proceedButton;
 
     private SemiAttendedModeElementLocationConfirmationPopup(String elementDescription, String elementName, String intendedAction, int seconds) {
-        super(null, TITLE);
-        this.remainingSeconds = seconds;
+        super(TITLE, proceed(), seconds);
         // Default is APPLICATION_MODAL from AbstractDialog, which blocks execution
         
         initializeComponents(elementDescription, elementName, intendedAction);
@@ -53,6 +48,7 @@ public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractDi
 
     private void initializeComponents(String elementDescription, String elementName, String intendedAction) {
         JPanel mainPanel = getDefaultMainPanel();
+        applyCommonPanelStyling(mainPanel);
         mainPanel.setLayout(new BorderLayout(10, 10));
 
         // Info message
@@ -62,8 +58,12 @@ public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractDi
                 "<b>Intended Action:</b> " + intendedAction + "<br/><br/>" +
                 "Proceeding automatically in...</body></html>";
         
-        JTextPane messageArea = getUserMessageArea(message);
-        mainPanel.add(messageArea, BorderLayout.CENTER);
+        JLabel messageLabel = new JLabel(message);
+        messageLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        // Use a consistent font or default
+        messageLabel.setFont(new Font("Dialog", Font.PLAIN, 12));
+        
+        mainPanel.add(messageLabel, BorderLayout.CENTER);
 
         // Buttons
         proceedButton = new JButton(getProceedButtonText());
@@ -91,6 +91,7 @@ public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractDi
         });
 
         JPanel buttonsPanel = getButtonsPanel(proceedButton, createNewButton, otherActionButton);
+        buttonsPanel.setOpaque(false); // Make transparent to show yellow background
         mainPanel.add(buttonsPanel, BorderLayout.SOUTH);
 
         add(mainPanel);
@@ -104,30 +105,20 @@ public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractDi
         return "Proceed (" + remainingSeconds + ")";
     }
 
-    private void startCountdown() {
-        countdownTimer = new Timer(1000, _ -> {
-            remainingSeconds--;
-            if (remainingSeconds <= 0) {
-                LOG.info("Countdown completed, proceeding automatically");
-                result.set(proceed());
-                stopCountdown();
-                dispose();
-            } else {
-                proceedButton.setText(getProceedButtonText());
-            }
-        });
-        countdownTimer.start();
+    @Override
+    protected void updateCountdownDisplay() {
+        proceedButton.setText(getProceedButtonText());
     }
 
-    private void stopCountdown() {
-        if (countdownTimer != null) {
-            countdownTimer.stop();
-        }
+    @Override
+    protected void onCountdownFinished() {
+        LOG.info("Countdown completed, proceeding automatically");
+        result.set(proceed());
     }
 
     @Override
     protected void onDialogClosing() {
-        stopCountdown();
+        super.onDialogClosing();
         // Default to proceed if closed, or whatever the current value is (initially proceed)
         LOG.info("Dialog closed, defaulting to: {}", result.get().decision());
     }
@@ -143,6 +134,6 @@ public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractDi
      */
     public static SemiAttendedModeElementLocationConfirmationResult displayAndGetUserDecision(String elementDescription, String elementName, String intendedAction, int seconds) {
         var popup = new SemiAttendedModeElementLocationConfirmationPopup(elementDescription, elementName, intendedAction, seconds);
-        return popup.result.get();
+        return popup.getResult();
     }
 }
