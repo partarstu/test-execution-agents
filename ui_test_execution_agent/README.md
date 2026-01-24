@@ -52,12 +52,6 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * Tracks token usage per model (input, output, cached, total).
         * Automatically interrupts execution in unattended mode if budget is exceeded.
 
-* **Async Verification with VerificationManager:**
-    * The [VerificationManager](src/main/java/org/tarik/ta/manager/VerificationManager.java) enables asynchronous verification
-      processing in case the UI element prefetching is enabled:
-        * Submits verification tasks to a dedicated executor.
-        * Supports waiting for verification completion within configurable timeouts and providing the verification result.
-
 * **Enhanced Error Handling:**
     * Structured error handling with [ErrorCategory](../agent_core/src/main/java/org/tarik/ta/core/error/ErrorCategory.java) enum:
         * `TERMINATION_BY_USER`: User-initiated interruption (no retry).
@@ -640,8 +634,6 @@ Remember to use the VNC password you set in the Dockerfile when prompted.
   UI-specific configuration is managed by [UiTestAgentConfig](src/main/java/org/tarik/ta/UiTestAgentConfig.java).
 * **Budget Management:** The `BudgetManager` provides guardrails for execution in unattended mode, preventing runaway costs by limiting
   time, tokens, and tool calls. This is particularly important for CI/CD integration.
-* **Async Verification:** The `VerificationManager` enables asynchronous verification processing, improving overall execution performance
-  by allowing verifications to run in parallel when appropriate.
 * **Enhanced Error Handling:** The new `ErrorCategory` enum and `RetryPolicy` record provide structured error handling with configurable
   retry strategies, making the agent more robust and easier to debug.
 * **Environment:** The agent has been manually tested on the Windows 11 platform. There are issues with OpenCV and OpenBLAS libraries

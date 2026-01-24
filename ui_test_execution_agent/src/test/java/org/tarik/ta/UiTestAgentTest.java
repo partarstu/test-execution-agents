@@ -37,6 +37,7 @@ import org.tarik.ta.agents.PageDescriptionAgent;
 import org.tarik.ta.agents.UiElementBoundingBoxAgent;
 import org.tarik.ta.agents.BestUiElementMatchSelectionAgent;
 import org.tarik.ta.agents.DbUiElementSelectionAgent;
+import org.tarik.ta.agents.ImageVerificationAgent;
 import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -107,6 +108,8 @@ class UiTestAgentTest {
         private BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgentMock;
         @Mock
         private DbUiElementSelectionAgent dbUiElementSelectionAgentMock;
+        @Mock
+        private ImageVerificationAgent imageVerificationAgentMock;
 
         @Mock
         private AiServices<TestCaseExtractionAgent> testCaseExtractionAgentBuilder;
@@ -130,6 +133,8 @@ class UiTestAgentTest {
         private AiServices<BestUiElementMatchSelectionAgent> elementSelectionAgentBuilder;
         @Mock
         private AiServices<DbUiElementSelectionAgent> dbElementSelectionAgentBuilder;
+        @Mock
+        private AiServices<ImageVerificationAgent> imageVerificationAgentBuilder;
 
         // Static mocks
         private MockedStatic<ModelFactory> modelFactoryMockedStatic;
@@ -243,6 +248,8 @@ class UiTestAgentTest {
                                 .thenReturn(elementSelectionAgentBuilder);
                 aiServicesMockedStatic.when(() -> AiServices.builder(DbUiElementSelectionAgent.class))
                                 .thenReturn(dbElementSelectionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(ImageVerificationAgent.class))
+                                .thenReturn(imageVerificationAgentBuilder);
 
                 // Retriever Factory
                 retrieverFactoryMockedStatic.when(RetrieverFactory::getUiElementRetriever)
@@ -267,6 +274,7 @@ class UiTestAgentTest {
                 configureBuilder(elementBoundingBoxAgentBuilder, uiElementBoundingBoxAgentMock);
                 configureBuilder(elementSelectionAgentBuilder, bestUiElementMatchSelectionAgentMock);
                 configureBuilder(dbElementSelectionAgentBuilder, dbUiElementSelectionAgentMock);
+                configureBuilder(imageVerificationAgentBuilder, imageVerificationAgentMock);
         }
 
         private <T> void configureBuilder(AiServices<T> builder, T agent) {
