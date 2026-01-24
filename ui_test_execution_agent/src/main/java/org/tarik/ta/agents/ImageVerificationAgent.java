@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
@@ -24,9 +25,9 @@ import org.tarik.ta.core.error.RetryPolicy;
 
 /**
  * Agent responsible for verifying test step expected results for UI tests.
- * It uses tools to perform the actual verification.
+ * This is an internal agent used by VerificationTools.
  */
-public interface UiTestStepVerificationAgent extends BaseUiAgent<VerificationExecutionResult> {
+public interface ImageVerificationAgent extends BaseUiAgent<VerificationExecutionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
 
     @Override
@@ -44,13 +45,16 @@ public interface UiTestStepVerificationAgent extends BaseUiAgent<VerificationExe
             
             The test case action executed before this verification: {{actionDescription}}.
             
-            The test data for this action was: {{actionTestData}}.
+            The test data for this action was: {{actionTestData}}
             
-            Test context data: {{sharedData}}.
+            Test context data: {{sharedData}}
+            
+            The screenshot of the application under test is attached.
             """)
     Result<String> verify(
             @V("verificationDescription") String verificationDescription,
             @V("actionDescription") String actionDescription,
             @V("actionTestData") String actionTestData,
-            @V("sharedData") String sharedData);
+            @V("sharedData") String sharedData,
+            @UserMessage ImageContent screenshot);
 }

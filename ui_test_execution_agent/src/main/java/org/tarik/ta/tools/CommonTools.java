@@ -18,8 +18,6 @@ package org.tarik.ta.tools;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.tarik.ta.agents.UiStateCheckAgent;
-import org.tarik.ta.core.dto.VerificationExecutionResult;
-import org.tarik.ta.manager.VerificationManager;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -45,39 +43,12 @@ public class CommonTools extends UiAbstractTools {
     private static Process browserProcess;
     private static final Object LOCK = new Object();
 
-    private final VerificationManager verificationManager;
-
     public CommonTools() {
         super();
-        this.verificationManager = new VerificationManager();
     }
 
-    protected CommonTools(UiStateCheckAgent uiStateCheckAgent, VerificationManager verificationManager) {
+    protected CommonTools(UiStateCheckAgent uiStateCheckAgent) {
         super(uiStateCheckAgent);
-        this.verificationManager = verificationManager;
-    }
-
-    public CommonTools(VerificationManager verificationManager) {
-        super();
-        this.verificationManager = verificationManager;
-    }
-
-    @Tool(value = "Waits for any running verifications to complete and returns the verification results, if any.")
-    public VerificationExecutionResult waitForVerification() {
-        try {
-            var resultOptional = verificationManager.waitForCurrentVerificationToFinish();
-            if (resultOptional.isEmpty()) {
-                throw new ToolExecutionException("Verification timed out before completing", VERIFICATION_FAILED);
-            }
-            var result = resultOptional.get();
-            if (!result.success()) {
-                throw new ToolExecutionException("The latest verification failed: " + result.message(),
-                        VERIFICATION_FAILED);
-            }
-            return result;
-        } catch (Exception e) {
-            throw rethrowAsToolException(e, "waiting for verification to complete");
-        }
     }
 
     @Tool(value = "Waits the specified amount of seconds. Use this tool when you need to wait after some action.")
