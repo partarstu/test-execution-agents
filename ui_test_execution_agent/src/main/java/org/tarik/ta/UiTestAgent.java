@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.*;
 import org.tarik.ta.core.agents.PreconditionActionAgent;
 import org.tarik.ta.core.dto.*;
+import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 import org.tarik.ta.core.model.DefaultToolErrorHandler;
 import org.tarik.ta.dto.UiOperationExecutionResult;

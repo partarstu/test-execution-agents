@@ -37,7 +37,7 @@ import static org.tarik.ta.core.error.ErrorCategory.VERIFICATION_FAILED;
 import static org.tarik.ta.core.manager.BudgetManager.checkAllBudgets;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 
-public interface GenericAiAgent<T extends FinalResult> {
+public interface GenericAiAgent<T extends FinalResult<T>> {
     Logger LOG = LoggerFactory.getLogger(GenericAiAgent.class);
 
     default void checkBudget() {

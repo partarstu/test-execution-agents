@@ -29,7 +29,7 @@ import java.awt.image.BufferedImage;
 import static org.tarik.ta.UiTestAgentConfig.isFullyUnattended;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
-public interface BaseUiAgent<T extends FinalResult> extends GenericAiAgent<T> {
+public interface BaseUiAgent<T extends FinalResult<T>> extends GenericAiAgent<T> {
     Logger LOG = LoggerFactory.getLogger(BaseUiAgent.class);
 
     default BufferedImage captureErrorScreenshot() {
