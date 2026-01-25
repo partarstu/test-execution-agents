@@ -366,6 +366,7 @@ public class UiTestAgent {
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> finalPrompt)
                 .maxSequentialToolsInvocations(getAgentToolCallsBudget())
+                .tools(VerificationExecutionResult.empty())
                 .toolExecutionErrorHandler(new DefaultToolErrorHandler(ImageVerificationAgent.RETRY_POLICY, retryState, isFullyUnattended()))
                 .build();
     }

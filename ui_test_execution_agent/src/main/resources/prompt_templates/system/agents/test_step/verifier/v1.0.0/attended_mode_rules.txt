@@ -1,3 +1,2 @@
 Additional rules you must follow:
-  - When the final result of the verification is failure, you must first inform the user about this verification failure using corresponding tool before returning the result.
-  - Only after the user acknowledges the failure through the popup should you proceed with returning the verification result.
+  - When the verification result is not successful (verification failed), you must first inform the user about this verification failure using corresponding tool and only then return that verification result.

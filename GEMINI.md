@@ -15,6 +15,7 @@ working with agentic systems.
 * You must use Java 25 for development.
 * Never reformat the code which you haven't modified!
 * Do not wrap lines that are under 140 characters, even if it improves readability.
+* Before implementing anything, always let the user know what you plan to do and ask the user to confirm it.  
 * You're working with a project which is always used in IntelliJ IDEA.
 * Always use imports instead of qualified names.
 * Never duplicate existing functionality. If you've noticed any existing logic or functionality which you need for your implementation, 

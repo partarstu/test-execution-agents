@@ -34,22 +34,6 @@ import static java.lang.String.format;
 public class VerificationFailurePopup extends AbstractDialog {
     private static final Logger LOG = LoggerFactory.getLogger(VerificationFailurePopup.class);
 
-    /**
-     * Represents the user's decision when viewing a verification failure.
-     */
-    public enum UserDecision {
-        /**
-         * User chose to continue (OK button), allowing the system to retry.
-         */
-        CONTINUE,
-        /**
-         * User chose to terminate execution.
-         */
-        TERMINATE
-    }
-
-    private final AtomicReference<UserDecision> userDecision = new AtomicReference<>(UserDecision.TERMINATE);
-
     private VerificationFailurePopup(Window owner, String verificationDescription, String failureReason,
                                      BufferedImage screenshot) {
         super(owner, "Verification Failure");
@@ -61,7 +45,7 @@ public class VerificationFailurePopup extends AbstractDialog {
                         "<h3 style='color: red'>Verification Failed</h3>" +
                         "<p><b>Verification:</b> %s</p>" +
                         "<p><b>Reason:</b> %s</p>" +
-                        "<p style='color: #555'><i>Click OK to retry the verification, or Terminate to stop the execution.</i></p>" +
+                        "<p style='color: #555'><i>Click OK to acknowledge.</i></p>" +
                         "</body></html>",
                 escapeHtml(verificationDescription), escapeHtml(failureReason));
 
@@ -87,23 +71,10 @@ public class VerificationFailurePopup extends AbstractDialog {
         // OK button
         JButton okButton = new JButton("OK");
         okButton.setFont(new Font("Dialog", Font.BOLD, 12));
-        okButton.addActionListener(_ -> {
-            userDecision.set(UserDecision.CONTINUE);
-            dispose();
-        });
+        okButton.addActionListener(_ -> dispose());
         setHoverAsClick(okButton);
 
-        // Terminate button
-        JButton terminateButton = new JButton("Terminate");
-        terminateButton.setFont(new Font("Dialog", Font.BOLD, 12));
-        terminateButton.setForeground(Color.RED);
-        terminateButton.addActionListener(_ -> {
-            userDecision.set(UserDecision.TERMINATE);
-            dispose();
-        });
-        setHoverAsClick(terminateButton);
-
-        JPanel buttonPanel = getButtonsPanel(okButton, terminateButton);
+        JPanel buttonPanel = getButtonsPanel(okButton);
 
         mainPanel.add(centerPanel, BorderLayout.CENTER);
         mainPanel.add(buttonPanel, BorderLayout.SOUTH);
@@ -115,8 +86,7 @@ public class VerificationFailurePopup extends AbstractDialog {
 
     @Override
     protected void onDialogClosing() {
-        LOG.info("Verification failure popup closed via window controls, treating as Terminate");
-        userDecision.set(UserDecision.TERMINATE);
+        LOG.info("Verification failure popup closed via window controls");
     }
 
     private static Image scaleImage(BufferedImage original, int maxWidth, int maxHeight) {
@@ -152,13 +122,11 @@ public class VerificationFailurePopup extends AbstractDialog {
      * @param verificationDescription Description of the verification that failed
      * @param failureReason           The reason for the failure
      * @param screenshot              Screenshot at the moment of failure (can be null)
-     * @return The user's decision (CONTINUE or TERMINATE)
      */
-    public static UserDecision display(String verificationDescription, String failureReason,
+    public static void display(String verificationDescription, String failureReason,
                                        BufferedImage screenshot) {
         LOG.info("Displaying verification failure popup for: {}", verificationDescription);
-        var popup = new VerificationFailurePopup(null, verificationDescription, failureReason, screenshot);
-        return popup.userDecision.get();
+        new VerificationFailurePopup(null, verificationDescription, failureReason, screenshot);
     }
 }
 

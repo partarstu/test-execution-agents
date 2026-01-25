@@ -193,7 +193,20 @@ public class CommonUserInteractionTools extends UiAbstractTools {
         return "Popup displayed successfully.";
     }
 
-    public void displayInformationalPopup(String title, String message, BufferedImage screenshot, PopupType popupType) {
+    @Tool("Informs the user about the verification failure.")
+    public void displayVerificationFailure(
+            @P("Description of the verification") String verificationDescription,
+            @P("Short explanation of why the verification failed") String failureReason) {
+        try {
+            LOG.info("Displaying verification failure for: {}", verificationDescription);
+            var screenshot = executionContext.getVisualState().screenshot();
+            VerificationFailurePopup.display(verificationDescription, failureReason, screenshot);
+        } catch (Exception e) {
+            throw rethrowAsToolException(e, "notifying operator that the verification failed");
+        }
+    }
+
+    protected void displayInformationalPopup(String title, String message, BufferedImage screenshot, PopupType popupType) {
         try {
             LOG.debug("Displaying informational popup: {}", title);
             int messageType = switch (popupType) {
@@ -225,45 +238,6 @@ public class CommonUserInteractionTools extends UiAbstractTools {
             throw rethrowAsToolException(e, "displaying informational popup");
         }
     }
-
-    private static Image scaleImageToFit(BufferedImage original, int maxWidth, int maxHeight) {
-        int width = original.getWidth();
-        int height = original.getHeight();
-
-        if (width <= maxWidth && height <= maxHeight) {
-            return original;
-        }
-
-        double scaleX = (double) maxWidth / width;
-        double scaleY = (double) maxHeight / height;
-        double scale = Math.min(scaleX, scaleY);
-
-        int newWidth = (int) (width * scale);
-        int newHeight = (int) (height * scale);
-
-        return original.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
-    }
-
-    @Tool("Informs the user about the verification failure. Allows user to continue or terminate the execution.")
-    public void displayVerificationFailure(
-            @P("Description of the verification") String verificationDescription,
-            @P("Short explanation of why the verification failed") String failureReason) {
-        try {
-            LOG.info("Displaying verification failure for: {}", verificationDescription);
-            var screenshot = executionContext.getVisualState().screenshot();
-            var decision = VerificationFailurePopup.display(verificationDescription, failureReason, screenshot);
-            if (decision == VerificationFailurePopup.UserDecision.TERMINATE) {
-                LOG.info("User chose to terminate execution from verification failure popup");
-                throw new ToolExecutionException("User chose to terminate execution", TERMINATION_BY_USER);
-            }
-            LOG.info("User chose to continue after verification failure notification");
-        } catch (ToolExecutionException e) {
-            throw e;
-        } catch (Exception e) {
-            LOG.error("Error displaying verification failure", e);
-        }
-    }
-
 
     protected void saveNewUiElementIntoDb(BufferedImage elementScreenshot, UiElementInfo uiElement) {
         var screenshot = elementScreenshot == null ? null : fromBufferedImage(elementScreenshot, "png");
@@ -334,6 +308,23 @@ public class CommonUserInteractionTools extends UiAbstractTools {
                 boundingBox.y2() - boundingBox.y1());
     }
 
+    private static Image scaleImageToFit(BufferedImage original, int maxWidth, int maxHeight) {
+        int width = original.getWidth();
+        int height = original.getHeight();
+
+        if (width <= maxWidth && height <= maxHeight) {
+            return original;
+        }
+
+        double scaleX = (double) maxWidth / width;
+        double scaleY = (double) maxHeight / height;
+        double scale = Math.min(scaleX, scaleY);
+
+        int newWidth = (int) (width * scale);
+        int newHeight = (int) (height * scale);
+
+        return original.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
+    }
 
     /**
      * Enum representing the type of informational popup to display.
