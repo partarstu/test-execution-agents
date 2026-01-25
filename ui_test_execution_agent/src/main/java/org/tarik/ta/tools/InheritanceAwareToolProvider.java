@@ -22,11 +22,13 @@ import dev.langchain4j.service.tool.ToolExecutor;
 import dev.langchain4j.service.tool.ToolProvider;
 import dev.langchain4j.service.tool.ToolProviderRequest;
 import dev.langchain4j.service.tool.ToolProviderResult;
+import org.tarik.ta.core.dto.FinalResult;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 import static dev.langchain4j.agent.tool.ToolSpecifications.toolSpecificationFrom;
 
@@ -37,16 +39,19 @@ import static dev.langchain4j.agent.tool.ToolSpecifications.toolSpecificationFro
  * declared directly in the class, not inherited methods. This provider uses {@code getMethods()}
  * to include inherited @Tool methods from parent classes.
  */
-public class InheritanceAwareToolProvider implements ToolProvider {
+public class InheritanceAwareToolProvider<T extends FinalResult> implements ToolProvider {
     private final List<Object> toolObjects;
+    private final Class<T> resultClass;
 
     /**
      * Creates an InheritanceAwareToolProvider that scans the provided tool objects.
      *
      * @param toolObjects Collection of objects containing @Tool annotated methods (including inherited ones)
+     * @param resultClass The class of the final result, which may also contain static @Tool methods. Must not be null.
      */
-    public InheritanceAwareToolProvider(Collection<?> toolObjects) {
+    public InheritanceAwareToolProvider(Collection<?> toolObjects, Class<T> resultClass) {
         this.toolObjects = new ArrayList<>(toolObjects);
+        this.resultClass = Objects.requireNonNull(resultClass, "resultClass must not be null");
     }
 
     @Override
@@ -64,6 +69,14 @@ public class InheritanceAwareToolProvider implements ToolProvider {
                     ToolExecutor executor = new DefaultToolExecutor(toolObject, method);
                     resultBuilder.add(specification, executor);
                 }
+            }
+        }
+
+        for (Method method : resultClass.getMethods()) {
+            if (method.isAnnotationPresent(Tool.class)) {
+                ToolSpecification specification = toolSpecificationFrom(method);
+                ToolExecutor executor = new DefaultToolExecutor(null, method);
+                resultBuilder.add(specification, executor);
             }
         }
 

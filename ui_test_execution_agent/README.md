@@ -178,10 +178,11 @@ The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/
    `preconditions` (natural language description of the required state before execution), and a list of `TestStep`s. Each `TestStep`
    includes a `stepDescription` (natural language instruction), optional `testData` (inputs for the step), and `expectedResults`
    (natural language description of the expected state after the step).
-2. **Precondition Execution and Verification:** If preconditions are defined, the agent executes and verifies them against the current UI
-   state using a vision model. If preconditions are not met, the test case execution fails.
-3. **Step Iteration:** The agent iterates through each `TestStep` sequentially, executing each test step.
-4. **Test Step Action:**
+2. **Starting Step Selection:** In Attended and Semi-Attended modes, the operator can choose to start execution from a specific test step. In Unattended mode, execution always starts from the first step.
+3. **Precondition Execution and Verification:** If preconditions are defined and the execution starts from the beginning (first step), the agent executes and verifies them against the current UI
+   state using a vision model. If preconditions are not met, the test case execution fails. If the execution starts from a later step, preconditions are omitted.
+4. **Step Iteration:** The agent iterates through each `TestStep` sequentially, executing each test step.
+5. **Test Step Action:**
     * **Element Location (if required by the tool):** If the requested tool needs to interact with a specific UI element (e.g., clicking an
       element), the element is located using the [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java) class
       based on the element's description (provided as a parameter for the tool). (See "UI Element Location Workflow" below for details).
@@ -189,7 +190,7 @@ The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/
     * **Retry/Rerun Logic:** If a tool execution reports that retrying makes sense (e.g., an element was not found on the screen), the
       agent retries the execution after a short delay, up to a configured timeout (`test.step.execution.retry.timeout.millis`). If the
       error persists after the deadline, the test case execution is marked as `ERROR`.
-5. **Test Step Expected Results Verification:**
+6. **Test Step Expected Results Verification:**
     * **Delay:** A short delay (`action.verification.delay.millis`) is introduced to allow the UI state to change after the preceding
       action.
     * **Screenshot:** A screenshot of the current screen is taken.
@@ -200,7 +201,7 @@ The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/
     * **Retry Logic:** If the verification fails, the agent retries the verification process after a short interval (
       `test.step.execution.retry.interval.millis`) until a timeout (`verification.retry.timeout.millis`) is reached. If it still fails after
       the deadline, the test case execution is marked as `FAILED`.
-6. **Completion/Termination:** Execution continues until all steps are processed successfully or an interruption (error, verification
+7. **Completion/Termination:** Execution continues until all steps are processed successfully or an interruption (error, verification
    failure, user termination) occurs. The final `TestExecutionResult` (including `TestExecutionStatus` and detailed `TestStepResult` for
    each step) is returned.
 
