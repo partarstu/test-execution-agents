@@ -17,25 +17,9 @@ package org.tarik.ta.dto;
 
 import org.tarik.ta.core.dto.FinalResult;
 
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.model.output.structured.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.util.List;
 
-import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
-
 @Description("the list of all identified bounding boxes")
-public record BoundingBoxes(List<BoundingBox> boundingBoxes) implements FinalResult {
-    private static final Logger LOG = LoggerFactory.getLogger(BoundingBoxes.class);
-
-    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
-    public BoundingBoxes endExecutionAndGetFinalResult(
-            @P(value = FINAL_RESULT_PARAM_DESCRIPTION) BoundingBoxes result) {
-        LOG.debug("Ending execution and returning the final result: {}", result);
-        return result;
-    }
+public record BoundingBoxes(List<BoundingBox> boundingBoxes) implements FinalResult<BoundingBoxes> {
 }
-
-

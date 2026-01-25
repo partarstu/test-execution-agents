@@ -15,14 +15,8 @@
  */
 package org.tarik.ta.dto;
 
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.model.output.structured.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.dto.FinalResult;
-
-import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 /**
  * Represents the result of selecting the best matching UI element from a list of candidates.
@@ -38,13 +32,5 @@ public record DbUiElementSelectionResult(
         @Description("contains comments explaining the selection decision. If \"success\" is \"true\", explain " +
                 "why this element was selected over others, focusing on matching candidate's info and visual " +
                 "characteristics. If \"success\" is \"false\", explain why none of the candidates matched.")
-        String message) implements FinalResult {
-    private static final Logger LOG = LoggerFactory.getLogger(DbUiElementSelectionResult.class);
-
-    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
-    public DbUiElementSelectionResult endExecutionAndGetFinalResult(
-            @P(value = FINAL_RESULT_PARAM_DESCRIPTION) DbUiElementSelectionResult result) {
-        LOG.debug("Ending execution and returning the final result: {}", result);
-        return result;
-    }
+        String message) implements FinalResult<DbUiElementSelectionResult> {
 }

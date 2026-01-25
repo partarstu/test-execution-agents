@@ -50,7 +50,7 @@ class BaseAiAgentRetryTest {
         CoreUtilsMockedStatic.close();
     }
 
-    record TestResult(String value) implements FinalResult {}
+    record TestResult(String value) implements FinalResult<TestResult> {}
 
     // Concrete implementation for testing default methods
     static class TestAgent implements GenericAiAgent<TestResult> {

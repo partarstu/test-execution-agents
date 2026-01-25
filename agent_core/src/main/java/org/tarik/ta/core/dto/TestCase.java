@@ -15,27 +15,13 @@
  */
 package org.tarik.ta.core.dto;
 
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.model.output.structured.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.util.List;
-
-import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 @Description("A test case extracted from the user's request.")
 public record TestCase(
         @Description("The name of the test case, summarizing its purpose.") String name,
         @Description("All preconditions which need to be fulfilled before the test execution can be started.") List<String> preconditions,
         @Description("A list of test steps that make up the test case.") List<TestStep> testSteps)
-        implements FinalResult {
-    private static final Logger LOG = LoggerFactory.getLogger(TestCase.class);
-
-    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
-    public TestCase endExecutionAndGetFinalResult(
-            @P(value = FINAL_RESULT_PARAM_DESCRIPTION) TestCase result) {
-        LOG.debug("Ending execution and returning the final result: {}", result);
-        return result;
-    }
+        implements FinalResult<TestCase> {
 }

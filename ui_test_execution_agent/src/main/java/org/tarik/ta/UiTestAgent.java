@@ -49,6 +49,7 @@ import org.tarik.ta.utils.ScreenRecorder;
 
 import java.awt.image.BufferedImage;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -107,9 +108,7 @@ public class UiTestAgent {
                 var context = new UiTestExecutionContext(testCase, new VisualState(captureScreen()));
                 var imageVerificationAgent = getImageVerificationAgent(new RetryState());
                 var verificationTools = new VerificationTools(context, imageVerificationAgent);
-                var commonUserInteractionTools = isFullyUnattended() ? null
-                        : new CommonUserInteractionTools(getUiElementRetriever(), context);
-                var modeSpecificUserInteractionTools = switch (getExecutionMode()) {
+                var userInteractionTools = switch (getExecutionMode()) {
                     case ATTENDED -> new AttendedModeCommonUserInteractionTools(getUiElementRetriever(), context);
                     case SEMI_ATTENDED -> new SemiAttendedModeCommonUserInteractionTools(getUiElementRetriever(), context);
                     case UNATTENDED -> null;
@@ -127,8 +126,7 @@ public class UiTestAgent {
                 }
 
                 if (startingStepIndex == 0 && testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
-                    var preconditionActionAgent = getPreconditionActionAgent(preconditionCommonTools, commonUserInteractionTools,
-                            modeSpecificUserInteractionTools, new RetryState());
+                    var preconditionActionAgent = getPreconditionActionAgent(preconditionCommonTools, userInteractionTools, new RetryState());
                     executePreconditions(context, preconditionActionAgent);
                     if (hasPreconditionFailures(context)) {
                         var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
@@ -138,9 +136,8 @@ public class UiTestAgent {
                     }
                 }
 
-                var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, commonUserInteractionTools,
-                        modeSpecificUserInteractionTools, new RetryState());
-                executeTestSteps(context, testStepActionAgent, verificationTools, commonUserInteractionTools, startingStepIndex);
+                var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, userInteractionTools, new RetryState());
+                executeTestSteps(context, testStepActionAgent, verificationTools, userInteractionTools, startingStepIndex);
                 if (hasStepFailures(context)) {
                     var lastStep = context.getTestStepExecutionHistory().getLast();
                     if (lastStep.getExecutionStatus() == FAILURE) {
@@ -340,11 +337,12 @@ public class UiTestAgent {
                 .maxSequentialToolsInvocations(getEffectiveToolCallsBudget())
                 .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY, retryState));
 
-        if (isFullyUnattended() || userInteractionTools == null) {
-            agentBuilder.tools(verificationTools, VerificationExecutionResult.empty());
-        } else {
-            agentBuilder.tools(verificationTools, VerificationExecutionResult.empty(), userInteractionTools);
+        List<Object> tools = new ArrayList<>();
+        tools.add(verificationTools);
+        if (userInteractionTools != null) {
+            tools.add(userInteractionTools);
         }
+        agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(tools, VerificationExecutionResult.class));
 
         return agentBuilder.build();
     }
@@ -363,7 +361,7 @@ public class UiTestAgent {
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> finalPrompt)
                 .maxSequentialToolsInvocations(getAgentToolCallsBudget())
-                .tools(VerificationExecutionResult.empty())
+                .toolProvider(new InheritanceAwareToolProvider<>(List.of(), VerificationExecutionResult.class))
                 .toolExecutionErrorHandler(
                         new DefaultToolErrorHandler(ImageVerificationAgent.RETRY_POLICY, retryState, isFullyUnattended()))
                 .build();
@@ -378,8 +376,7 @@ public class UiTestAgent {
     }
 
     private static UiTestStepActionAgent getTestStepActionAgent(CommonTools commonTools,
-                                                                CommonUserInteractionTools commonUserInteractionTools,
-                                                                CommonUserInteractionTools modeSpecificUserInteractionTools,
+                                                                CommonUserInteractionTools userInteractionTools,
                                                                 RetryState retryState) {
         var testStepActionAgentModel = getModel(getTestStepActionAgentModelName(),
                 getTestStepActionAgentModelProvider());
@@ -396,13 +393,11 @@ public class UiTestAgent {
                 .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState))
                 .maxSequentialToolsInvocations(getEffectiveToolCallsBudget());
 
-        if (isFullyUnattended()) {
-            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                    new EmptyExecutionResult());
-        } else {
-            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                    commonUserInteractionTools, modeSpecificUserInteractionTools, new EmptyExecutionResult());
+        List<Object> tools = new ArrayList<>(List.of(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools));
+        if (userInteractionTools != null) {
+            tools.add(userInteractionTools);
         }
+        agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(tools, EmptyExecutionResult.class));
 
         return agentBuilder.build();
     }
@@ -425,14 +420,13 @@ public class UiTestAgent {
                 .chatModel(preconditionVerificationAgentModel.chatModel())
                 .systemMessageProvider(_ -> preconditionVerificationAgentPrompt)
                 .toolExecutionErrorHandler(new UiToolErrorHandler(RETRY_POLICY, retryState))
-                .tools(new VerificationExecutionResult(false, ""))
+                .toolProvider(new InheritanceAwareToolProvider<>(List.of(), VerificationExecutionResult.class))
                 .maxSequentialToolsInvocations(getEffectiveToolCallsBudget())
                 .build();
     }
 
     private static UiPreconditionActionAgent getPreconditionActionAgent(CommonTools commonTools,
-                                                                        CommonUserInteractionTools commonUserInteractionTools,
-                                                                        CommonUserInteractionTools modeSpecificUserInteractionTools,
+                                                                        CommonUserInteractionTools userInteractionTools,
                                                                         RetryState retryState) {
         var preconditionAgentModel = getModel(getPreconditionActionAgentModelName(),
                 getPreconditionActionAgentModelProvider());
@@ -443,14 +437,11 @@ public class UiTestAgent {
                 .systemMessageProvider(_ -> preconditionAgentPrompt)
                 .toolExecutionErrorHandler(new UiToolErrorHandler(PreconditionActionAgent.RETRY_POLICY, retryState));
 
-        if (isFullyUnattended()) {
-            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                    new EmptyExecutionResult());
-        } else {
-            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                    commonUserInteractionTools, modeSpecificUserInteractionTools,
-                    new EmptyExecutionResult());
+        List<Object> tools = new ArrayList<>(List.of(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools));
+        if (userInteractionTools != null) {
+            tools.add(userInteractionTools);
         }
+        agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(tools, EmptyExecutionResult.class));
 
         return agentBuilder.maxSequentialToolsInvocations(getEffectiveToolCallsBudget()).build();
     }
