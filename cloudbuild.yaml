@@ -53,64 +53,25 @@ steps:
 
   # ============================================
   # Stage 3: API Test Execution Agent (Cloud Run)
+  # Delegates to the module's own cloudbuild.yaml
   # Runs when _DEPLOY_TARGET is 'all' or 'api'
   # ============================================
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'docker-build-api-agent'
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-api-agent'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         if [ "$_DEPLOY_TARGET" = "all" ] || [ "$_DEPLOY_TARGET" = "api" ]; then
-          echo "Building API agent Docker image..."
-          docker build -t gcr.io/$PROJECT_ID/$_API_AGENT_SERVICE_NAME:$_IMAGE_TAG \
-            -f api_test_execution_agent/deployment/Dockerfile.cloud .
+          echo "Deploying API agent..."
+          gcloud builds submit --config=api_test_execution_agent/deployment/cloud/cloudbuild.yaml \
+            --substitutions=_SERVICE_NAME=$_API_AGENT_SERVICE_NAME,_IMAGE_TAG=$_IMAGE_TAG,_REGION=$_REGION,_PORT=8005,_MEMORY=$_API_AGENT_MEMORY,_CPU=$_API_AGENT_CPU,_EXTERNAL_URL=$_API_AGENT_EXTERNAL_URL \
+            .
         else
-          echo "Skipping API agent Docker build (_DEPLOY_TARGET=$_DEPLOY_TARGET)"
+          echo "Skipping API agent deployment (_DEPLOY_TARGET=$_DEPLOY_TARGET)"
         fi
     dir: '/workspace'
     waitFor: [ 'maven-build' ]
-
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'docker-push-api-agent'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        if [ "$_DEPLOY_TARGET" = "all" ] || [ "$_DEPLOY_TARGET" = "api" ]; then
-          echo "Pushing API agent Docker image..."
-          docker push gcr.io/$PROJECT_ID/$_API_AGENT_SERVICE_NAME:$_IMAGE_TAG
-        else
-          echo "Skipping API agent Docker push (_DEPLOY_TARGET=$_DEPLOY_TARGET)"
-        fi
-    waitFor: [ 'docker-build-api-agent' ]
-
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'deploy-api-agent-cloud-run'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        if [ "$_DEPLOY_TARGET" = "all" ] || [ "$_DEPLOY_TARGET" = "api" ]; then
-          echo "Deploying API agent to Cloud Run..."
-          gcloud run deploy $_API_AGENT_SERVICE_NAME \
-            --image=gcr.io/$PROJECT_ID/$_API_AGENT_SERVICE_NAME:$_IMAGE_TAG \
-            --region=$_REGION \
-            --platform=managed \
-            --allow-unauthenticated \
-            --port=8005 \
-            --memory=$_API_AGENT_MEMORY \
-            --cpu=$_API_AGENT_CPU \
-            --timeout=300 \
-            --concurrency=2 \
-            --min-instances=0 \
-            --max-instances=1 \
-            --set-env-vars=DEPLOYMENT_ENV=cloud,AGENT_HOST=0.0.0.0,EXTERNAL_URL=$_API_AGENT_EXTERNAL_URL \
-            --set-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest
-        else
-          echo "Skipping API agent Cloud Run deployment (_DEPLOY_TARGET=$_DEPLOY_TARGET)"
-        fi
-    waitFor: [ 'docker-push-api-agent' ]
 
 substitutions:
   _DEPLOY_TARGET: 'all'  # Options: 'all', 'ui', 'api'
