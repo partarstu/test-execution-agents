@@ -62,12 +62,17 @@ import static org.tarik.ta.utils.UiCommonUtils.*;
  */
 public abstract class CommonUserInteractionTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(CommonUserInteractionTools.class);
-    protected static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
-    protected static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
     protected static final int USER_DIALOG_DISMISS_DELAY_MILLIS = 2000;
     protected final UiElementRetriever uiElementRetriever;
     protected final UiTestExecutionContext executionContext;
 
+    protected static String getBoundingBoxColorName() {
+        return UiTestAgentConfig.getElementBoundingBoxColorName();
+    }
+
+    protected static Color getBoundingBoxColor() {
+        return getColorByName(getBoundingBoxColorName());
+    }
 
     /**
      * Constructs a new CommonUserInteractionTools.

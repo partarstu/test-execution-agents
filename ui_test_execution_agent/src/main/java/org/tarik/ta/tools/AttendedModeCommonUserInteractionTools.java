@@ -88,7 +88,7 @@ public class AttendedModeCommonUserInteractionTools extends CommonUserInteractio
             Rectangle boundingBoxRectangle = getPhysicalBoundingBox(getBoundingBoxRectangle(boundingBox));
             LOG.info("Prompting user to confirm located element: {}", elementDescription);
             var choice =
-                    LocatedElementConfirmationDialog.displayAndGetUserChoice(null, screenshot, boundingBoxRectangle, BOUNDING_BOX_COLOR,
+                    LocatedElementConfirmationDialog.displayAndGetUserChoice(null, screenshot, boundingBoxRectangle, getBoundingBoxColor(),
                             elementDescription);
 
             return switch (choice) {
@@ -131,7 +131,7 @@ public class AttendedModeCommonUserInteractionTools extends CommonUserInteractio
 
             // Step 2: Capture bounding box
             LOG.debug("Prompting user to capture element screenshot");
-            var captureResult = UiElementScreenshotCaptureWindow.displayAndGetResult(null, BOUNDING_BOX_COLOR);
+            var captureResult = UiElementScreenshotCaptureWindow.displayAndGetResult(null, getBoundingBoxColor());
             if (captureResult.isEmpty()) {
                 var message = "User cancelled screenshot capture";
                 LOG.info(message);
@@ -174,7 +174,7 @@ public class AttendedModeCommonUserInteractionTools extends CommonUserInteractio
     private static UiElementDescriptionAgent getUiElementDescriptionAgent() {
         var model = getModel(UiTestAgentConfig.getUiElementDescriptionAgentModelName(),
                 UiTestAgentConfig.getUiElementDescriptionAgentModelProvider());
-        var boundingBoxColorName = getColorName(BOUNDING_BOX_COLOR).toLowerCase();
+        var boundingBoxColorName = getColorName(getBoundingBoxColor()).toLowerCase();
         var prompt = loadSystemPrompt("element_describer/screenshot_based", getUiElementDescriptionAgentPromptVersion(),
                 "element_description_prompt.txt");
         var finalPrompt = PromptTemplate.from(prompt)
