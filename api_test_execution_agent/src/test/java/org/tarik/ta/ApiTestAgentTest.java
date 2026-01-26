@@ -74,7 +74,7 @@ class ApiTestAgentTest {
                         when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
                         when(mockExtractionAgentBuilder.systemMessageProvider(any()))
                                         .thenReturn(mockExtractionAgentBuilder);
-                        when(mockExtractionAgentBuilder.tools(any(Object[].class)))
+                        when(mockExtractionAgentBuilder.toolProvider(any()))
                                         .thenReturn(mockExtractionAgentBuilder);
                         when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
 
@@ -114,7 +114,7 @@ class ApiTestAgentTest {
                         when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
                         when(mockExtractionAgentBuilder.systemMessageProvider(any()))
                                         .thenReturn(mockExtractionAgentBuilder);
-                        when(mockExtractionAgentBuilder.tools(any(Object[].class)))
+                        when(mockExtractionAgentBuilder.toolProvider(any()))
                                         .thenReturn(mockExtractionAgentBuilder);
                         when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
 
@@ -166,7 +166,7 @@ class ApiTestAgentTest {
                         when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
                         when(mockExtractionAgentBuilder.systemMessageProvider(any()))
                                         .thenReturn(mockExtractionAgentBuilder);
-                        when(mockExtractionAgentBuilder.tools(any(Object[].class)))
+                        when(mockExtractionAgentBuilder.toolProvider(any()))
                                         .thenReturn(mockExtractionAgentBuilder);
                         when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
                         when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(extractionResult);
@@ -177,7 +177,7 @@ class ApiTestAgentTest {
                         when(mockStepActionAgentBuilder.chatModel(any())).thenReturn(mockStepActionAgentBuilder);
                         when(mockStepActionAgentBuilder.systemMessageProvider(any()))
                                         .thenReturn(mockStepActionAgentBuilder);
-                        when(mockStepActionAgentBuilder.tools(any(Object[].class)))
+                        when(mockStepActionAgentBuilder.toolProvider(any()))
                                         .thenReturn(mockStepActionAgentBuilder);
                         when(mockStepActionAgentBuilder.toolExecutionErrorHandler(any()))
                                         .thenReturn(mockStepActionAgentBuilder);

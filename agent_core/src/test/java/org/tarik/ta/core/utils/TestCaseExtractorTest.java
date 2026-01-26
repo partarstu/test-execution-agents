@@ -80,7 +80,7 @@ class TestCaseExtractorTest {
                     .thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.systemMessageProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.tools(any(Object[].class))).thenReturn(mockExtractionAgentBuilder);
+            when(mockExtractionAgentBuilder.toolProvider(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
 
             // Mock Agent Execution
@@ -118,7 +118,7 @@ class TestCaseExtractorTest {
                     .thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.systemMessageProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.tools(any(Object[].class))).thenReturn(mockExtractionAgentBuilder);
+            when(mockExtractionAgentBuilder.toolProvider(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
 
             when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
@@ -166,7 +166,7 @@ class TestCaseExtractorTest {
                     .thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.systemMessageProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.tools(any(Object[].class))).thenReturn(mockExtractionAgentBuilder);
+            when(mockExtractionAgentBuilder.toolProvider(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
 
             when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
@@ -201,7 +201,7 @@ class TestCaseExtractorTest {
                     .thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.systemMessageProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.tools(any(Object[].class))).thenReturn(mockExtractionAgentBuilder);
+            when(mockExtractionAgentBuilder.toolProvider(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
 
             when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
