@@ -38,6 +38,8 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * **[UiElementFromCandidatesSelectionAgent](src/main/java/org/tarik/ta/agents/UiElementFromCandidatesSelectionAgent.java):** When multiple UI 
           elements in the database match the description (same or similar names), this agent analyzes the current screenshot and selects the best
           matching element based on all element information (name, description, location details/parent context, and parent element info).
+        * **[UiElementExtendedDescriptionAgent](src/main/java/org/tarik/ta/agents/UiElementExtendedDescriptionAgent.java):** Generates extended descriptions for UI elements based on screenshots and initial descriptions.
+        * **[ImageVerificationAgent](src/main/java/org/tarik/ta/agents/ImageVerificationAgent.java):** Performs visual verification of test step results against expected outcomes using screenshots.
         * **[PageDescriptionAgent](src/main/java/org/tarik/ta/agents/PageDescriptionAgent.java):** Describes the current page context. This can be
           used for various purposes such as understanding the current UI state.
     * Each agent can be independently configured with its own AI model (name and provider) and system prompt version via
@@ -96,9 +98,9 @@ a part of this framework for executing a sample test case inside Google Cloud.
 * **RAG:**
     * Employs a Retrieval-Augmented Generation (RAG) approach to manage information about UI elements.
     * Uses a vector database to store and retrieve UI element details (name, element description, location description, parent element description,
-      and screenshot). It currently supports only Chroma DB, configured via `vector.db.url` in `config.properties`.
+      and screenshot). It supports Chroma DB and Qdrant, configured via `vector.db.provider` and `vector.db.url` in `config.properties`.
     * RAG components are located in the UI module: [RetrieverFactory](src/main/java/org/tarik/ta/rag/RetrieverFactory.java),
-      [ChromaRetriever](src/main/java/org/tarik/ta/rag/ChromaRetriever.java), and [UiElementRetriever](src/main/java/org/tarik/ta/rag/UiElementRetriever.java).
+      [ChromaRetriever](src/main/java/org/tarik/ta/rag/ChromaRetriever.java), [QdrantRetriever](src/main/java/org/tarik/ta/rag/QdrantRetriever.java), and [UiElementRetriever](src/main/java/org/tarik/ta/rag/UiElementRetriever.java).
     * Stores UI element information as `UiElement` records, which include a name, self-description, description of surrounding
       elements (anchors), a parent element description, and a screenshot (`UiElement.Screenshot`).
     * Retrieves the top N (`retriever.top.n` in config) most relevant UI elements based on semantic similarity between the query (derived
@@ -150,11 +152,9 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * Tool call limits are significantly relaxed.
     * **Semi-Attended Mode (`execution.mode=SEMI_ATTENDED`):** The agent operates autonomously but allows the operator to intervene.
         * **Countdown Halt:** Displays a countdown popup (configurable duration) after test step actions, allowing the operator to click "Halt".
-        * **Verification Failure Notification:** When a verification fails, the operator is notified with details about the failure and the retry timeout. The operator can choose to:
-            * **OK:** Continue execution and let the system retry the verification within the configured timeout.
-            * **Terminate:** Immediately stop the test execution.
+        * **Verification Failure Notification:** When a verification fails (after all automatic retries), the operator is notified with details about the failure via a popup before the test execution is terminated.
         * **Element Selection Confirmation:** Displays a popup with a countdown when an element is automatically selected. The operator can see the selected element, intended action, and the agent's assessment of whether the located element matches the description, and choose to "Proceed" (default), "Create new element", or take "Other action" (prompting the agent).
-        * **Operator Intervention:** On halt, error, or verification failure, the operator can choose the next action (Retry, Refine, Terminate, etc.).
+        * **Operator Intervention:** On halt or error, the operator can choose the next action (Retry, Refine, Terminate, etc.).
         * Suitable for monitoring execution without constant clicking, while retaining control to fix issues on the fly.
     * **Unattended Mode (`execution.mode=UNATTENDED`):** The agent executes the test case without any human assistance. It relies entirely on the
         information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored data.
@@ -255,7 +255,7 @@ combination of RAG, computer vision, analysis, and potentially user interaction 
 
 * Java Development Kit (JDK) - Version 25 or later recommended.
 * Apache Maven - For building the project.
-* Chroma vector database (the only one supported for now).
+* Chroma or Qdrant vector database.
 * Subscription to an AI model provider (Google Cloud/AI Studio, Azure OpenAI, or Groq).
 
 ### Maven Setup
@@ -277,7 +277,7 @@ This project uses Maven for dependency management and building.
 
 ### Vector DB Setup
 
-Instructions for setting up the currently only one supported vector database Chroma DB could be found on its official website.
+Instructions for setting up the supported vector databases (Chroma DB or Qdrant) can be found on their official websites.
 
 ### Configuration
 

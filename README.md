@@ -40,6 +40,7 @@ D:\Projects\test-execution-agents\
     *   **`TestCaseExtractor`**: Utility class that provides shared test case extraction functionality using an AI model.
     *   **`TestContextDataTools`**: Shared tools for loading and managing test data (JSON, CSV).
     *   **`DefaultToolErrorHandler`**: Centralized tool error handling with configurable retry policies.
+    *   **`InheritanceAwareToolProvider`**: Enhanced tool provider that supports tool inheritance and discovery.
     *   **`LogCapture`**: Utility for capturing execution logs to include in test results.
     *   **`SystemInfo`**: DTO for capturing device/OS/browser information.
 
@@ -123,7 +124,7 @@ The core module provides shared abstractions that both UI and API agents extend:
 - **Visual Grounding**: AI-powered element location using screenshots and descriptions.
 - **Screen Recording**: Captures video of test execution for debugging.
 - **Element RAG**: Vector database integration for efficient element retrieval.
-- **Attended/Unattended Modes**: Interactive or fully automated execution.
+- **Attended/Semi-Attended/Unattended Modes**: Interactive, semi-interactive, or fully automated execution.
 
 ### API Test Agent Specific
 - **Multiple Auth Types**: Basic, Bearer Token, and API Key authentication.
