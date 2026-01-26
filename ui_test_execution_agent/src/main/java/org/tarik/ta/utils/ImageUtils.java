@@ -20,7 +20,6 @@ import dev.langchain4j.data.message.ImageContent;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.UiTestAgentConfig;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -37,6 +36,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 
 import static dev.langchain4j.data.message.ImageContent.DetailLevel.HIGH;
+import static java.awt.Image.SCALE_SMOOTH;
+import static java.awt.RenderingHints.KEY_INTERPOLATION;
+import static java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR;
 import static java.nio.file.Files.createDirectories;
 import static java.time.LocalDateTime.now;
 import static java.time.format.DateTimeFormatter.ofPattern;
@@ -145,21 +147,10 @@ public class ImageUtils {
         }
     }
 
-    public static BufferedImage getScaledUpImage(BufferedImage image, double scaleFactor) {
-        int newWidth = (int) (image.getWidth() * scaleFactor);
-        int newHeight = (int) (image.getHeight() * scaleFactor);
-        BufferedImage newImage = new BufferedImage(newWidth, newHeight, image.getType());
-        Graphics2D g = newImage.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(image, 0, 0, newWidth, newHeight, null);
-        g.dispose();
-        return newImage;
-    }
-
     public static BufferedImage scaleImage(BufferedImage source, double ratio) {
         int newWidth = (int) (source.getWidth() * ratio);
         int newHeight = (int) (source.getHeight() * ratio);
-        java.awt.Image scaledImage = source.getScaledInstance(newWidth, newHeight, java.awt.Image.SCALE_SMOOTH);
+        var scaledImage = source.getScaledInstance(newWidth, newHeight, SCALE_SMOOTH);
         return toBufferedImage(scaledImage, newWidth, newHeight);
     }
 

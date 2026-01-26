@@ -16,6 +16,10 @@
 package org.tarik.ta.dto;
 
 import dev.langchain4j.model.output.structured.Description;
+import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
+
+import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 import org.tarik.ta.core.dto.FinalResult;
 
 /**
@@ -32,5 +36,10 @@ public record DbUiElementSelectionResult(
         @Description("contains comments explaining the selection decision. If \"success\" is \"true\", explain " +
                 "why this element was selected over others, focusing on matching candidate's info and visual " +
                 "characteristics. If \"success\" is \"false\", explain why none of the candidates matched.")
-        String message) implements FinalResult<DbUiElementSelectionResult> {
+        String message) implements FinalResult {
+    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
+    public static DbUiElementSelectionResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) DbUiElementSelectionResult result) {
+        return result;
+    }
 }

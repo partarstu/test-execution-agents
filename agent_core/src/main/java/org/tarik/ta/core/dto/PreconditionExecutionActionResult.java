@@ -16,9 +16,18 @@
 package org.tarik.ta.core.dto;
 
 import dev.langchain4j.model.output.structured.Description;
+import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
+
+import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 @Description("The result of the precondition action execution")
 public record PreconditionExecutionActionResult(
         @Description("The summary of the results of all executed tools.") String executionSummary)
-        implements FinalResult<PreconditionExecutionActionResult> {
+        implements FinalResult {
+    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
+    public static PreconditionExecutionActionResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) PreconditionExecutionActionResult result) {
+        return result;
+    }
 }

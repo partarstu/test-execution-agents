@@ -31,38 +31,43 @@ import static org.tarik.ta.dto.SemiAttendedModeElementLocationConfirmationResult
  * Displays the selected element and intended action, with a countdown to automatically proceed.
  * Allows the user to intervene and choose to create a new element or perform another action.
  */
-public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractCountdownPopup<SemiAttendedModeElementLocationConfirmationResult> {
+public class SemiAttendedModeElementLocationConfirmationPopup
+        extends AbstractCountdownPopup<SemiAttendedModeElementLocationConfirmationResult> {
     private static final Logger LOG = LoggerFactory.getLogger(SemiAttendedModeElementLocationConfirmationPopup.class);
     private static final String TITLE = "Confirm Element Selection";
 
     private JButton proceedButton;
 
-    private SemiAttendedModeElementLocationConfirmationPopup(String elementDescription, String elementName, String intendedAction, int seconds) {
-        super(TITLE, proceed(), seconds);
+    private SemiAttendedModeElementLocationConfirmationPopup(String elementName, String intendedAction, int timeoutSeconds,
+                                                             boolean elementLocationCorrectnessConfirmedByAgent) {
+        super(TITLE, proceed(), timeoutSeconds);
         // Default is APPLICATION_MODAL from AbstractDialog, which blocks execution
-        
-        initializeComponents(elementDescription, elementName, intendedAction);
+
+        initializeComponents(elementName, intendedAction, elementLocationCorrectnessConfirmedByAgent);
+        setFocusableWindowState(false);
         startCountdown();
         displayPopup();
     }
 
-    private void initializeComponents(String elementDescription, String elementName, String intendedAction) {
+    private void initializeComponents(String elementName, String intendedAction, boolean elementLocationCorrectnessConfirmedByAgent) {
         JPanel mainPanel = getDefaultMainPanel();
         applyCommonPanelStyling(mainPanel);
-        mainPanel.setLayout(new BorderLayout(10, 10));
+        mainPanel.setLayout(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
 
         // Info message
+        String assessmentText = elementLocationCorrectnessConfirmedByAgent ? "elements match" : "elements don't match";
+        String assessmentIcon = elementLocationCorrectnessConfirmedByAgent ? "<font size='6' color='green'>&#10004;</font>" :
+                "<font size='6' color='red'>&#10060;</font>";
         String message = "<html><body style='width: 300px; text-align: center;'>" +
-                "<b>Element Description:</b> " + elementDescription + "<br/><br/>" +
                 "<b>Selected Element:</b> " + elementName + "<br/><br/>" +
                 "<b>Intended Action:</b> " + intendedAction + "<br/><br/>" +
-                "Proceeding automatically in...</body></html>";
-        
+                "<b>Agent assessment:</b> " + assessmentText + " " + assessmentIcon + "</body></html>";
+
         JLabel messageLabel = new JLabel(message);
         messageLabel.setHorizontalAlignment(SwingConstants.CENTER);
         // Use a consistent font or default
-        messageLabel.setFont(new Font("Dialog", Font.PLAIN, 12));
-        
+        messageLabel.setFont(new Font("Dialog", Font.PLAIN, 14));
+
         mainPanel.add(messageLabel, BorderLayout.CENTER);
 
         // Buttons
@@ -73,7 +78,7 @@ public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractCo
             stopCountdown();
             dispose();
         });
-        
+
         JButton createNewButton = new JButton("Create new element");
         createNewButton.addActionListener(_ -> {
             LOG.info("User clicked Create new element");
@@ -96,7 +101,7 @@ public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractCo
 
         add(mainPanel);
         setDefaultSizeAndPosition();
-        
+
         // Set proceed button as default
         getRootPane().setDefaultButton(proceedButton);
     }
@@ -123,17 +128,24 @@ public class SemiAttendedModeElementLocationConfirmationPopup extends AbstractCo
         LOG.info("Dialog closed, defaulting to: {}", result.get().decision());
     }
 
+    @Override
+    protected boolean shouldPauseOnHover() {
+        return true;
+    }
+
     /**
      * Displays the confirmation popup and blocks until the user makes a choice or the countdown expires.
      *
-     * @param elementDescription The description of the element.
-     * @param elementName        The name of the selected element.
-     * @param intendedAction     The intended action description.
-     * @param seconds            The countdown duration in seconds.
+     * @param elementName                                The name of the selected element.
+     * @param intendedAction                             The intended action description.
+     * @param seconds                                    The countdown duration in seconds.
+     * @param elementLocationCorrectnessConfirmedByAgent Whether the agent thinks the element matches.
      * @return The result of the user's decision or the automatic countdown expiration.
      */
-    public static SemiAttendedModeElementLocationConfirmationResult displayAndGetUserDecision(String elementDescription, String elementName, String intendedAction, int seconds) {
-        var popup = new SemiAttendedModeElementLocationConfirmationPopup(elementDescription, elementName, intendedAction, seconds);
+    public static SemiAttendedModeElementLocationConfirmationResult displayAndGetUserDecision(
+            String elementName, String intendedAction, int seconds, boolean elementLocationCorrectnessConfirmedByAgent) {
+        var popup = new SemiAttendedModeElementLocationConfirmationPopup(elementName, intendedAction, seconds,
+                elementLocationCorrectnessConfirmedByAgent);
         return popup.getResult();
     }
 }

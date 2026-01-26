@@ -16,7 +16,14 @@
 package org.tarik.ta.core.dto;
 
 import dev.langchain4j.model.output.structured.Description;
+import dev.langchain4j.agent.tool.Tool;
+
+import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 @Description("Empty execution result")
-public record EmptyExecutionResult() implements FinalResult<EmptyExecutionResult> {
+public record EmptyExecutionResult() implements FinalResult {
+    @Tool(value = "Ends the execution immediately.", returnBehavior = IMMEDIATE)
+    public static EmptyExecutionResult endExecutionAndGetFinalResult() {
+        return null;
+    }
 }

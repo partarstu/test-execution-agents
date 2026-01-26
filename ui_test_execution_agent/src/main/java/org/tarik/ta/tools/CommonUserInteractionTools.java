@@ -60,7 +60,7 @@ import static org.tarik.ta.utils.UiCommonUtils.*;
  * This class provides common functionality for element creation, refinement,
  * and operator interaction that is shared across all execution modes.
  */
-public class CommonUserInteractionTools extends UiAbstractTools {
+public abstract class CommonUserInteractionTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(CommonUserInteractionTools.class);
     protected static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
     protected static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
@@ -184,7 +184,7 @@ public class CommonUserInteractionTools extends UiAbstractTools {
         }
     }
 
-    @Tool("Displays an informational popup to the user. Use this tool when you need to simply show information, a warning, or an error message to the user.")
+    @Tool("Displays an informational popup to the user.")
     public String displayInformationalPopup(
             @P("The title of the popup window") String title,
             @P("The message content to display") String message,
@@ -209,31 +209,7 @@ public class CommonUserInteractionTools extends UiAbstractTools {
     protected void displayInformationalPopup(String title, String message, BufferedImage screenshot, PopupType popupType) {
         try {
             LOG.debug("Displaying informational popup: {}", title);
-            int messageType = switch (popupType) {
-                case INFO -> JOptionPane.INFORMATION_MESSAGE;
-                case WARNING -> JOptionPane.WARNING_MESSAGE;
-                case ERROR -> JOptionPane.ERROR_MESSAGE;
-            };
-
-            Object content = message;
-            if (screenshot != null) {
-                // Scale screenshot to fit popup (handles high DPI displays)
-                int maxWidth = 600;
-                int maxHeight = 400;
-                Image scaledImage = scaleImageToFit(screenshot, maxWidth, maxHeight);
-
-                // Create a panel with the message and screenshot
-                JPanel panel = new JPanel(new BorderLayout());
-                panel.add(new JLabel(message), BorderLayout.NORTH);
-                panel.add(new JLabel(new ImageIcon(scaledImage)), BorderLayout.CENTER);
-                content = panel;
-            }
-
-            JOptionPane pane = new JOptionPane(content, messageType);
-            JDialog dialog = pane.createDialog(null, title);
-            dialog.setAlwaysOnTop(true);
-            dialog.setVisible(true);
-            dialog.dispose();
+            InformationalPopup.display(title, message, screenshot, popupType);
         } catch (Exception e) {
             throw rethrowAsToolException(e, "displaying informational popup");
         }
@@ -308,23 +284,7 @@ public class CommonUserInteractionTools extends UiAbstractTools {
                 boundingBox.y2() - boundingBox.y1());
     }
 
-    private static Image scaleImageToFit(BufferedImage original, int maxWidth, int maxHeight) {
-        int width = original.getWidth();
-        int height = original.getHeight();
 
-        if (width <= maxWidth && height <= maxHeight) {
-            return original;
-        }
-
-        double scaleX = (double) maxWidth / width;
-        double scaleY = (double) maxHeight / height;
-        double scale = Math.min(scaleX, scaleY);
-
-        int newWidth = (int) (width * scale);
-        int newHeight = (int) (height * scale);
-
-        return original.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
-    }
 
     /**
      * Enum representing the type of informational popup to display.

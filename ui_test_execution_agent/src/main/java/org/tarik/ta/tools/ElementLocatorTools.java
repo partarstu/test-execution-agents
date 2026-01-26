@@ -347,7 +347,7 @@ public class ElementLocatorTools extends UiAbstractTools {
         var scaledBoundingBox = getScaledBoundingBox(boundingBox);
         var center = new Point((int) scaledBoundingBox.getCenterX(), (int) scaledBoundingBox.getCenterY());
         var bbox = new BoundingBox( scaledBoundingBox.y, scaledBoundingBox.x,                scaledBoundingBox.y + scaledBoundingBox.height, scaledBoundingBox.x + scaledBoundingBox.width);
-        return new ElementLocation(center.x, center.y, bbox);
+        return new ElementLocation(locationResult.elementUsedForLocation().name(), center.x, center.y, bbox);
     }
 
     private ElementLocationException processNoVisualMatchCase(UiElementLocationInternalResult locationResult, String elementDescription) {

@@ -283,6 +283,7 @@ class UiTestAgentTest {
                 lenient().when(builder.toolExecutionErrorHandler(any())).thenReturn(builder);
                 lenient().when(builder.systemMessageProvider(any())).thenReturn(builder);
                 lenient().when(builder.maxSequentialToolsInvocations(anyInt())).thenReturn(builder);
+                lenient().when(builder.toolProvider(any())).thenReturn(builder);
                 lenient().when(builder.build()).thenReturn(agent);
         }
 

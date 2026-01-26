@@ -68,7 +68,6 @@ import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 import static org.tarik.ta.rag.RetrieverFactory.getUiElementRetriever;
-import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.VERIFICATION_FAILURE;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
@@ -127,7 +126,8 @@ public class UiTestAgent {
                 }
 
                 if (startingStepIndex == 0 && testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
-                    var preconditionActionAgent = getPreconditionActionAgent(preconditionCommonTools, userInteractionTools, new RetryState());
+                    var preconditionActionAgent =
+                            getPreconditionActionAgent(preconditionCommonTools, userInteractionTools, new RetryState());
                     executePreconditions(context, preconditionActionAgent);
                     if (hasPreconditionFailures(context)) {
                         var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
@@ -239,7 +239,6 @@ public class UiTestAgent {
             TestStep testStep = testSteps.get(i);
             var actionInstruction = testStep.stepDescription();
             var testData = ofNullable(testStep.testData()).map(Object::toString).orElse("");
-            var verificationInstruction = testStep.expectedResults();
             try {
                 var executionStartTimestamp = now();
                 LOG.info("Executing test step: {}", actionInstruction);
@@ -249,35 +248,30 @@ public class UiTestAgent {
                 }));
                 resetToolCallUsage();
                 if (!actionResult.isSuccess()) {
-                    if (actionResult.getExecutionStatus() != VERIFICATION_FAILURE) {
-                        // Verification failure happens only if the current action was executed as a UI
-                        // element location prefetch part, it means this test step shouldn't be reported because the execution is to be
-                        // halted after verification failure for the previous step
-                        var errorMessage = "Error while executing action '%s'. Root cause: %s"
-                                .formatted(actionInstruction, actionResult.getMessage());
-                        addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
-                                actionResult.screenshot(), TestStepResultStatus.ERROR);
-                    }
+                    var message = "There was an error while executing test step action '%s'. Please see agent logs for details"
+                            .formatted(actionInstruction);
+                    addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(),
+                            captureScreen(), TestStepResultStatus.ERROR);
                     return;
                 }
                 LOG.info("Action execution complete.");
 
+                var verificationInstruction = testStep.expectedResults();
                 if (isNotBlank(verificationInstruction)) {
+                    LOG.info("Verifying that '{}'", verificationInstruction);
                     String testDataString = testStep.testData() == null ? null : join(", ", testStep.testData());
                     sleepMillis(ACTION_VERIFICATION_DELAY_MILLIS);
-
                     var agentResult =
                             (UiOperationExecutionResult<VerificationExecutionResult>) testStepVerificationAgent.executeAndGetResult(() ->
                                     testStepVerificationAgent.verify(verificationInstruction, actionInstruction, testDataString,
-                                            context.getSharedData().toString())
-                            );
+                                            context.getSharedData().toString()));
                     resetToolCallUsage();
 
                     if (!agentResult.isSuccess()) {
-                        var message = "There was an error while verifying that '%s'. Please see logs for details"
+                        var message = "There was an error while verifying that '%s'. Please see agent logs for details"
                                 .formatted(verificationInstruction);
-                        addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(), captureScreen(),
-                                TestStepResultStatus.ERROR);
+                        addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(),
+                                captureScreen(), TestStepResultStatus.ERROR);
                         return;
                     }
 
@@ -362,7 +356,7 @@ public class UiTestAgent {
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> finalPrompt)
                 .maxSequentialToolsInvocations(getAgentToolCallsBudget())
-                .toolProvider(new InheritanceAwareToolProvider<>(List.of(), VerificationExecutionResult.class))
+                .toolProvider(new InheritanceAwareToolProvider<>(VerificationExecutionResult.class))
                 .toolExecutionErrorHandler(
                         new DefaultToolErrorHandler(ImageVerificationAgent.RETRY_POLICY, retryState, isFullyUnattended()))
                 .build();
@@ -502,8 +496,7 @@ public class UiTestAgent {
     }
 
     private static class UiToolErrorHandler extends DefaultToolErrorHandler {
-        private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT,
-                TERMINATION_BY_USER, VERIFICATION_FAILED);
+        private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT, TERMINATION_BY_USER);
 
         public UiToolErrorHandler(RetryPolicy retryPolicy, RetryState retryState) {
             super(retryPolicy, retryState, isFullyUnattended());

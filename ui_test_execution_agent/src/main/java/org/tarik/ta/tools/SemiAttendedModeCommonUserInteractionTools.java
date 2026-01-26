@@ -78,10 +78,10 @@ public class SemiAttendedModeCommonUserInteractionTools extends CommonUserIntera
         this.uiElementExtendedDescriptionAgent = uiElementExtendedDescriptionAgent;
     }
 
-    @Tool("Creates a new UI element record in DB based on its description.")
+    @Tool("Creates a new UI element record in DB, based on the description of this element.")
     public NewElementCreationResult createNewElementInDb(
-            @P("Original description of UI element. If any related to this element data is provided, don't use " +
-                    "that data as a part of its description")
+            @P("Original description of UI element, extracted from the test step action. If any related to this element data " +
+                    "is provided, don't use that data as a part of its description")
             String elementDescription,
             @P(value = "Any data related to this element or the action involving this element", required = false)
             String relevantTestData) {
@@ -134,21 +134,25 @@ public class SemiAttendedModeCommonUserInteractionTools extends CommonUserIntera
 
     @Tool("Confirms the located element with the operator in semi-attended mode. Displays a countdown popup allowing intervention.")
     public SemiAttendedModeElementLocationConfirmationResult confirmElementSelection(
-            @P("The original description of the located element") String elementDescription,
-            @P("The exact name of the located element") String elementName,
-            @P("The description of intended action with this element") String intendedAction) {
+            @P("The name of the element retrieved from DB")
+            String elementName,
+            @P("The description of the test step action which required this element")
+            String intendedAction,
+            @P("Flag showing if you are sure that the actually located in DB UI element corresponds to the element " +
+                    "described in the test step action")
+            boolean elementLocationCorrectnessConfirmedByAgent) {
         try {
             LOG.info("Requesting operator confirmation for element: {} with action: {}", elementName, intendedAction);
-            return displayConfirmationPopup(elementDescription, elementName, intendedAction);
+            return displayLocationConfirmationPopup(elementName, intendedAction, elementLocationCorrectnessConfirmedByAgent);
         } catch (Exception e) {
             throw rethrowAsToolException(e, "confirming element selection");
         }
     }
 
-    protected SemiAttendedModeElementLocationConfirmationResult displayConfirmationPopup(String elementDescription, String elementName,
-                                                                                         String intendedAction) {
-        return SemiAttendedModeElementLocationConfirmationPopup.displayAndGetUserDecision(elementDescription, elementName, intendedAction,
-                getSemiAttendedCountdownSeconds());
+    protected SemiAttendedModeElementLocationConfirmationResult displayLocationConfirmationPopup(
+            String elementName, String intendedAction, boolean elementLocationCorrectnessConfirmedByAgent) {
+        return SemiAttendedModeElementLocationConfirmationPopup.displayAndGetUserDecision(elementName, intendedAction,
+                getSemiAttendedCountdownSeconds(), elementLocationCorrectnessConfirmedByAgent);
     }
 
     private UiElementDescriptionResult getElementDescription(String elementDescription, String relevantTestData,

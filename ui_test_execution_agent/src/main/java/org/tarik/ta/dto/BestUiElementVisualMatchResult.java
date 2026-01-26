@@ -15,9 +15,13 @@
  */
 package org.tarik.ta.dto;
 
+import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
 import org.tarik.ta.core.dto.FinalResult;
 
 import dev.langchain4j.model.output.structured.Description;
+
+import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 @Description("the identified best match of the bounding box for a target UI element")
 public record BestUiElementVisualMatchResult(
@@ -32,5 +36,11 @@ public record BestUiElementVisualMatchResult(
                 "\"true\", this field should have your comments clarifying why a specific bounding box was identified comparing to " +
                 "others. If the value of \"success\" field is \"false\", this field should have your comments " +
                 "clarifying why you found no good match at all.")
-        String message) implements FinalResult<BestUiElementVisualMatchResult> {
+        String message) implements FinalResult {
+
+    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
+    public static BestUiElementVisualMatchResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) BestUiElementVisualMatchResult result) {
+        return result;
+    }
 }

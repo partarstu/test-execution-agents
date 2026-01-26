@@ -33,11 +33,10 @@ import static java.lang.System.currentTimeMillis;
 
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.*;
 import static org.tarik.ta.core.error.ErrorCategory.TERMINATION_BY_USER;
-import static org.tarik.ta.core.error.ErrorCategory.VERIFICATION_FAILED;
 import static org.tarik.ta.core.manager.BudgetManager.checkAllBudgets;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 
-public interface GenericAiAgent<T extends FinalResult<T>> {
+public interface GenericAiAgent<T extends FinalResult> {
     Logger LOG = LoggerFactory.getLogger(GenericAiAgent.class);
 
     default void checkBudget() {
@@ -78,9 +77,6 @@ public interface GenericAiAgent<T extends FinalResult<T>> {
                 case ToolExecutionException tee when tee.getErrorCategory() == TERMINATION_BY_USER -> {
                     LOG.error("User decided to interrupt execution while agent was {}", taskDescription);
                     return createErrorResult(INTERRUPTED_BY_USER, e.getMessage(), null);
-                }
-                case ToolExecutionException tee when tee.getErrorCategory() == VERIFICATION_FAILED -> {
-                    return createErrorResult(VERIFICATION_FAILURE, e.getMessage(), null);
                 }
                 case ToolExecutionException _ -> {
                     String message = "Got tool error while %s : %s".formatted(taskDescription, e.getMessage());

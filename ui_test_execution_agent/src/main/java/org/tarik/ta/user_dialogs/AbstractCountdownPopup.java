@@ -50,6 +50,9 @@ public abstract class AbstractCountdownPopup<T> extends AbstractDialog {
      */
     protected void startCountdown() {
         countdownTimer = new Timer(1000, _ -> {
+            if (shouldPauseOnHover() && isMouseOver()) {
+                return;
+            }
             remainingSeconds--;
             if (remainingSeconds <= 0) {
                 stopCountdown();
@@ -68,6 +71,25 @@ public abstract class AbstractCountdownPopup<T> extends AbstractDialog {
     protected void stopCountdown() {
         if (countdownTimer != null) {
             countdownTimer.stop();
+        }
+    }
+
+    /**
+     * @return true if the countdown should pause when the mouse is over the popup. Default is false.
+     */
+    protected boolean shouldPauseOnHover() {
+        return false;
+    }
+
+    private boolean isMouseOver() {
+        if (!isVisible()) return false;
+        try {
+            PointerInfo pointerInfo = MouseInfo.getPointerInfo();
+            if (pointerInfo == null) return false;
+            Point mouseLocation = pointerInfo.getLocation();
+            return getBounds().contains(mouseLocation);
+        } catch (HeadlessException e) {
+            return false;
         }
     }
 

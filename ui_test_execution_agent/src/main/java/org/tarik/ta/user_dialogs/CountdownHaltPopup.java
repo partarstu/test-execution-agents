@@ -46,6 +46,7 @@ public class CountdownHaltPopup extends AbstractCountdownPopup<CountdownHaltPopu
         super(TITLE, Result.PROCEED, seconds);
 
         initializeComponents(operationDescription);
+        setFocusableWindowState(false);
         startCountdown();
         displayPopup();
     }

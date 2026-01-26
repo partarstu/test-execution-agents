@@ -153,7 +153,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * **Verification Failure Notification:** When a verification fails, the operator is notified with details about the failure and the retry timeout. The operator can choose to:
             * **OK:** Continue execution and let the system retry the verification within the configured timeout.
             * **Terminate:** Immediately stop the test execution.
-        * **Element Selection Confirmation:** Displays a popup with a countdown when an element is automatically selected. The operator can see the selected element and intended action, and choose to "Proceed" (default), "Create new element", or take "Other action" (prompting the agent).
+        * **Element Selection Confirmation:** Displays a popup with a countdown when an element is automatically selected. The operator can see the selected element, intended action, and the agent's assessment of whether the located element matches the description, and choose to "Proceed" (default), "Create new element", or take "Other action" (prompting the agent).
         * **Operator Intervention:** On halt, error, or verification failure, the operator can choose the next action (Retry, Refine, Terminate, etc.).
         * Suitable for monitoring execution without constant clicking, while retaining control to fix issues on the fly.
     * **Unattended Mode (`execution.mode=UNATTENDED`):** The agent executes the test case without any human assistance. It relies entirely on the

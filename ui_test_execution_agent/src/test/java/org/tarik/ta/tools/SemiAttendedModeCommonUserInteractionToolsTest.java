@@ -25,6 +25,7 @@ import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.rag.UiElementRetriever;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -50,16 +51,15 @@ class SemiAttendedModeCommonUserInteractionToolsTest {
     @Test
     void confirmElementSelection_ShouldReturnResultFromPopup() {
         // Given
-        String elementDescription = "Test Description";
         String elementName = "Test Element";
         String action = "Click";
         SemiAttendedModeElementLocationConfirmationResult expectedResult = proceed();
 
         // Mock the protected method to avoid UI interaction
-        doReturn(expectedResult).when(tools).displayConfirmationPopup(anyString(), anyString(), anyString());
+        doReturn(expectedResult).when(tools).displayLocationConfirmationPopup(anyString(), anyString(), anyBoolean());
 
         // When
-        SemiAttendedModeElementLocationConfirmationResult result = tools.confirmElementSelection(elementDescription, elementName, action);
+        SemiAttendedModeElementLocationConfirmationResult result = tools.confirmElementSelection(elementName, action, true);
 
         // Then
         assertThat(result).isEqualTo(expectedResult);

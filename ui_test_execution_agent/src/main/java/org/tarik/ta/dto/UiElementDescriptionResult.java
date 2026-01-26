@@ -16,6 +16,10 @@
 package org.tarik.ta.dto;
 
 import org.tarik.ta.core.dto.FinalResult;
+import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
+
+import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 import dev.langchain4j.model.output.structured.Description;
 
@@ -39,5 +43,10 @@ public record UiElementDescriptionResult(
         @Description("Flag which defines if the target element depends on the data (if its content is dynamic). Examples of " +
                 "data-dependent elements are: any option in the dropdown list, calendar day icon in the calendar grid, check-box with " +
                 "dynamic label etc.")
-        boolean elementIsDataDependent) implements FinalResult<UiElementDescriptionResult> {
+        boolean elementIsDataDependent) implements FinalResult {
+    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
+    public static UiElementDescriptionResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) UiElementDescriptionResult result) {
+        return result;
+    }
 }

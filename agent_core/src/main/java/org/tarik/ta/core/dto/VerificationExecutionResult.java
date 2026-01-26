@@ -16,6 +16,10 @@
 package org.tarik.ta.core.dto;
 
 import dev.langchain4j.model.output.structured.Description;
+import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
+
+import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 
 @Description("the result of the verification")
@@ -25,9 +29,10 @@ public record VerificationExecutionResult (
         @Description("contains a detailed description of the failure, if the verification failed. If the verification " +
                 "succeeded, this field must contain the justification of the positive verification result, i.e. the explicit " +
                 "description of the actual state and why this state means that the verification result is successful.")
-        String message) implements FinalResult<VerificationExecutionResult> {
-
-    public static VerificationExecutionResult empty() {
-        return new VerificationExecutionResult(false, "");
+        String message) implements FinalResult {
+    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
+    public static VerificationExecutionResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) VerificationExecutionResult result) {
+        return result;
     }
 }

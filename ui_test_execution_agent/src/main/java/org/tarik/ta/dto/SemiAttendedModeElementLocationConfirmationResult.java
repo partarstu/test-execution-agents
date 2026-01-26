@@ -33,14 +33,17 @@ public record SemiAttendedModeElementLocationConfirmationResult(
     }
 
     public static SemiAttendedModeElementLocationConfirmationResult proceed() {
-        return new SemiAttendedModeElementLocationConfirmationResult(ConfirmationDecision.PROCEED, "User chose to proceed with the selected element");
+        return new SemiAttendedModeElementLocationConfirmationResult(ConfirmationDecision.PROCEED,
+                "User chose to proceed with the selected element");
     }
 
     public static SemiAttendedModeElementLocationConfirmationResult createNewElement() {
-        return new SemiAttendedModeElementLocationConfirmationResult(ConfirmationDecision.CREATE_NEW_ELEMENT, "User chose to create a new element");
+        return new SemiAttendedModeElementLocationConfirmationResult(ConfirmationDecision.CREATE_NEW_ELEMENT,
+                "User hasn't confirmed the located element and requested creating a new element");
     }
 
     public static SemiAttendedModeElementLocationConfirmationResult otherAction() {
-        return new SemiAttendedModeElementLocationConfirmationResult(ConfirmationDecision.OTHER_ACTION, "User chose to perform another action");
+        return new SemiAttendedModeElementLocationConfirmationResult(ConfirmationDecision.OTHER_ACTION,
+                "User hasn't confirmed the located element and requested other available action options");
     }
 }

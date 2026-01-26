@@ -16,11 +16,20 @@
 package org.tarik.ta.dto;
 
 import org.tarik.ta.core.dto.FinalResult;
+import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
+
+import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 import dev.langchain4j.model.output.structured.Description;
 
 @Description("the results of the description of the screen relative to the target UI element")
 public record PageDescriptionResult(
         @Description("the description itself") String pageDescription)
-        implements FinalResult<PageDescriptionResult> {
+        implements FinalResult {
+    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
+    public static PageDescriptionResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) PageDescriptionResult result) {
+        return result;
+    }
 }

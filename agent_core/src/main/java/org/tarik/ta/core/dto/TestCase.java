@@ -16,6 +16,10 @@
 package org.tarik.ta.core.dto;
 
 import dev.langchain4j.model.output.structured.Description;
+import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
+
+import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 import java.util.List;
 
 @Description("A test case extracted from the user's request.")
@@ -23,5 +27,11 @@ public record TestCase(
         @Description("The name of the test case, summarizing its purpose.") String name,
         @Description("All preconditions which need to be fulfilled before the test execution can be started.") List<String> preconditions,
         @Description("A list of test steps that make up the test case.") List<TestStep> testSteps)
-        implements FinalResult<TestCase> {
+        implements FinalResult {
+
+    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
+    public static TestCase endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) TestCase result) {
+        return result;
+    }
 }

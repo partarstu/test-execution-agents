@@ -16,6 +16,10 @@
 package org.tarik.ta.dto;
 
 import org.tarik.ta.core.dto.FinalResult;
+import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
+
+import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 import dev.langchain4j.model.output.structured.Description;
 
@@ -25,5 +29,10 @@ public record UiStateCheckResult(
         @Description("indicates whether the expected and actual states match.")
         boolean success,
         @Description("contains a detailed justification of the match or mismatch.")
-        String message) implements FinalResult<UiStateCheckResult> {
+        String message) implements FinalResult {
+    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
+    public static UiStateCheckResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) UiStateCheckResult result) {
+        return result;
+    }
 }
