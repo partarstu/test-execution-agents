@@ -15,19 +15,30 @@
  */
 package org.tarik.ta.tools;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.MockitoAnnotations;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.UiElementExtendedDescriptionAgent;
+import org.tarik.ta.core.AgentConfig.ModelProvider;
+import org.tarik.ta.core.model.GenAiModel;
+import org.tarik.ta.core.model.ModelFactory;
+import org.tarik.ta.core.utils.PromptUtils;
 import org.tarik.ta.dto.SemiAttendedModeElementLocationConfirmationResult;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.rag.UiElementRetriever;
+import dev.langchain4j.model.chat.ChatModel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.spy;
 import static org.tarik.ta.dto.SemiAttendedModeElementLocationConfirmationResult.proceed;
 
@@ -41,11 +52,37 @@ class SemiAttendedModeCommonUserInteractionToolsTest {
     private UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
 
     private SemiAttendedModeCommonUserInteractionTools tools;
+    private MockedStatic<UiTestAgentConfig> mockedConfig;
+    private MockedStatic<ModelFactory> mockedModelFactory;
+    private MockedStatic<PromptUtils> mockedPromptUtils;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+
+        mockedConfig = mockStatic(UiTestAgentConfig.class);
+        mockedConfig.when(UiTestAgentConfig::getUiStateCheckAgentPromptVersion).thenReturn("v1.0.0");
+        mockedConfig.when(UiTestAgentConfig::getUiStateCheckAgentModelName).thenReturn("test-model");
+        mockedConfig.when(UiTestAgentConfig::getUiStateCheckAgentModelProvider).thenReturn(ModelProvider.GOOGLE);
+        mockedConfig.when(UiTestAgentConfig::getAgentToolCallsBudget).thenReturn(5);
+
+        mockedModelFactory = mockStatic(ModelFactory.class);
+        GenAiModel mockGenAiModel = new GenAiModel(mock(ChatModel.class));
+        mockedModelFactory.when(() -> ModelFactory.getModel(anyString(), any(ModelProvider.class)))
+                .thenReturn(mockGenAiModel);
+
+        mockedPromptUtils = mockStatic(PromptUtils.class);
+        mockedPromptUtils.when(() -> PromptUtils.loadSystemPrompt(anyString(), anyString(), anyString()))
+                .thenReturn("System Prompt");
+
         tools = spy(new SemiAttendedModeCommonUserInteractionTools(uiElementRetriever, uiTestExecutionContext, uiElementExtendedDescriptionAgent));
+    }
+
+    @AfterEach
+    void tearDown() {
+        mockedConfig.close();
+        mockedModelFactory.close();
+        mockedPromptUtils.close();
     }
 
     @Test
