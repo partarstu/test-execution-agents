@@ -37,6 +37,7 @@ import org.tarik.ta.agents.PageDescriptionAgent;
 import org.tarik.ta.agents.UiElementBoundingBoxAgent;
 import org.tarik.ta.agents.BestUiElementMatchSelectionAgent;
 import org.tarik.ta.agents.DbUiElementSelectionAgent;
+import org.tarik.ta.agents.ImageVerificationAgent;
 import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -107,6 +108,8 @@ class UiTestAgentTest {
         private BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgentMock;
         @Mock
         private DbUiElementSelectionAgent dbUiElementSelectionAgentMock;
+        @Mock
+        private ImageVerificationAgent imageVerificationAgentMock;
 
         @Mock
         private AiServices<TestCaseExtractionAgent> testCaseExtractionAgentBuilder;
@@ -130,6 +133,8 @@ class UiTestAgentTest {
         private AiServices<BestUiElementMatchSelectionAgent> elementSelectionAgentBuilder;
         @Mock
         private AiServices<DbUiElementSelectionAgent> dbElementSelectionAgentBuilder;
+        @Mock
+        private AiServices<ImageVerificationAgent> imageVerificationAgentBuilder;
 
         // Static mocks
         private MockedStatic<ModelFactory> modelFactoryMockedStatic;
@@ -164,7 +169,8 @@ class UiTestAgentTest {
                                 .thenReturn(new RetryPolicy(3, 100, 5000));
                 uiAgentConfigMockedStatic.when(UiTestAgentConfig::isElementLocationPrefetchingEnabled)
                                 .thenReturn(false);
-                uiAgentConfigMockedStatic.when(UiTestAgentConfig::isUnattendedMode).thenReturn(false);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::isFullyUnattended).thenReturn(true);
+                uiAgentConfigMockedStatic.when(UiTestAgentConfig::getExecutionMode).thenReturn(ExecutionMode.UNATTENDED);
                 agentConfigMockedStatic.when(AgentConfig::getTestCaseExtractionAgentModelProvider)
                                 .thenReturn(AgentConfig.ModelProvider.GOOGLE);
                 agentConfigMockedStatic.when(AgentConfig::getPreconditionActionAgentModelProvider)
@@ -242,6 +248,8 @@ class UiTestAgentTest {
                                 .thenReturn(elementSelectionAgentBuilder);
                 aiServicesMockedStatic.when(() -> AiServices.builder(DbUiElementSelectionAgent.class))
                                 .thenReturn(dbElementSelectionAgentBuilder);
+                aiServicesMockedStatic.when(() -> AiServices.builder(ImageVerificationAgent.class))
+                                .thenReturn(imageVerificationAgentBuilder);
 
                 // Retriever Factory
                 retrieverFactoryMockedStatic.when(RetrieverFactory::getUiElementRetriever)
@@ -266,6 +274,7 @@ class UiTestAgentTest {
                 configureBuilder(elementBoundingBoxAgentBuilder, uiElementBoundingBoxAgentMock);
                 configureBuilder(elementSelectionAgentBuilder, bestUiElementMatchSelectionAgentMock);
                 configureBuilder(dbElementSelectionAgentBuilder, dbUiElementSelectionAgentMock);
+                configureBuilder(imageVerificationAgentBuilder, imageVerificationAgentMock);
         }
 
         private <T> void configureBuilder(AiServices<T> builder, T agent) {
@@ -274,6 +283,7 @@ class UiTestAgentTest {
                 lenient().when(builder.toolExecutionErrorHandler(any())).thenReturn(builder);
                 lenient().when(builder.systemMessageProvider(any())).thenReturn(builder);
                 lenient().when(builder.maxSequentialToolsInvocations(anyInt())).thenReturn(builder);
+                lenient().when(builder.toolProvider(any())).thenReturn(builder);
                 lenient().when(builder.build()).thenReturn(agent);
         }
 

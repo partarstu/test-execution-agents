@@ -34,8 +34,8 @@ import static javax.swing.text.StyleConstants.setAlignment;
 
 public abstract class AbstractDialog extends JDialog {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractDialog.class);
-    private static final int DIALOG_DEFAULT_VERTICAL_GAP = UiTestAgentConfig.getDialogDefaultVerticalGap();
-    private static final int DIALOG_DEFAULT_HORIZONTAL_GAP = UiTestAgentConfig.getDialogDefaultHorizontalGap();
+    protected static final int DIALOG_DEFAULT_VERTICAL_GAP = UiTestAgentConfig.getDialogDefaultVerticalGap();
+    protected static final int DIALOG_DEFAULT_HORIZONTAL_GAP = UiTestAgentConfig.getDialogDefaultHorizontalGap();
 
     public AbstractDialog(Window owner, String title) throws HeadlessException {
         super(owner, title, ModalityType.APPLICATION_MODAL);

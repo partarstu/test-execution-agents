@@ -20,7 +20,7 @@ import org.tarik.ta.a2a.UiAgentExecutor;
 import org.tarik.ta.core.AbstractServer;
 import org.tarik.ta.core.a2a.AgentExecutor;
 
-import static org.tarik.ta.UiTestAgentConfig.isUnattendedMode;
+import static org.tarik.ta.UiTestAgentConfig.getExecutionMode;
 import static org.tarik.ta.a2a.AgentCardProducer.agentCard;
 
 public class Server extends AbstractServer {
@@ -41,7 +41,7 @@ public class Server extends AbstractServer {
 
     @Override
     protected String getStartupLogMessage(String host, int port) {
-        String mode = isUnattendedMode() ? "unattended" : "attended";
+        String mode = getExecutionMode().name().toLowerCase().replace('_', '-');
         return "Agent server started on host %s and port %d in %s mode".formatted(host, port, mode);
     }
 }

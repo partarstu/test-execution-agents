@@ -16,17 +16,15 @@ jobs:
 
       - name: Set up JDK 25
         uses: actions/setup-java@v4
+        id: setup
         with:
           java-version: '25'
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Build with Maven and Profiles
+      - name: Package UI agent
         run: mvn -B package --file pom.xml -pl ui_test_execution_agent -am -P linux
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: packaged-application
-          path: ui_test_execution_agent/target/*.jar
-          if-no-files-found: error
+      - name: Package API agent
+        if: always() && steps.setup.conclusion == 'success'
+        run: mvn -B package --file pom.xml -pl api_test_execution_agent -am -P linux

@@ -15,20 +15,15 @@
  */
 package org.tarik.ta.core.dto;
 
-import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.model.output.structured.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import dev.langchain4j.agent.tool.Tool;
 
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 @Description("Empty execution result")
 public record EmptyExecutionResult() implements FinalResult {
-    private static final Logger LOG = LoggerFactory.getLogger(EmptyExecutionResult.class);
-
-    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
-    public VerificationExecutionResult endExecution() {
-        LOG.debug("Ending execution without result.");
+    @Tool(value = "Ends the execution immediately.", returnBehavior = IMMEDIATE)
+    public static EmptyExecutionResult endExecutionAndGetFinalResult() {
         return null;
     }
 }

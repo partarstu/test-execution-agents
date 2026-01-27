@@ -88,6 +88,6 @@ public class OperationExecutionResult<T> {
     }
 
     public enum ExecutionStatus {
-        SUCCESS, ERROR, VERIFICATION_FAILURE, INTERRUPTED_BY_USER
+        SUCCESS, ERROR, INTERRUPTED_BY_USER
     }
 }

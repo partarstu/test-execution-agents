@@ -40,6 +40,7 @@ D:\Projects\test-execution-agents\
     *   **`TestCaseExtractor`**: Utility class that provides shared test case extraction functionality using an AI model.
     *   **`TestContextDataTools`**: Shared tools for loading and managing test data (JSON, CSV).
     *   **`DefaultToolErrorHandler`**: Centralized tool error handling with configurable retry policies.
+    *   **`InheritanceAwareToolProvider`**: Enhanced tool provider that supports tool inheritance and discovery.
     *   **`LogCapture`**: Utility for capturing execution logs to include in test results.
     *   **`SystemInfo`**: DTO for capturing device/OS/browser information.
 
@@ -123,7 +124,7 @@ The core module provides shared abstractions that both UI and API agents extend:
 - **Visual Grounding**: AI-powered element location using screenshots and descriptions.
 - **Screen Recording**: Captures video of test execution for debugging.
 - **Element RAG**: Vector database integration for efficient element retrieval.
-- **Attended/Unattended Modes**: Interactive or fully automated execution.
+- **Attended/Semi-Attended/Unattended Modes**: Interactive, semi-interactive, or fully automated execution.
 
 ### API Test Agent Specific
 - **Multiple Auth Types**: Basic, Bearer Token, and API Key authentication.
@@ -166,11 +167,13 @@ The following configuration properties are shared across agents (defined in `Age
 | `port` | `PORT` | `8005` | Server port |
 | `host` | `AGENT_HOST` | (required) | Server host |
 | `external.url` | `EXTERNAL_URL` | `http://localhost:{port}` | External URL for A2A card |
+| `vector.db.provider` | `VECTOR_DB_PROVIDER` | `chroma` | RAG Vector DB provider (chroma, qdrant) |
+| `vector.db.url` | `VECTOR_DB_URL` | (required) | URL for the vector database |
+| `vector.db.key` | `VECTOR_DB_KEY` | | API Key/Token for the vector database |
 | `model.provider` | `MODEL_PROVIDER` | `google` | AI model provider (google, openai, groq, anthropic) |
 | `model.name` | `MODEL_NAME` | `gemini-3-flash-preview` | Default model name |
 | `gemini.thinking.level` | `GEMINI_THINKING_LEVEL` | `MINIMAL` | Gemini thinking configuration level |
 | `model.max.retries` | `MAX_RETRIES` | `10` | Maximum model API retries |
-| `verification.model.max.retries` | `VERIFICATION_MODEL_MAX_RETRIES` | `0` | Retries for verification models |
 
 ### Agent-Specific Configuration
 

@@ -16,17 +16,16 @@
 package org.tarik.ta.dto;
 
 import org.tarik.ta.core.dto.FinalResult;
-
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.model.output.structured.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
+
+import dev.langchain4j.model.output.structured.Description;
 
 @Description("the extracted by you information about the target UI element")
 public record UiElementDescriptionResult(
-        @Description("Identified by you name of the target element based on the original provided to you information.")
+        @Description("Identified by you name of the target element based on its original description.")
         String name,
         @Description("An accurate, specific, compact information about the visual appearance of the target element. " +
                 "This information must be enough for you to find this element on the screenshot, but at the same time this info shouldn't " +
@@ -40,15 +39,14 @@ public record UiElementDescriptionResult(
         String locationDescription,
         @Description("Name or very short description of the direct parent (enclosing) element (e.g. page/form/dialog/popup/view " +
                 "etc.) in which the target element is located.")
-        String pageSummary) implements FinalResult {
-    private static final Logger LOG = LoggerFactory.getLogger(UiElementDescriptionResult.class);
-
+        String pageSummary,
+        @Description("Flag which defines if the target element depends on the data (if its content is dynamic). Examples of " +
+                "data-dependent elements are: any option in the dropdown list, calendar day icon in the calendar grid, check-box with " +
+                "dynamic label etc.")
+        boolean elementIsDataDependent) implements FinalResult {
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
-    public UiElementDescriptionResult endExecutionAndGetFinalResult(
-            @P(value = FINAL_RESULT_PARAM_DESCRIPTION) UiElementDescriptionResult result) {
-        LOG.debug("Ending execution and returning the final result: {}", result);
+    public static UiElementDescriptionResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) UiElementDescriptionResult result) {
         return result;
     }
 }
-
-

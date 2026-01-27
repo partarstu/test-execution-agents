@@ -60,7 +60,7 @@ class NewElementCreationResultTest {
         // Verify that the class has the Description annotation
         assertTrue(NewElementCreationResult.class.isAnnotationPresent(Description.class));
         Description annotation = NewElementCreationResult.class.getAnnotation(Description.class);
-        assertEquals("Result of creating a new UI element through user interaction", annotation.value()[0]);
+        assertEquals("Result of creating a new UI element in DB", annotation.value()[0]);
     }
 
     @Test

@@ -24,7 +24,6 @@ import java.util.Objects;
 
 @Description("Result of a tool execution containing status, message, optional screenshot, typed payload, and timestamp")
 public final class UiOperationExecutionResult<T> extends OperationExecutionResult<T> {
-    @Description("Optional screenshot captured during execution (nullable)")
     private final @Nullable BufferedImage screenshot;
 
     public UiOperationExecutionResult(ExecutionStatus executionStatus, String message, @Nullable T resultPayload,

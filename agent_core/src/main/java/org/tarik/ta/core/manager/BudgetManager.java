@@ -47,12 +47,12 @@ public class BudgetManager {
         toolCallUsage.set(0);
         startTime.set(now());
         tokenUsagePerModel.clear();
-        LOG.info("Budget counters reset.");
+        LOG.debug("Budget counters reset.");
     }
 
     public static void resetToolCallUsage() {
         toolCallUsage.set(0);
-        LOG.info("Tool call usage reset.");
+        LOG.debug("Tool call usage reset.");
     }
 
     public static void consumeTokens(String modelName, int input, int output, int cached) {

@@ -36,6 +36,7 @@ import org.tarik.ta.tools.ApiAssertionTools;
 import org.tarik.ta.core.tools.TestContextDataTools;
 import org.tarik.ta.tools.ApiRequestTools;
 import org.tarik.ta.core.utils.LogCapture;
+import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 
 import java.time.Instant;
 import java.util.List;
@@ -241,7 +242,7 @@ public class ApiTestAgent {
         return builder(ApiTestStepActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .tools(requestTools, assertionTools, dataTools, VerificationExecutionResult.empty())
+                .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
                 .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiTestStepActionAgent.RETRY_POLICY, retryState))
                 .maxSequentialToolsInvocations(getAgentToolCallsBudget())
                 .build();
@@ -255,7 +256,7 @@ public class ApiTestAgent {
         return builder(ApiPreconditionActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .tools(requestTools, assertionTools, dataTools, VerificationExecutionResult.empty())
+                .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
                 .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiPreconditionActionAgent.RETRY_POLICY, retryState))
                 .maxSequentialToolsInvocations(getAgentToolCallsBudget())
                 .build();

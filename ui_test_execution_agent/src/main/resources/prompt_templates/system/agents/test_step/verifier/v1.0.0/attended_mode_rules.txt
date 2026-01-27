@@ -1,0 +1,2 @@
+Additional rules you must follow:
+  - When the verification result is not successful (verification failed), you must first inform the user about this verification failure using corresponding tool and only then return that verification result.

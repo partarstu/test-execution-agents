@@ -38,6 +38,8 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * **[UiElementFromCandidatesSelectionAgent](src/main/java/org/tarik/ta/agents/UiElementFromCandidatesSelectionAgent.java):** When multiple UI 
           elements in the database match the description (same or similar names), this agent analyzes the current screenshot and selects the best
           matching element based on all element information (name, description, location details/parent context, and parent element info).
+        * **[UiElementExtendedDescriptionAgent](src/main/java/org/tarik/ta/agents/UiElementExtendedDescriptionAgent.java):** Generates extended descriptions for UI elements based on screenshots and initial descriptions.
+        * **[ImageVerificationAgent](src/main/java/org/tarik/ta/agents/ImageVerificationAgent.java):** Performs visual verification of test step results against expected outcomes using screenshots.
         * **[PageDescriptionAgent](src/main/java/org/tarik/ta/agents/PageDescriptionAgent.java):** Describes the current page context. This can be
           used for various purposes such as understanding the current UI state.
     * Each agent can be independently configured with its own AI model (name and provider) and system prompt version via
@@ -51,12 +53,6 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * **Tool Call Budget:** Limits max tool calls for each agent (`agent.tool.calls.budget`).
         * Tracks token usage per model (input, output, cached, total).
         * Automatically interrupts execution in unattended mode if budget is exceeded.
-
-* **Async Verification with VerificationManager:**
-    * The [VerificationManager](src/main/java/org/tarik/ta/manager/VerificationManager.java) enables asynchronous verification
-      processing in case the UI element prefetching is enabled:
-        * Submits verification tasks to a dedicated executor.
-        * Supports waiting for verification completion within configurable timeouts and providing the verification result.
 
 * **Enhanced Error Handling:**
     * Structured error handling with [ErrorCategory](../agent_core/src/main/java/org/tarik/ta/core/error/ErrorCategory.java) enum:
@@ -102,9 +98,9 @@ a part of this framework for executing a sample test case inside Google Cloud.
 * **RAG:**
     * Employs a Retrieval-Augmented Generation (RAG) approach to manage information about UI elements.
     * Uses a vector database to store and retrieve UI element details (name, element description, location description, parent element description,
-      and screenshot). It currently supports only Chroma DB, configured via `vector.db.url` in `config.properties`.
+      and screenshot). It supports Chroma DB and Qdrant, configured via `vector.db.provider` and `vector.db.url` in `config.properties`.
     * RAG components are located in the UI module: [RetrieverFactory](src/main/java/org/tarik/ta/rag/RetrieverFactory.java),
-      [ChromaRetriever](src/main/java/org/tarik/ta/rag/ChromaRetriever.java), and [UiElementRetriever](src/main/java/org/tarik/ta/rag/UiElementRetriever.java).
+      [ChromaRetriever](src/main/java/org/tarik/ta/rag/ChromaRetriever.java), [QdrantRetriever](src/main/java/org/tarik/ta/rag/QdrantRetriever.java), and [UiElementRetriever](src/main/java/org/tarik/ta/rag/UiElementRetriever.java).
     * Stores UI element information as `UiElement` records, which include a name, self-description, description of surrounding
       elements (anchors), a parent element description, and a screenshot (`UiElement.Screenshot`).
     * Retrieves the top N (`retriever.top.n` in config) most relevant UI elements based on semantic similarity between the query (derived
@@ -141,18 +137,29 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java ) provides the whole logic for locating a specific
       UI element on the screen based on its description.
     * [UserInteractionTools](src/main/java/org/tarik/ta/tools/UserInteractionTools.java) facilitates user interactions via dialogs for 
-      element creation, refinement, and verification. **Note:** These tools are only available when running in attended mode 
-      (`unattended.mode=false`).
+      element creation, refinement, and verification. **Note:** These tools are only available when running in attended or semi-attended modes 
+      (`execution.mode=ATTENDED` or `execution.mode=SEMI_ATTENDED`).
 
-* **Attended and Unattended Modes:**
-    * Supports two execution modes controlled by the `unattended.mode` flag in `config.properties`.
-    * **Attended ("Trainee") Mode (`unattended.mode=false`):** Designed for initial test case runs or when execution in unattended mode
+* **Execution Modes:**
+    * Supports three execution modes controlled by the `execution.mode` property in `config.properties`.
+    * **Attended ("Trainee") Mode (`execution.mode=ATTENDED`):** Designed for initial test case runs or when execution in unattended mode
       fails for debugging/fixing purposes. In this mode the agent behaves as a trainee, who needs assistance from the human tutor/mentor
-      in order to identify all the information which is required for the unattended (without supervision) execution of the test case. Tool call limits are significantly relaxed in this mode (default 100), configurable via `agent.tool.calls.budget.attended`.
-    * **Unattended Mode (`unattended.mode=true`):** The agent executes the test case without any human assistance. It relies entirely on the
-      information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored data.
-      Errors during element location or verification will cause the execution to fail. This mode is suitable for integration into CI/CD
-      pipelines. Budget checks are automatically enforced in this mode.
+      in order to identify all the information which is required for the unattended (without supervision) execution of the test case. Key features:
+        * Agent asks for confirmation after locating elements.
+        * User can create new elements or refine existing ones.
+        * User can manually select the next action at any point.
+        * **Verification Failure Notification:** When a verification fails, the user is notified with details about the failure and the retry timeout, and can choose to continue or terminate.
+        * Tool call limits are significantly relaxed.
+    * **Semi-Attended Mode (`execution.mode=SEMI_ATTENDED`):** The agent operates autonomously but allows the operator to intervene.
+        * **Countdown Halt:** Displays a countdown popup (configurable duration) after test step actions, allowing the operator to click "Halt".
+        * **Verification Failure Notification:** When a verification fails (after all automatic retries), the operator is notified with details about the failure via a popup before the test execution is terminated.
+        * **Element Selection Confirmation:** Displays a popup with a countdown when an element is automatically selected. The operator can see the selected element, intended action, and the agent's assessment of whether the located element matches the description, and choose to "Proceed" (default), "Create new element", or take "Other action" (prompting the agent).
+        * **Operator Intervention:** On halt or error, the operator can choose the next action (Retry, Refine, Terminate, etc.).
+        * Suitable for monitoring execution without constant clicking, while retaining control to fix issues on the fly.
+    * **Unattended Mode (`execution.mode=UNATTENDED`):** The agent executes the test case without any human assistance. It relies entirely on the
+        information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored data.
+        Errors during element location or verification will cause the execution to fail. This mode is suitable for integration into CI/CD
+        pipelines. Budget checks are automatically enforced in this mode.
 
 * **Server mode:**
     * The [Server](src/main/java/org/tarik/ta/Server.java) class extends [AbstractServer](../agent_core/src/main/java/org/tarik/ta/core/AbstractServer.java)
@@ -171,10 +178,11 @@ The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/
    `preconditions` (natural language description of the required state before execution), and a list of `TestStep`s. Each `TestStep`
    includes a `stepDescription` (natural language instruction), optional `testData` (inputs for the step), and `expectedResults`
    (natural language description of the expected state after the step).
-2. **Precondition Execution and Verification:** If preconditions are defined, the agent executes and verifies them against the current UI
-   state using a vision model. If preconditions are not met, the test case execution fails.
-3. **Step Iteration:** The agent iterates through each `TestStep` sequentially, executing each test step.
-4. **Test Step Action:**
+2. **Starting Step Selection:** In Attended and Semi-Attended modes, the operator can choose to start execution from a specific test step. In Unattended mode, execution always starts from the first step.
+3. **Precondition Execution and Verification:** If preconditions are defined and the execution starts from the beginning (first step), the agent executes and verifies them against the current UI
+   state using a vision model. If preconditions are not met, the test case execution fails. If the execution starts from a later step, preconditions are omitted.
+4. **Step Iteration:** The agent iterates through each `TestStep` sequentially, executing each test step.
+5. **Test Step Action:**
     * **Element Location (if required by the tool):** If the requested tool needs to interact with a specific UI element (e.g., clicking an
       element), the element is located using the [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java) class
       based on the element's description (provided as a parameter for the tool). (See "UI Element Location Workflow" below for details).
@@ -182,7 +190,7 @@ The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/
     * **Retry/Rerun Logic:** If a tool execution reports that retrying makes sense (e.g., an element was not found on the screen), the
       agent retries the execution after a short delay, up to a configured timeout (`test.step.execution.retry.timeout.millis`). If the
       error persists after the deadline, the test case execution is marked as `ERROR`.
-5. **Test Step Expected Results Verification:**
+6. **Test Step Expected Results Verification:**
     * **Delay:** A short delay (`action.verification.delay.millis`) is introduced to allow the UI state to change after the preceding
       action.
     * **Screenshot:** A screenshot of the current screen is taken.
@@ -193,7 +201,7 @@ The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/
     * **Retry Logic:** If the verification fails, the agent retries the verification process after a short interval (
       `test.step.execution.retry.interval.millis`) until a timeout (`verification.retry.timeout.millis`) is reached. If it still fails after
       the deadline, the test case execution is marked as `FAILED`.
-6. **Completion/Termination:** Execution continues until all steps are processed successfully or an interruption (error, verification
+7. **Completion/Termination:** Execution continues until all steps are processed successfully or an interruption (error, verification
    failure, user termination) occurs. The final `TestExecutionResult` (including `TestExecutionStatus` and detailed `TestStepResult` for
    each step) is returned.
 
@@ -247,7 +255,7 @@ combination of RAG, computer vision, analysis, and potentially user interaction 
 
 * Java Development Kit (JDK) - Version 25 or later recommended.
 * Apache Maven - For building the project.
-* Chroma vector database (the only one supported for now).
+* Chroma or Qdrant vector database.
 * Subscription to an AI model provider (Google Cloud/AI Studio, Azure OpenAI, or Groq).
 
 ### Maven Setup
@@ -269,7 +277,7 @@ This project uses Maven for dependency management and building.
 
 ### Vector DB Setup
 
-Instructions for setting up the currently only one supported vector database Chroma DB could be found on its official website.
+Instructions for setting up the supported vector databases (Chroma DB or Qdrant) can be found on their official websites.
 
 ### Configuration
 
@@ -281,7 +289,8 @@ override properties file settings.**
 
 **Basic Agent Configuration:**
 
-* `unattended.mode` (Env: `UNATTENDED_MODE`): `true` for unattended execution, `false` for attended (trainee) mode. Default: `false`.
+* `execution.mode` (Env: `EXECUTION_MODE`): Mode of execution (`ATTENDED`, `SEMI_ATTENDED`, `UNATTENDED`). Default: `UNATTENDED`.
+* `semi.attended.countdown.seconds` (Env: `SEMI_ATTENDED_COUNTDOWN_SECONDS`): Duration in seconds for the countdown popup in semi-attended mode. Default: `5`.
 * `debug.mode` (Env: `DEBUG_MODE`): `true` enables debug mode, which saves intermediate screenshots (e.g., with bounding boxes drawn)
   during element location for debugging purposes. `false` disables this. Default: `false`.
 * `port` (Env: `PORT`): Port for the server mode. Default: `8005`.
@@ -303,6 +312,7 @@ override properties file settings.**
 * `model.logging.enabled` (Env: `LOG_MODEL_OUTPUT`): Enable/disable model logging. Default: `false`.
 * `thinking.output.enabled` (Env: `OUTPUT_THINKING`): Enable/disable thinking process output. Default: `false`.
 * `gemini.thinking.budget` (Env: `GEMINI_THINKING_BUDGET`): Budget for Gemini thinking process. Default: `0`.
+* `verification.model.max.retries` (Env: `VERIFICATION_MODEL_MAX_RETRIES`): Retries for verification models. Default: `3`.
 
 **Google API Configuration:**
 
@@ -625,8 +635,6 @@ Remember to use the VNC password you set in the Dockerfile when prompted.
   UI-specific configuration is managed by [UiTestAgentConfig](src/main/java/org/tarik/ta/UiTestAgentConfig.java).
 * **Budget Management:** The `BudgetManager` provides guardrails for execution in unattended mode, preventing runaway costs by limiting
   time, tokens, and tool calls. This is particularly important for CI/CD integration.
-* **Async Verification:** The `VerificationManager` enables asynchronous verification processing, improving overall execution performance
-  by allowing verifications to run in parallel when appropriate.
 * **Enhanced Error Handling:** The new `ErrorCategory` enum and `RetryPolicy` record provide structured error handling with configurable
   retry strategies, making the agent more robust and easier to debug.
 * **Environment:** The agent has been manually tested on the Windows 11 platform. There are issues with OpenCV and OpenBLAS libraries

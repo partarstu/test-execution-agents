@@ -19,6 +19,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.TestCase;
+import org.tarik.ta.core.dto.VerificationExecutionResult;
+import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 
 import java.util.List;
 import java.util.Optional;
@@ -83,7 +85,7 @@ public final class TestCaseExtractor {
         return builder(TestCaseExtractionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .tools(new TestCase("", List.of(), List.of()))
+                .toolProvider(new InheritanceAwareToolProvider<>(List.of(), TestCase.class))
                 .build();
     }
 

@@ -28,13 +28,6 @@ public enum ErrorCategory {
     TERMINATION_BY_USER,
 
     /**
-     * Verification of a precondition or test step failed.
-     * Retry: YES
-     * Severity: WARN
-     */
-    VERIFICATION_FAILED,
-
-    /**
      * A transient error occurred with a tool or external service (e.g., network glitch).
      * Retry: YES (Exponential backoff)
      * Severity: WARN

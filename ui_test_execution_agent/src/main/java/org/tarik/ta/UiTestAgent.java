@@ -15,14 +15,17 @@
  */
 package org.tarik.ta;
 
+import dev.langchain4j.model.input.PromptTemplate;
 import dev.langchain4j.service.tool.ToolErrorContext;
 import dev.langchain4j.service.tool.ToolErrorHandlerResult;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.*;
 import org.tarik.ta.core.agents.PreconditionActionAgent;
 import org.tarik.ta.core.dto.*;
+import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 import org.tarik.ta.core.model.DefaultToolErrorHandler;
 import org.tarik.ta.dto.UiOperationExecutionResult;
@@ -41,13 +44,15 @@ import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.model.VisualState;
 import org.tarik.ta.exceptions.ElementLocationException;
-import org.tarik.ta.manager.VerificationManager;
 import org.tarik.ta.tools.*;
+import org.tarik.ta.user_dialogs.TestStepSelectionPopup;
 import org.tarik.ta.utils.ScreenRecorder;
 
 import java.awt.image.BufferedImage;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static dev.langchain4j.service.AiServices.builder;
 import static java.lang.String.join;
@@ -63,7 +68,6 @@ import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 import static org.tarik.ta.rag.RetrieverFactory.getUiElementRetriever;
-import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.VERIFICATION_FAILURE;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
@@ -71,6 +75,7 @@ import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 public class UiTestAgent {
     private static final Logger LOG = LoggerFactory.getLogger(UiTestAgent.class);
     protected static final int ACTION_VERIFICATION_DELAY_MILLIS = getActionVerificationDelayMillis();
+    public static final String MODE_SPECIFIC_RULES_PLACEHOLDER = "mode_specific_rules";
 
     private UiTestAgent() {
     }
@@ -99,15 +104,31 @@ public class UiTestAgent {
             logCapture.start();
             systemInfo = getSystemInfo();
 
-            try (VerificationManager verificationManager = new VerificationManager()) {
+            try {
                 var context = new UiTestExecutionContext(testCase, new VisualState(captureScreen()));
-                var userInteractionTools = new UserInteractionTools(getUiElementRetriever());
+                var imageVerificationAgent = getImageVerificationAgent(new RetryState());
+                var verificationTools = new VerificationTools(context, imageVerificationAgent);
+                var userInteractionTools = switch (getExecutionMode()) {
+                    case ATTENDED -> new AttendedModeCommonUserInteractionTools(getUiElementRetriever(), context);
+                    case SEMI_ATTENDED -> new SemiAttendedModeCommonUserInteractionTools(getUiElementRetriever(), context);
+                    case UNATTENDED -> null;
+                };
                 var preconditionCommonTools = new CommonTools();
-                var testStepCommonTools = new CommonTools(verificationManager);
+                var testStepCommonTools = new CommonTools();
 
-                if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
-                    executePreconditions(context,
-                            getPreconditionActionAgent(preconditionCommonTools, userInteractionTools, new RetryState()));
+                // Select starting step for attended/semi-attended modes
+                int startingStepIndex = 0;
+                if (!isFullyUnattended()) {
+                    startingStepIndex = TestStepSelectionPopup.displayAndGetSelection(testCase.testSteps());
+                    if (startingStepIndex > 0) {
+                        LOG.info("Operator selected to start from step #{} (0-indexed)", startingStepIndex);
+                    }
+                }
+
+                if (startingStepIndex == 0 && testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
+                    var preconditionActionAgent =
+                            getPreconditionActionAgent(preconditionCommonTools, userInteractionTools, new RetryState());
+                    executePreconditions(context, preconditionActionAgent);
                     if (hasPreconditionFailures(context)) {
                         var failedPrecondition = context.getPreconditionExecutionHistory().getLast();
                         return getTestExecutionResultWithError(context, testExecutionStartTimestamp,
@@ -117,7 +138,7 @@ public class UiTestAgent {
                 }
 
                 var testStepActionAgent = getTestStepActionAgent(testStepCommonTools, userInteractionTools, new RetryState());
-                executeTestSteps(context, testStepActionAgent, verificationManager);
+                executeTestSteps(context, testStepActionAgent, verificationTools, userInteractionTools, startingStepIndex);
                 if (hasStepFailures(context)) {
                     var lastStep = context.getTestStepExecutionHistory().getLast();
                     if (lastStep.getExecutionStatus() == FAILURE) {
@@ -210,51 +231,56 @@ public class UiTestAgent {
     }
 
     private static void executeTestSteps(UiTestExecutionContext context, UiTestStepActionAgent uiTestStepActionAgent,
-                                         VerificationManager verificationManager) {
-        var testStepVerificationAgent = getTestStepVerificationAgent(new RetryState());
-        for (TestStep testStep : context.getTestCase().testSteps()) {
+                                         VerificationTools verificationTools,
+                                         CommonUserInteractionTools userInteractionTools, int startingStepIndex) {
+        var testStepVerificationAgent = getTestStepVerificationAgent(verificationTools, userInteractionTools, new RetryState());
+        var testSteps = context.getTestCase().testSteps();
+        for (int i = startingStepIndex; i < testSteps.size(); i++) {
+            TestStep testStep = testSteps.get(i);
             var actionInstruction = testStep.stepDescription();
             var testData = ofNullable(testStep.testData()).map(Object::toString).orElse("");
-            var verificationInstruction = testStep.expectedResults();
             try {
                 var executionStartTimestamp = now();
                 LOG.info("Executing test step: {}", actionInstruction);
                 var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) uiTestStepActionAgent.executeAndGetResult(() -> {
-                    uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(), !isUnattendedMode());
+                    uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(), !isFullyUnattended());
                     return null;
                 }));
                 resetToolCallUsage();
                 if (!actionResult.isSuccess()) {
-                    if (actionResult.getExecutionStatus() != VERIFICATION_FAILURE) {
-                        // Verification failure happens only if the current action was executed as a UI
-                        // element location prefetch part, it means this test step shouldn't be reported because the execution is to be
-                        // halted after verification failure for the previous step
-                        var errorMessage = "Error while executing action '%s'. Root cause: %s"
-                                .formatted(actionInstruction, actionResult.getMessage());
-                        addFailedTestStep(context, testStep, errorMessage, null, executionStartTimestamp, now(),
-                                actionResult.screenshot(), TestStepResultStatus.ERROR);
-                    }
+                    var message = "There was an error while executing test step action '%s'. Please see agent logs for details"
+                            .formatted(actionInstruction);
+                    addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(),
+                            captureScreen(), TestStepResultStatus.ERROR);
                     return;
                 }
                 LOG.info("Action execution complete.");
 
+                var verificationInstruction = testStep.expectedResults();
                 if (isNotBlank(verificationInstruction)) {
+                    LOG.info("Verifying that '{}'", verificationInstruction);
                     String testDataString = testStep.testData() == null ? null : join(", ", testStep.testData());
-                    sleepMillis(getActionVerificationDelayMillis());
-                    verificationManager.submitVerification(testStepVerificationAgent, context, verificationInstruction,
-                            actionInstruction, testDataString);
+                    sleepMillis(ACTION_VERIFICATION_DELAY_MILLIS);
+                    var agentResult =
+                            (UiOperationExecutionResult<VerificationExecutionResult>) testStepVerificationAgent.executeAndGetResult(() ->
+                                    testStepVerificationAgent.verify(verificationInstruction, actionInstruction, testDataString,
+                                            context.getSharedData().toString()));
+                    resetToolCallUsage();
 
-                    var verificationResultOptional = verificationManager.waitForCurrentVerificationToFinish();
-                    if (verificationResultOptional.isEmpty()) {
-                        var message = "There was an error while verifying that '%s'. Please see logs for details"
+                    if (!agentResult.isSuccess()) {
+                        var message = "There was an error while verifying that '%s'. Please see agent logs for details"
                                 .formatted(verificationInstruction);
-                        LOG.error(message);
-                        addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(), captureScreen(),
-                                TestStepResultStatus.ERROR);
+                        addFailedTestStep(context, testStep, message, null, executionStartTimestamp, now(),
+                                captureScreen(), TestStepResultStatus.ERROR);
                         return;
                     }
 
-                    VerificationExecutionResult verificationResult = verificationResultOptional.get();
+                    VerificationExecutionResult verificationResult = agentResult.getResultPayload();
+                    // If result payload is null (which shouldn't happen on success unless empty), check message
+                    if (verificationResult == null) {
+                        verificationResult = new VerificationExecutionResult(false, "No verification result returned.");
+                    }
+
                     if (!verificationResult.success()) {
                         var generalMessage = "Verification failed. %s".formatted(verificationResult.message());
                         LOG.warn("Interrupting test case execution because the verification failed. {}", verificationResult.message());
@@ -287,42 +313,97 @@ public class UiTestAgent {
                 .anyMatch(s -> s != SUCCESS);
     }
 
-    private static UiTestStepVerificationAgent getTestStepVerificationAgent(RetryState retryState) {
+    private static UiTestStepVerificationAgent getTestStepVerificationAgent(VerificationTools verificationTools,
+                                                                            CommonUserInteractionTools userInteractionTools,
+                                                                            RetryState retryState) {
         var testStepVerificationAgentModel = getModel(getTestStepVerificationAgentModelName(),
                 getTestStepVerificationAgentModelProvider(), getVerificationModelMaxRetries());
         var testStepVerificationAgentPrompt = loadSystemPrompt("test_step/verifier",
-                getTestStepVerificationAgentPromptVersion(), "verification_execution_prompt.txt");
-        return builder(UiTestStepVerificationAgent.class)
+                getTestStepVerificationAgentPromptVersion(), "main_verification_prompt.txt");
+        var modeSpecificPrompt = getVerifierModeSpecificSystemPrompt();
+        var finalPrompt = PromptTemplate.from(testStepVerificationAgentPrompt)
+                .apply(Map.of(MODE_SPECIFIC_RULES_PLACEHOLDER, modeSpecificPrompt))
+                .text()
+                .trim();
+
+        var agentBuilder = builder(UiTestStepVerificationAgent.class)
                 .chatModel(testStepVerificationAgentModel.chatModel())
-                .systemMessageProvider(_ -> testStepVerificationAgentPrompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY, retryState))
-                .tools(new VerificationExecutionResult(false, ""))
+                .systemMessageProvider(_ -> finalPrompt)
                 .maxSequentialToolsInvocations(getEffectiveToolCallsBudget())
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY, retryState));
+
+        List<Object> tools = new ArrayList<>();
+        tools.add(verificationTools);
+        if (userInteractionTools != null) {
+            tools.add(userInteractionTools);
+        }
+        agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(tools, VerificationExecutionResult.class));
+
+        return agentBuilder.build();
+    }
+
+    private static ImageVerificationAgent getImageVerificationAgent(RetryState retryState) {
+        var model = getModel(getTestStepVerificationAgentModelName(),
+                getTestStepVerificationAgentModelProvider(), getVerificationModelMaxRetries());
+        var prompt = loadSystemPrompt("test_step/verifier",
+                getTestStepVerificationAgentPromptVersion(), "verification_execution_prompt.txt");
+        var finalPrompt = PromptTemplate.from(prompt)
+                .apply(Map.of(MODE_SPECIFIC_RULES_PLACEHOLDER, ""))
+                .text()
+                .trim();
+
+        return builder(ImageVerificationAgent.class)
+                .chatModel(model.chatModel())
+                .systemMessageProvider(_ -> finalPrompt)
+                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
+                .toolProvider(new InheritanceAwareToolProvider<>(VerificationExecutionResult.class))
+                .toolExecutionErrorHandler(
+                        new DefaultToolErrorHandler(ImageVerificationAgent.RETRY_POLICY, retryState, isFullyUnattended()))
                 .build();
     }
 
+    private static @NonNull String getVerifierModeSpecificSystemPrompt() {
+        var fileName = switch (getExecutionMode()) {
+            case ATTENDED, SEMI_ATTENDED -> "attended_mode_rules.txt";
+            case UNATTENDED -> "unattended_mode_rules.txt";
+        };
+        return loadSystemPrompt("test_step/verifier", getTestStepVerificationAgentPromptVersion(), fileName);
+    }
+
     private static UiTestStepActionAgent getTestStepActionAgent(CommonTools commonTools,
-                                                                UserInteractionTools userInteractionTools,
+                                                                CommonUserInteractionTools userInteractionTools,
                                                                 RetryState retryState) {
         var testStepActionAgentModel = getModel(getTestStepActionAgentModelName(),
                 getTestStepActionAgentModelProvider());
         var testStepActionAgentPrompt = loadSystemPrompt("test_step/executor",
                 getTestStepActionAgentPromptVersion(), "test_step_action_agent_system_prompt.txt");
+        var modeSpecificPrompt = getModeSpecificTestStepActionSystemPrompt();
+        var finalPrompt = PromptTemplate.from(testStepActionAgentPrompt)
+                .apply(Map.of("mode_specific_rules", modeSpecificPrompt))
+                .text()
+                .trim();
         var agentBuilder = builder(UiTestStepActionAgent.class)
                 .chatModel(testStepActionAgentModel.chatModel())
-                .systemMessageProvider(_ -> testStepActionAgentPrompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState));
+                .systemMessageProvider(_ -> finalPrompt)
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepActionAgent.RETRY_POLICY, retryState))
+                .maxSequentialToolsInvocations(getEffectiveToolCallsBudget());
 
-        if (isUnattendedMode()) {
-            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                    new EmptyExecutionResult());
-        } else {
-            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                    userInteractionTools,
-                    new EmptyExecutionResult());
+        List<Object> tools = new ArrayList<>(List.of(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools));
+        if (userInteractionTools != null) {
+            tools.add(userInteractionTools);
         }
+        agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(tools, EmptyExecutionResult.class));
 
-        return agentBuilder.maxSequentialToolsInvocations(getEffectiveToolCallsBudget()).build();
+        return agentBuilder.build();
+    }
+
+    private static @NonNull String getModeSpecificTestStepActionSystemPrompt() {
+        var fileName = switch (getExecutionMode()) {
+            case ATTENDED -> "attended_mode_rules.txt";
+            case SEMI_ATTENDED -> "semi_attended_mode_rules.txt";
+            case UNATTENDED -> "unattended_mode_rules.txt";
+        };
+        return loadSystemPrompt("test_step/executor", getTestStepActionAgentPromptVersion(), fileName);
     }
 
     private static UiPreconditionVerificationAgent getPreconditionVerificationAgent(RetryState retryState) {
@@ -334,13 +415,13 @@ public class UiTestAgent {
                 .chatModel(preconditionVerificationAgentModel.chatModel())
                 .systemMessageProvider(_ -> preconditionVerificationAgentPrompt)
                 .toolExecutionErrorHandler(new UiToolErrorHandler(RETRY_POLICY, retryState))
-                .tools(new VerificationExecutionResult(false, ""))
+                .toolProvider(new InheritanceAwareToolProvider<>(List.of(), VerificationExecutionResult.class))
                 .maxSequentialToolsInvocations(getEffectiveToolCallsBudget())
                 .build();
     }
 
     private static UiPreconditionActionAgent getPreconditionActionAgent(CommonTools commonTools,
-                                                                        UserInteractionTools userInteractionTools,
+                                                                        CommonUserInteractionTools userInteractionTools,
                                                                         RetryState retryState) {
         var preconditionAgentModel = getModel(getPreconditionActionAgentModelName(),
                 getPreconditionActionAgentModelProvider());
@@ -351,14 +432,11 @@ public class UiTestAgent {
                 .systemMessageProvider(_ -> preconditionAgentPrompt)
                 .toolExecutionErrorHandler(new UiToolErrorHandler(PreconditionActionAgent.RETRY_POLICY, retryState));
 
-        if (isUnattendedMode()) {
-            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                    new EmptyExecutionResult());
-        } else {
-            agentBuilder.tools(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools,
-                    userInteractionTools,
-                    new EmptyExecutionResult());
+        List<Object> tools = new ArrayList<>(List.of(new MouseTools(), new KeyboardTools(), new ElementLocatorTools(), commonTools));
+        if (userInteractionTools != null) {
+            tools.add(userInteractionTools);
         }
+        agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(tools, EmptyExecutionResult.class));
 
         return agentBuilder.maxSequentialToolsInvocations(getEffectiveToolCallsBudget()).build();
     }
@@ -418,11 +496,10 @@ public class UiTestAgent {
     }
 
     private static class UiToolErrorHandler extends DefaultToolErrorHandler {
-        private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT,
-                TERMINATION_BY_USER, VERIFICATION_FAILED);
+        private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT, TERMINATION_BY_USER);
 
         public UiToolErrorHandler(RetryPolicy retryPolicy, RetryState retryState) {
-            super(retryPolicy, retryState, isUnattendedMode());
+            super(retryPolicy, retryState, isFullyUnattended());
         }
 
         @Override
@@ -449,6 +526,6 @@ public class UiTestAgent {
     }
 
     private static int getEffectiveToolCallsBudget() {
-        return isUnattendedMode() ? getAgentToolCallsBudget() : getAgentToolCallsBudgetAttended();
+        return isFullyUnattended() ? getAgentToolCallsBudget() : getAgentToolCallsBudgetAttended();
     }
 }

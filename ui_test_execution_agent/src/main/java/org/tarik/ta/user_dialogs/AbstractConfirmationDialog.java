@@ -25,8 +25,7 @@ public abstract class AbstractConfirmationDialog extends AbstractDialog {
 
     @Override
     protected void onDialogClosing() {
-        // Dialog does nothing after its closing - it's the same as clicking the OK
-        // button
+        // Dialog does nothing after its closing - it's the same as clicking the OK button
     }
 
     protected void initializeDialog(String userMessage) {

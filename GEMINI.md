@@ -15,8 +15,13 @@ working with agentic systems.
 * You must use Java 25 for development.
 * Never reformat the code which you haven't modified!
 * Do not wrap lines that are under 140 characters, even if it improves readability.
+* Before implementing anything, always let the user know what you plan to do and ask the user to confirm it.  
 * You're working with a project which is always used in IntelliJ IDEA.
 * Always use imports instead of qualified names.
+* Never duplicate existing functionality. If you've noticed any existing logic or functionality which you need for your implementation, 
+  always reuse it. If reusing it directly can't be done, always extract it so that it's accessible (inheritance or composition) and then 
+  reuse it.
+* Never commit changes you've made into git unless explicitly asked by the user.
 * Never concatenate strings because of parameters, always use String.formatted() for that (except logging).
 * Prefer static imports everywhere, if possible.
 * Don't commit or push any changes into Git, unless explicitly asked for.

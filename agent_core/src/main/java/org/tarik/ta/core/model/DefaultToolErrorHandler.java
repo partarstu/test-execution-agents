@@ -17,7 +17,7 @@ import static org.tarik.ta.core.error.ErrorCategory.*;
 
 public class DefaultToolErrorHandler implements ToolExecutionErrorHandler {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultToolErrorHandler.class);
-    private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT, VERIFICATION_FAILED);
+    private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT);
     private final RetryPolicy retryPolicy;
     private final RetryState retryState;
     private final boolean failOnTimeout;

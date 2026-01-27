@@ -27,11 +27,49 @@ public class UiTestAgentConfig extends AgentConfig {
         return SCREENSHOTS_SAVE_FOLDER.value();
     }
 
-    private static final ConfigProperty<Boolean> UNATTENDED_MODE = loadProperty("unattended.mode", "UNATTENDED_MODE",
-            "false", Boolean::parseBoolean, false);
+    // -----------------------------------------------------
+    // Execution Mode Configuration
+    private static final ConfigProperty<ExecutionMode> EXECUTION_MODE = loadProperty(
+            "execution.mode", "EXECUTION_MODE", "UNATTENDED",
+            s -> ExecutionMode.valueOf(s.toUpperCase()), false);
 
-    public static boolean isUnattendedMode() {
-        return UNATTENDED_MODE.value();
+    /**
+     * Returns the current execution mode.
+     */
+    public static ExecutionMode getExecutionMode() {
+        return EXECUTION_MODE.value();
+    }
+
+    /**
+     * Returns true if the agent is running in fully unattended mode (no operator interaction).
+     */
+    public static boolean isFullyUnattended() {
+        return getExecutionMode() == ExecutionMode.UNATTENDED;
+    }
+
+    /**
+     * Returns true if the agent is running in semi-attended mode (autonomous with halt option).
+     */
+    public static boolean isSemiAttended() {
+        return getExecutionMode() == ExecutionMode.SEMI_ATTENDED;
+    }
+
+    /**
+     * Returns true if the agent is running in fully attended mode (all actions supervised).
+     */
+    public static boolean isFullyAttended() {
+        return getExecutionMode() == ExecutionMode.ATTENDED;
+    }
+
+    
+    private static final ConfigProperty<Integer> SEMI_ATTENDED_COUNTDOWN_SECONDS = loadPropertyAsInteger(
+            "semi.attended.countdown.seconds", "SEMI_ATTENDED_COUNTDOWN_SECONDS", "5", false);
+
+    /**
+     * Returns the countdown duration in seconds for semi-attended mode halt popup.
+     */
+    public static int getSemiAttendedCountdownSeconds() {
+        return SEMI_ATTENDED_COUNTDOWN_SECONDS.value();
     }
 
     private static final ConfigProperty<Integer> AGENT_TOOL_CALLS_BUDGET_ATTENDED = loadPropertyAsInteger(
@@ -39,6 +77,10 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public static int getAgentToolCallsBudgetAttended() {
         return AGENT_TOOL_CALLS_BUDGET_ATTENDED.value();
+    }
+
+    public static int getAgentToolCallsBudget() {
+        return isFullyUnattended() ? AgentConfig.getAgentToolCallsBudget() : getAgentToolCallsBudgetAttended();
     }
 
     // -----------------------------------------------------
@@ -187,6 +229,13 @@ public class UiTestAgentConfig extends AgentConfig {
             "element.locator.algorithmic.search.enabled", "ALGORITHMIC_SEARCH_ENABLED", "true", Boolean::parseBoolean,
             false);
 
+    private static final ConfigProperty<Integer> VERIFICATION_MODEL_MAX_RETRIES = loadProperty(
+            "verification.model.max.retries", "VERIFICATION_MODEL_MAX_RETRIES", "3", Integer::parseInt, false);
+
+    public static int getVerificationModelMaxRetries() {
+        return VERIFICATION_MODEL_MAX_RETRIES.value();
+    }
+
     public static boolean isAlgorithmicSearchEnabled() {
         return ALGORITHMIC_SEARCH_ENABLED.value();
     }
@@ -241,7 +290,7 @@ public class UiTestAgentConfig extends AgentConfig {
             "PREFETCHING_ENABLED", "true", Boolean::parseBoolean, false);
 
     public static boolean isElementLocationPrefetchingEnabled() {
-        return PREFETCHING_ENABLED.value() && isUnattendedMode();
+        return PREFETCHING_ENABLED.value() && isFullyUnattended();
     }
 
     // UI Element Description Agent
@@ -267,6 +316,31 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public static String getUiElementDescriptionAgentPromptVersion() {
         return UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION.value();
+    }
+
+    // UI Element Description Agent
+    private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME = loadProperty(
+            "ui.element.description.matcher.agent.model.name", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME", "gemini-3-flash-preview",
+            s -> s, false);
+
+    public static String getUiElementDescriptionMatcherAgentModelName() {
+        return UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME.value();
+    }
+
+    private static final ConfigProperty<ModelProvider> UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_PROVIDER = getProperty(
+            "ui.element.description.matcher.agent.model.provider", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_PROVIDER", "google",
+            AgentConfig::getModelProvider, false);
+
+    public static ModelProvider getUiElementDescriptionMatcherAgentModelProvider() {
+        return UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_PROVIDER.value();
+    }
+
+    private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_PROMPT_VERSION = loadProperty(
+            "ui.element.description.matcher.agent.prompt.version", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_PROMPT_VERSION", "v1.0.0",
+            s -> s, false);
+
+    public static String getUiElementDescriptionMatcherAgentPromptVersion() {
+        return UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_PROMPT_VERSION.value();
     }
 
     // UI State Check Agent

@@ -15,11 +15,9 @@
  */
 package org.tarik.ta.core.dto;
 
+import dev.langchain4j.model.output.structured.Description;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.model.output.structured.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
@@ -32,16 +30,9 @@ public record VerificationExecutionResult (
                 "succeeded, this field must contain the justification of the positive verification result, i.e. the explicit " +
                 "description of the actual state and why this state means that the verification result is successful.")
         String message) implements FinalResult {
-    private static final Logger LOG = LoggerFactory.getLogger(VerificationExecutionResult.class);
-
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
-    public VerificationExecutionResult endExecutionAndGetFinalResult(
-            @P(value = FINAL_RESULT_PARAM_DESCRIPTION) VerificationExecutionResult result) {
-        LOG.debug("Ending execution and returning the final result of type {}: {}", VerificationExecutionResult.class.getSimpleName(), result);
+    public static VerificationExecutionResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) VerificationExecutionResult result) {
         return result;
-    }
-
-    public static VerificationExecutionResult empty() {
-        return new VerificationExecutionResult(false, "");
     }
 }

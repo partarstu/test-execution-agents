@@ -15,27 +15,19 @@
  */
 package org.tarik.ta.core.dto;
 
+import dev.langchain4j.model.output.structured.Description;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.model.output.structured.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
 @Description("The result of the precondition action execution")
 public record PreconditionExecutionActionResult(
-                                                @Description("The summary of the results of all executed tools.")
-                                                String executionSummary) implements FinalResult {
-
-    private static final Logger LOG = LoggerFactory.getLogger(PreconditionExecutionActionResult.class);
-
+        @Description("The summary of the results of all executed tools.") String executionSummary)
+        implements FinalResult {
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
-    public PreconditionExecutionActionResult endExecutionAndGetFinalResult(
-                                                                           @P(value = FINAL_RESULT_PARAM_DESCRIPTION)
-                                                                           PreconditionExecutionActionResult result) {
-        LOG.debug("Ending execution and returning the final result of type {}: {}", PreconditionExecutionActionResult.class.getSimpleName(),
-                result);
+    public static PreconditionExecutionActionResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) PreconditionExecutionActionResult result) {
         return result;
     }
 }

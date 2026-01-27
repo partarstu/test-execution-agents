@@ -16,14 +16,12 @@
 package org.tarik.ta.dto;
 
 import org.tarik.ta.core.dto.FinalResult;
-
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.model.output.structured.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
+
+import dev.langchain4j.model.output.structured.Description;
 
 
 @Description("the result of UI expected vs. actual state comparison")
@@ -32,14 +30,9 @@ public record UiStateCheckResult(
         boolean success,
         @Description("contains a detailed justification of the match or mismatch.")
         String message) implements FinalResult {
-    private static final Logger LOG = LoggerFactory.getLogger(UiStateCheckResult.class);
-
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
-    public UiStateCheckResult endExecutionAndGetFinalResult(
-            @P(value = FINAL_RESULT_PARAM_DESCRIPTION) UiStateCheckResult result) {
-        LOG.debug("Ending execution and returning the final result of type {}: {}", UiStateCheckResult.class.getSimpleName(), result);
+    public static UiStateCheckResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) UiStateCheckResult result) {
         return result;
     }
 }
-
-

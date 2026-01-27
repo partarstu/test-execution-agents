@@ -31,7 +31,6 @@ public class UiElementInfoPopup extends AbstractDialog {
     private final JTextArea locationDetails;
     private final JTextArea pageSummaryArea;
     private final JCheckBox dataDependentCheckBox;
-    private final JCheckBox zoomInNeededCheckBox;
     private boolean windowClosedByUser = false;
 
     private UiElementInfoPopup(Window owner, UiElementInfo originalElementInfo) {
@@ -56,11 +55,8 @@ public class UiElementInfoPopup extends AbstractDialog {
         boolean isDataDependent = originalElementInfo.isDataDependent();
         dataDependentCheckBox = new JCheckBox("Data-Driven Element", isDataDependent);
         setHoverAsClick(dataDependentCheckBox);
-        zoomInNeededCheckBox = new JCheckBox("Use Zoom for Precision", originalElementInfo.zoomInRequired());
-        setHoverAsClick(zoomInNeededCheckBox);
-
+        
         contentPanel.add(dataDependentCheckBox);
-        contentPanel.add(zoomInNeededCheckBox);
 
         panel.add(contentPanel, BorderLayout.CENTER);
 
@@ -100,7 +96,7 @@ public class UiElementInfoPopup extends AbstractDialog {
         if (!windowClosedByUser) {
             return new UiElementInfo(nameField.getText().trim(), descriptionArea.getText().trim(),
                     locationDetails.getText().trim(), pageSummaryArea.getText().trim(),
-                    zoomInNeededCheckBox.isSelected(), dataDependentCheckBox.isSelected());
+                    dataDependentCheckBox.isSelected());
         } else {
             return null;
         }
@@ -113,6 +109,6 @@ public class UiElementInfoPopup extends AbstractDialog {
     }
 
     public record UiElementInfo(String name, String description, String locationDetails, String pageSummary,
-            boolean zoomInRequired, boolean isDataDependent) {
+            boolean isDataDependent) {
     }
 }

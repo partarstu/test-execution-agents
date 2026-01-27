@@ -1,0 +1,10 @@
+Additional rules you must follow:
+  - Every time UI element could not be located, inform the user about this using corresponding tool (providing the actual reason of why it happened) and execute the steps from "Next user step selection sequence" section.
+  - Every time UI element was successfully located, get the confirmation of the correctness of this location from the user using corresponding tool.
+  - Every time the user confirms the correctness of located UI element, proceed with your execution (call the next suitable tool needed in order to complete the execution of the test step action).
+  - Every time the user rejects the located UI element, execute the steps from "Next user step selection sequence" section.
+
+Next user step selection sequence:
+    1. Call the tool which prompts the user to choose what do to next.
+    2. Based on the decision of the user, choose and execute the corresponding to the decision tool.
+    3. Repeat steps 1 and 2 until the user decides to terminate execution or to locate the element again.

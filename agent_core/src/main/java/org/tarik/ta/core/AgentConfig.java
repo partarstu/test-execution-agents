@@ -54,7 +54,7 @@ public class AgentConfig {
     }
 
     public enum RagDbProvider {
-        CHROMA // Add other providers here if needed
+        CHROMA, QDRANT
     }
 
     // -----------------------------------------------------
@@ -71,7 +71,7 @@ public class AgentConfig {
 
     // RAG Config
     private static final ConfigProperty<RagDbProvider> VECTOR_DB_PROVIDER = getProperty("vector.db.provider",
-            "VECTOR_DB_PROVIDER", "chroma", s -> stream(RagDbProvider.values())
+            "VECTOR_DB_PROVIDER", "qdrant", s -> stream(RagDbProvider.values())
                     .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
                     .findAny()
                     .orElseThrow(() -> new IllegalArgumentException(
@@ -80,6 +80,8 @@ public class AgentConfig {
             false);
     private static final ConfigProperty<String> VECTOR_DB_URL = getRequiredProperty("vector.db.url", "VECTOR_DB_URL",
             false);
+    private static final ConfigProperty<String> VECTOR_DB_KEY = loadProperty("vector.db.key", "VECTOR_DB_KEY", "", s -> s, true);
+
     private static final ConfigProperty<Integer> RETRIEVER_TOP_N = loadPropertyAsInteger("retriever.top.n",
             "RETRIEVER_TOP_N", "5", false);
     private static final ConfigProperty<Integer> MAX_OUTPUT_TOKENS = loadPropertyAsInteger("model.max.output.tokens",
@@ -95,8 +97,6 @@ public class AgentConfig {
             "gemini.thinking.budget", "GEMINI_THINKING_BUDGET", "5000", false);
     private static final ConfigProperty<Integer> MAX_RETRIES = loadPropertyAsInteger("model.max.retries", "MAX_RETRIES",
             "10", false);
-    private static final ConfigProperty<Integer> VERIFICATION_MODEL_MAX_RETRIES = loadPropertyAsInteger(
-            "verification.model.max.retries", "VERIFICATION_MODEL_MAX_RETRIES", "0", false);
     private static final ConfigProperty<String> GEMINI_THINKING_LEVEL = loadProperty(
             "gemini.thinking.level", "GEMINI_THINKING_LEVEL", "MINIMAL", s -> s, false);
 
@@ -184,6 +184,10 @@ public class AgentConfig {
         return VECTOR_DB_URL.value();
     }
 
+    public static String getVectorDbToken() {
+        return VECTOR_DB_KEY.value();
+    }
+
     public static int getRetrieverTopN() {
         return RETRIEVER_TOP_N.value();
     }
@@ -227,9 +231,7 @@ public class AgentConfig {
         return MAX_RETRIES.value();
     }
 
-    public static int getVerificationModelMaxRetries() {
-        return VERIFICATION_MODEL_MAX_RETRIES.value();
-    }
+
 
     public static String getGeminiThinkingLevel() {
         return GEMINI_THINKING_LEVEL.value();

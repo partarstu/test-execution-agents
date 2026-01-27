@@ -20,6 +20,7 @@ import dev.langchain4j.model.output.structured.Description;
 
 @Description("Represents the location of UI element on the screen.")
 public record ElementLocation(
+        @Description("The name of the element retrieved from DB and used during location.") String name,
         @Description("The X coordinate of the center point of UI element.") int centerXCoordinate,
         @Description("The Y coordinate of the center point of UI element.") int centerYCoordinate,
         @Description("The whole bounding box of UI element.") BoundingBox boundingBox) {

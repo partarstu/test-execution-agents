@@ -1,0 +1,2 @@
+Additional rules you must follow:
+   - If the target UI element could not be located, you must retry locating this element until it's successfully located.
