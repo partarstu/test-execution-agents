@@ -129,7 +129,7 @@ ENV UI_STATE_CHECK_AGENT_PROMPT_VERSION="v1.0.0"
 # API Keys and Endpoints
 # GOOGLE_API_KEY passed at runtime from host environment
 # GROQ_API_KEY passed at runtime from host environment
-# Vector DB (VECTOR_DB_URL passed at runtime from host environment)
+# Vector DB (VECTOR_DB_URL and VECTOR_DB_KEY passed at runtime from host environment)
 ENV GOOGLE_LOCATION=""
 ENV GOOGLE_PROJECT=""
 ENV GROQ_ENDPOINT="https://api.groq.com/openai/v1"
