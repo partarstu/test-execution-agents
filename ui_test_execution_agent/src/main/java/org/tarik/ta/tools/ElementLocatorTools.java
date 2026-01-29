@@ -116,8 +116,8 @@ public class ElementLocatorTools extends UiAbstractTools {
 
     @Tool(value = "Locates the UI element on the screen based on its description and returns its coordinates.")
     public ElementLocation locateElementOnTheScreen(
-            @P("Original description of UI element to locate. If any related to this element data is provided, don't use " +
-                    "that data as a part of its description")
+            @P("Full description of UI element to locate. If any related to this element data is provided, this " +
+                    "description may never contain that data.")
             String elementDescription,
             @P(value = "Any data related to this element or the action involving this element.", required = false)
             String elementSpecificData) {
