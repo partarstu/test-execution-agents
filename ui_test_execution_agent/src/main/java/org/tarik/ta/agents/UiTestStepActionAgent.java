@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
@@ -38,18 +39,18 @@ public interface UiTestStepActionAgent extends BaseUiAgent<EmptyExecutionResult>
         return RETRY_POLICY;
     }
 
-    @UserMessage("""
-            Execute the following test step action: {{testStep}}
-            
-            Data, related to the test step: {{testData}}
-            
-            Test context execution data: {{sharedData}}
-            
-            Interaction with the user is allowed: {{attendedMode}}
-            """)
     Result<String> execute(
+            @UserMessage("""
+                    Execute the following test step action: {{testStep}}
+                    
+                    Data, related to the test step: {{testData}}
+                    
+                    Test context execution data: {{sharedData}}
+                    
+                    The screenshot follows.
+                    """)
             @V("testStep") String testStep,
             @V("testData") String testData,
             @V("sharedData") String sharedData,
-            @V("attendedMode") boolean attendedMode);
+            @UserMessage ImageContent screenshot);
 }

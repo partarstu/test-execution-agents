@@ -18,11 +18,11 @@ a part of this framework for executing a sample test case inside Google Cloud.
 
 * **Modular Agent Architecture:**
     * The agent itself is built around a modular sub-agent architecture with specialized AI sub-agents:
-        * **[PreconditionActionAgent](src/main/java/org/tarik/ta/agents/PreconditionActionAgent.java):** Handles the execution of
-          precondition actions before test case execution.
+        * **[UiPreconditionActionAgent](src/main/java/org/tarik/ta/agents/UiPreconditionActionAgent.java):** Handles the execution of
+          precondition actions before test case execution. Receives a screenshot of the current screen state to provide visual context for tool selection.
         * **[PreconditionVerificationAgent](src/main/java/org/tarik/ta/agents/PreconditionVerificationAgent.java):** Verifies that
           preconditions are fully met.
-        * **[TestStepActionAgent](src/main/java/org/tarik/ta/agents/TestStepActionAgent.java):** Executes individual test step actions.
+        * **[UiTestStepActionAgent](src/main/java/org/tarik/ta/agents/UiTestStepActionAgent.java):** Executes individual test step actions. Receives a screenshot of the current screen state to provide visual context for tool selection.
         * **[TestStepVerificationAgent](src/main/java/org/tarik/ta/agents/TestStepVerificationAgent.java):** Verifies the expected results
           after each test step.
         * **[TestCaseExtractionAgent](src/main/java/org/tarik/ta/agents/TestCaseExtractionAgent.java):** Extracts and parses test case
@@ -183,6 +183,7 @@ The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/
    state using a vision model. If preconditions are not met, the test case execution fails. If the execution starts from a later step, preconditions are omitted.
 4. **Step Iteration:** The agent iterates through each `TestStep` sequentially, executing each test step.
 5. **Test Step Action:**
+    * **Screenshot Capture:** Before executing the test step, a screenshot of the current screen is captured and provided to the action agent, giving it visual context to make informed decisions about tool selection and UI interaction.
     * **Element Location (if required by the tool):** If the requested tool needs to interact with a specific UI element (e.g., clicking an
       element), the element is located using the [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java) class
       based on the element's description (provided as a parameter for the tool). (See "UI Element Location Workflow" below for details).

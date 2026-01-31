@@ -179,8 +179,11 @@ public class UiTestAgent {
             for (String precondition : preconditions) {
                 var executionStartTimestamp = now();
                 LOG.info("Executing precondition: {}", precondition);
+                var screenshot = captureScreen();
+                context.setVisualState(new VisualState(screenshot));
                 var preconditionExecutionResult = preconditionActionAgent.executeAndGetResult(
-                        () -> preconditionActionAgent.execute(precondition, context.getSharedData().toString()));
+                        () -> preconditionActionAgent.execute(precondition, context.getSharedData().toString(),
+                                singleImageContent(screenshot)));
                 resetToolCallUsage();
 
                 if (!preconditionExecutionResult.isSuccess()) {
@@ -242,8 +245,11 @@ public class UiTestAgent {
             try {
                 var executionStartTimestamp = now();
                 LOG.info("Executing test step: {}", actionInstruction);
+                var screenshot = captureScreen();
+                context.setVisualState(new VisualState(screenshot));
                 var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) uiTestStepActionAgent.executeAndGetResult(() -> {
-                    uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(), !isFullyUnattended());
+                    uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(),
+                            !isFullyUnattended(), singleImageContent(screenshot));
                     return null;
                 }));
                 resetToolCallUsage();

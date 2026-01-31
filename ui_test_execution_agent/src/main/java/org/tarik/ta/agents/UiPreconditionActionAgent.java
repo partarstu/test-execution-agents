@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
@@ -28,14 +29,17 @@ import org.tarik.ta.core.error.RetryPolicy;
 public interface UiPreconditionActionAgent extends BaseUiAgent<EmptyExecutionResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
-    @UserMessage("""
-            The precondition you need to execute: {{precondition}}.
-            
-            Test context execution data: {{sharedData}}
-            """)
     Result<String> execute(
+            @UserMessage("""
+                    The precondition you need to execute: {{precondition}}.
+                    
+                    Test context execution data: {{sharedData}}.
+                    
+                    The screenshot follows.
+                    """)
             @V("precondition") String precondition,
-            @V("sharedData") String sharedData);
+            @V("sharedData") String sharedData,
+            @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {
