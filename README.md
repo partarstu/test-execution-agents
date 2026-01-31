@@ -295,6 +295,17 @@ Both agents return structured `TestExecutionResult` objects containing:
 
 UI agent results additionally include screenshots and video recordings.
 
+## Development Skills
+
+The project includes AI assistant skills in `.agent/skills/` to help with common development tasks:
+
+| Skill | Description |
+|-------|-------------|
+| **Agent Development** | Guide for creating new AI agents following the project's architecture patterns |
+| **Unit Testing** | Guide for writing and maintaining unit tests using JUnit 5, AssertJ, and Mockito |
+| **Prepare PR** | Prepares code for a pull request by running Maven build, tests, license checks, and dependency analysis |
+| **PR Review** | Reviews an open GitHub PR for the current branch, applying project-specific and Java best practice criteria |
+
 ## Documentation
 
 *   For detailed documentation on the UI Test Execution Agent, see **[UI Agent README](ui_test_execution_agent/README.md)**.
