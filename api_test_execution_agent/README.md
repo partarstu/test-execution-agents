@@ -78,6 +78,7 @@ configuration properties:
 |--------------------------------|--------------------------------|---------|-------------------------|
 | `api.request.logging.enabled`  | `API_REQUEST_LOGGING_ENABLED`  | `false` | Enable request logging  |
 | `api.response.logging.enabled` | `API_RESPONSE_LOGGING_ENABLED` | `false` | Enable response logging |
+| `LOG_LEVEL` | `LOG_LEVEL` | `INFO` | Global log level for the agent and key dependencies like LangChain4j and A2A SDK |
 
 ### Data Loading Configuration
 

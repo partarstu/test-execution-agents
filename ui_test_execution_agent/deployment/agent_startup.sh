@@ -53,7 +53,7 @@ fi
 export DISPLAY=:1
 
 # Run Java application as ubuntu user
-# Using 'su -c' to execute the command in a non-interactive shell
-su ubuntu -c "java -jar ${APP_JAR_PATH}"
+# Using 'su -p -c' to execute the command in a non-interactive shell while preserving environment variables
+su -p ubuntu -c "java -jar ${APP_JAR_PATH}"
 
 echo "Agent application launched."

@@ -57,7 +57,7 @@ public abstract class UiElementRetriever {
                     var element = UiElement.fromTextSegment(match.embedded());
                     return new RetrievedUiElementItem(element, match.score());
                 })
-                .peek(item -> log.info("Retrieved UI element from DB: name='{}', mainScore={}",
+                .peek(item -> log.debug("Retrieved UI element from DB: name='{}', mainScore={}",
                         item.element().name(), item.mainScore()))
                 .distinct()
                 .toList();

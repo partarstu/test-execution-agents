@@ -116,8 +116,8 @@ public class ElementLocatorTools extends UiAbstractTools {
 
     @Tool(value = "Locates the UI element on the screen based on its description and returns its coordinates.")
     public ElementLocation locateElementOnTheScreen(
-            @P("Original description of UI element to locate. If any related to this element data is provided, don't use " +
-                    "that data as a part of its description")
+            @P("Full description of UI element to locate. If any related to this element data is provided, this " +
+                    "description may never contain that data.")
             String elementDescription,
             @P(value = "Any data related to this element or the action involving this element.", required = false)
             String elementSpecificData) {
@@ -301,10 +301,10 @@ public class ElementLocatorTools extends UiAbstractTools {
     private ElementLocationException processNoElementsFoundInDbWithSimilarCandidatesPresentCase(
             String elementDescription, List<RetrievedUiElementItem> retrievedElements) {
         var retrievedElementsString = retrievedElements.stream()
-                .map(el -> "%s --> %.1f".formatted(el.element().name(), el.mainScore()))
+                .map(el -> "%s --> %.4f".formatted(el.element().name(), el.mainScore()))
                 .collect(joining(", "));
         var failureReason = String.format("No UI elements found in vector DB which semantically match the description '%s' with the " +
-                        "similarity mainScore > %.1f. The most similar element names by similarity mainScore are: %s",
+                        "similarity mainScore > %.4f. The most similar element names by similarity mainScore are: %s",
                 elementDescription, MIN_TARGET_RETRIEVAL_SCORE, retrievedElementsString);
         LOG.info(failureReason);
         var message = ("No UI elements found in DB matching the description '%s'. Similar candidates exist but their " +
@@ -314,7 +314,7 @@ public class ElementLocatorTools extends UiAbstractTools {
 
     private ElementLocationException processNoElementsFoundInDbCase(String elementDescription) {
         var failureReason = String.format("No UI elements found in vector DB which semantically match the description '%s' with the " +
-                "similarity mainScore > %.1f.", elementDescription, MIN_GENERAL_RETRIEVAL_SCORE);
+                "similarity mainScore > %.4f.", elementDescription, MIN_GENERAL_RETRIEVAL_SCORE);
         LOG.info(failureReason);
         var message = "No UI elements found in DB matching the description '%s'.".formatted(elementDescription);
         return new ElementLocationException(message, NO_ELEMENTS_FOUND_IN_DB);
@@ -323,7 +323,7 @@ public class ElementLocatorTools extends UiAbstractTools {
     private ElementLocationException processNoMatchingDbElementCandidateIdentifiedByModel(
             String elementDescription, List<RetrievedUiElementItem> retrievedElements) {
         var candidateElementsString = retrievedElements.stream()
-                .map(el -> "%s (score: %.2f)".formatted(el.element().name(), el.mainScore()))
+                .map(el -> "%s (score: %.4f)".formatted(el.element().name(), el.mainScore()))
                 .collect(joining(", "));
         var failureReason = ("Model could not select a matching element from DB candidates for the description '%s'. Candidates " +
                 "considered: [%s]").formatted(elementDescription, candidateElementsString);

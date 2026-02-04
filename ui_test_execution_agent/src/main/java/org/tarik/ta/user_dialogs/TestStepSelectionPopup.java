@@ -42,7 +42,7 @@ public class TestStepSelectionPopup extends AbstractDialog {
         // Instruction label
         JLabel instructionLabel = new JLabel(
                 "<html><b>Select the test step to start from.</b><br>" +
-                        "All preconditions will be executed first, then execution will start from the selected step.</html>");
+                        "The execution will start from the selected step. If you decide starting from the beginning, all preconditions will be executed first.</html>");
         instructionLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
 
         // Create table model

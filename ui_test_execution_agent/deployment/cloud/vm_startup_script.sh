@@ -109,6 +109,7 @@ echo "Fetching secrets from Secret Manager..."
 GROQ_API_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="GROQ_API_KEY" --project="${PROJECT_ID}")
 GROQ_ENDPOINT=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="GROQ_ENDPOINT" --project="${PROJECT_ID}")
 VECTOR_DB_URL=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="VECTOR_DB_URL" --project="${PROJECT_ID}")
+VECTOR_DB_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="VECTOR_DB_KEY" --project="${PROJECT_ID}")
 VNC_PW=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="VNC_PW" --project="${PROJECT_ID}")
 ANTHROPIC_API_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="ANTHROPIC_API_KEY" --project="${PROJECT_ID}")
 ANTHROPIC_ENDPOINT=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="ANTHROPIC_ENDPOINT" --project="${PROJECT_ID}")
@@ -136,6 +137,7 @@ docker run -d --name ${SERVICE_NAME} --shm-size=4g --log-driver=gcplogs \
     -e EXTERNAL_URL="http://${AGENT_INTERNAL_IP}:${AGENT_SERVER_PORT}" \
     -e GROQ_ENDPOINT="${GROQ_ENDPOINT}" \
     -e VECTOR_DB_URL="${VECTOR_DB_URL}" \
+    -e VECTOR_DB_KEY="${VECTOR_DB_KEY}" \
     -e VNC_PW="${VNC_PW}" \
     -e VNC_RESOLUTION="${VNC_RESOLUTION}" \
     -e LOG_LEVEL="${LOG_LEVEL}" \

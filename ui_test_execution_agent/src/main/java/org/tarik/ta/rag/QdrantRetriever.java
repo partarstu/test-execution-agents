@@ -35,6 +35,8 @@ import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 
 public class QdrantRetriever extends UiElementRetriever {
     private static final Logger LOG = LoggerFactory.getLogger(QdrantRetriever.class);
+    public static final int HTTPS_PORT = 443;
+    public static final int QDRANT_GRPC_PORT = 6334;
 
     public QdrantRetriever(String url, String apiKey) {
         super(createEmbeddingStore(url, apiKey));
@@ -48,11 +50,13 @@ public class QdrantRetriever extends UiElementRetriever {
             var host = uri.getHost();
             var port = uri.getPort();
             var useTls = "https".equalsIgnoreCase(uri.getScheme());
-            var finalPort = port >= 0 ? port : (useTls ? 443 : 6333);
+            var finalPort = port >= 0 ? port : (useTls ? HTTPS_PORT : QDRANT_GRPC_PORT);
             var clientBuilder = QdrantGrpcClient.newBuilder(host, finalPort, useTls);
             if (isNotBlank(apiKey)) {
                 clientBuilder.withApiKey(apiKey);
             }
+
+            LOG.info("Connecting to Qdrant at {}:{}, using TLS={}", host, finalPort, useTls);
             var client = new QdrantClient(clientBuilder.build());
             ensureCollectionExists(client);
 

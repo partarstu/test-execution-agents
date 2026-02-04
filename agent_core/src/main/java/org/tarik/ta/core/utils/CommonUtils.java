@@ -102,6 +102,10 @@ public class CommonUtils {
         }
     }
 
+    public static long getDurationInMillis(Instant start) {
+        return Duration.between(start, now()).toMillis();
+    }
+
     public static void deleteFile(@NotNull File file) {
         if (file.exists()) {
             if (!file.delete()) {

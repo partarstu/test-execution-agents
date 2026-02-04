@@ -45,6 +45,7 @@ echo "Please ensure you have created the following secrets in Secret Manager:"
 echo " - GROQ_API_KEY"
 echo " - GROQ_ENDPOINT"
 echo " - VECTOR_DB_URL"
+echo " - VECTOR_DB_KEY"
 echo " - VNC_PW"
 echo " - GOOGLE_API_KEY"
 

@@ -179,8 +179,11 @@ public class UiTestAgent {
             for (String precondition : preconditions) {
                 var executionStartTimestamp = now();
                 LOG.info("Executing precondition: {}", precondition);
+                var actionScreenshot = captureScreen();
+                context.setVisualState(new VisualState(actionScreenshot));
                 var preconditionExecutionResult = preconditionActionAgent.executeAndGetResult(
-                        () -> preconditionActionAgent.execute(precondition, context.getSharedData().toString()));
+                        () -> preconditionActionAgent.execute(precondition, context.getSharedData().toString(),
+                                singleImageContent(actionScreenshot)));
                 resetToolCallUsage();
 
                 if (!preconditionExecutionResult.isSuccess()) {
@@ -194,10 +197,10 @@ public class UiTestAgent {
 
                 LOG.info("Verifying if precondition was successfully executed.");
                 var verificationExecutionResult = preconditionVerificationAgent.executeWithRetry(() -> {
-                    var screenshot = captureScreen();
-                    context.setVisualState(new VisualState(screenshot));
+                    var verificationScreenshot = captureScreen();
+                    context.setVisualState(new VisualState(verificationScreenshot));
                     return preconditionVerificationAgent.verify(precondition, context.getSharedData().toString(),
-                            singleImageContent(screenshot));
+                            singleImageContent(verificationScreenshot));
                 }, r -> r == null || !r.success());
                 resetToolCallUsage();
 
@@ -242,8 +245,11 @@ public class UiTestAgent {
             try {
                 var executionStartTimestamp = now();
                 LOG.info("Executing test step: {}", actionInstruction);
+                var screenshot = captureScreen();
+                context.setVisualState(new VisualState(screenshot));
                 var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) uiTestStepActionAgent.executeAndGetResult(() -> {
-                    uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(), !isFullyUnattended());
+                    uiTestStepActionAgent.execute(actionInstruction, testData, context.getSharedData().toString(),
+                            singleImageContent(screenshot));
                     return null;
                 }));
                 resetToolCallUsage();
