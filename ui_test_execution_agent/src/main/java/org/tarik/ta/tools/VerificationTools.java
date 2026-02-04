@@ -27,8 +27,11 @@ import org.tarik.ta.dto.UiOperationExecutionResult;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.model.VisualState;
 
-import static java.lang.System.currentTimeMillis;
+import java.time.Instant;
+
+import static java.time.Instant.now;
 import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
+import static org.tarik.ta.core.utils.CommonUtils.getDurationInMillis;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
@@ -52,7 +55,7 @@ public class VerificationTools extends UiAbstractTools {
             @P("The test data used for the action") String actionTestData,
             @P("Any other relevant context data for the verification") String relatedTestContextData) {
         int attempts = 0;
-        long startTime = currentTimeMillis();
+        Instant start = now();
         LOG.info("Starting the retriable verification that: '{}'", verificationDescription);
 
         UiOperationExecutionResult<VerificationExecutionResult> lastResult = null;
@@ -73,17 +76,18 @@ public class VerificationTools extends UiAbstractTools {
                 }
 
                 if (lastResult.getResultPayload() != null && lastResult.getResultPayload().success()) {
+                    LOG.info("Verification complete within {} millis.", getDurationInMillis(start));
                     return lastResult.getResultPayload();
                 }
 
                 sleepMillis(retryPolicy.delayMillis());
             } catch (Exception e) {
                 LOG.error("Unexpected error during verification", e);
-                if (attempts > retryPolicy.maxRetries()) {
+                if (getDurationInMillis(start) > retryPolicy.timeoutMillis()) {
                     return new VerificationExecutionResult(false, "Error during verification: " + e.getMessage());
                 }
             }
-        } while ((currentTimeMillis() - startTime) < retryPolicy.timeoutMillis() || (attempts - 1) <= retryPolicy.maxRetries());
+        } while (getDurationInMillis(start) < retryPolicy.timeoutMillis());
 
         LOG.warn("Verification timed out after {} attempts. Returning the latest result.", attempts);
         if (lastResult != null && lastResult.getResultPayload() != null) {

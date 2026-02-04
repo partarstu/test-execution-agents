@@ -174,6 +174,8 @@ The following configuration properties are shared across agents (defined in `Age
 | `model.name` | `MODEL_NAME` | `gemini-3-flash-preview` | Default model name |
 | `gemini.thinking.level` | `GEMINI_THINKING_LEVEL` | `MINIMAL` | Gemini thinking configuration level |
 | `model.max.retries` | `MAX_RETRIES` | `10` | Maximum model API retries |
+| `LOG_LEVEL` | `LOG_LEVEL` | `INFO` | Global log level (INFO, DEBUG, WARN, ERROR) |
+| `TZ` | `TZ` | `Europe/Vienna` | Container timezone |
 
 ### Agent-Specific Configuration
 
@@ -294,6 +296,18 @@ Both agents return structured `TestExecutionResult` objects containing:
 | `logs` | Captured execution logs |
 
 UI agent results additionally include screenshots and video recordings.
+
+## Development Skills
+
+The project includes AI assistant skills in `.agent/skills/` to help with common development tasks:
+
+| Skill | Description |
+|-------|-------------|
+| **Agent Development** | Guide for creating new AI agents following the project's architecture patterns |
+| **Software Architect** | Expert guidance for implementing or modifying features with detailed planning, modern design patterns (Hexagonal, DDD), Java 25 best practices, and ADR requirements |
+| **Unit Testing** | Guide for writing and maintaining unit tests using JUnit 5, AssertJ, and Mockito |
+| **Prepare PR** | Prepares code for a pull request by running Maven build, tests, license checks, and dependency analysis |
+| **PR Review** | Reviews an open GitHub PR for the current branch, applying project-specific and Java best practice criteria |
 
 ## Documentation
 

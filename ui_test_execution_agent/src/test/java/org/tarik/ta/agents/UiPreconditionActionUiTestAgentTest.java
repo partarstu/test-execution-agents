@@ -21,7 +21,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.core.agents.PreconditionActionAgent;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.OperationExecutionResult;
 import org.tarik.ta.utils.UiCommonUtils;
@@ -57,7 +56,7 @@ class UiPreconditionActionUiTestAgentTest {
 
     @Test
     void shouldHandleSuccessfulExecution() {
-        PreconditionActionAgent agent = (_, _) -> null;
+        UiPreconditionActionAgent agent = (_, _, _) -> null;
 
         OperationExecutionResult<EmptyExecutionResult>
                 result = agent.executeAndGetResult(() -> Result.builder().content(new EmptyExecutionResult()).build());
@@ -70,7 +69,7 @@ class UiPreconditionActionUiTestAgentTest {
 
     @Test
     void shouldHandleFailedExecution() {
-        UiPreconditionActionAgent agent = (_, _) -> null;
+        UiPreconditionActionAgent agent = (_, _, _) -> null;
 
         var result = agent.executeAndGetResult(() -> {
             throw new RuntimeException("Simulated error");

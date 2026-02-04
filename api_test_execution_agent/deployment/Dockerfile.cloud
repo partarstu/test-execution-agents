@@ -47,6 +47,7 @@ WORKDIR ${APP_DIR}
 ENV APP_JAR_PATH=${DESTINATION_JAR_PATH}
 ENV LOG_DIR=${APP_LOG_DIR}
 ENV DEPLOYMENT_ENV="cloud"
+ENV TZ="Europe/Vienna"
 
 # Cloud Run expects the application to listen on the specified port
 # The agent uses AGENT_HOST and PORT environment variables from AgentConfig
