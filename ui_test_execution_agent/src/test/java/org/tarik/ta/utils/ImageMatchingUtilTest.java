@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,105 +15,59 @@
  */
 package org.tarik.ta.utils;
 
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import org.mockito.MockedStatic;
+import org.tarik.ta.UiTestAgentConfig;
+
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mockStatic;
 
 class ImageMatchingUtilTest {
-    private static final Logger LOG = LoggerFactory.getLogger(ImageMatchingUtilTest.class);
 
-    @BeforeAll
-    static void setup() {
-        // Attempt to load OpenCV to fail fast if not present, though the Util handles it.
-        try {
-            org.bytedeco.javacpp.Loader.load(org.bytedeco.opencv.opencv_java.class);
-        } catch (Throwable t) {
-            LOG.warn("OpenCV native library could not be loaded. Tests depending on it might fail or be skipped.", t);
-        }
+    private MockedStatic<UiTestAgentConfig> configMock;
+
+    @BeforeEach
+    void setUp() {
+        configMock = mockStatic(UiTestAgentConfig.class);
+        configMock.when(UiTestAgentConfig::getElementLocatorTopVisualMatches).thenReturn(5);
+        configMock.when(UiTestAgentConfig::getElementLocatorVisualSimilarityThreshold).thenReturn(0.8);
+    }
+
+    @AfterEach
+    void tearDown() {
+        configMock.close();
     }
 
     @Test
-    void findMatchingRegionsWithTemplateMatching_ShouldFindRegion() {
-        // Create a 'screen' image: 100x100 BLACK
-        BufferedImage screen = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g2d = screen.createGraphics();
-        g2d.setColor(Color.BLACK);
-        g2d.fillRect(0, 0, 100, 100);
-
-        // Draw a distinct feature at (20, 20): 10x10 square, left half RED, right half BLUE
-        // This ensures the template has variance (not uniform color)
-        g2d.setColor(Color.RED);
-        g2d.fillRect(20, 20, 5, 10);
-        g2d.setColor(Color.BLUE);
-        g2d.fillRect(25, 20, 5, 10);
-        g2d.dispose();
-
-        // Create a 'template' image matching the feature
-        BufferedImage template = new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB);
-        g2d = template.createGraphics();
-        g2d.setColor(Color.RED);
-        g2d.fillRect(0, 0, 5, 10);
-        g2d.setColor(Color.BLUE);
-        g2d.fillRect(5, 0, 5, 10);
-        g2d.dispose();
-
-        try {
-            List<Rectangle> matches = ImageMatchingUtil.findMatchingRegionsWithTemplateMatching(screen, template);
-            
-            assertNotNull(matches);
-            assertFalse(matches.isEmpty(), "Should find at least one match");
-            
-            matches.forEach(r -> LOG.info("Match found at: x={}, y={}, w={}, h={}", r.x, r.y, r.width, r.height));
-
-            // Check if the match is approximately where we drew it
-            boolean found = matches.stream().anyMatch(r -> 
-                Math.abs(r.x - 20) <= 2 && Math.abs(r.y - 20) <= 2 && r.width == 10 && r.height == 10
-            );
-            assertTrue(found, "Should find the multi-colored square at approx (20, 20)");
-            
-        } catch (UnsatisfiedLinkError | NoClassDefFoundError e) {
-            LOG.warn("Skipping test due to missing OpenCV library: " + e.getMessage());
-        }
-    }
-    
-    @Test
-    void findMatchingRegionsWithTemplateMatching_ShouldReturnEmpty_WhenNoMatch() {
-        // White screen
-        BufferedImage screen = new BufferedImage(100, 100, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2d = screen.createGraphics();
-        g2d.setColor(Color.WHITE);
-        g2d.fillRect(0, 0, 100, 100);
-        g2d.dispose();
-
-        // Black template
-        BufferedImage template = new BufferedImage(10, 10, BufferedImage.TYPE_INT_ARGB);
-        g2d = template.createGraphics();
-        g2d.setColor(Color.BLACK);
-        g2d.fillRect(0, 0, 10, 10);
-        g2d.dispose();
-
-        try {
-            List<Rectangle> matches = ImageMatchingUtil.findMatchingRegionsWithTemplateMatching(screen, template);
-            
-            // Depending on the threshold, it might find nothing or very poor matches. 
-            // Ideally it should be empty or empty-ish.
-            // But with simple solid colors, template matching can be weird.
-            // Let's assume it should handle it gracefully.
-            assertNotNull(matches);
-            
-        } catch (UnsatisfiedLinkError | NoClassDefFoundError e) {
-            LOG.warn("Skipping test due to missing OpenCV library: " + e.getMessage());
-        }
+    @DisplayName("findMatchingRegionsWithTemplateMatching should return matches for identical images")
+    void findMatchingRegionsWithTemplateMatching_shouldReturnMatch_whenIdentical() {
+        assumeTrue(ImageMatchingUtil.isAvailable(), "OpenCV is not available in this environment");
+        BufferedImage image = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = image.createGraphics();
+        g.setColor(java.awt.Color.WHITE);
+        g.fillRect(0, 0, 100, 100);
+        g.setColor(java.awt.Color.RED);
+        g.fillRect(10, 10, 20, 20);
+        g.setColor(java.awt.Color.BLUE);
+        g.fillRect(15, 15, 10, 10);
+        g.dispose();
+        
+        // Clone the subimage to make sure it's not a view
+        BufferedImage template = ImageUtils.cloneImage(image.getSubimage(10, 10, 20, 20));
+        
+        List<Rectangle> matches = ImageMatchingUtil.findMatchingRegionsWithTemplateMatching(image, template);
+        
+        assertThat(matches).isNotEmpty();
+        assertThat(matches.get(0).x).isEqualTo(10);
+        assertThat(matches.get(0).y).isEqualTo(10);
     }
 }

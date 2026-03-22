@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.*;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
+import org.tarik.ta.dto.UiOperationExecutionResult;
 
 class UiPreconditionActionUiTestAgentTest {
 
@@ -56,7 +57,7 @@ class UiPreconditionActionUiTestAgentTest {
 
     @Test
     void shouldHandleSuccessfulExecution() {
-        UiPreconditionActionAgent agent = (_, _, _) -> null;
+        UiPreconditionActionAgent agent = (_, _) -> null;
 
         OperationExecutionResult<EmptyExecutionResult>
                 result = agent.executeAndGetResult(() -> Result.builder().content(new EmptyExecutionResult()).build());
@@ -69,7 +70,7 @@ class UiPreconditionActionUiTestAgentTest {
 
     @Test
     void shouldHandleFailedExecution() {
-        UiPreconditionActionAgent agent = (_, _, _) -> null;
+        UiPreconditionActionAgent agent = (_, _) -> null;
 
         var result = agent.executeAndGetResult(() -> {
             throw new RuntimeException("Simulated error");
@@ -78,6 +79,6 @@ class UiPreconditionActionUiTestAgentTest {
         assertThat(result.getExecutionStatus()).isEqualTo(ERROR);
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getMessage()).isEqualTo("Simulated error");
-        assertThat(((org.tarik.ta.dto.UiOperationExecutionResult<?>) result).screenshot()).isNotNull();
+        assertThat(((UiOperationExecutionResult<?>) result).screenshot()).isNotNull();
     }
 }

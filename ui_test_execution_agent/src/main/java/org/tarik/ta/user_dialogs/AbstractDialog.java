@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import java.awt.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.event.ListDataEvent;
+import javax.swing.event.ListDataListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -34,8 +38,10 @@ import static javax.swing.text.StyleConstants.setAlignment;
 
 public abstract class AbstractDialog extends JDialog {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractDialog.class);
-    protected static final int DIALOG_DEFAULT_VERTICAL_GAP = UiTestAgentConfig.getDialogDefaultVerticalGap();
-    protected static final int DIALOG_DEFAULT_HORIZONTAL_GAP = UiTestAgentConfig.getDialogDefaultHorizontalGap();
+    public static final int DIALOG_DEFAULT_VERTICAL_GAP = UiTestAgentConfig.getDialogDefaultVerticalGap();
+    public static final int DIALOG_DEFAULT_HORIZONTAL_GAP = UiTestAgentConfig.getDialogDefaultHorizontalGap();
+    public static final int SCREENSHOT_DISPLAY_MAX_WIDTH = 600;
+    public static final int SCREENSHOT_DISPLAY_MAX_HEIGHT = 400;
 
     public AbstractDialog(Window owner, String title) throws HeadlessException {
         super(owner, title, ModalityType.APPLICATION_MODAL);
@@ -75,7 +81,7 @@ public abstract class AbstractDialog extends JDialog {
     }
 
     @NotNull
-    protected static JTextPane getUserMessageArea(String message, int fontSize) {
+    public static JTextPane getUserMessageArea(String message, int fontSize) {
         JTextPane messageArea = new JTextPane(); // Use JTextPane for StyledDocument
         messageArea.setEditable(false);
         messageArea.setOpaque(false);
@@ -95,12 +101,12 @@ public abstract class AbstractDialog extends JDialog {
     }
 
     @NotNull
-    protected static JTextPane getUserMessageArea(String message) {
+    public static JTextPane getUserMessageArea(String message) {
         // Use AgentConfig to get default font size
         return getUserMessageArea(message, UiTestAgentConfig.getDialogDefaultFontSize());
     }
 
-    protected static void setHoverAsClick(JComponent component, Runnable actionAfterClick) {
+    public static void setHoverAsClick(JComponent component, Runnable actionAfterClick) {
         if (UiTestAgentConfig.isDialogHoverAsClick()) {
             component.addMouseListener(new MouseAdapter() {
                 @Override
@@ -125,13 +131,13 @@ public abstract class AbstractDialog extends JDialog {
         }
     }
 
-    protected static void setHoverAsClick(JComponent component) {
+    public static void setHoverAsClick(JComponent component) {
         setHoverAsClick(component, () -> {
         });
     }
 
     @NotNull
-    protected static JPanel getButtonsPanel(JButton... buttons) {
+    public static JPanel getButtonsPanel(JButton... buttons) {
         // Use AgentConfig to get gaps
         var panel = new JPanel(
                 new FlowLayout(FlowLayout.CENTER, DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
@@ -141,18 +147,67 @@ public abstract class AbstractDialog extends JDialog {
         return panel;
     }
 
-    protected void displayPopup() {
+    public void displayPopup() {
         setDefaultPosition();
         setVisible(true);
         toFront();
     }
 
-    protected void setDefaultPosition() {
+    public void setDefaultPosition() {
         setLocationRelativeTo(null);
     }
 
-    protected void setDefaultSizeAndPosition() {
+    public void setDefaultSizeAndPosition() {
         pack();
         setDefaultPosition();
+    }
+
+    protected Point preHideLocation;
+
+    public void hideTemporarily() {
+        if (!isDisplayable()) {
+            return;
+        }
+        preHideLocation = getLocation();
+        setLocation(-10000, -10000);
+    }
+
+    public void restoreDialogVisibility() {
+        if (!isDisplayable()) {
+            return;
+        }
+        if (preHideLocation != null) {
+            setLocation(preHideLocation);
+            preHideLocation = null;
+            validate();
+        }
+        toFront();
+        requestFocusInWindow();
+        setAlwaysOnTop(false);
+    }
+
+    public void withDialogHidden(Runnable action) {
+        hideTemporarily();
+        try {
+            action.run();
+        } finally {
+            restoreDialogVisibility();
+        }
+    }
+
+    public static DocumentListener dirtyDocListener(Runnable onDirty) {
+        return new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { onDirty.run(); }
+            public void removeUpdate(DocumentEvent e) { onDirty.run(); }
+            public void changedUpdate(DocumentEvent e) { onDirty.run(); }
+        };
+    }
+
+    public static ListDataListener dirtyListListener(Runnable onDirty) {
+        return new ListDataListener() {
+            public void intervalAdded(ListDataEvent e) { onDirty.run(); }
+            public void intervalRemoved(ListDataEvent e) { onDirty.run(); }
+            public void contentsChanged(ListDataEvent e) { onDirty.run(); }
+        };
     }
 }

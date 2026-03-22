@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,8 +41,9 @@ import static org.tarik.ta.ApiTestAgentConfig.*;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.core.utils.CommonUtils.getEnvironmentVariable;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
+import org.tarik.ta.core.tools.AbstractTools;
 
-public class ApiRequestTools extends org.tarik.ta.core.tools.AbstractTools {
+public class ApiRequestTools extends AbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(ApiRequestTools.class);
     public static final String LAST_REQUEST_METHOD = "_last_request_method";
     public static final String LAST_REQUEST_URL = "_last_request_path";

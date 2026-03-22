@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,20 +20,20 @@ import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.dto.UiElementDescriptionResult;
+import org.tarik.ta.dto.UiElementIdentificationResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
-public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElementDescriptionResult> {
+public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElementIdentificationResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
+    @UserMessage("""
+            Target Element Description: {{target_element_description}}
+
+            Relevant Data Context: {{relevant_data}}
+
+            The screenshot is attached.
+            """)
     Result<String> describeUiElement(
-            @UserMessage("""
-                    Target Element Description: {{target_element_description}}
-                    
-                    Relevant Data Context: {{relevant_data}}
-                    
-                    The screenshot is attached.
-                    """)
             @V("target_element_description") String targetElementDescription,
             @V("relevant_data") String relevantData,
             @UserMessage ImageContent screenshot);

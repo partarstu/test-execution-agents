@@ -1,5 +1,5 @@
 @REM
-@REM Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+@REM Copyright © 2026 Taras Paruta (partarstu@gmail.com)
 @REM
 @REM Licensed under the Apache License, Version 2.0 (the "License");
 @REM you may not use this file except in compliance with the License.

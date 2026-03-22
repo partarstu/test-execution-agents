@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import org.tarik.ta.dto.UiOperationExecutionResult;
 
 @SuppressWarnings("unchecked")
 class UiPreconditionVerificationUiTestAgentTest {
@@ -39,7 +41,7 @@ class UiPreconditionVerificationUiTestAgentTest {
 
     @BeforeEach
     void setUp() {
-        commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS);
         commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
     }
 
@@ -56,7 +58,8 @@ class UiPreconditionVerificationUiTestAgentTest {
         doCallRealMethod().when(agent).extractResult(any());
         var verificationResult = new VerificationExecutionResult(true, "Verified");
 
-        var result = agent.executeAndGetResult(() -> Result.<VerificationExecutionResult>builder().content(verificationResult).build());
+        var result = agent.executeAndGetResult(
+                () -> Result.<VerificationExecutionResult>builder().content(verificationResult).build());
 
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
         assertThat(result.isSuccess()).isTrue();
@@ -77,6 +80,6 @@ class UiPreconditionVerificationUiTestAgentTest {
         assertThat(result.getExecutionStatus()).isEqualTo(ERROR);
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getMessage()).isEqualTo("Verification error");
-        assertThat(((org.tarik.ta.dto.UiOperationExecutionResult<?>) result).screenshot()).isNotNull();
+        assertThat(((UiOperationExecutionResult<?>) result).screenshot()).isNotNull();
     }
 }

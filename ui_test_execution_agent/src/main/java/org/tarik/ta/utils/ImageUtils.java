@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,9 +36,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 
 import static dev.langchain4j.data.message.ImageContent.DetailLevel.HIGH;
+import static dev.langchain4j.data.message.ImageContent.DetailLevel.ULTRA_HIGH;
+import static java.awt.Image.SCALE_AREA_AVERAGING;
 import static java.awt.Image.SCALE_SMOOTH;
 import static java.awt.RenderingHints.KEY_INTERPOLATION;
 import static java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR;
+import static java.lang.Math.min;
 import static java.nio.file.Files.createDirectories;
 import static java.time.LocalDateTime.now;
 import static java.time.format.DateTimeFormatter.ofPattern;
@@ -147,6 +150,13 @@ public class ImageUtils {
         }
     }
 
+    public static java.awt.Image scaleToFitBox(BufferedImage src, int maxW, int maxH) {
+        double ratio = min((double) maxW / src.getWidth(), (double) maxH / src.getHeight());
+        int w = Math.max(1, (int) (src.getWidth() * ratio));
+        int h = Math.max(1, (int) (src.getHeight() * ratio));
+        return src.getScaledInstance(w, h, SCALE_AREA_AVERAGING);
+    }
+
     public static BufferedImage scaleImage(BufferedImage source, double ratio) {
         int newWidth = (int) (source.getWidth() * ratio);
         int newHeight = (int) (source.getHeight() * ratio);
@@ -155,6 +165,6 @@ public class ImageUtils {
     }
 
     public static ImageContent singleImageContent(BufferedImage image) {
-        return ImageContent.from(ImageUtils.getImage(image, DEFAULT_IMAGE_FORMAT), HIGH);
+        return ImageContent.from(ImageUtils.getImage(image, DEFAULT_IMAGE_FORMAT), ULTRA_HIGH);
     }
 }

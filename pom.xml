@@ -26,8 +26,8 @@
     <properties>
         <jdk.version>25</jdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <langchain4j.version>1.10.0</langchain4j.version>
-        <langchain4j.beta.version>1.10.0-beta18</langchain4j.beta.version>
+        <langchain4j.version>1.11.0</langchain4j.version>
+        <langchain4j.beta.version>1.11.0-beta19</langchain4j.beta.version>
         <logback.version>1.5.18</logback.version>
         <junit.version>5.12.1</junit.version>
         <license.maven.plugin.version>5.0.0</license.maven.plugin.version>
@@ -46,6 +46,7 @@
         <ffmpeg.version>7.1-${bytedeco.version}</ffmpeg.version>
         <javacv.version>${bytedeco.version}</javacv.version>
         <commons-math3.version>3.6.1</commons-math3.version>
+        <commons-text.version>1.13.0</commons-text.version>
         <a2a.sdk.version>0.3.3.Final</a2a.sdk.version>
         <jetbrains.annotations.version>24.1.0</jetbrains.annotations.version>
         <restassured.version>5.5.6</restassured.version>
@@ -113,6 +114,11 @@
                 <artifactId>langchain4j-embeddings-bge-small-en-v15</artifactId>
                 <version>${langchain4j.beta.version}</version>
             </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-community-neo4j</artifactId>
+                <version>${langchain4j.beta.version}</version>
+            </dependency>
 
             <!-- Logging -->
             <dependency>
@@ -132,6 +138,11 @@
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-math3</artifactId>
                 <version>${commons-math3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-text</artifactId>
+                <version>${commons-text.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.google.guava</groupId>
@@ -260,7 +271,7 @@
                          <properties>
                             <owner>Taras Paruta</owner>
                             <email>partarstu@gmail.com</email>
-                            <year>2025</year>
+                            <year>2026</year>
                         </properties>
                          <licenseSets>
                             <licenseSet>
@@ -282,6 +293,11 @@
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
                     <version>${jacoco.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <version>3.8.1</version>
                 </plugin>
             </plugins>
         </pluginManagement>

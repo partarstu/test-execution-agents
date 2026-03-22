@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.tarik.ta.agents;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
@@ -30,13 +29,7 @@ public interface UiPreconditionVerificationAgent extends BaseUiAgent<Verificatio
     RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
 
     Result<String> verify(
-            @UserMessage("""
-                    The test case precondition is: {{precondition}}.
-                    
-                    Test context execution data: {{sharedData}}
-                    """)
-            @V("precondition") String precondition,
-            @V("sharedData") String sharedData,
+            @UserMessage String userMessage,
             @UserMessage ImageContent screenshot);
 
     @Override

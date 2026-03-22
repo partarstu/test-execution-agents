@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import java.lang.reflect.Field;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import org.mockito.Mockito;
 
 @ExtendWith(MockitoExtension.class)
 class MouseToolsTest {
@@ -98,8 +99,8 @@ class MouseToolsTest {
 
         verify(mockRobot).mouseMove(x, y);
         // Double click involves press-release twice
-        verify(mockRobot, org.mockito.Mockito.times(2)).mousePress(InputEvent.BUTTON1_DOWN_MASK);
-        verify(mockRobot, org.mockito.Mockito.times(2)).mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
+        verify(mockRobot, Mockito.times(2)).mousePress(InputEvent.BUTTON1_DOWN_MASK);
+        verify(mockRobot, Mockito.times(2)).mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
     }
 
     @Test

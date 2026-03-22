@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,15 +27,17 @@ import org.tarik.ta.core.dto.FinalResult;
  */
 @Description("The result of selecting the best matching UI element from a list of candidates based on the screenshot")
 public record DbUiElementSelectionResult(
+        @Description("Flag which defines if the target element was actually found on the screenshot based on its description.")
+        boolean targetElementIdentified,
         @Description("Indicates whether a matching element was found. Must be \"false\" if none of the " +
                 "candidate elements match what is visible on the screenshot, \"true\" otherwise.")
-        boolean success,
-        @Description("contains the unique ID of the selected element candidate. If the value of \"success\" field " +
+        boolean atLeastOneCandidateMatches,
+        @Description("contains the unique ID of the selected element candidate. If the value of \"atLeastOneCandidateMatches\" field " +
                 "is \"false\", this field must be an empty string, \"\".")
         String selectedElementId,
-        @Description("contains comments explaining the selection decision. If \"success\" is \"true\", explain " +
+        @Description("contains comments explaining the selection decision. If \"atLeastOneCandidateMatches\" is \"true\", explain " +
                 "why this element was selected over others, focusing on matching candidate's info and visual " +
-                "characteristics. If \"success\" is \"false\", explain why none of the candidates matched.")
+                "characteristics. If \"atLeastOneCandidateMatches\" is \"false\", explain why none of the candidates matched.")
         String message) implements FinalResult {
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
     public static DbUiElementSelectionResult endExecutionAndGetFinalResult(

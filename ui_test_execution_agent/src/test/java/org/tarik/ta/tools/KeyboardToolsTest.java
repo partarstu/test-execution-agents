@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.tarik.ta.tools;
 
 import org.junit.jupiter.api.AfterEach;
@@ -37,6 +36,7 @@ import java.awt.event.KeyEvent;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
+import org.mockito.Mock;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -49,7 +49,7 @@ class KeyboardToolsTest {
     private Clipboard clipboard;
     private KeyboardTools keyboardTools;
 
-    @org.mockito.Mock
+    @Mock
     private UiStateCheckAgent uiStateCheckAgent;
 
     @BeforeEach

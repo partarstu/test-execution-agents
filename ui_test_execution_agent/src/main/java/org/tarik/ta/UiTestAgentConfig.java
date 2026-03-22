@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.tarik.ta;
 
 import org.tarik.ta.core.AgentConfig;
@@ -30,7 +29,7 @@ public class UiTestAgentConfig extends AgentConfig {
     // -----------------------------------------------------
     // Execution Mode Configuration
     private static final ConfigProperty<ExecutionMode> EXECUTION_MODE = loadProperty(
-            "execution.mode", "EXECUTION_MODE", "UNATTENDED",
+            "execution.mode", "EXECUTION_MODE", "SUPERVISED",
             s -> ExecutionMode.valueOf(s.toUpperCase()), false);
 
     /**
@@ -48,39 +47,25 @@ public class UiTestAgentConfig extends AgentConfig {
     }
 
     /**
-     * Returns true if the agent is running in semi-attended mode (autonomous with halt option).
+     * Returns true if the agent is running in supervised mode (autonomous with halt option).
      */
-    public static boolean isSemiAttended() {
-        return getExecutionMode() == ExecutionMode.SEMI_ATTENDED;
-    }
-
-    /**
-     * Returns true if the agent is running in fully attended mode (all actions supervised).
-     */
-    public static boolean isFullyAttended() {
-        return getExecutionMode() == ExecutionMode.ATTENDED;
+    public static boolean isSupervised() {
+        return getExecutionMode() == ExecutionMode.SUPERVISED;
     }
 
     
-    private static final ConfigProperty<Integer> SEMI_ATTENDED_COUNTDOWN_SECONDS = loadPropertyAsInteger(
-            "semi.attended.countdown.seconds", "SEMI_ATTENDED_COUNTDOWN_SECONDS", "5", false);
+    private static final ConfigProperty<Integer> SUPERVISED_COUNTDOWN_SECONDS = loadPropertyAsInteger(
+            "supervised.countdown.seconds", "SUPERVISED_COUNTDOWN_SECONDS", "5", false);
 
     /**
-     * Returns the countdown duration in seconds for semi-attended mode halt popup.
+     * Returns the countdown duration in seconds for supervised mode halt popup.
      */
-    public static int getSemiAttendedCountdownSeconds() {
-        return SEMI_ATTENDED_COUNTDOWN_SECONDS.value();
-    }
-
-    private static final ConfigProperty<Integer> AGENT_TOOL_CALLS_BUDGET_ATTENDED = loadPropertyAsInteger(
-            "agent.tool.calls.budget.attended", "AGENT_TOOL_CALLS_BUDGET_ATTENDED", "100", false);
-
-    public static int getAgentToolCallsBudgetAttended() {
-        return AGENT_TOOL_CALLS_BUDGET_ATTENDED.value();
+    public static int getSupervisedCountdownSeconds() {
+        return SUPERVISED_COUNTDOWN_SECONDS.value();
     }
 
     public static int getAgentToolCallsBudget() {
-        return isFullyUnattended() ? AgentConfig.getAgentToolCallsBudget() : getAgentToolCallsBudgetAttended();
+        return AgentConfig.getAgentToolCallsBudget();
     }
 
     // -----------------------------------------------------
@@ -136,17 +121,10 @@ public class UiTestAgentConfig extends AgentConfig {
     }
 
     private static final ConfigProperty<Double> ELEMENT_RETRIEVAL_MIN_GENERAL_SCORE = loadPropertyAsDouble(
-            "element.retrieval.min.general.score", "ELEMENT_RETRIEVAL_MIN_GENERAL_SCORE", "0.4", false);
+            "element.retrieval.min.general.score", "ELEMENT_RETRIEVAL_MIN_GENERAL_SCORE", "0.85", false);
 
     public static double getElementRetrievalMinGeneralScore() {
         return ELEMENT_RETRIEVAL_MIN_GENERAL_SCORE.value();
-    }
-
-    private static final ConfigProperty<Double> ELEMENT_RETRIEVAL_MIN_PAGE_RELEVANCE_SCORE = loadPropertyAsDouble(
-            "element.retrieval.min.page.relevance.score", "ELEMENT_RETRIEVAL_MIN_PAGE_RELEVANCE_SCORE", "0.5", false);
-
-    public static double getElementRetrievalMinPageRelevanceScore() {
-        return ELEMENT_RETRIEVAL_MIN_PAGE_RELEVANCE_SCORE.value();
     }
 
     private static final ConfigProperty<Double> ELEMENT_LOCATOR_VISUAL_SIMILARITY_THRESHOLD = loadPropertyAsDouble(
@@ -195,13 +173,6 @@ public class UiTestAgentConfig extends AgentConfig {
         return BBOX_CLUSTERING_MIN_INTERSECTION_RATIO.value();
     }
 
-    private static final ConfigProperty<Integer> ELEMENT_LOCATOR_ZOOM_SCALE_FACTOR = loadPropertyAsInteger(
-            "element.locator.zoom.scale.factor", "ELEMENT_LOCATOR_ZOOM_SCALE_FACTOR", "2", false);
-
-    public static int getElementLocatorZoomScaleFactor() {
-        return ELEMENT_LOCATOR_ZOOM_SCALE_FACTOR.value();
-    }
-
     private static final ConfigProperty<Integer> BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS = loadPropertyAsInteger(
             "bbox.screenshot.longest.allowed.dimension.pixels", "BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS",
             "1568", false);
@@ -244,7 +215,7 @@ public class UiTestAgentConfig extends AgentConfig {
             "element.locator.skip.model.selection.vision.only", "SKIP_UI_ELEMENT_SELECTION_FOR_VISION", "false",
             Boolean::parseBoolean, false);
 
-    public static boolean isSkipModelSelectionForVisionOnly() {
+    public static boolean skipBestUiElementMatchSelection() {
         return SKIP_UI_ELEMENT_SELECTION_FOR_VISION.value();
     }
 
@@ -285,40 +256,66 @@ public class UiTestAgentConfig extends AgentConfig {
         return DIALOG_HOVER_AS_CLICK.value();
     }
 
-    // Prefetching
-    private static final ConfigProperty<Boolean> PREFETCHING_ENABLED = loadProperty("prefetching.enabled",
-            "PREFETCHING_ENABLED", "true", Boolean::parseBoolean, false);
+    // -----------------------------------------------------
+    // Knowledge Persistence Configuration (Neo4j)
+    private static final ConfigProperty<String> NEO4J_USERNAME = loadProperty("neo4j.username", "NEO4J_USERNAME",
+            "neo4j", s -> s, false);
+    private static final ConfigProperty<String> NEO4J_DATABASE = loadProperty("neo4j.database", "NEO4J_DATABASE",
+            "neo4j", s -> s, false);
+    private static final ConfigProperty<Integer> KNOWLEDGE_MAX_DEPTH = loadPropertyAsInteger("knowledge.max.depth",
+            "KNOWLEDGE_MAX_DEPTH", "3", false);
+    private static final ConfigProperty<Integer> KNOWLEDGE_EMBEDDING_BATCH_SIZE = loadPropertyAsInteger(
+            "knowledge.embedding.batch.size", "KNOWLEDGE_EMBEDDING_BATCH_SIZE", "10", false);
+    private static final ConfigProperty<Double> KNOWLEDGE_MATCH_CONFIDENCE_HIGH = loadPropertyAsDouble(
+            "knowledge.match.confidence.high", "KNOWLEDGE_MATCH_CONFIDENCE_HIGH", "0.85", false);
+    private static final ConfigProperty<Double> KNOWLEDGE_MATCH_CONFIDENCE_LOW = loadPropertyAsDouble(
+            "knowledge.match.confidence.low", "KNOWLEDGE_MATCH_CONFIDENCE_LOW", "0.5", false);
+    private static final ConfigProperty<Integer> KNOWLEDGE_MATCH_TOP_N = loadPropertyAsInteger(
+            "knowledge.match.top.n", "KNOWLEDGE_MATCH_TOP_N", "5", false);
+    private static final ConfigProperty<Integer> PROCEDURE_LOOKUP_DELAY_MS = loadPropertyAsInteger(
+            "procedure.lookup.delay.ms", "PROCEDURE_LOOKUP_DELAY_MS", "2000", false);
 
-    public static boolean isElementLocationPrefetchingEnabled() {
-        return PREFETCHING_ENABLED.value() && isFullyUnattended();
+    public static String getNeo4jUsername() {
+        return NEO4J_USERNAME.value();
     }
 
-    // UI Element Description Agent
-    private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME = loadProperty(
-            "ui.element.description.agent.model.name", "UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME", "gemini-3-flash-preview",
-            s -> s, false);
-
-    public static String getUiElementDescriptionAgentModelName() {
-        return UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME.value();
+    public static String getNeo4jDatabase() {
+        return NEO4J_DATABASE.value();
     }
 
-    private static final ConfigProperty<ModelProvider> UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER = getProperty(
-            "ui.element.description.agent.model.provider", "UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getUiElementDescriptionAgentModelProvider() {
-        return UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER.value();
+    public static int getKnowledgeMaxDepth() {
+        return KNOWLEDGE_MAX_DEPTH.value();
     }
 
-    private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION = loadProperty(
-            "ui.element.description.agent.prompt.version", "UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION", "v1.0.0",
-            s -> s, false);
-
-    public static String getUiElementDescriptionAgentPromptVersion() {
-        return UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION.value();
+    public static int getKnowledgeEmbeddingBatchSize() {
+        return KNOWLEDGE_EMBEDDING_BATCH_SIZE.value();
     }
 
-    // UI Element Description Agent
+    public static double getKnowledgeMatchConfidenceHigh() {
+        return KNOWLEDGE_MATCH_CONFIDENCE_HIGH.value();
+    }
+
+    public static double getKnowledgeMatchConfidenceLow() {
+        return KNOWLEDGE_MATCH_CONFIDENCE_LOW.value();
+    }
+
+    public static int getKnowledgeMatchTopN() {
+        return KNOWLEDGE_MATCH_TOP_N.value();
+    }
+
+    public static int getProcedureLookupDelayMs() {
+        return PROCEDURE_LOOKUP_DELAY_MS.value();
+    }
+
+    /**
+     * Returns true if Neo4j authentication credentials are fully configured
+     * (both username and password are non-blank).
+     */
+    public static boolean isNeo4jAuthConfigured() {
+        return !getNeo4jUsername().isBlank() && !getVectorDbToken().isBlank();
+    }
+
+    // UI Element Description Matcher Agent
     private static final ConfigProperty<String> UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME = loadProperty(
             "ui.element.description.matcher.agent.model.name", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME", "gemini-3-flash-preview",
             s -> s, false);
@@ -440,31 +437,6 @@ public class UiTestAgentConfig extends AgentConfig {
         return DB_ELEMENT_SELECTION_AGENT_MODEL_PROVIDER.value();
     }
 
-
-    // Page Description Agent
-    private static final ConfigProperty<String> PAGE_DESCRIPTION_AGENT_MODEL_NAME = loadProperty(
-            "page.description.agent.model.name", "PAGE_DESCRIPTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s,
-            false);
-
-    public static String getPageDescriptionAgentModelName() {
-        return PAGE_DESCRIPTION_AGENT_MODEL_NAME.value();
-    }
-
-    private static final ConfigProperty<ModelProvider> PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER = getProperty(
-            "page.description.agent.model.provider", "PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER", "google",
-            AgentConfig::getModelProvider, false);
-
-    public static ModelProvider getPageDescriptionAgentModelProvider() {
-        return PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER.value();
-    }
-
-    private static final ConfigProperty<String> PAGE_DESCRIPTION_AGENT_PROMPT_VERSION = loadProperty(
-            "page.description.agent.prompt.version", "PAGE_DESCRIPTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
-
-    public static String getPageDescriptionAgentPromptVersion() {
-        return PAGE_DESCRIPTION_AGENT_PROMPT_VERSION.value();
-    }
-
     // Precondition Verification Agent
     private static final ConfigProperty<String> PRECONDITION_VERIFICATION_AGENT_MODEL_NAME = loadProperty(
             "precondition.verification.agent.model.name", "PRECONDITION_VERIFICATION_AGENT_MODEL_NAME",
@@ -513,5 +485,127 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public static String getTestStepVerificationAgentPromptVersion() {
         return TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION.value();
+    }
+
+    // Knowledge Suggestion Agent
+    private static final ConfigProperty<String> KNOWLEDGE_SUGGESTION_AGENT_MODEL_NAME = loadProperty(
+            "knowledge.suggestion.agent.model.name", "KNOWLEDGE_SUGGESTION_AGENT_MODEL_NAME", "gemini-3-flash-preview",
+            s -> s, false);
+
+    public static String getKnowledgeSuggestionAgentModelName() {
+        return KNOWLEDGE_SUGGESTION_AGENT_MODEL_NAME.value();
+    }
+
+    private static final ConfigProperty<ModelProvider> KNOWLEDGE_SUGGESTION_AGENT_MODEL_PROVIDER = getProperty(
+            "knowledge.suggestion.agent.model.provider", "KNOWLEDGE_SUGGESTION_AGENT_MODEL_PROVIDER", "google",
+            AgentConfig::getModelProvider, false);
+
+    public static ModelProvider getKnowledgeSuggestionAgentModelProvider() {
+        return KNOWLEDGE_SUGGESTION_AGENT_MODEL_PROVIDER.value();
+    }
+
+    private static final ConfigProperty<String> KNOWLEDGE_SUGGESTION_AGENT_PROMPT_VERSION = loadProperty(
+            "knowledge.suggestion.agent.prompt.version", "KNOWLEDGE_SUGGESTION_AGENT_PROMPT_VERSION", "v1.0.0",
+            s -> s, false);
+
+    public static String getKnowledgeSuggestionAgentPromptVersion() {
+        return KNOWLEDGE_SUGGESTION_AGENT_PROMPT_VERSION.value();
+    }
+
+    // Collecting knowledge Element Resolution Agent
+    private static final ConfigProperty<String> KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_NAME = loadProperty(
+            "knowledge.collection.element.resolution.agent.model.name", "KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_NAME",
+            "gemini-3-flash-preview", s -> s, false);
+
+    public static String getKnowledgeCollectionElementResolutionAgentModelName() {
+        return KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_NAME.value();
+    }
+
+    private static final ConfigProperty<ModelProvider> KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_PROVIDER = getProperty(
+            "knowledge.collection.element.resolution.agent.model.provider", "KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_PROVIDER",
+            "google", AgentConfig::getModelProvider, false);
+
+    public static ModelProvider getKnowledgeCollectionElementResolutionAgentModelProvider() {
+        return KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_PROVIDER.value();
+    }
+
+    private static final ConfigProperty<String> KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_PROMPT_VERSION = loadProperty(
+            "knowledge.collection.element.resolution.agent.prompt.version", "KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_PROMPT_VERSION",
+            "v1.0.0", s -> s, false);
+
+    public static String getKnowledgeCollectionElementResolutionAgentPromptVersion() {
+        return KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_PROMPT_VERSION.value();
+    }
+
+    // -----------------------------------------------------
+    // Knowledge Graph Enhancements Tunable Parameters
+    private static final ConfigProperty<Double> TIMING_EWMA_ALPHA = loadPropertyAsDouble(
+            "timing.ewma.alpha", "TIMING_EWMA_ALPHA", "0.2", false);
+
+    public static double getTimingEwmaAlpha() {
+        return TIMING_EWMA_ALPHA.value();
+    }
+
+    private static final ConfigProperty<Double> STABILITY_EWMA_ALPHA = loadPropertyAsDouble(
+            "stability.ewma.alpha", "STABILITY_EWMA_ALPHA", "0.3", false);
+
+    public static double getStabilityEwmaAlpha() {
+        return STABILITY_EWMA_ALPHA.value();
+    }
+
+    private static final ConfigProperty<Integer> TIMING_VERIFICATION_MIN_DELAY_MS = loadPropertyAsInteger(
+            "timing.verification.min.delay.ms", "TIMING_VERIFICATION_MIN_DELAY_MS", "500", false);
+
+    public static int getTimingVerificationMinDelayMs() {
+        return TIMING_VERIFICATION_MIN_DELAY_MS.value();
+    }
+
+    private static final ConfigProperty<Double> SATISFIES_SIMILARITY_THRESHOLD = loadPropertyAsDouble(
+            "satisfies.similarity.threshold", "SATISFIES_SIMILARITY_THRESHOLD", "0.85", false);
+
+    public static double getSatisfiesSimilarityThreshold() {
+        return SATISFIES_SIMILARITY_THRESHOLD.value();
+    }
+
+    private static final ConfigProperty<Integer> ANCESTRY_WINDOW_SIZE = loadPropertyAsInteger(
+            "ancestry.window.size", "ANCESTRY_WINDOW_SIZE", "5", false);
+
+    public static int getAncestryWindowSize() {
+        return ANCESTRY_WINDOW_SIZE.value();
+    }
+
+    private static final ConfigProperty<Integer> SATISFIES_STALE_DAYS = loadPropertyAsInteger(
+            "satisfies.stale.days", "SATISFIES_STALE_DAYS", "30", false);
+
+    public static int getSatisfiesStaleDays() {
+        return SATISFIES_STALE_DAYS.value();
+    }
+
+    private static final ConfigProperty<Double> STABILITY_PENALTY_THRESHOLD = loadPropertyAsDouble(
+            "stability.penalty.threshold", "STABILITY_PENALTY_THRESHOLD", "0.5", false);
+
+    public static double getStabilityPenaltyThreshold() {
+        return STABILITY_PENALTY_THRESHOLD.value();
+    }
+
+    private static final ConfigProperty<String> HEALTH_REPORT_OUTPUT_PATH = loadProperty(
+            "health.report.output.path", "HEALTH_REPORT_OUTPUT_PATH", "reports/graph-health-report.html", s -> s, false);
+
+    public static String getHealthReportOutputPath() {
+        return HEALTH_REPORT_OUTPUT_PATH.value();
+    }
+
+    private static final ConfigProperty<Integer> HEALTH_WARNING_THRESHOLD = loadPropertyAsInteger(
+            "health.warning.threshold", "HEALTH_WARNING_THRESHOLD", "3", false);
+
+    public static int getHealthWarningThreshold() {
+        return HEALTH_WARNING_THRESHOLD.value();
+    }
+
+    private static final ConfigProperty<Integer> HEALTH_CRITICAL_THRESHOLD = loadPropertyAsInteger(
+            "health.critical.threshold", "HEALTH_CRITICAL_THRESHOLD", "10", false);
+
+    public static int getHealthCriticalThreshold() {
+        return HEALTH_CRITICAL_THRESHOLD.value();
     }
 }

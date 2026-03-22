@@ -36,5 +36,6 @@ Dockerfile_local
 /ui_test_execution_agent/log
 .venv
 ui_test_execution_agent/src/test/java/org/tarik/ta/MessengerBulkMessageTest.java
-/.agent/tasks
-/.agent/todos
+/.agents/tasks
+/.agents/todos
+/ui_test_execution_agent/.settings

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,6 +60,7 @@ public class ApiTestAgent {
 
     public static TestExecutionResult executeTestCase(String receivedMessage) {
         BudgetManager.reset();
+        BudgetManager.activateTimeBudget();
         LogCapture logCapture = new LogCapture();
         TestCase testCase = extractTestCase(receivedMessage).orElse(null);
         if (testCase == null) {
@@ -110,7 +111,7 @@ public class ApiTestAgent {
                                              ApiAssertionTools assertionTools, TestContextDataTools dataTools) {
         List<String> preconditions = executionContext.getTestCase().preconditions();
         if (preconditions != null && !preconditions.isEmpty()) {
-            var preconditionActionAgent = getApiPreconditionActionAgent(requestTools, assertionTools, dataTools, new RetryState());
+            var preconditionActionAgent = getApiPreconditionActionAgent(requestTools, assertionTools, dataTools);
             LOG.info("Executing and verifying preconditions for test case: {}", executionContext.getTestCase().name());
             for (String precondition : preconditions) {
                 var executionStartTimestamp = now();
@@ -156,7 +157,7 @@ public class ApiTestAgent {
     private static void executeTestSteps(TestExecutionContext executionContext, ApiContext apiContext,
                                          ApiRequestTools requestTools, ApiAssertionTools assertionTools,
                                          TestContextDataTools dataTools) {
-        var testStepActionAgent = getApiTestStepActionAgent(requestTools, assertionTools, dataTools, new RetryState());
+        var testStepActionAgent = getApiTestStepActionAgent(requestTools, assertionTools, dataTools);
         for (TestStep testStep : executionContext.getTestCase().testSteps()) {
             var actionInstruction = testStep.stepDescription();
             var testData = ofNullable(testStep.testData()).map(Object::toString).orElse("");
@@ -235,7 +236,7 @@ public class ApiTestAgent {
     }
 
     private static ApiTestStepActionAgent getApiTestStepActionAgent(ApiRequestTools requestTools, ApiAssertionTools assertionTools,
-                                                                    TestContextDataTools dataTools, RetryState retryState) {
+                                                                    TestContextDataTools dataTools) {
         var model = getModel(getTestStepActionAgentModelName(), getTestStepActionAgentModelProvider());
         var prompt = loadSystemPrompt("test_step/executor", getTestStepActionAgentPromptVersion(),
                 "test_step_action_prompt.txt");
@@ -243,13 +244,13 @@ public class ApiTestAgent {
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
-                .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiTestStepActionAgent.RETRY_POLICY, retryState))
+                .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiTestStepActionAgent.RETRY_POLICY))
                 .maxSequentialToolsInvocations(getAgentToolCallsBudget())
                 .build();
     }
 
     private static ApiPreconditionActionAgent getApiPreconditionActionAgent(ApiRequestTools requestTools, ApiAssertionTools assertionTools,
-                                                                            TestContextDataTools dataTools, RetryState retryState) {
+                                                                            TestContextDataTools dataTools) {
         var model = getModel(getPreconditionActionAgentModelName(), getPreconditionActionAgentModelProvider());
         var prompt = loadSystemPrompt("precondition/executor", getPreconditionAgentPromptVersion(),
                 "precondition_execution_prompt.txt");
@@ -257,7 +258,7 @@ public class ApiTestAgent {
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
-                .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiPreconditionActionAgent.RETRY_POLICY, retryState))
+                .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiPreconditionActionAgent.RETRY_POLICY))
                 .maxSequentialToolsInvocations(getAgentToolCallsBudget())
                 .build();
     }

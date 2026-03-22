@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,8 +33,9 @@ import java.util.Optional;
 
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
+import org.tarik.ta.core.tools.AbstractTools;
 
-public class ApiAssertionTools extends org.tarik.ta.core.tools.AbstractTools {
+public class ApiAssertionTools extends AbstractTools {
     private final ApiContext apiContext;
     private final TestExecutionContext testExecutionContext;
 

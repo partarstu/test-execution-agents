@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.Set;
 
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import java.util.Map;
 
 public class AgentExecutionResource {
     private static final Logger LOG = LoggerFactory.getLogger(AgentExecutionResource.class);
@@ -62,7 +63,7 @@ public class AgentExecutionResource {
     public String handleNonStreamingRequests(@NotNull Context context) {
         try {
             var body = context.body();
-            var request = objectMapper.readValue(body, java.util.Map.class);
+            var request = objectMapper.readValue(body, Map.class);
             var method = (String) request.get("method");
             ServerCallContext serverCallContext = new ServerCallContext(UnauthenticatedUser.INSTANCE, new HashMap<>(),
                     Set.of());

@@ -19,29 +19,38 @@ a part of this framework for executing a sample test case inside Google Cloud.
 * **Modular Agent Architecture:**
     * The agent itself is built around a modular sub-agent architecture with specialized AI sub-agents:
         * **[UiPreconditionActionAgent](src/main/java/org/tarik/ta/agents/UiPreconditionActionAgent.java):** Handles the execution of
-          precondition actions before test case execution. Receives a screenshot of the current screen state to provide visual context for tool selection.
-        * **[PreconditionVerificationAgent](src/main/java/org/tarik/ta/agents/PreconditionVerificationAgent.java):** Verifies that
+          precondition actions before test case execution. Receives a screenshot of the current screen state to provide visual context for
+          tool selection.
+        * **[UiPreconditionVerificationAgent](src/main/java/org/tarik/ta/agents/UiPreconditionVerificationAgent.java):** Verifies that
           preconditions are fully met.
-        * **[UiTestStepActionAgent](src/main/java/org/tarik/ta/agents/UiTestStepActionAgent.java):** Executes individual test step actions. Receives a screenshot of the current screen state to provide visual context for tool selection.
-        * **[TestStepVerificationAgent](src/main/java/org/tarik/ta/agents/TestStepVerificationAgent.java):** Verifies the expected results
+        * **[UiTestStepActionAgent](src/main/java/org/tarik/ta/agents/UiTestStepActionAgent.java):** Executes individual test step actions.
+          Receives a screenshot of the current screen state to provide visual context for tool selection.
+        * **[UiTestStepVerificationAgent](src/main/java/org/tarik/ta/agents/UiTestStepVerificationAgent.java):** Verifies the expected results
           after each test step.
-        * **[TestCaseExtractionAgent](src/main/java/org/tarik/ta/agents/TestCaseExtractionAgent.java):** Extracts and parses test case
+        * **[TestCaseExtractionAgent](../agent_core/src/main/java/org/tarik/ta/core/agents/TestCaseExtractionAgent.java):** Extracts and parses test case
           from received task content.
-        * **[ElementBoundingBoxAgent](src/main/java/org/tarik/ta/agents/ElementBoundingBoxAgent.java):** Identifies UI element bounding
+        * **[UiElementBoundingBoxAgent](src/main/java/org/tarik/ta/agents/UiElementBoundingBoxAgent.java):** Identifies UI element bounding
           boxes on screen (visual grounding).
-        * **[ElementSelectionAgent](src/main/java/org/tarik/ta/agents/ElementSelectionAgent.java):** Selects the best and correct
+        * **[BestUiElementMatchSelectionAgent](src/main/java/org/tarik/ta/agents/BestUiElementMatchSelectionAgent.java):** Selects the best and correct
           element from multiple candidates (visual grounding).
         * **[UiElementDescriptionAgent](src/main/java/org/tarik/ta/agents/UiElementDescriptionAgent.java):** Generates new UI element info
           suggestions in order accelerate the execution in attended mode.
         * **[UiStateCheckAgent](src/main/java/org/tarik/ta/agents/UiStateCheckAgent.java):** Checks the current state of the UI against
           an expected one.
-        * **[UiElementFromCandidatesSelectionAgent](src/main/java/org/tarik/ta/agents/UiElementFromCandidatesSelectionAgent.java):** When multiple UI 
-          elements in the database match the description (same or similar names), this agent analyzes the current screenshot and selects the best
-          matching element based on all element information (name, description, location details/parent context, and parent element info).
-        * **[UiElementExtendedDescriptionAgent](src/main/java/org/tarik/ta/agents/UiElementExtendedDescriptionAgent.java):** Generates extended descriptions for UI elements based on screenshots and initial descriptions.
-        * **[ImageVerificationAgent](src/main/java/org/tarik/ta/agents/ImageVerificationAgent.java):** Performs visual verification of test step results against expected outcomes using screenshots.
-        * **[PageDescriptionAgent](src/main/java/org/tarik/ta/agents/PageDescriptionAgent.java):** Describes the current page context. This can be
+        * **[DbUiElementSelectionAgent](src/main/java/org/tarik/ta/agents/DbUiElementSelectionAgent.java):** When
+          multiple UI elements in the database match the description (same or similar names), this agent analyzes the current screenshot and selects the
+          best matching element based on all element information (name, description, location details/parent context, and parent element info).
+        * **[UiElementExtendedDescriptionAgent](src/main/java/org/tarik/ta/agents/UiElementExtendedDescriptionAgent.java):** Generates
+          extended descriptions for UI elements based on screenshots and initial descriptions.
+        * **[ImageVerificationAgent](src/main/java/org/tarik/ta/agents/ImageVerificationAgent.java):** Performs visual verification of test
+          step results against expected outcomes using screenshots.
+        * **[PageDescriptionAgent](src/main/java/org/tarik/ta/agents/PageDescriptionAgent.java):** Describes the current page context. This
+          can be
           used for various purposes such as understanding the current UI state.
+        * **[KnowledgeSuggestionAgent](src/main/java/org/tarik/ta/agents/KnowledgeSuggestionAgent.java):** AI agent that suggests
+          prerequisites, effects, and child steps for procedures. When creating a new procedure, it receives the test case context and
+          accumulated execution effects to ground its suggestions in the current state. When editing an existing procedure, it receives the parent chain, the
+          procedure's established prerequisites (which must be reused), and the test case context.
     * Each agent can be independently configured with its own AI model (name and provider) and system prompt version via
       `config.properties`.
 
@@ -97,10 +106,13 @@ a part of this framework for executing a sample test case inside Google Cloud.
 
 * **RAG:**
     * Employs a Retrieval-Augmented Generation (RAG) approach to manage information about UI elements.
-    * Uses a vector database to store and retrieve UI element details (name, element description, location description, parent element description,
-      and screenshot). It supports Chroma DB and Qdrant, configured via `vector.db.provider` and `vector.db.url` in `config.properties`.
+    * Uses a vector database to store and retrieve UI element details (name, element description, location description, parent element
+      description, and screenshot). It supports Chroma DB, Qdrant, and Neo4j, configured via `vector.db.provider` and `vector.db.url` in
+      `config.properties`.
     * RAG components are located in the UI module: [RetrieverFactory](src/main/java/org/tarik/ta/rag/RetrieverFactory.java),
-      [ChromaRetriever](src/main/java/org/tarik/ta/rag/ChromaRetriever.java), [QdrantRetriever](src/main/java/org/tarik/ta/rag/QdrantRetriever.java), and [UiElementRetriever](src/main/java/org/tarik/ta/rag/UiElementRetriever.java).
+      [ChromaRetriever](src/main/java/org/tarik/ta/rag/ChromaRetriever.java), [QdrantRetriever](src/main/java/org/tarik/ta/rag/QdrantRetriever.java),
+      [Neo4jRetriever](src/main/java/org/tarik/ta/rag/Neo4jRetriever.java), and
+      [UiElementRetriever](src/main/java/org/tarik/ta/rag/UiElementRetriever.java).
     * Stores UI element information as `UiElement` records, which include a name, self-description, description of surrounding
       elements (anchors), a parent element description, and a screenshot (`UiElement.Screenshot`).
     * Retrieves the top N (`retriever.top.n` in config) most relevant UI elements based on semantic similarity between the query (derived
@@ -136,75 +148,123 @@ a part of this framework for executing a sample test case inside Google Cloud.
       opening the Chrome browser.
     * [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java ) provides the whole logic for locating a specific
       UI element on the screen based on its description.
-    * [UserInteractionTools](src/main/java/org/tarik/ta/tools/UserInteractionTools.java) facilitates user interactions via dialogs for 
-      element creation, refinement, and verification. **Note:** These tools are only available when running in attended or semi-attended modes 
-      (`execution.mode=ATTENDED` or `execution.mode=SEMI_ATTENDED`).
+    * [CommonUserInteractionTools](src/main/java/org/tarik/ta/tools/CommonUserInteractionTools.java) facilitates user interactions via dialogs for
+      element creation, refinement, and verification. **Note:** These tools are only available when running in attended or supervised
+      modes (`execution.mode=ATTENDED` or `execution.mode=SUPERVISED`).
+    * [KnowledgeElementTools](src/main/java/org/tarik/ta/tools/KnowledgeElementTools.java) provides mode-aware UI element handling for
+      the knowledge persistence feature. Supports collecting knowledge flow (searches for or creates elements by description) and execution flow
+      (locates known elements directly by UUID, bypassing vector DB search).
 
 * **Execution Modes:**
     * Supports three execution modes controlled by the `execution.mode` property in `config.properties`.
     * **Attended ("Trainee") Mode (`execution.mode=ATTENDED`):** Designed for initial test case runs or when execution in unattended mode
       fails for debugging/fixing purposes. In this mode the agent behaves as a trainee, who needs assistance from the human tutor/mentor
-      in order to identify all the information which is required for the unattended (without supervision) execution of the test case. Key features:
+      in order to identify all the information which is required for the unattended (without supervision) execution of the test case. Key
+      features:
         * Agent asks for confirmation after locating elements.
         * User can create new elements or refine existing ones.
         * User can manually select the next action at any point.
-        * **Verification Failure Notification:** When a verification fails, the user is notified with details about the failure and the retry timeout, and can choose to continue or terminate.
+        * **Verification Failure Notification:** When a verification fails, the user is notified with details about the failure and the
+          retry timeout, and can choose to continue or terminate.
         * Tool call limits are significantly relaxed.
-    * **Semi-Attended Mode (`execution.mode=SEMI_ATTENDED`):** The agent operates autonomously but allows the operator to intervene.
-        * **Countdown Halt:** Displays a countdown popup (configurable duration) after test step actions, allowing the operator to click "Halt".
-        * **Verification Failure Notification:** When a verification fails (after all automatic retries), the operator is notified with details about the failure via a popup before the test execution is terminated.
-        * **Element Selection Confirmation:** Displays a popup with a countdown when an element is automatically selected. The operator can see the selected element, intended action, and the agent's assessment of whether the located element matches the description, and choose to "Proceed" (default), "Create new element", or take "Other action" (prompting the agent).
+    * **Supervised Mode (`execution.mode=SUPERVISED`):** The agent operates autonomously but allows the operator to intervene.
+        * **Countdown Halt:** Displays a countdown popup (configurable duration) after test step actions, allowing the operator to click "
+          Halt".
+        * **Verification Failure Notification:** When a verification fails (after all automatic retries), the operator is notified with
+          details about the failure via a popup before the test execution is terminated.
+        * **Element Selection Confirmation:** Displays a popup with a countdown when an element is automatically selected. The operator can
+          see the selected element, intended action, and the agent's assessment of whether the located element matches the description, and
+          choose to "Proceed" (default), "Create new element", or take "Other action" (prompting the agent).
         * **Operator Intervention:** On halt or error, the operator can choose the next action (Retry, Refine, Terminate, etc.).
         * Suitable for monitoring execution without constant clicking, while retaining control to fix issues on the fly.
-    * **Unattended Mode (`execution.mode=UNATTENDED`):** The agent executes the test case without any human assistance. It relies entirely on the
-        information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored data.
-        Errors during element location or verification will cause the execution to fail. This mode is suitable for integration into CI/CD
-        pipelines. Budget checks are automatically enforced in this mode.
+    * **Unattended Mode (`execution.mode=UNATTENDED`):** The agent executes the test case without any human assistance. It relies entirely
+      on the information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored
+      data. Errors during element location or verification will cause the execution to fail. This mode is suitable for integration into
+      CI/CD pipelines. Budget checks are automatically enforced in this mode.
 
 * **Server mode:**
-    * The [Server](src/main/java/org/tarik/ta/Server.java) class extends [AbstractServer](../agent_core/src/main/java/org/tarik/ta/core/AbstractServer.java)
-      and is the entry point where a Javalin web server is started.
-      The agent registers its capabilities and listens for A2A JSON-RPC requests on the root endpoint (`/`) (port configured via `port`
-      in `config.properties`). The server accepts only one test case execution at a time (the agent has been designed as a static utility
-      for simplicity purposes). Upon receiving a valid request when idle, it returns `200 OK` and starts the test case execution. If busy,
-      it returns `429 Too Many Requests`.
+    * The [Server](src/main/java/org/tarik/ta/Server.java) class
+      extends [AbstractServer](../agent_core/src/main/java/org/tarik/ta/core/AbstractServer.java) and is the entry point where a
+      Javalin web server is started. The agent registers its capabilities and listens for A2A JSON-RPC requests on the root endpoint (`/`) (
+      port configured via `port` in `config.properties`). The server accepts only one test case execution at a time (the agent has been
+      designed as a static utility for simplicity purposes). Upon receiving a valid request when idle, it returns `200 OK` and starts the
+      test case execution. If busy, it returns `429 Too Many Requests`.
+
+* **Knowledge Persistence (Neo4j):**
+    * Optional knowledge persistence layer backed by Neo4j 5.x that enables the agent to learn and remember procedures (reusable
+      test action sequences) across sessions.
+    * **Procedure Graph:** Stores hierarchical procedures (composite and atomic) as a Neo4j graph with CONTAINS (parent-child) and
+      TARGETS (step-to-UI-element) relationships.
+    * **PDDL-Lite Planning:** Prerequisite/effect state tracking enables automatic prerequisite resolution and procedure branching during test execution.
+    * **Procedure Branching:** When multiple semantically similar procedures exist with different prerequisites, the execution engine automatically selects the one whose prerequisites are satisfied by the current execution state. This allows defining alternative procedure variants (branches) that execute conditionally based on accumulated effects.
+    * **State-Aware Candidate Re-Ranking:** Before selecting the best match, candidates are re-ranked by state compatibility using semantic matching between each procedure's prerequisites and the accumulated execution effects. Prerequisite satisfaction is checked via Cypher vector index queries against native `PhraseEmbedding` nodes (see below), replacing the previous O(N×M) in-memory cosine loop. Procedures with no prerequisites always score `1.0` (universally applicable). Among prerequisite-bearing procedures, the score is the proportion of prerequisites semantically met (similarity ≥ high-confidence threshold). Within equal scores, candidates with more satisfied prerequisites rank higher; semantic similarity order breaks remaining ties.
+    * **Native Phrase Embedding Nodes:** Prerequisites and effects are stored as first-class `PhraseEmbeddingNode` Neo4j nodes (`label: PhraseEmbedding`, properties: `id`, `phrase`, `embedding: float[384]`, `type: PREREQUISITE|EFFECT`) connected to their parent `Procedure` via `HAS_PREREQUISITE {sequence}` and `HAS_EFFECT {sequence}` relationships. A dedicated vector index (`phrase_embedding_vector_index`, cosine similarity, dimension 384) and a phrase-text index enable efficient Cypher-native similarity queries without any Java-side vector arithmetic. Embeddings are computed once at ingestion time by `KnowledgeIngestionService` and batch-created via `PhraseEmbeddingRepository`. `ExecutionStateTracker` tracks accumulated effects as `Map<String, UUID>` (phrase → node ID); precondition satisfaction is resolved by querying the vector index directly in Cypher rather than loading float arrays into memory.
+    * **Jackson JSON Node Storage:** Each `Procedure` Neo4j node stores its scalar properties (name, description, prerequisites/effects as plain phrase strings, timing/stability metadata, etc.) as a single Jackson-serialized JSON string in a `data` property. The `id`, `description`, and `embedding` properties are kept as dedicated Neo4j properties for vector index use. Phrase embedding vectors are stored separately as `PhraseEmbeddingNode` nodes — not inside the Procedure JSON — keeping the Procedure payload lightweight and enabling selective loading.
+    * **Queue-Based Execution:** Replaces the sequential for-loop with a dynamic execution queue that injects prerequisite steps when
+      prerequisites are unmet.
+    * **Human-in-the-Loop Collecting knowledge:** In ATTENDED and SUPERVISED modes, the agent triggers a Swing dialog for operators to collect knowledge new
+      procedures when an unknown action is encountered. The dialog is shown **immediately** without waiting for AI suggestions — AI
+      suggestions are loaded concurrently on a background virtual thread and injected into the still-open dialog once ready.
+        * **Low-Confidence Match Selection:** If the agent finds existing procedures that match the action description with low
+          confidence, it presents a selection dialog (`ProcedureLowConfidenceSelectionPopup`) allowing the operator to choose an existing
+          procedure to edit, or proceed with creating a new one.
+        * **Element Selection During Collecting knowledge:** When collecting knowledge an atomic procedure that targets a UI element, the operator is prompted
+          to describe the target element. The system performs a semantic search against the vector DB to find a matching element. If found,
+          its UUID is linked to the step being collected. If not found, the element will be created during knowledge ingestion.
+        * **Browse Existing Elements (Attended Mode):** The collecting knowledge dialog includes a "Browse Elements..." button (Attended mode only) that
+          retrieves existing UI elements ranked by similarity to the procedure description and presents them in a selection popup
+          (`UiElementBrowsePopup`). This lets operators quickly reuse known elements instead of running an agent-driven search.
+        * **Auto-Select Element (Supervised Mode):** When the collecting knowledge dialog opens in Supervised mode, the system automatically
+          queries the vector store for a high-score element match (above `element.retrieval.min.target.score`). If found, the element is
+          selected automatically and its screenshot is shown in the dialog. The operator can override via the "Refine Elements..." popup.
+          If no high-score element exists, the dialog falls back to agent-driven element resolution.
+        * **Confirmation Popup Scoping:** The post-execution confirmation popup (`ProcedureExecutionConfirmationPopup`) is only shown for
+          **pre-existing** procedures. Newly collected procedures skip the popup because the operator just interacted with the collecting knowledge
+          dialog and there is nothing additional to confirm.
+        * **Prerequisite Failure Handling:** If no procedure branch has its prerequisites satisfied by the current execution state, the test execution fails with a descriptive error listing which prerequisites are missing. In SUPERVISED/ATTENDED mode the operator is prompted with the standard EDIT/CREATE/RETRY selection; in UNATTENDED mode the test terminates immediately.
+        * **Procedure Usage Tracking:** The agent automatically tracks which test cases use which procedures using `USES_PROCEDURE` edges in the graph. When an operator edits a procedure that is used by multiple test cases, a warning popup is displayed to highlight the potential impact across the test suite. Stale usage edges are automatically cleaned up in the `finally` block at the end of each test case execution.
+    * **SATISFIES Edges — Pre-Computed Precondition Satisfaction:** Persists `SATISFIES` relationships directly between Procedure nodes to record that an effect of one procedure satisfies a precondition of another. Each edge carries a cosine similarity `score`, matched `effectPhrase`/`precondPhrase` texts, and lifecycle timestamps (`createdAt`, `lastVerifiedAt`). Computed asynchronously by `SatisfiesEdgeService` after each successful step: a virtual thread fires N parallel similarity comparisons (one per effect embedding), deduplicates by maximum score per consumer procedure, filters by `satisfies.similarity.threshold` (default `0.85`), and batch-persists the results. This replaces the previous O(N×M) per-step cosine loop with a single graph traversal during re-ranking and enables cross-run caching — a match is never recomputed until the procedure is edited. Edges are deleted transactionally when a procedure is modified. Stale edges (not verified within `satisfies.stale.days`) are flagged during health checks and cleaned up via `GraphHealthService.runStaleSatisfiesEdgeCleanup()`.
+    * **Ordering Conflict Detection:** At the start of execution in supervised mode only, the engine queries the `SATISFIES` graph to detect when a test step B appears before step A but B's preconditions require an effect that A produces — a test authoring error. Conflicts are displayed as a warning `InformationalPopup` and do not block execution. Skipped entirely when no `SATISFIES` edges exist yet (cold graph).
+    * **Knowledge-Driven Failure Recovery:** The system learns from past failures via `FailureContext` nodes linked to procedures via `HAS_FAILURE_CONTEXT` edges. Each node stores a failure `symptom`, `category` (using `ErrorCategory`), user-provided `resolution`, `occurrences` count, a `mode` (`SUPERVISED`, `SUPERVISED_TIMEOUT`, or `UNATTENDED`), and timestamps. Before executing a procedure, the agent retrieves failure hints via `FailureContextService.findFailureHints()` — hints with `mode == SUPERVISED_TIMEOUT` (auto-captured on dialog timeout, with no resolution) are excluded. Non-empty hints are injected into the agent's prompt as a "Known issues" section by `StepExecutionOrchestrator`. After retry exhaustion: in supervised mode a `FailureContextCaptureDialog` prompts the operator (countdown, default 60s) with error category pre-selected and symptom pre-filled; in unattended mode context is auto-captured from the error category. Deduplication via `MERGE` on `(procedureId, category, symptomNormalized)` increments `occurrences` on repeat failures. Orphaned `FailureContext` nodes are cleaned up by `FailureContextService.cleanupOrphanedFailureContexts()` after procedure deletion.
+    * **Element Stability Index:** Reliability metrics stored on `UiElement` nodes: `stabilityScore` (EWMA α=0.3, initialised optimistically at `1.0`; first failure drops to `0.70`), `avgLocationTimeMs`, `locationStrategy`, `failedLocationCount`, and `lastLocatedAt`. `StabilityRecorder` is a `@FunctionalInterface` (`record(UUID elementId, boolean located, long locationTimeMs, String strategy)`) wired as a lambda delegating to `ProcedureRepository.updateElementStability()`. `ElementLocatorTools` calls it after every location attempt. Elements with `stabilityScore < stability.penalty.threshold` are deprioritized during candidate re-ranking; unstable elements use a try-first, wait-and-retry strategy instead of a proactive pre-sleep.
+    * **Procedure Execution Timing Profiles:** Per-procedure timing stored as rolling averages (EWMA α=0.2) on Procedure nodes: `avgExecutionMs`, `avgVerificationDelayMs`, `maxVerificationDelayMs` (with 0.95 decay factor), and `lastTimingUpdate`. `TimingRecorder` is a `@FunctionalInterface` (`record(UUID procedureId, long executionMs, long verificationDelayMs)`) wired via `ProcedureRepository::updateTimingProfile`. The post-action verification delay adapts per-procedure: `Math.max(timing.verification.min.delay.ms, avgVerificationDelayMs)`, falling back to the global `action.verification.delay.millis` when no profile exists yet. `maxVerificationDelayMs` decays gradually so one-off spikes don't permanently inflate wait times.
+    * **Ancestry Context for Matching:** A bounded sliding window (`ancestry.window.size`, default 5) of recently-matched parent procedure IDs is tracked in `ExecutionStateTracker`. During candidate re-ranking, procedures that share a parent (via `CONTAINS` relationship) with recently-executed procedures receive an ancestry affinity boost, helping disambiguate procedures with similar semantic scores that belong to different workflow contexts.
+    * **`KnowledgeServices` Facade:** A single `KnowledgeServices` record bundles the five core knowledge components: `KnowledgeService`, `KnowledgeIngestionService`, `SatisfiesEdgeService`, `ProcedureRepository` (write instance), and `FailureContextService`. Created by `KnowledgeServiceFactory.createKnowledgeServices()` and passed as a single object to `KnowledgeBasedExecutionOrchestrator` and `StepExecutionOrchestrator`, replacing the previous pattern of passing individual services.
+    * **`AtomicStepExecutionContext`:** A record that bundles execution-scoped parameters flowing through the atomic step call chain: `Optional<TimingProfile> timingProfile`, `TimingRecorder timingRecorder`, `List<String> failureHints`, `String elementId`, and `String effectiveExpectedResults`. Replaces individual parameters in `StepExecutionOrchestrator` methods, enabling failure hint injection without adding service dependencies in the orchestrator.
+    * **Knowledge Graph Health Dashboard:** `GraphHealthService` runs seven read-only health-check queries and returns a `GraphHealthReport` (record with `List<HealthCheckCategory>` and `generatedAt` timestamp). Each `HealthCheckCategory` carries a `Severity` (`OK` / `WARNING` / `CRITICAL`) computed from finding count against configurable thresholds (`health.warning.threshold`, `health.critical.threshold`). Checks covered: orphaned UI elements, leaf procedures without a target element, deep hierarchies (above `knowledge.max.depth`), disconnected procedures, procedures with missing effects, stale `SATISFIES` edges, and orphaned `FailureContext` nodes. Key API:
+        * `logHealthReport()` — logs a structured report at INFO level.
+        * `generateHtmlReport(Path outputPath)` — writes a self-contained HTML file with color-coded summary cards (green=OK, yellow=WARNING, red=CRITICAL) and collapsible detail sections. No external template dependencies. Defaults to the `health.report.output.path` config path.
+        * `runStaleSatisfiesEdgeCleanup()` — deletes `SATISFIES` edges not verified within `satisfies.stale.days`.
+    * **Unified Vector Store:** UI element storage can use Neo4j (via `langchain4j-community-neo4j`), providing both graph relationships
+      and vector search in a single database.
+    * `neo4j.password` (or `NEO4J_PASSWORD`) must be set to a non-blank value.
 
 ## Test Case Execution Workflow
 
-The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/tarik/ta/UiTestAgent.java) class, follows these steps:
+The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/tarik/ta/UiTestAgent.java) class using the `KnowledgeBasedExecutionOrchestrator`, follows these steps:
 
-1. **Test Case Processing:** The agent parses the received message (task) using [TestCaseExtractor](../agent_core/src/main/java/org/tarik/ta/core/utils/TestCaseExtractor.java),
+1. **Test Case Processing:** The agent parses the received message (task)
+   using [TestCaseExtractor](../agent_core/src/main/java/org/tarik/ta/core/utils/TestCaseExtractor.java),
    extracts the required information and converts it into a test case object. This file contains the overall test case name, optional
    `preconditions` (natural language description of the required state before execution), and a list of `TestStep`s. Each `TestStep`
    includes a `stepDescription` (natural language instruction), optional `testData` (inputs for the step), and `expectedResults`
    (natural language description of the expected state after the step).
-2. **Starting Step Selection:** In Attended and Semi-Attended modes, the operator can choose to start execution from a specific test step. In Unattended mode, execution always starts from the first step.
-3. **Precondition Execution and Verification:** If preconditions are defined and the execution starts from the beginning (first step), the agent executes and verifies them against the current UI
-   state using a vision model. If preconditions are not met, the test case execution fails. If the execution starts from a later step, preconditions are omitted.
-4. **Step Iteration:** The agent iterates through each `TestStep` sequentially, executing each test step.
-5. **Test Step Action:**
-    * **Screenshot Capture:** Before executing the test step, a screenshot of the current screen is captured and provided to the action agent, giving it visual context to make informed decisions about tool selection and UI interaction.
-    * **Element Location (if required by the tool):** If the requested tool needs to interact with a specific UI element (e.g., clicking an
-      element), the element is located using the [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java) class
-      based on the element's description (provided as a parameter for the tool). (See "UI Element Location Workflow" below for details).
-    * **Tool Execution:** The appropriate sequence of tools with the arguments provided by the agent is invoked.
-    * **Retry/Rerun Logic:** If a tool execution reports that retrying makes sense (e.g., an element was not found on the screen), the
-      agent retries the execution after a short delay, up to a configured timeout (`test.step.execution.retry.timeout.millis`). If the
-      error persists after the deadline, the test case execution is marked as `ERROR`.
-6. **Test Step Expected Results Verification:**
-    * **Delay:** A short delay (`action.verification.delay.millis`) is introduced to allow the UI state to change after the preceding
-      action.
-    * **Screenshot:** A screenshot of the current screen is taken.
-    * **Vision Model Interaction:** A verification prompt containing the expected results description and the current screenshot is sent to
-      the configured vision AI model. The model analyzes the screenshot and compares it against the expected results description.
-    * **Result Parsing:** The model's response contains information indicating whether the verification passed, and extended information
-      with the justification for the result.
-    * **Retry Logic:** If the verification fails, the agent retries the verification process after a short interval (
-      `test.step.execution.retry.interval.millis`) until a timeout (`verification.retry.timeout.millis`) is reached. If it still fails after
-      the deadline, the test case execution is marked as `FAILED`.
-7. **Completion/Termination:** Execution continues until all steps are processed successfully or an interruption (error, verification
-   failure, user termination) occurs. The final `TestExecutionResult` (including `TestExecutionStatus` and detailed `TestStepResult` for
-   each step) is returned.
+2. **Starting Step Selection:** In Attended and Supervised modes, the operator can choose to start execution from a specific test step.
+   In Unattended mode, execution always starts from the first step.
+3. **Queue Creation:** Both test case preconditions (if any) and test steps are combined into a single unified `ExecutionQueue`. The `ExecutionStateTracker` is initialized to track accumulated effects throughout the test run.
+4. **Knowledge-Based Iteration:** For each item in the queue (precondition or test step):
+    * **Procedure Matching:** The agent queries the knowledge base for a matching procedure based on the item's description.
+    * **State-Aware Resolution:** If candidates are found, the agent evaluates their prerequisites against the current execution state to select a feasible procedure.
+    * **Human-in-the-Loop Fallback:** If no match is found, or if no candidate's prerequisites are met, the agent triggers a knowledge collection flow (in Attended/Supervised modes) for the operator to create or refine a procedure. In Unattended mode, the execution fails.
+    * **Decomposition:** Composite procedures are decomposed into their constituent atomic child steps.
+5. **Atomic Step Execution:** For each resolved atomic step:
+    * **Screenshot Capture:** A screenshot of the current screen is captured to provide visual context.
+    * **Target Resolution:** If the atomic step is linked to a known UI element, the agent attempts to locate it directly, bypassing full semantic searches. Otherwise, standard element location logic applies.
+    * **Action Execution:** The configured action agent (e.g., `UiTestStepActionAgent` or `UiPreconditionActionAgent`) interacts with the system using appropriate tools.
+    * **Verification:** Following a short delay (`action.verification.delay.millis`), the verification agent confirms the step's expected results against a new screenshot using a vision model.
+    * **State Tracking:** Upon successful verification, the atomic step's effects are added to the `ExecutionStateTracker`, influencing subsequent prerequisite resolution.
+    * **Retry Logic:** If a tool execution or verification reports that retrying makes sense, the agent retries the execution/verification after a short delay up to a configured timeout.
+6. **Completion/Termination:** Execution continues until the queue is exhausted or an interruption (error, unrecoverable verification failure, or user termination) occurs. The final `UiTestExecutionResult` is returned.
 
 ### UI Element Location Workflow
 
@@ -231,11 +291,11 @@ combination of RAG, computer vision, analysis, and potentially user interaction 
           best match that corresponds to the target element's description and the description of surrounding elements (anchors), based on a
           screenshot showing all candidate bounding boxes highlighted with specific color and having unique ID labels.
     * **Low-Confidence/No Match(es) Found:** If no elements meet the `MIN_TARGET_RETRIEVAL_SCORE` or `MIN_PAGE_RELEVANCE_SCORE`, but some
-      meet the
-      `MIN_GENERAL_RETRIEVAL_SCORE`:
+      meet the `MIN_GENERAL_RETRIEVAL_SCORE`:
         * **Attended Mode:** The agent displays a popup showing a list of the low-scoring potential UI element candidates. The user can
           choose to:
-            * **Update** one of the candidates by refining its name, description, anchors, or parent element info and save the updated information to the vector DB.
+            * **Update** one of the candidates by refining its name, description, anchors, or parent element info and save the updated
+              information to the vector DB.
             * **Delete** a deprecated element from the vector DB.
             * **Create New Element** (see below).
             * **Retry Search** (useful if elements were manually updated).
@@ -256,8 +316,9 @@ combination of RAG, computer vision, analysis, and potentially user interaction 
 
 * Java Development Kit (JDK) - Version 25 or later recommended.
 * Apache Maven - For building the project.
-* Chroma or Qdrant vector database.
+* Chroma, Qdrant, or Neo4j vector database.
 * Subscription to an AI model provider (Google Cloud/AI Studio, Azure OpenAI, or Groq).
+* (Optional) Neo4j 5.x for knowledge persistence feature.
 
 ### Maven Setup
 
@@ -280,6 +341,29 @@ This project uses Maven for dependency management and building.
 
 Instructions for setting up the supported vector databases (Chroma DB or Qdrant) can be found on their official websites.
 
+### Neo4j Setup (for Knowledge Persistence)
+
+For local development, start a Neo4j Community Edition container:
+
+```bash
+docker run -d --name neo4j-knowledge \
+  -p 7687:7687 -p 7474:7474 \
+  -e NEO4J_AUTH="neo4j/your-secure-password" \
+  -v neo4j-data:/data \
+  neo4j:5-community
+```
+
+Configure the agent by setting the following in `config.properties` or via environment variables:
+
+```properties
+vector.db.url=bolt://localhost:7687
+neo4j.username=neo4j
+vector.db.key=your-secure-password
+neo4j.database=neo4j
+```
+
+The Vector DB key is always required. The agent will throw an error at startup if the key is not configured.
+
 ### Configuration
 
 Configure the agent by editing the [config.properties](src/main/resources/config.properties) file or by setting environment variables. *
@@ -290,8 +374,9 @@ override properties file settings.**
 
 **Basic Agent Configuration:**
 
-* `execution.mode` (Env: `EXECUTION_MODE`): Mode of execution (`ATTENDED`, `SEMI_ATTENDED`, `UNATTENDED`). Default: `UNATTENDED`.
-* `semi.attended.countdown.seconds` (Env: `SEMI_ATTENDED_COUNTDOWN_SECONDS`): Duration in seconds for the countdown popup in semi-attended mode. Default: `5`.
+* `execution.mode` (Env: `EXECUTION_MODE`): Mode of execution (`ATTENDED`, `SUPERVISED`, `UNATTENDED`). Default: `UNATTENDED`.
+* `supervised.countdown.seconds` (Env: `SUPERVISED_COUNTDOWN_SECONDS`): Duration in seconds for the countdown popup in supervised
+  mode. Default: `5`.
 * `debug.mode` (Env: `DEBUG_MODE`): `true` enables debug mode, which saves intermediate screenshots (e.g., with bounding boxes drawn)
   during element location for debugging purposes. `false` disables this. Default: `false`.
 * `port` (Env: `PORT`): Port for the server mode. Default: `8005`.
@@ -304,6 +389,34 @@ override properties file settings.**
 * `vector.db.url` (Env: `VECTOR_DB_URL`): Required URL for the vector database connection. Default: `http://localhost:8020`.
 * `retriever.top.n` (Env: `RETRIEVER_TOP_N`): Number of top similar elements to retrieve from the vector DB based on semantic element name
   similarity. Default: `5`.
+
+**Neo4j Configuration:**
+
+* `neo4j.username` (Env: `NEO4J_USERNAME`): Neo4j username. Default: `neo4j`.
+* `neo4j.database` (Env: `NEO4J_DATABASE`): Neo4j database name. Default: `neo4j`.
+
+**Knowledge Configuration:**
+
+* `knowledge.embedding.model` (Env: `KNOWLEDGE_EMBEDDING_MODEL`): Embedding model for semantic search. Default: `bge-small-en-v15`.
+* `knowledge.max.depth` (Env: `KNOWLEDGE_MAX_DEPTH`): Maximum procedure decomposition depth. Default: `3`.
+* `knowledge.embedding.batch.size` (Env: `KNOWLEDGE_EMBEDDING_BATCH_SIZE`): Batch size for embedding generation. Default: `10`.
+* `knowledge.match.confidence.high` (Env: `KNOWLEDGE_MATCH_CONFIDENCE_HIGH`): High-confidence match threshold. Default: `0.85`.
+* `knowledge.match.confidence.low` (Env: `KNOWLEDGE_MATCH_CONFIDENCE_LOW`): Low-confidence match threshold. Default: `0.5`.
+* `knowledge.query.timeout.seconds` (Env: `KNOWLEDGE_QUERY_TIMEOUT_SECONDS`): Neo4j query timeout in seconds. Default: `60`.
+
+**Knowledge Graph Enhancement Configuration:**
+
+* `satisfies.similarity.threshold` (Env: `SATISFIES_SIMILARITY_THRESHOLD`): Minimum cosine similarity for creating a `SATISFIES` edge between procedures. Default: `0.85`.
+* `satisfies.stale.days` (Env: `SATISFIES_STALE_DAYS`): Number of days after which a `SATISFIES` edge not verified is considered stale. Default: `30`.
+* `ancestry.window.size` (Env: `ANCESTRY_WINDOW_SIZE`): Number of recent parent procedure IDs tracked for ancestry affinity boosting during re-ranking. Default: `5`.
+* `timing.ewma.alpha` (Env: `TIMING_EWMA_ALPHA`): EWMA smoothing factor for procedure execution timing profiles. Default: `0.2`.
+* `timing.verification.min.delay.ms` (Env: `TIMING_VERIFICATION_MIN_DELAY_MS`): Minimum verification delay (floor) applied even when the timing profile suggests a shorter wait. Default: `500`.
+* `stability.ewma.alpha` (Env: `STABILITY_EWMA_ALPHA`): EWMA smoothing factor for element stability score updates. Default: `0.3`.
+* `stability.penalty.threshold` (Env: `STABILITY_PENALTY_THRESHOLD`): Elements with a stability score below this value are deprioritized during candidate re-ranking. Default: `0.5`.
+* `failure.capture.dialog.timeout.seconds` (Env: `FAILURE_CAPTURE_DIALOG_TIMEOUT_SECONDS`): Countdown timeout for the failure context capture dialog in supervised mode. Auto-captures as `SUPERVISED_TIMEOUT` on expiry. Default: `60`.
+* `health.report.output.path` (Env: `HEALTH_REPORT_OUTPUT_PATH`): Output path for the generated HTML health report. Default: `reports/graph-health-report.html`.
+* `health.warning.threshold` (Env: `HEALTH_WARNING_THRESHOLD`): Finding count at which a health check category escalates to WARNING severity. Default: `3`.
+* `health.critical.threshold` (Env: `HEALTH_CRITICAL_THRESHOLD`): Finding count at which a health check category escalates to CRITICAL severity. Default: `10`.
 
 **Model Configuration:**
 
@@ -356,7 +469,6 @@ override properties file settings.**
 **Budget Management Configuration:**
 
 * `agent.token.budget` (Env: `AGENT_TOKEN_BUDGET`): Maximum total tokens that can be consumed across all models. Default: `1000000`.
-
 * `agent.tool.calls.budget` (Env: `AGENT_TOOL_CALLS_BUDGET`): Maximum tool calls per agent. Default: `10`.
 * `agent.execution.time.budget.seconds` (Env: `AGENT_EXECUTION_TIME_BUDGET_SECONDS`): Maximum execution time in seconds. Default: `3000`.
 
@@ -395,9 +507,9 @@ override properties file settings.**
 * `element.locator.zoom.scale.factor` (Env: `ELEMENT_LOCATOR_ZOOM_SCALE_FACTOR`): Zoom scale factor for element location. Default: `1`.
 * `element.locator.algorithmic.search.enabled` (Env: `ALGORITHMIC_SEARCH_ENABLED`): Enable/disable OpenCV algorithmic search. Default:
   `false`.
-* `element.locator.skip.model.selection.vision.only` (Env: `SKIP_UI_ELEMENT_SELECTION_FOR_VISION`): When enabled, skip the model 
-  selection step when only visual grounding results are available (no algorithmic matches). In this case, the first identified element 
-  from the visual grounding results is returned directly without additional model validation. This can speed up element location when 
+* `element.locator.skip.model.selection.vision.only` (Env: `SKIP_UI_ELEMENT_SELECTION_FOR_VISION`): When enabled, skip the model
+  selection step when only visual grounding results are available (no algorithmic matches). In this case, the first identified element
+  from the visual grounding results is returned directly without additional model validation. This can speed up element location when
   algorithmic search is disabled. Default: `false`.
 * `bounding.box.already.normalized` (Env: `BOUNDING_BOX_ALREADY_NORMALIZED`): Whether bounding boxes are pre-normalized. Default: `false`.
 * `bbox.screenshot.longest.allowed.dimension.pixels` (Env: `BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS`): Maximum screenshot
@@ -426,6 +538,7 @@ Available agents and their configuration prefixes:
 * `element.selection.agent.*`: Element Selection Agent
 * `element.candidate.selection.agent.*`: Element Candidate Selection Agent (uses same model as Element Selection Agent)
 * `page.description.agent.*`: Page Description Agent
+* `knowledge.suggestion.agent.*`: Knowledge Suggestion Agent
 
 **Example agent configuration:**
 
@@ -457,6 +570,41 @@ precondition.agent.prompt.version=v1.0.0
 5. The server will respond with execution results after it's done processing if it accepts the request (i.e., not already running a
    test case) or with `429 Too Many Requests` if it's busy. The test case execution synchronously.
 
+### Generating the Knowledge Graph Health Report
+
+A standalone CLI tool generates a self-contained HTML health report without requiring the agent to be running. It connects directly to Neo4j
+and writes the report to the configured (or specified) output path.
+
+**Using the provided scripts (recommended):**
+
+```bash
+# Unix/macOS — generate report to default path (reports/graph-health-report.html)
+scripts/generate-health-report.sh
+
+# Unix/macOS — generate report to a custom path
+scripts/generate-health-report.sh --output /tmp/my-report.html
+
+# Windows — generate report to default path
+scripts\generate-health-report.bat
+
+# Windows — generate report to a custom path
+scripts\generate-health-report.bat --output C:\reports\my-report.html
+```
+
+Both scripts require `JAVA_HOME` to be set and the Neo4j connection configured via `config.properties` or environment variables (`VECTOR_DB_URL`,
+`NEO4J_USERNAME`, `NEO4J_DATABASE`, `NEO4J_PASSWORD`).
+
+**Using Maven directly:**
+
+```bash
+mvn exec:java -pl ui_test_execution_agent \
+    -Dexec.mainClass=org.tarik.ta.knowledge_graph.service.GraphHealthReportCli \
+    -Dexec.args="--output path/to/report.html"
+```
+
+The HTML report includes a color-coded summary card per health category (green=OK, yellow=WARNING, red=CRITICAL) and collapsible detail
+sections listing individual findings. All finding text is HTML-escaped to prevent XSS when procedure names contain special characters.
+
 ## Deployment
 
 This section provides detailed instructions for deploying the UI Test Execution Agent, both to Google Cloud Platform (GCP) and locally
@@ -487,18 +635,9 @@ VMs is also a formidable option.
 #### Deploying Chroma DB (Vector Database)
 
 The agent relies on a vector database, Chroma DB is currently the only supported option. You can deploy Chroma DB to Google Cloud Run
-using the provided `cloudbuild_chroma.yaml` configuration.
+or use a managed Chroma DB service. Refer to the [Chroma DB documentation](https://docs.trychroma.com/) for deployment options.
 
-1. **Configure `cloudbuild_chroma.yaml`:**
-    * Update `_CHROMA_BUCKET` with the name of a Google Cloud Storage bucket where Chroma DB will store its data.
-    * Update `_CHROMA_DATA_PATH` if you want a specific path within the bucket.
-    * Update `_PORT` if you want Chroma DB to run on a different port (default is `8000`).
-
-2. **Deploy using Cloud Build:**
-   ```bash
-   gcloud builds submit . --config deployment/cloudbuild_chroma.yaml --substitutions=_CHROMA_BUCKET=<your-chroma-bucket-name>,_CHROMA_DATA_PATH=chroma,_PORT=8000 --project=<your-gcp-project-id>
-   ```
-   After deployment, note the URL of the deployed Chroma DB service; this will be your `VECTOR_DB_URL` which you need to set as a secret.
+After deployment, note the URL of the deployed Chroma DB service; this will be your `VECTOR_DB_URL` which you need to set as a secret.
 
 #### Building and Deploying the Agent on GCE
 
@@ -509,30 +648,30 @@ using the provided `cloudbuild_chroma.yaml` configuration.
 
 2. **Configure deployment substitutions:**
 
-   The deployment is configured via Cloud Build substitutions in `deployment/cloud/cloudbuild.yaml`. This file contains all configurable 
+   The deployment is configured via Cloud Build substitutions in `deployment/cloud/cloudbuild.yaml`. This file contains all configurable
    parameters as substitutions that can be overridden when running the build.
 
    **Key configuration categories:**
-   
-   * **GCP Configuration:** Region, zone, instance name, network settings, machine type
-   * **Port Configuration:** noVNC, VNC, and agent server ports
-   * **Application Settings:** VNC resolution, log level, unattended/debug mode
-   * **Screenshot and Bounding Box Settings:** Image dimension limits and normalization settings
-   * **Agent Model Configuration:** Model names, providers, and prompt versions for each agent
-   * **API Endpoints:** Groq, Google Cloud location and project settings
-   * **Additional GCP Configuration:** Firewall rules, disk settings, VM provisioning model, etc.
-   * **Base Image configuration:** `_BUILD_BASE_IMAGE` (default `false`) controls whether to rebuild the base image or use the cached one.
+
+    * **GCP Configuration:** Region, zone, instance name, network settings, machine type
+    * **Port Configuration:** noVNC, VNC, and agent server ports
+    * **Application Settings:** VNC resolution, log level, unattended/debug mode
+    * **Screenshot and Bounding Box Settings:** Image dimension limits and normalization settings
+    * **Agent Model Configuration:** Model names, providers, and prompt versions for each agent
+    * **API Endpoints:** Groq, Google Cloud location and project settings
+    * **Additional GCP Configuration:** Firewall rules, disk settings, VM provisioning model, etc.
+    * **Base Image configuration:** `_BUILD_BASE_IMAGE` (default `false`) controls whether to rebuild the base image or use the cached one.
 
    **Important notes:**
-   * **Empty values use defaults:** If a substitution value is empty (e.g., `_ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME: ''`), 
-     the application will use defaults from `config.properties`.
-   * **Override substitutions:** Pass custom values when running `gcloud builds submit`.
+    * **Empty values use defaults:** If a substitution value is empty (e.g., `_ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME: ''`),
+      the application will use defaults from `config.properties`.
+    * **Override substitutions:** Pass custom values when running `gcloud builds submit`.
 
 3. **Deploy using Cloud Build:**
    ```bash
    gcloud builds submit --config=ui_test_execution_agent/deployment/cloud/cloudbuild.yaml .
    ```
-   
+
    To override specific substitutions:
    ```bash
    gcloud builds submit --config=ui_test_execution_agent/deployment/cloud/cloudbuild.yaml \
@@ -550,7 +689,7 @@ using the provided `cloudbuild_chroma.yaml` configuration.
     * Start the agent container inside the created VM.
 
    If you want to use the agent as part of an already existing network (e.g., together
-   with [Agentic QA Framework](https://github.com/partarstu/agentic-qa-framework)), you must carefully update the substitutions 
+   with [Agentic QA Framework](https://github.com/partarstu/agentic-qa-framework)), you must carefully update the substitutions
    in the YAML file to avoid destroying existing settings.
 
 #### Accessing the Deployed Agent
@@ -572,17 +711,17 @@ For local development and testing, you can run the agent within a Docker contain
 The agent uses a two-layer Docker image architecture:
 
 1. **Base Image (`ui-testing-agent-base`)**: Built from `deployment/Dockerfile.base`, provides:
-   - Ubuntu 24.04 LTS
-   - Xfce desktop environment
-   - TigerVNC server
-   - noVNC (web-based VNC access)
-   - **Google Chrome Stable** (latest version)
-   - Common utilities (wget, curl, git, zip, unzip, jq, etc.)
+    - Ubuntu 24.04 LTS
+    - Xfce desktop environment
+    - TigerVNC server
+    - noVNC (web-based VNC access)
+    - **Google Chrome Stable** (latest version)
+    - Common utilities (wget, curl, git, zip, unzip, jq, etc.)
 
 2. **Application Image (`ui-test-execution-agent`)**: Built from `deployment/local/Dockerfile`, adds:
-   - Java 25 runtime
-   - Agent application JAR
-   - Application-specific configuration
+    - Java 25 runtime
+    - Agent application JAR
+    - Application-specific configuration
 
 #### Prerequisites for Local Docker Deployment
 
@@ -590,7 +729,8 @@ The agent uses a two-layer Docker image architecture:
 
 #### Building and Running the Docker Image
 
-The `build_and_run_docker.bat` script (for Windows) simplifies the process of building the application and Docker image, and running the container.
+The `build_and_run_docker.bat` script (for Windows) simplifies the process of building the application and Docker image, and running the
+container.
 
 1. **Adapt `deployment/local/Dockerfile`:**
     * **IMPORTANT:** Before running the script, open `deployment/local/Dockerfile` and replace the placeholder `VNC_PW` environment variable
@@ -619,7 +759,6 @@ The `build_and_run_docker.bat` script (for Windows) simplifies the process of bu
 * **Agent Server:** The agent's server will be accessible at `http://localhost:8005`.
 
 Remember to use the VNC password you set in the Dockerfile when prompted.
-
 
 ## TODOs
 

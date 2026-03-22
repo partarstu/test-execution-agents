@@ -1,0 +1,257 @@
+/*
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.tarik.ta.tools;
+
+import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
+import org.jspecify.annotations.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.tarik.ta.agents.DbUiElementSelectionAgent;
+import org.tarik.ta.agents.UiElementExtendedDescriptionAgent;
+import org.tarik.ta.core.exceptions.ToolExecutionException;
+import org.tarik.ta.dto.DbElementSearchResult;
+import org.tarik.ta.dto.ElementCreationResult;
+import org.tarik.ta.dto.UiElementDescription;
+import org.tarik.ta.dto.UiElementIdentificationResult;
+import org.tarik.ta.dto.DbUiElementSelectionResult;
+import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
+import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.user_dialogs.SpinnerManager;
+
+import java.awt.image.BufferedImage;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.IntStream;
+
+import static dev.langchain4j.service.AiServices.builder;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toMap;
+import static org.apache.commons.lang3.StringUtils.isBlank;
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
+import static org.tarik.ta.UiTestAgentConfig.*;
+import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
+import static org.tarik.ta.core.model.ModelFactory.getModel;
+import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
+import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
+import static java.util.UUID.randomUUID;
+
+public class UiElementDbTools extends UiAbstractTools {
+    private static final Logger LOG = LoggerFactory.getLogger(UiElementDbTools.class);
+    private final UiElementRepository elementRepository;
+    private final UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
+    private final DbUiElementSelectionAgent dbUiElementSelectionAgent;
+
+    public UiElementDbTools() {
+        this(new UiElementRepository());
+    }
+
+    // package-private for testing
+    UiElementDbTools(UiElementRepository elementRepository) {
+        this.elementRepository = elementRepository;
+        this.uiElementExtendedDescriptionAgent = createUiElementDescriptionMatcherAgent();
+        this.dbUiElementSelectionAgent = createDbElementSelectionAgent();
+    }
+
+    @Tool("Searches for a UI element in the database using vector similarity and selects the best candidate.")
+    public DbElementSearchResult searchElementInDb(
+            @P("The description of the UI element to search for") String elementDescription,
+            @P("Any data related to this UI element") String elementSpecificData) {
+        if (isBlank(elementDescription)) {
+            throw new ToolExecutionException("Element description cannot be empty", TRANSIENT_TOOL_ERROR);
+        }
+        try {
+            var retrievedElements = UiElementRefinementHelper.retrieveUiElements(elementRepository, elementDescription);
+            var candidates = retrievedElements.stream()
+                    .map(UiElementRepository.UiElementMatch::element)
+                    .toList();
+
+            if (candidates.isEmpty()) {
+                LOG.info("No UI elements found in DB matching the description '{}'", elementDescription);
+                return new DbElementSearchResult(false, null, null, null);
+            }
+
+            return selectBestMatchingDbElement(candidates, elementDescription, elementSpecificData)
+                    .map(elem -> new DbElementSearchResult(true, elem.id(), elem.name(), elem.description()))
+                    .orElseGet(() -> new DbElementSearchResult(false, null, null, null));
+        } catch (Exception e) {
+            throw rethrowAsToolException(e, "searching element in DB");
+        }
+    }
+
+    @Tool("Creates a new UI element record in DB based on the description of this element.")
+    public ElementCreationResult createElementInDb(
+            @P("Original description of UI element, extracted from the test step action.") String elementDescription,
+            @P(value = "Any data related to this element or the action involving this element", required = false) String relevantTestData) {
+        if (isBlank(elementDescription)) {
+            throw new ToolExecutionException("Element description cannot be empty", TRANSIENT_TOOL_ERROR);
+        }
+
+        try {
+            LOG.info("Starting new element creation workflow for: {}", elementDescription);
+            BufferedImage screenshot = getScreenshotTogglingSpinner();
+            var identificationResult = getElementIdentification(elementDescription, relevantTestData, screenshot);
+            if (!identificationResult.targetElementIdentified()) {
+                LOG.warn("Target element '{}' was not found on the screenshot.", elementDescription);
+                return new ElementCreationResult(false, null, null, "Target element was not found on the screenshot.");
+            }
+
+            if (identificationResult.multipleElementsIdentified()) {
+                LOG.warn("Multiple instances of '{}' were found.", elementDescription);
+                return new ElementCreationResult(false, null, null, "Multiple instances of target element were found.");
+            }
+
+            var descriptionResult = identificationResult.elementDescription();
+            LOG.info("Automatically identified element '{}'. Proceeding with creation.", elementDescription);
+            var uuid = randomUUID();
+            UiElement uiElementToStore = new UiElement(uuid, descriptionResult.name(), descriptionResult.ownDescription(),
+                    descriptionResult.locationDescription(), descriptionResult.pageSummary(), null,
+                    descriptionResult.elementIsDataDependent());
+            elementRepository.save(uiElementToStore);
+            return new ElementCreationResult(true, uuid, descriptionResult.name(), "Element created successfully");
+        } catch (Exception e) {
+            throw rethrowAsToolException(e, "creating a new UI element automatically");
+        }
+    }
+
+    private UiElementIdentificationResult getElementIdentification(String elementDescription, String relevantTestData,
+                                                                   BufferedImage screenshot) {
+        var imageContent = singleImageContent(screenshot);
+        var relevantDataString = relevantTestData == null ? "" : relevantTestData;
+        return uiElementExtendedDescriptionAgent
+                .executeAndGetResult(() -> uiElementExtendedDescriptionAgent.describeUiElement(elementDescription,
+                        relevantDataString, imageContent))
+                .getResultPayload();
+    }
+
+    private static UiElementExtendedDescriptionAgent createUiElementDescriptionMatcherAgent() {
+        var model = getModel(getUiElementDescriptionMatcherAgentModelName(),
+                getUiElementDescriptionMatcherAgentModelProvider());
+        var prompt = loadSystemPrompt("element_describer", getUiElementDescriptionMatcherAgentPromptVersion(),
+                "description_matcher_prompt.txt");
+        return builder(UiElementExtendedDescriptionAgent.class)
+                .chatModel(model.chatModel())
+                .systemMessageProvider(_ -> prompt)
+                .tools(new UiElementIdentificationResult(false, false,
+                        new UiElementDescription("", "", "", "", false)))
+                .build();
+    }
+
+    private DbUiElementSelectionAgent createDbElementSelectionAgent() {
+        var model = getModel(getDbElementCandidateSelectionAgentModelName(),
+                getDbElementCandidateSelectionAgentModelProvider());
+        var prompt = loadSystemPrompt("db_element_selector", getDbElementCandidateSelectionAgentPromptVersion(),
+                "select_best_db_search_result_prompt.txt");
+        return builder(DbUiElementSelectionAgent.class)
+                .chatModel(model.chatModel())
+                .systemMessageProvider(_ -> prompt)
+                .tools(new DbUiElementSelectionResult(false, false, "", ""))
+                .build();
+    }
+
+    private Optional<UiElement> selectBestMatchingDbElement(List<UiElement> candidates, String elementDescription,
+                                                            String elementSpecificData) {
+        if (candidates.isEmpty()) {
+            return empty();
+        }
+        if (candidates.size() == 1) {
+            return of(candidates.getFirst());
+        }
+
+        Map<String, UiElement> candidatesById = IntStream.range(0, candidates.size())
+                .boxed()
+                .collect(toMap(index -> "element_" + index, candidates::get));
+        var userMessage = getDbElementBestMatchSelectionUserMessage(candidatesById, elementDescription, elementSpecificData);
+        BufferedImage screenshot = getScreenshotTogglingSpinner();
+        try {
+            var result = dbUiElementSelectionAgent.executeAndGetResult(() ->
+                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, singleImageContent(screenshot)))
+                    .getResultPayload();
+            if (result == null) {
+                LOG.warn("Model returned null result. Returning empty.");
+                return empty();
+            }
+
+            if (!result.targetElementIdentified()) {
+                LOG.warn("Model could not identify the target element on the screen. Reasoning: {}.", result.message());
+                return empty();
+            }
+
+            if (!result.atLeastOneCandidateMatches()) {
+                LOG.warn("Model could not select a matching element from candidates. Reasoning: {}.", result.message());
+                return empty();
+            }
+
+            if (isNotBlank(result.selectedElementId())) {
+                String selectedId = result.selectedElementId().toLowerCase().trim();
+                UiElement selectedElement = candidatesById.get(selectedId);
+                if (selectedElement != null) {
+                    LOG.info("Model selected element '{}' from {} candidates.", selectedElement.name(), candidates.size());
+                    return of(selectedElement);
+                } else {
+                    LOG.warn("Model returned unknown element ID '{}'. Available IDs: {}.", selectedId, candidatesById.keySet());
+                }
+            } else {
+                LOG.warn("Model did not provide a selected element ID. Reasoning: {}.", result.message());
+                return empty();
+            }
+        } catch (Exception e) {
+            throw rethrowAsToolException(e, "selecting the best UI element fetched from DB based on the screen state");
+        }
+
+        return empty();
+    }
+
+    private static @NonNull BufferedImage getScreenshotTogglingSpinner() {
+        var previousState = SpinnerManager.hideIfVisible();
+        BufferedImage screenshot;
+        try {
+            screenshot = captureScreen();
+        } finally {
+            previousState.restoreIfWasVisible();
+        }
+        return screenshot;
+    }
+
+    private String getDbElementBestMatchSelectionUserMessage(Map<String, UiElement> candidatesById,
+                                                             String elementDescription,
+                                                             String elementSpecificData) {
+        String candidatesString = candidatesById.entrySet().stream()
+                .map((candidateById) -> {
+                    var candidate = candidateById.getValue();
+                    return "  - Candidate ID: %s, Name: '%s', Description: '%s', Location Details: '%s', Parent Element Info: '%s'"
+                            .formatted(candidateById.getKey(), candidate.name(), candidate.description(),
+                                    candidate.locationDetails(), candidate.parentElementSummary());
+                })
+                .collect(joining("\n"));
+
+        return """
+                The target element description: '%s'.
+                
+                Available data related to this element: '%s'
+                
+                Candidates:
+                %s
+                
+                Screenshot follows.
+                """.formatted(elementDescription, elementSpecificData != null ? elementSpecificData : "",
+                candidatesString);
+    }
+}

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,38 +24,39 @@ import java.util.concurrent.atomic.AtomicReference;
 public class NextActionPopup extends AbstractDialog {
 
     public enum UserDecision {
-        CREATE_NEW_ELEMENT,
-        REFINE_EXISTING_ELEMENT,
-        RETRY_SEARCH,
+        EDIT_CURRENT_PROCEDURE,
+        CREATE_NEW_PROCEDURE,
+        RETRY,
         TERMINATE
     }
 
     private static final String TITLE = "Further action required";
     private static final String DEFAULT_INPUT_MESSAGE = "What would you like to do next ?"; // New constant
-    private final AtomicReference<UserDecision> userDecision = new AtomicReference<>(UserDecision.TERMINATE);
+    private final AtomicReference<UserDecision> userDecision = new AtomicReference<>(
+            UserDecision.EDIT_CURRENT_PROCEDURE);
 
     private NextActionPopup(Window owner, String message) {
         super(owner, TITLE);
         var userMessageArea = getUserMessageArea(message);
 
-        JButton createNewElementButton = new JButton("Create New Element");
-        setHoverAsClick(createNewElementButton);
-        createNewElementButton.addActionListener(_ -> {
-            userDecision.set(UserDecision.CREATE_NEW_ELEMENT);
+        JButton editCurrentProcedureButton = new JButton("Edit current procedure");
+        setHoverAsClick(editCurrentProcedureButton);
+        editCurrentProcedureButton.addActionListener(_ -> {
+            userDecision.set(UserDecision.EDIT_CURRENT_PROCEDURE);
             dispose();
         });
 
-        JButton refineExistingElementButton = new JButton("Refine Existing Element");
-        setHoverAsClick(refineExistingElementButton);
-        refineExistingElementButton.addActionListener(_ -> {
-            userDecision.set(UserDecision.REFINE_EXISTING_ELEMENT);
+        JButton createNewProcedureButton = new JButton("Create New Procedure");
+        setHoverAsClick(createNewProcedureButton);
+        createNewProcedureButton.addActionListener(_ -> {
+            userDecision.set(UserDecision.CREATE_NEW_PROCEDURE);
             dispose();
         });
 
-        JButton retrySearchButton = new JButton("Retry Search");
-        setHoverAsClick(retrySearchButton);
-        retrySearchButton.addActionListener(_ -> {
-            userDecision.set(UserDecision.RETRY_SEARCH);
+        JButton retryButton = new JButton("Retry");
+        setHoverAsClick(retryButton);
+        retryButton.addActionListener(_ -> {
+            userDecision.set(UserDecision.RETRY);
             dispose();
         });
 
@@ -66,9 +67,9 @@ public class NextActionPopup extends AbstractDialog {
             dispose();
         });
 
-        JPanel buttonsPanel = getButtonsPanel(createNewElementButton, refineExistingElementButton, retrySearchButton,
-                terminateButton);
+        JPanel buttonsPanel = getButtonsPanel(editCurrentProcedureButton, createNewProcedureButton, retryButton, terminateButton);
         JPanel mainPanel = getDefaultMainPanel();
+
         mainPanel.add(new JScrollPane(userMessageArea), BorderLayout.CENTER);
         mainPanel.add(buttonsPanel, BorderLayout.SOUTH);
 
@@ -79,7 +80,7 @@ public class NextActionPopup extends AbstractDialog {
 
     @Override
     protected void onDialogClosing() {
-        userDecision.set(UserDecision.TERMINATE);
+        userDecision.set(UserDecision.EDIT_CURRENT_PROCEDURE);
     }
 
     public static UserDecision displayAndGetUserDecision(Window owner, String message) {
