@@ -166,13 +166,13 @@ StepExecutionOrchestrator  ←  KnowledgeBasedExecutionOrchestrator   (one direc
 
 ### Phase 1: Maven Setup & Build Configuration
 
-- [ ] Add `avaje-inject` (runtime), `avaje-inject-generator` (provided/optional), and `avaje-inject-test` (test) — all at version `12.5-RC1` — to parent POM `<dependencyManagement>`
-- [ ] Add `maven.compiler.proc=full` to parent POM `<properties>`
-- [ ] Add runtime and processor dependencies to `agent_core/pom.xml`
-- [ ] Add runtime and processor dependencies to `ui_test_execution_agent/pom.xml`
-- [ ] Add runtime and processor dependencies to `api_test_execution_agent/pom.xml`
-- [ ] Add `avaje-inject-test` (test scope) to all 3 module POMs
-- [ ] Verify `ServicesResourceTransformer` already present in shade plugin config (confirmed — no change needed)
+- [x] Add `avaje-inject` (runtime), `avaje-inject-generator` (provided/optional), and `avaje-inject-test` (test) — all at version `12.5-RC1` — to parent POM `<dependencyManagement>`
+- [x] Add `maven.compiler.proc=full` to parent POM `<properties>`
+- [x] Add runtime and processor dependencies to `agent_core/pom.xml`
+- [x] Add runtime and processor dependencies to `ui_test_execution_agent/pom.xml`
+- [x] Add runtime and processor dependencies to `api_test_execution_agent/pom.xml`
+- [x] Add `avaje-inject-test` (test scope) to all 3 module POMs
+- [x] Verify `ServicesResourceTransformer` already present in shade plugin config (confirmed — no change needed)
 - [ ] Verify compilation succeeds with `mvn compile`
 
 ### Phase 2: AgentConfig Static-to-Instance Conversion

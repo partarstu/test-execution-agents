@@ -50,7 +50,8 @@
       "Bash(mv \"$BASE/Procedure.java\" \"$BASE/node/\")",
       "Bash(mv \"$BASE/FailureContext.java\" \"$BASE/node/\")",
       "Bash(mv \"$BASE/SatisfiesEdge.java\" \"$BASE/edge/\")",
-      "Bash(mv \"$BASE/ExecutionItem.java\" \"knowledge_graph/execution/\")"
+      "Bash(mv \"$BASE/ExecutionItem.java\" \"knowledge_graph/execution/\")",
+      "Bash(gh pr:*)"
     ]
   }
 }
