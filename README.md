@@ -52,7 +52,7 @@ D:\Projects\test-execution-agents\
     * UI-specific agents for visual grounding, element interaction, and verification.
     * Computer vision capabilities using OpenCV.
     * Tools for mouse/keyboard control.
-    * RAG integration with ChromaDB for element retrieval.
+    * Knowledge graph integration with Neo4j for persistent element and procedure storage.
     * Knowledge collection dialogs: `ProcedureKnowledgeCollectionDialog` (top-level and recursive child procedure editor with bidirectional navigation, dirty state tracking, and element creation/refinement popup integration; includes a "Remove Element" button to detach a target UI element from an atomic procedure) and `ChildStepEditDialog` (lightweight per-step editor for quick "Add" operations).
     * **Orphan cleanup**: `KnowledgeIngestionService` collects all UI element IDs reachable from a procedure before updating it. After removing `TARGETS`/`CONTAINS` relationships, `ProcedureRepository.deleteUiElementsIfOrphaned` deletes any UI element no longer referenced by any atomic procedure. `deleteDescendants` is orphan-aware: it removes `CONTAINS` edges and only deletes a child procedure node when it has no remaining parents, recursively.
     * Deployed as a **GCE VM** with VNC access.
@@ -103,7 +103,7 @@ The core module provides shared abstractions that both UI and API agents extend:
 │ • AbstractExecutor  │◄│ • UiTestAgent       │ │ • ApiTestAgent          │
 │ • GenericAiAgent    │ │ • UI Agents         │ │ • API Agents            │
 │ • BudgetManager     │ │ • OpenCV Tools      │ │ • REST Tools            │
-│ • Core DTOs         │ │ • RAG Integration   │ │ • Schema Validation     │
+│ • Core DTOs         │ │ • Knowledge Graph   │ │ • Schema Validation     │
 │ • Error Handling    │ │ • Visual Grounding  │ │ • Auth Handling         │
 └─────────────────────┘ └─────────────────────┘ └─────────────────────────┘
                               │                       │
@@ -128,7 +128,7 @@ The core module provides shared abstractions that both UI and API agents extend:
 
 - **Visual Grounding**: AI-powered element location using screenshots and descriptions.
 - **Screen Recording**: Captures video of test execution for debugging.
-- **Element RAG**: Vector database integration for efficient element retrieval.
+- **Knowledge Graph**: Neo4j-backed persistent storage for UI elements and reusable procedures with vector search.
 - **Attended/Supervised/Unattended Modes**: Interactive, semi-interactive, or fully automated execution.
 
 ### API Test Agent Specific
@@ -173,7 +173,7 @@ The following configuration properties are shared across agents (defined in `Age
 | `port`                  | `PORT`                  | `8005`                    | Server port                                         |
 | `host`                  | `AGENT_HOST`            | (required)                | Server host                                         |
 | `external.url`          | `EXTERNAL_URL`          | `http://localhost:{port}` | External URL for A2A card                           |
-| `vector.db.provider`    | `VECTOR_DB_PROVIDER`    | `chroma`                  | RAG Vector DB provider (chroma, qdrant)             |
+| `vector.db.provider`    | `VECTOR_DB_PROVIDER`    | `neo4j`                   | Knowledge DB provider (`neo4j`)                     |
 | `vector.db.url`         | `VECTOR_DB_URL`         | (required)                | URL for the vector database                         |
 | `vector.db.key`         | `VECTOR_DB_KEY`         |                           | API Key/Token for the vector database               |
 | `model.provider`        | `MODEL_PROVIDER`        | `google`                  | AI model provider (google, openai, groq, anthropic) |

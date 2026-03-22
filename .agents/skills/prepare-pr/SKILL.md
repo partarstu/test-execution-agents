@@ -19,7 +19,7 @@ decisions, or approval before committing. Do NOT ask for confirmation on routine
 
 1. Run Maven build and verify compilation
 2. Run unit tests (JUnit 5) and fix failures
-3. Run license and dependency checks
+3. Run license checks
 4. Analyze changes and update documentation
 5. Review changes with user and commit
 6. Create pull request
@@ -46,19 +46,15 @@ mvn test                    # Run all tests with coverage
 mvn test -pl <module_name>  # Test specific module (e.g., agent_core, ui_test_execution_agent)
 ```
 
-If tests fail, **STOP** and present failure details. Analyze causes (code bug vs. outdated test vs. missing dependencies), **ASK** user
+If tests fail, **STOP** and present failure details. Analyze causes (code bug vs. outdated test), **ASK** user
 which approach to take, apply fixes, and re-run until all tests pass.
 
-### Step 3: Run License and Dependency Checks
+### Step 3: Run License Checks
 
 ```powershell
 mvn license:check           # Verify license headers
 mvn license:format          # Auto-fix missing headers (if issues found)
-mvn dependency:analyze      # Check for unused/undeclared dependencies
-mvn dependency:tree         # View full tree for conflict analysis
 ```
-
-For dependency issues (unused, undeclared, conflicts), **STOP**, present findings, and **ASK** user how to proceed.
 
 ### Step 4: Analyze Changes and Update Documentation
 
@@ -131,7 +127,6 @@ Use the change analysis from Step 4 and the template structure from `resources/p
 | Compilation errors   | Check missing imports, incompatible types; use `-P windows` or `-P linux` for OS-specific builds                |
 | Test failures        | Verify mock initialization (`MockitoAnnotations.openMocks(this)`), check test resources in `src/test/resources` |
 | License issues       | Run `mvn license:format`; check template config in pom.xml                                                      |
-| Dependency conflicts | Use `mvn dependency:tree` to identify conflicts; add explicit declarations or exclusions                        |
 | PR creation fails    | Run `gh auth login`; ensure branch is pushed first; rebase if behind main                                       |
 
 ## Pre-Flight Checklist
@@ -140,7 +135,7 @@ Before creating the PR:
 
 - [ ] Build succeeds (`mvn clean install -DskipTests`)
 - [ ] All tests pass (`mvn test`)
-- [ ] License and dependency checks pass
+- [ ] License checks pass
 - [ ] README.md and skills are up-to-date
 - [ ] Changes committed and pushed to the current branch
 - [ ] PR has descriptive title and comprehensive description
