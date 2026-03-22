@@ -30,9 +30,9 @@ import static java.time.Instant.now;
 
 public class BudgetManager {
     private static final Logger LOG = LoggerFactory.getLogger(BudgetManager.class);
-    public static final int TIME_BUDGET_SECONDS = AgentConfig.getAgentExecutionTimeBudgetSeconds();
-    private static final int TOKEN_BUDGET = AgentConfig.getAgentTokenBudget();
-    private static final int TOOL_CALLS_BUDGET = AgentConfig.getAgentToolCallsBudget();
+    public static final int TIME_BUDGET_SECONDS = new AgentConfig().getAgentExecutionTimeBudgetSeconds();
+    private static final int TOKEN_BUDGET = new AgentConfig().getAgentTokenBudget();
+    private static final int TOOL_CALLS_BUDGET = new AgentConfig().getAgentToolCallsBudget();
     private static final AtomicInteger toolCallUsage = new AtomicInteger(0);
     private static final AtomicReference<Instant> startTime = new AtomicReference<>(null);
     private static final Map<String, ModelUsage> tokenUsagePerModel = new ConcurrentHashMap<>();

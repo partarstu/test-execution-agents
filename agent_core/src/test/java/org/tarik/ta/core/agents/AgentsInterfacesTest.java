@@ -37,7 +37,7 @@ class AgentsInterfacesTest {
         TestStepVerificationAgent agent = new TestStepVerificationAgent() {
         };
         assertThat(agent.getAgentTaskDescription()).isEqualTo("Verifying test step actual results");
-        assertThat(agent.getRetryPolicy()).isEqualTo(AgentConfig.getVerificationRetryPolicy());
+        assertThat(agent.getRetryPolicy()).isEqualTo(new AgentConfig().getVerificationRetryPolicy());
     }
 
     @Test
@@ -45,7 +45,7 @@ class AgentsInterfacesTest {
         TestStepActionAgent agent = new TestStepActionAgent() {
         };
         assertThat(agent.getAgentTaskDescription()).isEqualTo("Executing test step action");
-        assertThat(agent.getRetryPolicy()).isEqualTo(AgentConfig.getActionRetryPolicy());
+        assertThat(agent.getRetryPolicy()).isEqualTo(new AgentConfig().getActionRetryPolicy());
     }
 
     @Test
@@ -53,7 +53,7 @@ class AgentsInterfacesTest {
         PreconditionVerificationAgent agent = new PreconditionVerificationAgent() {
         };
         assertThat(agent.getAgentTaskDescription()).isEqualTo("Verifying precondition");
-        assertThat(agent.getRetryPolicy()).isEqualTo(AgentConfig.getVerificationRetryPolicy());
+        assertThat(agent.getRetryPolicy()).isEqualTo(new AgentConfig().getVerificationRetryPolicy());
     }
 
     @Test
@@ -65,7 +65,7 @@ class AgentsInterfacesTest {
             }
         };
         assertThat(agent.getAgentTaskDescription()).isEqualTo("Executing precondition action");
-        assertThat(agent.getRetryPolicy()).isEqualTo(AgentConfig.getActionRetryPolicy());
+        assertThat(agent.getRetryPolicy()).isEqualTo(new AgentConfig().getActionRetryPolicy());
     }
 
     @Test
@@ -77,7 +77,7 @@ class AgentsInterfacesTest {
             }
         };
         assertThat(agent.getAgentTaskDescription()).isEqualTo("Extracting test case from user request");
-        assertThat(agent.getRetryPolicy()).isEqualTo(AgentConfig.getActionRetryPolicy());
+        assertThat(agent.getRetryPolicy()).isEqualTo(new AgentConfig().getActionRetryPolicy());
     }
 
     @Test

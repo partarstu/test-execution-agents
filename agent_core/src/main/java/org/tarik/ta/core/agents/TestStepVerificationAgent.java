@@ -23,7 +23,7 @@ import org.tarik.ta.core.error.RetryPolicy;
  * Agent responsible for verifying test step expected results.
  */
 public interface TestStepVerificationAgent extends GenericAiAgent<VerificationExecutionResult> {
-    RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
+    RetryPolicy RETRY_POLICY = new AgentConfig().getVerificationRetryPolicy();
 
     @Override
     default String getAgentTaskDescription() {

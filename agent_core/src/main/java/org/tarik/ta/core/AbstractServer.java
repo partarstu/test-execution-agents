@@ -23,8 +23,6 @@ import org.tarik.ta.core.a2a.AgentExecutionResource;
 import org.tarik.ta.core.a2a.AgentExecutor;
 
 import static io.javalin.Javalin.create;
-import static org.tarik.ta.core.AgentConfig.getHost;
-import static org.tarik.ta.core.AgentConfig.getStartPort;
 
 /**
  * Abstract base class for agent servers. Provides common server initialization
@@ -36,6 +34,12 @@ public abstract class AbstractServer {
     private static final long MAX_REQUEST_SIZE = 10000000;
     private static final String MAIN_PATH = "/";
     private static final String AGENT_CARD_PATH = "/.well-known/agent-card.json";
+
+    private final AgentConfig agentConfig;
+
+    protected AbstractServer(AgentConfig agentConfig) {
+        this.agentConfig = agentConfig;
+    }
 
     /**
      * Creates the agent-specific executor.
@@ -64,8 +68,8 @@ public abstract class AbstractServer {
      * Starts the agent server.
      */
     public void start() {
-        int port = getStartPort();
-        String host = getHost();
+        int port = agentConfig.getStartPort();
+        String host = agentConfig.getHost();
         AgentExecutor executor = createAgentExecutor();
         AgentExecutionResource agentExecutionResource = new AgentExecutionResource(executor, createAgentCard());
 

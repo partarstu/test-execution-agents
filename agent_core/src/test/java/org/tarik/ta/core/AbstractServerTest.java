@@ -31,11 +31,12 @@ class AbstractServerTest {
 
     @Test
     void start_shouldInitializeAndStartServer() {
+        AgentConfig agentConfig = new AgentConfig();
         AgentExecutor executor = mock(AgentExecutor.class);
         io.a2a.spec.AgentCapabilities capabilities = new io.a2a.spec.AgentCapabilities(false, false, false, java.util.List.of());
         AgentCard card = new AgentCard("test", "desc", "url", null, "1.0", "doc", capabilities, java.util.List.of(), java.util.List.of(), java.util.List.of(), false, java.util.Map.of(), java.util.List.of(), "icon", java.util.List.of(), "JSONRPC", "1.0", java.util.List.of());
 
-        AbstractServer server = new AbstractServer() {
+        AbstractServer server = new AbstractServer(agentConfig) {
             @Override
             protected AgentExecutor createAgentExecutor() {
                 return executor;

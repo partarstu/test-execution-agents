@@ -1,8 +1,8 @@
 # Implementation Plan: Avaje Inject DI Integration
 
 **Created**: 2026-03-06
-**Updated**: 2026-03-22
-**Status**: Revised v6 (reorganized into 18 granular phases; added 7 previously missing classes — no implementation started yet)
+**Updated**: 2026-03-23
+**Status**: Phase 2 complete — AgentConfig static-to-instance conversion done; agent_core compiles
 
 ## 1. Objective
 
@@ -177,9 +177,9 @@ StepExecutionOrchestrator  ←  KnowledgeBasedExecutionOrchestrator   (one direc
 
 ### Phase 2: AgentConfig Static-to-Instance Conversion
 
-- [ ] Convert `AgentConfig` from static to `@Singleton`: move all ~40 `private static final ConfigProperty<T>` fields and the `static final Properties` field to instance fields; move their initializer expressions into the constructor body (load `Properties` first, then assign each `ConfigProperty` in order using the helper methods); convert the `protected static` helpers (`loadProperty()`, `getRequiredProperty()`, `loadPropertyAsInteger()`, `loadPropertyAsDouble()`, `getProperty()`) from static to `protected` instance methods; convert all `public static` getters to `public` instance methods
-- [ ] Update all classes in `agent_core` that use static imports from `AgentConfig` to inject `AgentConfig` instead (compile will fail for ui/api modules — expected, fixed in later phases)
-- [ ] Verify `mvn compile -pl agent_core` succeeds
+- [x] Convert `AgentConfig` from static to `@Singleton`: move all ~40 `private static final ConfigProperty<T>` fields and the `static final Properties` field to instance fields; move their initializer expressions into the constructor body (load `Properties` first, then assign each `ConfigProperty` in order using the helper methods); convert the `protected static` helpers (`loadProperty()`, `getRequiredProperty()`, `loadPropertyAsInteger()`, `loadPropertyAsDouble()`, `getProperty()`) from static to `protected` instance methods; convert all `public static` getters to `public` instance methods
+- [x] Update all classes in `agent_core` that use static imports from `AgentConfig` to inject `AgentConfig` instead (compile will fail for ui/api modules — expected, fixed in later phases)
+- [x] Verify `mvn compile -pl agent_core` succeeds
 
 ### Phase 3: Core Utility Beans — BudgetManager & ChatModelEventListener
 

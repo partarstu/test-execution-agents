@@ -41,7 +41,7 @@ class BudgetManagerTest {
     @Test
     void checkTokenBudget_shouldNotThrow_whenUnderLimit() {
         // Given
-        int limit = AgentConfig.getAgentTokenBudget();
+        int limit = new AgentConfig().getAgentTokenBudget();
         if (limit <= 0)
             return; // Skip if no limit
 
@@ -55,7 +55,7 @@ class BudgetManagerTest {
     @Test
     void checkTokenBudget_shouldNotThrow_whenAtLimit() {
         // Given
-        int limit = AgentConfig.getAgentTokenBudget();
+        int limit = new AgentConfig().getAgentTokenBudget();
         if (limit <= 0)
             return; // Skip if no limit
 
@@ -69,7 +69,7 @@ class BudgetManagerTest {
     @Test
     void checkTokenBudget_shouldThrow_whenOverLimit() {
         // Given
-        int limit = AgentConfig.getAgentTokenBudget();
+        int limit = new AgentConfig().getAgentTokenBudget();
         if (limit <= 0)
             return; // Skip if no limit
 
@@ -120,7 +120,7 @@ class BudgetManagerTest {
 
     @Test
     void checkToolCallBudget_shouldThrow_whenOverLimit() {
-        int limit = AgentConfig.getAgentToolCallsBudget();
+        int limit = new AgentConfig().getAgentToolCallsBudget();
         if (limit <= 0)
             return;
 
@@ -133,7 +133,7 @@ class BudgetManagerTest {
 
     @Test
     void checkToolCallBudget_shouldNotThrow_whenUnderLimit() {
-        int limit = AgentConfig.getAgentToolCallsBudget();
+        int limit = new AgentConfig().getAgentToolCallsBudget();
         if (limit <= 0)
             return;
 
@@ -169,7 +169,7 @@ class BudgetManagerTest {
 
     @Test
     void checkTimeBudget_shouldThrow_whenOverLimit() {
-        int limit = AgentConfig.getAgentExecutionTimeBudgetSeconds();
+        int limit = new AgentConfig().getAgentExecutionTimeBudgetSeconds();
         if (limit <= 0)
             return;
 
@@ -191,7 +191,7 @@ class BudgetManagerTest {
 
     @Test
     void checkAllBudgets_shouldCheckAll() {
-        int toolLimit = AgentConfig.getAgentToolCallsBudget();
+        int toolLimit = new AgentConfig().getAgentToolCallsBudget();
         if (toolLimit > 0) {
             BudgetManager.consumeToolCalls(toolLimit + 1);
             assertThatThrownBy(BudgetManager::checkAllBudgets)

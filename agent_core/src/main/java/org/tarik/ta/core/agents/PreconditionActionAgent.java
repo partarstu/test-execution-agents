@@ -26,7 +26,7 @@ import org.tarik.ta.core.error.RetryPolicy;
  * Agent responsible for executing test case preconditions.
  */
 public interface PreconditionActionAgent extends GenericAiAgent<EmptyExecutionResult> {
-    RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
+    RetryPolicy RETRY_POLICY = new AgentConfig().getActionRetryPolicy();
 
     @UserMessage("""
             The precondition you need to execute: {{precondition}}.

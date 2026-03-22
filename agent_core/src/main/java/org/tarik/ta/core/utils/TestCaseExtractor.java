@@ -17,19 +17,21 @@ package org.tarik.ta.core.utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
+import org.tarik.ta.core.model.ModelFactory;
 import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.inject.Singleton;
+
 import static dev.langchain4j.service.AiServices.builder;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
-import static org.tarik.ta.core.AgentConfig.*;
-import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
@@ -37,11 +39,16 @@ import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
  * Utility class for extracting test cases from user messages using an AI model.
  * This class provides shared functionality for both UI and API test agents.
  */
-public final class TestCaseExtractor {
+@Singleton
+public class TestCaseExtractor {
     private static final Logger LOG = LoggerFactory.getLogger(TestCaseExtractor.class);
 
-    private TestCaseExtractor() {
-        // Utility class - prevent instantiation
+    private final AgentConfig agentConfig;
+    private final ModelFactory modelFactory;
+
+    public TestCaseExtractor(AgentConfig agentConfig, ModelFactory modelFactory) {
+        this.agentConfig = agentConfig;
+        this.modelFactory = modelFactory;
     }
 
     /**
@@ -51,7 +58,7 @@ public final class TestCaseExtractor {
      * @return an Optional containing the extracted TestCase, or empty if extraction
      * fails
      */
-    public static Optional<TestCase> extractTestCase(String message) {
+    public Optional<TestCase> extractTestCase(String message) {
         LOG.info("Attempting to extract TestCase instance from user message using AI model.");
         if (isBlank(message)) {
             LOG.error("User message is blank, cannot extract a TestCase.");
@@ -79,9 +86,9 @@ public final class TestCaseExtractor {
      *
      * @return the configured TestCaseExtractionAgent
      */
-    static TestCaseExtractionAgent getTestCaseExtractionAgent() {
-        var model = getModel(getTestCaseExtractionAgentModelName(), getTestCaseExtractionAgentModelProvider());
-        var prompt = loadSystemPrompt("test_case_extractor", getTestCaseExtractionAgentPromptVersion(), "test_case_extraction_prompt.txt");
+    TestCaseExtractionAgent getTestCaseExtractionAgent() {
+        var model = modelFactory.getModel(agentConfig.getTestCaseExtractionAgentModelName(), agentConfig.getTestCaseExtractionAgentModelProvider());
+        var prompt = loadSystemPrompt("test_case_extractor", agentConfig.getTestCaseExtractionAgentPromptVersion(), "test_case_extraction_prompt.txt");
         return builder(TestCaseExtractionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
@@ -95,7 +102,7 @@ public final class TestCaseExtractor {
      * @param extractedTestCase the test case to validate
      * @return true if the test case is invalid, false otherwise
      */
-    static boolean isTestCaseInvalid(TestCase extractedTestCase) {
+    boolean isTestCaseInvalid(TestCase extractedTestCase) {
         return extractedTestCase == null
                 || isBlank(extractedTestCase.name())
                 || extractedTestCase.testSteps() == null
