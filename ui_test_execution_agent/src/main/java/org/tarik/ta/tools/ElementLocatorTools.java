@@ -82,12 +82,6 @@ public class ElementLocatorTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(ElementLocatorTools.class);
     private static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
     private static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
-    private static final int VISUAL_GROUNDING_MODEL_VOTE_COUNT = UiTestAgentConfig.getElementLocatorVisualGroundingVoteCount();
-    private static final int VALIDATION_MODEL_VOTE_COUNT = UiTestAgentConfig.getElementLocatorValidationVoteCount();
-    private static final double BBOX_CLUSTERING_MIN_INTERSECTION_RATIO = UiTestAgentConfig.getBboxClusteringMinIntersectionRatio();
-    private static final int BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS =
-            UiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels();
-    private static final double BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS = UiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels();
     private static final boolean DEBUG_MODE = AgentConfig.isDebugMode();
 
     private final UiElementRepository elementRepository;
@@ -450,8 +444,9 @@ public class ElementLocatorTools extends UiAbstractTools {
             var scalingRatio = getScalingRatio(wholeScreenshot);
             var imageToSend = scalingRatio < 1.0 ? scaleImage(wholeScreenshot, scalingRatio) : wholeScreenshot;
             var prompt = getElementBoundingBoxUserMessage(element, elementTestData);
+            int voteCount = UiTestAgentConfig.getElementLocatorVisualGroundingVoteCount();
             try (var executor = newVirtualThreadPerTaskExecutor()) {
-                List<Callable<List<BoundingBox>>> tasks = range(0, VISUAL_GROUNDING_MODEL_VOTE_COUNT)
+                List<Callable<List<BoundingBox>>> tasks = range(0, voteCount)
                         .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> Objects.requireNonNull(
                                 uiElementBoundingBoxAgent.executeAndGetResult(
                                         () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend))
@@ -478,9 +473,9 @@ public class ElementLocatorTools extends UiAbstractTools {
                     return List.of();
                 }
 
-                if (VISUAL_GROUNDING_MODEL_VOTE_COUNT > 1) {
+                if (voteCount > 1) {
                     DBSCANClusterer<RectangleAdapter> clusterer =
-                            new DBSCANClusterer<>(BBOX_CLUSTERING_MIN_INTERSECTION_RATIO, 0, new IoUDistance());
+                            new DBSCANClusterer<>(UiTestAgentConfig.getBboxClusteringMinIntersectionRatio(), 0, new IoUDistance());
                     List<RectangleAdapter> points = allBoundingBoxes.stream().map(RectangleAdapter::new).toList();
                     List<Cluster<RectangleAdapter>> clusters = clusterer.cluster(points);
                     var result = clusters.stream()
@@ -498,7 +493,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                         saveImage(imageWithAllBoxes, "vision_identified_boxes_after_clustering");
                     }
                     LOG.info("Model identified {} bounding boxes with {} votes, resulting in {} common regions", allBoundingBoxes.size(),
-                            VISUAL_GROUNDING_MODEL_VOTE_COUNT, result.size());
+                            voteCount, result.size());
                     return result;
                 } else {
                     LOG.info("Model identified {} bounding boxes", allBoundingBoxes.size());
@@ -555,7 +550,7 @@ public class ElementLocatorTools extends UiAbstractTools {
             var successfulIdentificationResults = getValidSuccessfulIdentificationResultsFromModelUsingQuorum(
                     uiElement, elementTestData, resultingScreenshot, new ArrayList<>(boxesWithIds.keySet()));
             LOG.info("Model provided {} successful identification results for the element '{}' with {} vote(s).",
-                    successfulIdentificationResults.size(), uiElement.name(), VALIDATION_MODEL_VOTE_COUNT);
+                    successfulIdentificationResults.size(), uiElement.name(), UiTestAgentConfig.getElementLocatorValidationVoteCount());
             if (successfulIdentificationResults.isEmpty()) {
                 return new UiElementLocationInternalResult(algorithmicSearchDone, visualGroundingDone, null, uiElement, screenshot);
             }
@@ -592,7 +587,7 @@ public class ElementLocatorTools extends UiAbstractTools {
             var prompt = getBestElementVisualMatchUserMessage(uiElement, elementTestData, boxIds);
             var boundingBoxColorName = UiCommonUtils.getColorName(BOUNDING_BOX_COLOR).toLowerCase();
 
-            List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, VALIDATION_MODEL_VOTE_COUNT)
+            List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, UiTestAgentConfig.getElementLocatorValidationVoteCount())
                     .mapToObj(_ -> (Callable<BestUiElementVisualMatchResult>) () -> bestUiElementMatchSelectionAgent.executeAndGetResult(
                             () -> bestUiElementMatchSelectionAgent.selectBestElement(prompt,
                                     singleImageContent(resultingScreenshot), boundingBoxColorName)
@@ -676,14 +671,16 @@ public class ElementLocatorTools extends UiAbstractTools {
         int originalWidth = image.getWidth();
         int originalHeight = image.getHeight();
         int longestSide = Math.max(originalWidth, originalHeight);
+        int longestAllowed = UiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels();
+        double maxMegapixels = UiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels();
         double downscaleRatio = 1.0;
-        if (longestSide > BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS) {
-            downscaleRatio = ((double) BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS) / longestSide;
+        if (longestSide > longestAllowed) {
+            downscaleRatio = ((double) longestAllowed) / longestSide;
         }
 
         double originalSizeMegapixels = originalWidth * originalHeight / 1_000_000d;
-        if (originalSizeMegapixels > BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS) {
-            downscaleRatio = min(downscaleRatio, Math.sqrt(BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS / originalSizeMegapixels));
+        if (originalSizeMegapixels > maxMegapixels) {
+            downscaleRatio = min(downscaleRatio, Math.sqrt(maxMegapixels / originalSizeMegapixels));
         }
         return downscaleRatio;
     }

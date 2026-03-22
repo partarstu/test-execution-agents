@@ -75,23 +75,32 @@ public class ImageMatchingUtil {
     private static ORB ORB;
     private static boolean initialized = false;
 
-    private static boolean initializeOpenCv() {
+    private static boolean initializationAttempted = false;
+
+    private static void initializeOpenCv() {
+        if (initializationAttempted) return;
+        initializationAttempted = true;
         try {
             Loader.load(opencv_java.class);
             ORB = create(ORB_MAX_FEATURES, ORB_SCALE_FACTOR, ORB_N_LEVELS, ORB_EDGE_THRESHOLD, ORB_FIRST_LEVEL,
                     ORB_WTA_K, HARRIS_SCORE,
                     ORB_PATCH_SIZE, ORB_FAST_THRESHOLD);
-            return true;
+            initialized = true;
         } catch (Throwable t) {
             LOG.error("Failure while initializing OpenCV.", t);
-            throw t;
         }
+    }
+
+    public static boolean isAvailable() {
+        initializeOpenCv();
+        return initialized;
     }
 
     public static List<Rectangle> findMatchingRegionsWithTemplateMatching(BufferedImage wholeScreenshot,
             BufferedImage elementScreenshot) {
+        initializeOpenCv();
         if (!initialized) {
-            initialized = initializeOpenCv();
+            return List.of();
         }
         Mat source = imdecode(new MatOfByte(imageToByteArray(wholeScreenshot, "png")), Imgcodecs.IMREAD_COLOR);
         Mat template = imdecode(new MatOfByte(imageToByteArray(elementScreenshot, "png")), Imgcodecs.IMREAD_COLOR);
@@ -128,8 +137,9 @@ public class ImageMatchingUtil {
     public static List<Rectangle> findMatchingRegionsWithORB(BufferedImage wholeScreenshot,
             BufferedImage elementScreenshot,
             double deviationRatio) {
+        initializeOpenCv();
         if (!initialized) {
-            initialized = initializeOpenCv();
+            return List.of();
         }
 
         Mat wholeMat = imdecode(new MatOfByte(imageToByteArray(wholeScreenshot, "png")), Imgcodecs.IMREAD_GRAYSCALE);

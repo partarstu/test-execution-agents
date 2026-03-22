@@ -19,6 +19,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import org.mockito.MockedStatic;
 import org.tarik.ta.UiTestAgentConfig;
 
@@ -48,6 +50,7 @@ class ImageMatchingUtilTest {
     @Test
     @DisplayName("findMatchingRegionsWithTemplateMatching should return matches for identical images")
     void findMatchingRegionsWithTemplateMatching_shouldReturnMatch_whenIdentical() {
+        assumeTrue(ImageMatchingUtil.isAvailable(), "OpenCV is not available in this environment");
         BufferedImage image = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
         java.awt.Graphics2D g = image.createGraphics();
         g.setColor(java.awt.Color.WHITE);
