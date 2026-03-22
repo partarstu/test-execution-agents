@@ -76,6 +76,7 @@ class ElementLocatorToolsTest {
     private MockedStatic<UiCommonUtils> uiCommonUtilsMock;
     private MockedStatic<UiTestAgentConfig> configMock;
     private MockedStatic<AiServices> aiServicesMock;
+    private MockedStatic<org.tarik.ta.user_dialogs.SpinnerManager> spinnerManagerMock;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -88,6 +89,9 @@ class ElementLocatorToolsTest {
         promptUtilsMock.when(() -> PromptUtils.loadSystemPrompt(anyString(), anyString(), anyString())).thenReturn("mock prompt");
 
         uiCommonUtilsMock = mockStatic(UiCommonUtils.class);
+
+        spinnerManagerMock = mockStatic(org.tarik.ta.user_dialogs.SpinnerManager.class);
+        spinnerManagerMock.when(org.tarik.ta.user_dialogs.SpinnerManager::hideIfVisible).thenReturn(mock(org.tarik.ta.user_dialogs.SpinnerState.class));
         
         configMock = mockStatic(UiTestAgentConfig.class);
         configMock.when(UiTestAgentConfig::getElementBoundingBoxColorName).thenReturn("red");
@@ -140,6 +144,7 @@ class ElementLocatorToolsTest {
         modelFactoryMock.close();
         promptUtilsMock.close();
         uiCommonUtilsMock.close();
+        spinnerManagerMock.close();
         configMock.close();
         aiServicesMock.close();
     }
