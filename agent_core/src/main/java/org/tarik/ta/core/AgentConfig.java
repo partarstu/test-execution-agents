@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.tarik.ta.core;
 
 import org.slf4j.Logger;
@@ -33,6 +32,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.stream;
 import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
+import java.io.InputStreamReader;
 
 public class AgentConfig {
     private static final Logger LOG = LoggerFactory.getLogger(AgentConfig.class);
@@ -54,7 +54,7 @@ public class AgentConfig {
     }
 
     public enum RagDbProvider {
-        CHROMA, QDRANT
+        CHROMA, QDRANT, NEO4J
     }
 
     // -----------------------------------------------------
@@ -421,7 +421,7 @@ public class AgentConfig {
                 LOG.error("Cannot find resource file '{}' in classpath.", CONFIG_FILE);
                 throw new IOException("Cannot find resource: " + CONFIG_FILE);
             }
-            properties.load(new java.io.InputStreamReader(inputStream, UTF_8));
+            properties.load(new InputStreamReader(inputStream, UTF_8));
             LOG.info("Loaded properties from " + CONFIG_FILE);
             return properties;
         } catch (IOException e) {

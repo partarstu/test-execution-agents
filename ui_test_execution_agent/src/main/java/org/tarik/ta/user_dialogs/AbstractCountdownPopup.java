@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ public abstract class AbstractCountdownPopup<T> extends AbstractDialog {
     }
 
     @Override
-    protected void setDefaultPosition() {
+    public void setDefaultPosition() {
         pack();
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
         Insets screenInsets = Toolkit.getDefaultToolkit().getScreenInsets(getGraphicsConfiguration());

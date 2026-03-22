@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import dev.langchain4j.model.output.structured.Description;
 import java.util.List;
 
 @Description("A single test step in a test case")
-public record TestStep(
+public record TestStep (
         @Description("A natural language description of the action to perform in this step.")
         String stepDescription,
         @Description("A test data to be used as input for the step. Allowed to be empty.")

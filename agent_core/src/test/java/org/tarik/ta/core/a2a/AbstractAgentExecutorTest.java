@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -180,10 +180,94 @@ class AbstractAgentExecutorTest {
         }
     }
 
+    @Test
+    void cancel_shouldThrowTaskNotCancelableError_whenStateIsCanceled() {
+        when(requestContext.getTask()).thenReturn(task);
+        when(task.getStatus()).thenReturn(new TaskStatus(TaskState.CANCELED, null, null));
+
+        assertThatThrownBy(() -> executor.cancel(requestContext, eventQueue))
+                .isInstanceOf(io.a2a.spec.TaskNotCancelableError.class);
+    }
+
+    @Test
+    void cancel_shouldThrowTaskNotCancelableError_whenStateIsCompleted() {
+        when(requestContext.getTask()).thenReturn(task);
+        when(task.getStatus()).thenReturn(new TaskStatus(TaskState.COMPLETED, null, null));
+
+        assertThatThrownBy(() -> executor.cancel(requestContext, eventQueue))
+                .isInstanceOf(io.a2a.spec.TaskNotCancelableError.class);
+    }
+
+    @Test
+    void execute_shouldAddLogsArtifact_andHandleArtifactException() {
+        when(requestContext.getTask()).thenReturn(null);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+
+        TestExecutionResult result = new TestExecutionResult(
+                "test-case",
+                TestExecutionStatus.PASSED,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Instant.now(),
+                Instant.now(),
+                null,
+                null,
+                null);
+        executor.setResultToReturn(result);
+        executor.setLogsToReturn(List.of("log line 1", "log line 2"));
+
+        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class,
+                (mock, context) -> {
+                    when(mock.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
+                })) {
+            executor.execute(requestContext, eventQueue);
+
+            TaskUpdater updater = mockedUpdater.constructed().get(0);
+            // Verify addArtifact was called (for logs and the main json)
+            verify(updater).addArtifact(any(), any(), any(), any());
+            verify(updater).complete(any());
+        }
+    }
+
+    @Test
+    void execute_shouldFailTask_whenArtifactCreationFails() {
+        when(requestContext.getTask()).thenReturn(null);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+
+        TestExecutionResult result = new TestExecutionResult(
+                "test-case",
+                TestExecutionStatus.PASSED,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Instant.now(),
+                Instant.now(),
+                null,
+                null,
+                null);
+        executor.setResultToReturn(result);
+        executor.setThrowOnArtifacts(true);
+
+        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
+            executor.execute(requestContext, eventQueue);
+
+            TaskUpdater updater = mockedUpdater.constructed().get(0);
+            // It should fail because addSpecificArtifacts throws
+            verify(updater).fail(any());
+        }
+    }
+
     // Implementation stub
     static class TestAgentExecutor extends AbstractAgentExecutor {
         private TestExecutionResult resultToReturn;
         private boolean throwException = false;
+        private boolean throwOnArtifacts = false;
+        private List<String> logsToReturn = null;
 
         public void setResultToReturn(TestExecutionResult result) {
             this.resultToReturn = result;
@@ -191,6 +275,14 @@ class AbstractAgentExecutorTest {
 
         public void setThrowException(boolean throwException) {
             this.throwException = throwException;
+        }
+
+        public void setThrowOnArtifacts(boolean throwOnArtifacts) {
+            this.throwOnArtifacts = throwOnArtifacts;
+        }
+
+        public void setLogsToReturn(List<String> logsToReturn) {
+            this.logsToReturn = logsToReturn;
         }
 
         @Override
@@ -203,13 +295,14 @@ class AbstractAgentExecutorTest {
 
         @Override
         protected void addSpecificArtifacts(TestExecutionResult result, List<Part<?>> parts) {
-            // No-op
+            if (throwOnArtifacts) {
+                throw new RuntimeException("Simulated artifact error");
+            }
         }
 
         @Override
         protected Optional<List<String>> extractLogs(TestExecutionResult result) {
-            // No logs in tests
-            return Optional.empty();
+            return Optional.ofNullable(logsToReturn);
         }
     }
 }

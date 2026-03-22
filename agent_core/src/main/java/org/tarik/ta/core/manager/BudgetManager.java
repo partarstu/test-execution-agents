@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,9 +45,14 @@ public class BudgetManager {
 
     public static void reset() {
         toolCallUsage.set(0);
-        startTime.set(now());
+        startTime.set(null);
         tokenUsagePerModel.clear();
         LOG.debug("Budget counters reset.");
+    }
+
+    public static void activateTimeBudget() {
+        startTime.set(now());
+        LOG.debug("Execution time budget activated.");
     }
 
     public static void resetToolCallUsage() {

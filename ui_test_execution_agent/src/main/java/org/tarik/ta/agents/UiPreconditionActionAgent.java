@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,17 +30,8 @@ public interface UiPreconditionActionAgent extends BaseUiAgent<EmptyExecutionRes
     RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
 
     Result<String> execute(
-            @UserMessage("""
-                    The precondition you need to execute: {{precondition}}.
-                    
-                    Test context execution data: {{sharedData}}.
-                    
-                    The screenshot follows.
-                    """)
-            @V("precondition") String precondition,
-            @V("sharedData") String sharedData,
+            @UserMessage String userMessage,
             @UserMessage ImageContent screenshot);
-
     @Override
     default String getAgentTaskDescription() {
         return "Executing precondition action related to UI";

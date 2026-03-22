@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,12 @@
  */
 package org.tarik.ta.tools;
 
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
+import dev.langchain4j.service.Result;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.agents.ImageVerificationAgent;
-import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.agents.BaseUiAgent;
+import org.tarik.ta.agents.UiPreconditionVerificationAgent;
+import org.tarik.ta.agents.UiTestStepVerificationAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.dto.UiOperationExecutionResult;
@@ -28,46 +28,77 @@ import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.model.VisualState;
 
 import java.time.Instant;
+import java.util.function.Supplier;
 
 import static java.time.Instant.now;
+import static org.tarik.ta.core.AgentConfig.getVerificationRetryPolicy;
 import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.core.utils.CommonUtils.getDurationInMillis;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
-public class VerificationTools extends UiAbstractTools {
+public class VerificationTools {
     private static final Logger LOG = LoggerFactory.getLogger(VerificationTools.class);
-    private final ImageVerificationAgent imageVerificationAgent;
-    private final UiTestExecutionContext context;
-    private final RetryPolicy retryPolicy = AgentConfig.getVerificationRetryPolicy();
 
-    public VerificationTools(UiTestExecutionContext context, ImageVerificationAgent imageVerificationAgent) {
-        super();
-        this.context = context;
-        this.imageVerificationAgent = imageVerificationAgent;
+    private VerificationTools() {
     }
 
-    @Tool("Verifies that the test step produced the expected visual result. Returns true if verification passed, false otherwise.")
-    public VerificationExecutionResult verifyTestStep(
-            @P("The description of the expected visual result to verify") String verificationDescription,
-            @P("The description of the action that was just performed") String actionDescription,
-            @P("The test data used for the action") String actionTestData,
-            @P("Any other relevant context data for the verification") String relatedTestContextData) {
+    public static VerificationExecutionResult verifyTestStep(String verificationDescription, String actionDescription,
+                                                             String actionTestData, UiTestExecutionContext context,
+                                                             UiTestStepVerificationAgent verificationAgent) {
+
+        LOG.info("Starting the retriable verification that: '{}'", verificationDescription);
+        Supplier<Result<?>> operation = () -> {
+            var screenshot = captureScreen();
+            context.setVisualState(new VisualState(screenshot));
+            return verificationAgent.verify(verificationDescription, actionDescription, actionTestData,
+                    context.getSharedData().toString(), singleImageContent(screenshot));
+        };
+        return executeVerificationWithRetry(verificationAgent, operation, "Verification");
+    }
+
+    public static VerificationExecutionResult verifyPrecondition(
+            String preconditionDescription,
+            UiTestExecutionContext context,
+            UiPreconditionVerificationAgent preconditionVerificationAgent,
+            String relevantData) {
+
+        LOG.info("Verifying if precondition was successfully executed: '{}'", preconditionDescription);
+        Supplier<Result<?>> operation = () -> {
+            var screenshot = captureScreen();
+            context.setVisualState(new VisualState(screenshot));
+            var message = buildPreconditionVerificationMessage(preconditionDescription, context.getSharedData().toString(), relevantData);
+            return preconditionVerificationAgent.verify(message, singleImageContent(screenshot));
+        };
+        return executeVerificationWithRetry(preconditionVerificationAgent, operation, "Precondition verification");
+    }
+
+    private static String buildPreconditionVerificationMessage(String preconditionDescription, String sharedData, String relevantData) {
+        var relevantDataSection = relevantData.isBlank() ? ""
+                : "\nRelevant data for this precondition: %s\n".formatted(relevantData);
+        return """
+                The test case precondition is: %s.
+                %s
+                Test context execution data: %s
+                """.formatted(preconditionDescription, relevantDataSection, sharedData);
+    }
+
+    private static VerificationExecutionResult executeVerificationWithRetry(
+            BaseUiAgent<VerificationExecutionResult> agent,
+            Supplier<Result<?>> operation,
+            String label) {
+
+        RetryPolicy retryPolicy = getVerificationRetryPolicy();
         int attempts = 0;
         Instant start = now();
-        LOG.info("Starting the retriable verification that: '{}'", verificationDescription);
 
         UiOperationExecutionResult<VerificationExecutionResult> lastResult = null;
         do {
             LOG.info("Attempt: {}", attempts + 1);
             try {
-                lastResult = (UiOperationExecutionResult<VerificationExecutionResult>) imageVerificationAgent.executeAndGetResult(() -> {
-                    var screenshot = captureScreen();
-                    context.setVisualState(new VisualState(screenshot));
-                    return imageVerificationAgent.verify(verificationDescription, actionDescription, actionTestData,
-                            context.getSharedData().toString(), singleImageContent(screenshot));
-                });
+                lastResult = (UiOperationExecutionResult<VerificationExecutionResult>) agent
+                        .executeAndGetResult(operation);
                 attempts++;
                 resetToolCallUsage();
 
@@ -76,23 +107,25 @@ public class VerificationTools extends UiAbstractTools {
                 }
 
                 if (lastResult.getResultPayload() != null && lastResult.getResultPayload().success()) {
-                    LOG.info("Verification complete within {} millis.", getDurationInMillis(start));
+                    LOG.info("{} complete within {} millis.", label, getDurationInMillis(start));
                     return lastResult.getResultPayload();
                 }
 
                 sleepMillis(retryPolicy.delayMillis());
             } catch (Exception e) {
-                LOG.error("Unexpected error during verification", e);
+                LOG.error("Unexpected error during {}", label, e);
                 if (getDurationInMillis(start) > retryPolicy.timeoutMillis()) {
-                    return new VerificationExecutionResult(false, "Error during verification: " + e.getMessage());
+                    return new VerificationExecutionResult(false,
+                            "Error during %s: %s".formatted(label, e.getMessage()));
                 }
+                sleepMillis(retryPolicy.delayMillis());
             }
         } while (getDurationInMillis(start) < retryPolicy.timeoutMillis());
 
-        LOG.warn("Verification timed out after {} attempts. Returning the latest result.", attempts);
+        LOG.warn("{} timed out after {} attempts. Returning the latest result.", label, attempts);
         if (lastResult != null && lastResult.getResultPayload() != null) {
             return lastResult.getResultPayload();
         }
-        return new VerificationExecutionResult(false, "Verification timed out.");
+        return new VerificationExecutionResult(false, "%s timed out.".formatted(label));
     }
 }

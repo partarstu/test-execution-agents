@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,7 +53,6 @@ import static org.opencv.imgcodecs.Imgcodecs.imdecode;
 import static org.opencv.imgproc.Imgproc.*;
 import static org.tarik.ta.utils.ImageUtils.imageToByteArray;
 
-
 public class ImageMatchingUtil {
     private static final Logger LOG = LoggerFactory.getLogger(ImageMatchingUtil.class);
     private static final int MIN_GOOD_FEATURE_MATCHES = 10;
@@ -79,7 +78,8 @@ public class ImageMatchingUtil {
     private static boolean initializeOpenCv() {
         try {
             Loader.load(opencv_java.class);
-            ORB = create(ORB_MAX_FEATURES, ORB_SCALE_FACTOR, ORB_N_LEVELS, ORB_EDGE_THRESHOLD, ORB_FIRST_LEVEL, ORB_WTA_K, HARRIS_SCORE,
+            ORB = create(ORB_MAX_FEATURES, ORB_SCALE_FACTOR, ORB_N_LEVELS, ORB_EDGE_THRESHOLD, ORB_FIRST_LEVEL,
+                    ORB_WTA_K, HARRIS_SCORE,
                     ORB_PATCH_SIZE, ORB_FAST_THRESHOLD);
             return true;
         } catch (Throwable t) {
@@ -88,7 +88,8 @@ public class ImageMatchingUtil {
         }
     }
 
-    public static List<Rectangle> findMatchingRegionsWithTemplateMatching(BufferedImage wholeScreenshot, BufferedImage elementScreenshot) {
+    public static List<Rectangle> findMatchingRegionsWithTemplateMatching(BufferedImage wholeScreenshot,
+            BufferedImage elementScreenshot) {
         if (!initialized) {
             initialized = initializeOpenCv();
         }
@@ -108,28 +109,32 @@ public class ImageMatchingUtil {
             }
         }
 
-        var boundingBoxes =  matches.stream()
+        var boundingBoxes = matches.stream()
                 .sorted(comparingDouble(MatchResult::score).reversed())
                 .limit(UiTestAgentConfig.getElementLocatorTopVisualMatches())
-                .map(match ->
-                        new Rectangle(match.point(), new Dimension(elementScreenshot.getWidth(), elementScreenshot.getHeight())))
+                .map(match -> new Rectangle(match.point(),
+                        new Dimension(elementScreenshot.getWidth(), elementScreenshot.getHeight())))
                 .toList();
         LOG.info("Found {} matching regions using template matching.", boundingBoxes.size());
         return boundingBoxes;
     }
 
-    public static List<Rectangle> findMatchingRegionsWithORB(BufferedImage wholeScreenshot, BufferedImage elementScreenshot) {
-        return findMatchingRegionsWithORB(wholeScreenshot, elementScreenshot, UiTestAgentConfig.getFoundMatchesDimensionDeviationRatio());
+    public static List<Rectangle> findMatchingRegionsWithORB(BufferedImage wholeScreenshot,
+            BufferedImage elementScreenshot) {
+        return findMatchingRegionsWithORB(wholeScreenshot, elementScreenshot,
+                UiTestAgentConfig.getFoundMatchesDimensionDeviationRatio());
     }
 
-    public static List<Rectangle> findMatchingRegionsWithORB(BufferedImage wholeScreenshot, BufferedImage elementScreenshot,
-                                                             double deviationRatio) {
+    public static List<Rectangle> findMatchingRegionsWithORB(BufferedImage wholeScreenshot,
+            BufferedImage elementScreenshot,
+            double deviationRatio) {
         if (!initialized) {
             initialized = initializeOpenCv();
         }
 
         Mat wholeMat = imdecode(new MatOfByte(imageToByteArray(wholeScreenshot, "png")), Imgcodecs.IMREAD_GRAYSCALE);
-        Mat elementMat = imdecode(new MatOfByte(imageToByteArray(elementScreenshot, "png")), Imgcodecs.IMREAD_GRAYSCALE);
+        Mat elementMat = imdecode(new MatOfByte(imageToByteArray(elementScreenshot, "png")),
+                Imgcodecs.IMREAD_GRAYSCALE);
         if (elementMat.empty() || wholeMat.empty()) {
             LOG.error("Cannot read images, one or both are empty.");
             return Collections.emptyList();
@@ -147,7 +152,8 @@ public class ImageMatchingUtil {
         Mat descriptorsWhole = new Mat();
         ORB.detectAndCompute(wholeMat, new Mat(), keypointsWhole, descriptorsWhole);
         if (descriptorsWhole.empty()) {
-            LOG.warn("No descriptors found in the whole screenshot, either the image or the config of ORB algorithm is invalid.");
+            LOG.warn(
+                    "No descriptors found in the whole screenshot, either the image or the config of ORB algorithm is invalid.");
             return List.of();
         }
 
@@ -161,21 +167,24 @@ public class ImageMatchingUtil {
         List<KeyPoint> elementKeyPointsList = keypointsElement.toList();
         double maxAllowedRegionWidth = elementScreenshot.getWidth() * (1 + deviationRatio);
         double maxAllowedRegionHeight = elementScreenshot.getHeight() * (1 + deviationRatio);
-        getClusters(elementScreenshot, keypointsWhole, goodMatchesList).forEach(cluster ->
-                getIdentifiedRegionBoundingBox(cluster, elementKeyPointsList, elementMat, maxAllowedRegionWidth, maxAllowedRegionHeight)
+        getClusters(elementScreenshot, keypointsWhole, goodMatchesList)
+                .forEach(cluster -> getIdentifiedRegionBoundingBox(cluster, elementKeyPointsList, elementMat,
+                        maxAllowedRegionWidth, maxAllowedRegionHeight)
                         .ifPresent(foundMatches::add));
 
-        var boundingBoxes =  foundMatches.stream()
+        var boundingBoxes = foundMatches.stream()
                 .sorted(comparingDouble(MatchResultWithRectangle::score).reversed())
                 .limit(UiTestAgentConfig.getElementLocatorTopVisualMatches())
                 .map(MatchResultWithRectangle::rectangle)
                 .toList();
-        LOG.debug("Found {} matching regions using ORB (Oriented FAST and Rotated BRIEF) algorithm.", boundingBoxes.size());
+        LOG.debug("Found {} matching regions using ORB (Oriented FAST and Rotated BRIEF) algorithm.",
+                boundingBoxes.size());
         return boundingBoxes;
     }
 
-    private static List<Cluster<KeyPointClusterable>> getClusters(BufferedImage elementScreenshot, MatOfKeyPoint keypointsWhole,
-                                                                  List<DMatch> goodMatchesList) {
+    private static List<Cluster<KeyPointClusterable>> getClusters(BufferedImage elementScreenshot,
+            MatOfKeyPoint keypointsWhole,
+            List<DMatch> goodMatchesList) {
         List<KeyPoint> wholeKeyPointsList = keypointsWhole.toList();
         List<KeyPointClusterable> clusterInput = new ArrayList<>();
         for (DMatch goodMatch : goodMatchesList) {
@@ -201,12 +210,13 @@ public class ImageMatchingUtil {
         return goodMatchesList;
     }
 
-    private static Optional<MatchResultWithRectangle> getIdentifiedRegionBoundingBox(Cluster<KeyPointClusterable> cluster,
-                                                                                     List<KeyPoint> elementKeyPointsList, Mat elementMat,
-                                                                                     double maxAllowedRegionWidth,
-                                                                                     double maxAllowedRegionHeight) {
-        List<Point> elementPoints = new ArrayList<>();
-        List<Point> wholePoints = new ArrayList<>();
+    private static Optional<MatchResultWithRectangle> getIdentifiedRegionBoundingBox(
+            Cluster<KeyPointClusterable> cluster,
+            List<KeyPoint> elementKeyPointsList, Mat elementMat,
+            double maxAllowedRegionWidth,
+            double maxAllowedRegionHeight) {
+        List<org.opencv.core.Point> elementPoints = new ArrayList<>();
+        List<org.opencv.core.Point> wholePoints = new ArrayList<>();
 
         for (KeyPointClusterable kpc : cluster.getPoints()) {
             elementPoints.add(elementKeyPointsList.get(kpc.getMatch().queryIdx).pt);
@@ -220,17 +230,20 @@ public class ImageMatchingUtil {
             return empty();
         }
 
-        // Find the perspective transformation between the element and the cluster in the whole image
-        MatOfPoint2f elementPtsMat = new MatOfPoint2f(elementPoints.toArray(new Point[0]));
-        MatOfPoint2f wholePtsMat = new MatOfPoint2f(wholePoints.toArray(new Point[0]));
+        // Find the perspective transformation between the element and the cluster in
+        // the whole image
+        MatOfPoint2f elementPtsMat = new MatOfPoint2f(elementPoints.toArray(new org.opencv.core.Point[0]));
+        MatOfPoint2f wholePtsMat = new MatOfPoint2f(wholePoints.toArray(new org.opencv.core.Point[0]));
         Mat mask = new Mat();
         Mat homography = findHomography(elementPtsMat, wholePtsMat, RANSAC, MAX_REPROJECTION_ERROR_THRESHOLD, mask);
         if (homography.empty() || homography.rows() != 3 || homography.cols() != 3) {
-            LOG.info("Homography matrix is empty or has invalid dimensions. Cannot proceed with homography transformation.");
+            LOG.info(
+                    "Homography matrix is empty or has invalid dimensions. Cannot proceed with homography transformation.");
             return empty();
         }
 
-        // Use the homography to project the corners of the element onto the whole screenshot
+        // Use the homography to project the corners of the element onto the whole
+        // screenshot
         Mat elementCorners = new Mat(4, 1, CvType.CV_32FC2);
         elementCorners.put(0, 0, 0, 0);
         elementCorners.put(1, 0, elementMat.cols(), 0);
@@ -240,16 +253,17 @@ public class ImageMatchingUtil {
         perspectiveTransform(elementCorners, sceneCorners, homography);
 
         // Create a bounding rectangle from the transformed corners
-        Rect boundingRect = boundingRect(new MatOfPoint(
-                new Point(sceneCorners.get(0, 0)),
-                new Point(sceneCorners.get(1, 0)),
-                new Point(sceneCorners.get(2, 0)),
-                new Point(sceneCorners.get(3, 0))
-        ));
+        Rect boundingRect = Imgproc.boundingRect(new MatOfPoint(
+                new org.opencv.core.Point(sceneCorners.get(0, 0)[0], sceneCorners.get(0, 0)[1]),
+                new org.opencv.core.Point(sceneCorners.get(1, 0)[0], sceneCorners.get(1, 0)[1]),
+                new org.opencv.core.Point(sceneCorners.get(2, 0)[0], sceneCorners.get(2, 0)[1]),
+                new org.opencv.core.Point(sceneCorners.get(3, 0)[0], sceneCorners.get(3, 0)[1])));
 
         if (boundingRect.width <= maxAllowedRegionWidth && boundingRect.height <= maxAllowedRegionHeight) {
-            // The mainScore is the number of inliers from the RANSAC homography calculation, which is a robust measure of match quality.
-            Rectangle boundingBox = new Rectangle(boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height);
+            // The mainScore is the number of inliers from the RANSAC homography
+            // calculation, which is a robust measure of match quality.
+            Rectangle boundingBox = new Rectangle(boundingRect.x, boundingRect.y, boundingRect.width,
+                    boundingRect.height);
             return of(new MatchResultWithRectangle(boundingBox, countNonZero(mask)));
         } else {
             return empty();
@@ -270,7 +284,7 @@ public class ImageMatchingUtil {
         public KeyPointClusterable(DMatch match, KeyPoint keyPoint) {
             this.match = match;
             this.keyPoint = keyPoint;
-            this.point = new double[]{keyPoint.pt.x, keyPoint.pt.y};
+            this.point = new double[] { keyPoint.pt.x, keyPoint.pt.y };
         }
 
         public DMatch getMatch() {
@@ -287,6 +301,3 @@ public class ImageMatchingUtil {
         }
     }
 }
-
-
-

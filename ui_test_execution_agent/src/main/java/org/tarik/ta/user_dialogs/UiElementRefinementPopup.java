@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package org.tarik.ta.user_dialogs;
 
 import org.jetbrains.annotations.NotNull;
 import org.tarik.ta.dto.ElementRefinementOperation;
-import org.tarik.ta.rag.model.UiElement;
+import org.tarik.ta.knowledge_graph.model.node.UiElement;
 
 import java.awt.image.BufferedImage;
 import javax.swing.*;
@@ -87,7 +87,7 @@ public class UiElementRefinementPopup extends AbstractDialog {
 
     private void showElementActionDialog(UiElement element) {
         JDialog dialog = new JDialog(this, ELEMENT_ACTION_DIALOG_TITLE, true);
-        dialog.setLayout(new BorderLayout(10, 10));
+        dialog.setLayout(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
 
         JPanel messagePanel = new JPanel();
         messagePanel.add(new JLabel(ELEMENT_ACTION_DIALOG_MESSAGE));
@@ -95,7 +95,7 @@ public class UiElementRefinementPopup extends AbstractDialog {
         JButton updateButton = new JButton(UPDATE_BUTTON_TEXT);
         setHoverAsClick(updateButton);
         updateButton.addActionListener(_ -> {
-            result = ElementRefinementOperation.forUpdateElement(element.uuid());
+            result = ElementRefinementOperation.forUpdateElement(element.id());
             dialog.dispose();
             UiElementRefinementPopup.this.dispose();
         });
@@ -103,23 +103,20 @@ public class UiElementRefinementPopup extends AbstractDialog {
         JButton deleteButton = new JButton(DELETE_BUTTON_TEXT);
         setHoverAsClick(deleteButton);
         deleteButton.addActionListener(_ -> {
-            result = ElementRefinementOperation.forDeleteElement(element.uuid());
+            result = ElementRefinementOperation.forDeleteElement(element.id());
             dialog.dispose();
             UiElementRefinementPopup.this.dispose();
         });
 
-        JButton newScreenshotButton = new JButton("Update Screenshot");
+        JButton newScreenshotButton = new JButton("Replace Screenshot Manually");
         setHoverAsClick(newScreenshotButton);
         newScreenshotButton.addActionListener(_ -> {
-            result = ElementRefinementOperation.forUpdateScreenshot(element.uuid());
+            result = ElementRefinementOperation.forUpdateScreenshot(element.id());
             dialog.dispose();
             UiElementRefinementPopup.this.dispose();
         });
 
-        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
-        buttonsPanel.add(updateButton);
-        buttonsPanel.add(deleteButton);
-        buttonsPanel.add(newScreenshotButton);
+        JPanel buttonsPanel = getButtonsPanel(updateButton, deleteButton, newScreenshotButton);
 
         dialog.add(messagePanel, BorderLayout.NORTH);
         dialog.add(buttonsPanel, BorderLayout.CENTER);
@@ -141,7 +138,7 @@ public class UiElementRefinementPopup extends AbstractDialog {
         label.setHorizontalTextPosition(SwingConstants.RIGHT);
         label.setVerticalTextPosition(SwingConstants.CENTER);
         label.setVerticalAlignment(SwingConstants.CENTER);
-        label.setIconTextGap(10);
+        label.setIconTextGap(DIALOG_DEFAULT_HORIZONTAL_GAP);
         label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return label;
     }

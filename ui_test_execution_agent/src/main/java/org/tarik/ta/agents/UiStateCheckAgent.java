@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,16 +26,16 @@ import org.tarik.ta.core.error.RetryPolicy;
 public interface UiStateCheckAgent extends BaseUiAgent<UiStateCheckResult> {
     RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
 
+    @UserMessage("""
+            The expected state of the screen: {{expectedStateDescription}}
+            
+            The action performed was: {{actionDescription}}
+            
+            Any related to the expected state data: {{relevantData}}
+            
+            Screenshot attached.
+            """)
     Result<String> verify(
-            @UserMessage("""
-                    The expected state of the screen: {{expectedStateDescription}}
-                    
-                    The action performed was: {{actionDescription}}
-                    
-                    Any related to the expected state data: {{relevantData}}
-                    
-                    Screenshot attached.
-                    """)
             @V("expectedStateDescription") String expectedStateDescription,
             @V("actionDescription") String actionDescription,
             @V("relevantData") String relevantData,

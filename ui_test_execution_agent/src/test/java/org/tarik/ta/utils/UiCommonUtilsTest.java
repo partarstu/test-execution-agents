@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,8 +46,6 @@ import static org.mockito.Mockito.*;
 import static org.tarik.ta.utils.UiCommonUtils.getColorByName;
 import static org.tarik.ta.utils.UiCommonUtils.getColorName;
 import static org.tarik.ta.utils.UiCommonUtils.getMouseLocation;
-import static org.tarik.ta.utils.UiCommonUtils.getPhysicalBoundingBox;
-import static org.tarik.ta.utils.UiCommonUtils.getPhysicalScreenLocationCoordinates;
 import static org.tarik.ta.utils.UiCommonUtils.getScaledBoundingBox;
 import static org.tarik.ta.utils.UiCommonUtils.getScaledScreenLocationCoordinates;
 import static org.tarik.ta.utils.UiCommonUtils.getScreenSize;
@@ -290,72 +288,5 @@ class UiCommonUtilsTest {
 
         // Then
         assertEquals(expectedScaledBox, scaledBox);
-    }
-
-    @Test
-    @DisplayName("getPhysicalScreenLocationCoordinates: Should return same coords when scale is 1")
-    void getPhysicalScreenLocationCoordinatesNoScale() {
-        // Given
-        Point scaledCoords = new Point(200, 300);
-        when(mockAffineTransform.getScaleX()).thenReturn(1.0);
-        when(mockAffineTransform.getScaleY()).thenReturn(1.0);
-
-        // When
-        Point physicalCoords = getPhysicalScreenLocationCoordinates(scaledCoords);
-
-        // Then
-        assertEquals(scaledCoords, physicalCoords);
-    }
-
-    @Test
-    @DisplayName("getPhysicalScreenLocationCoordinates: Should return physical coords when scale is not 1")
-    void getPhysicalScreenLocationCoordinatesWithScale() {
-        // Given
-        Point scaledCoords = new Point(200, 300);
-        when(mockAffineTransform.getScaleX()).thenReturn(SCALE_FACTOR);
-        when(mockAffineTransform.getScaleY()).thenReturn(SCALE_FACTOR);
-        Point expectedPhysicalCoords = new Point((int) (200 * SCALE_FACTOR), (int) (300 * SCALE_FACTOR));
-
-        // When
-        Point physicalCoords = getPhysicalScreenLocationCoordinates(scaledCoords);
-
-        // Then
-        assertEquals(expectedPhysicalCoords, physicalCoords);
-    }
-
-    @Test
-    @DisplayName("getPhysicalBoundingBox: Should return same box when scale is 1")
-    void getPhysicalBoundingBoxNoScale() {
-        // Given
-        Rectangle logicalBox = new Rectangle(50, 60, 100, 120);
-        when(mockAffineTransform.getScaleX()).thenReturn(1.0);
-        when(mockAffineTransform.getScaleY()).thenReturn(1.0);
-
-        // When
-        Rectangle physicalBox = getPhysicalBoundingBox(logicalBox);
-
-        // Then
-        assertEquals(logicalBox, physicalBox);
-    }
-
-    @Test
-    @DisplayName("getPhysicalBoundingBox: Should return physical box when scale is not 1")
-    void getPhysicalBoundingBoxWithScale() {
-        // Given
-        Rectangle logicalBox = new Rectangle(60, 90, 150, 180);
-        when(mockAffineTransform.getScaleX()).thenReturn(SCALE_FACTOR);
-        when(mockAffineTransform.getScaleY()).thenReturn(SCALE_FACTOR);
-        Rectangle expectedPhysicalBox = new Rectangle(
-                (int) (60 * SCALE_FACTOR),
-                (int) (90 * SCALE_FACTOR),
-                (int) (150 * SCALE_FACTOR),
-                (int) (180 * SCALE_FACTOR)
-        );
-
-        // When
-        Rectangle physicalBox = getPhysicalBoundingBox(logicalBox);
-
-        // Then
-        assertEquals(expectedPhysicalBox, physicalBox);
     }
 }

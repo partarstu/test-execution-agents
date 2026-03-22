@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
+import org.mockito.ArgumentMatchers;
 
 class TestContextDataToolsTest {
 
@@ -106,7 +107,7 @@ class TestContextDataToolsTest {
             ...
             context.setSharedData(variableName, result);
          */
-        verify(context).addSharedData(org.mockito.ArgumentMatchers.eq("myCsvVar"), org.mockito.ArgumentMatchers.anyList());
+        verify(context).addSharedData(ArgumentMatchers.eq("myCsvVar"), ArgumentMatchers.anyList());
     }
 
     @Test

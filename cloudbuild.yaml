@@ -1,5 +1,5 @@
 #
-# Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+# Copyright © 2026 Taras Paruta (partarstu@gmail.com)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #   - 'all' (default): Deploy both UI and API agents
 #   - 'ui': Deploy only the UI agent
 #   - 'api': Deploy only the API agent
+#   - 'neo4j': Deploy only the Neo4j knowledge persistence VM
 
 steps:
   # ============================================
@@ -30,7 +31,28 @@ steps:
     args: [ 'mvn', 'clean', 'install', '-DskipTests', '-P', 'linux' ]
 
   # ============================================
-  # Stage 2: UI Test Execution Agent (VM-based)
+  # Stage 2: Neo4j Knowledge Persistence VM
+  # Delegates to the neo4j module's cloudbuild.yaml
+  # Runs when _DEPLOY_TARGET is 'neo4j'
+  # ============================================
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-neo4j'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "$_DEPLOY_TARGET" = "neo4j" ]; then
+          echo "Deploying Neo4j knowledge persistence VM..."
+          gcloud builds submit --config=ui_test_execution_agent/deployment/neo4j/cloudbuild.yaml \
+            .
+        else
+          echo "Skipping Neo4j deployment (_DEPLOY_TARGET=$_DEPLOY_TARGET)"
+        fi
+    dir: '/workspace'
+    waitFor: [ '-' ]
+
+  # ============================================
+  # Stage 3: UI Test Execution Agent (VM-based)
   # Delegates to the module's own cloudbuild.yaml
   # Runs when _DEPLOY_TARGET is 'all' or 'ui'
   # ============================================
@@ -52,7 +74,7 @@ steps:
     waitFor: [ 'maven-build' ]
 
   # ============================================
-  # Stage 3: API Test Execution Agent (Cloud Run)
+  # Stage 4: API Test Execution Agent (Cloud Run)
   # Delegates to the module's own cloudbuild.yaml
   # Runs when _DEPLOY_TARGET is 'all' or 'api'
   # ============================================
@@ -74,7 +96,7 @@ steps:
     waitFor: [ 'maven-build' ]
 
 substitutions:
-  _DEPLOY_TARGET: 'all'  # Options: 'all', 'ui', 'api'
+  _DEPLOY_TARGET: 'all'  # Options: 'all', 'ui', 'api', 'neo4j'
   _UI_AGENT_SERVICE_NAME: 'ui-test-execution-agent'
   _API_AGENT_SERVICE_NAME: 'api-test-execution-agent'
   _IMAGE_TAG: 'latest'

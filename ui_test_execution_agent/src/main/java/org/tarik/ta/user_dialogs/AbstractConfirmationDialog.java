@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,12 +28,16 @@ public abstract class AbstractConfirmationDialog extends AbstractDialog {
         // Dialog does nothing after its closing - it's the same as clicking the OK button
     }
 
+    protected JButton createOkButton() {
+        var button = new JButton("OK");
+        button.addActionListener(_ -> dispose());
+        setHoverAsClick(button);
+        return button;
+    }
+
     protected void initializeDialog(String userMessage) {
         var userMessageArea = getUserMessageArea(userMessage);
-        var continueButton = new JButton("OK");
-        continueButton.addActionListener(_ -> dispose());
-        setHoverAsClick(continueButton);
-        JPanel buttonsPanel = getButtonsPanel(continueButton);
+        JPanel buttonsPanel = getButtonsPanel(createOkButton());
 
         JPanel mainPanel = getDefaultMainPanel();
         mainPanel.add(new JScrollPane(userMessageArea), BorderLayout.CENTER);

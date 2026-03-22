@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
 @SuppressWarnings({"ALL", "unchecked"})
 @ExtendWith(MockitoExtension.class)
@@ -182,28 +196,28 @@ class CommonUtilsTest {
 
     @Test
     void getObjectPrettyPrinted_ShouldReturnPrettyJson() {
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        java.util.Map<String, String> map = java.util.Map.of("key", "value");
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, String> map = Map.of("key", "value");
         Optional<String> result = CommonUtils.getObjectPrettyPrinted(mapper, map);
         assertTrue(result.isPresent());
         assertTrue(result.get().contains("\"key\" : \"value\""));
     }
 
     @Test
-    void getObjectPrettyPrinted_ShouldReturnEmptyOnException() throws com.fasterxml.jackson.core.JsonProcessingException {
-        com.fasterxml.jackson.databind.ObjectMapper mapper = org.mockito.Mockito.mock(com.fasterxml.jackson.databind.ObjectMapper.class);
-        com.fasterxml.jackson.databind.ObjectWriter writer = org.mockito.Mockito.mock(com.fasterxml.jackson.databind.ObjectWriter.class);
+    void getObjectPrettyPrinted_ShouldReturnEmptyOnException() throws JsonProcessingException {
+        ObjectMapper mapper = Mockito.mock(ObjectMapper.class);
+        ObjectWriter writer = Mockito.mock(ObjectWriter.class);
         
-        org.mockito.Mockito.when(mapper.writerWithDefaultPrettyPrinter()).thenReturn(writer);
-        org.mockito.Mockito.when(writer.writeValueAsString(org.mockito.ArgumentMatchers.any())).thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("Error") {});
+        Mockito.when(mapper.writerWithDefaultPrettyPrinter()).thenReturn(writer);
+        Mockito.when(writer.writeValueAsString(ArgumentMatchers.any())).thenThrow(new JsonProcessingException("Error") {});
         
-        Optional<String> result = CommonUtils.getObjectPrettyPrinted(mapper, java.util.Map.of());
+        Optional<String> result = CommonUtils.getObjectPrettyPrinted(mapper, Map.of());
         assertTrue(result.isEmpty());
     }
 
     @Test
-    void deleteFile_ShouldDeleteFile(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) throws java.io.IOException {
-        java.io.File file = tempDir.resolve("test.txt").toFile();
+    void deleteFile_ShouldDeleteFile(@TempDir Path tempDir) throws IOException {
+        File file = tempDir.resolve("test.txt").toFile();
         assertTrue(file.createNewFile());
         CommonUtils.deleteFile(file);
         assertFalse(file.exists());
@@ -211,36 +225,36 @@ class CommonUtilsTest {
     
     @Test
     void deleteFile_ShouldHandleNonExistentFile() {
-        java.io.File file = new java.io.File("non_existent_file.txt");
+        File file = new File("non_existent_file.txt");
         assertDoesNotThrow(() -> CommonUtils.deleteFile(file));
     }
 
     @Test
-    void deleteFolderContents_ShouldDeleteContents(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) throws java.io.IOException {
-        java.nio.file.Path subDir = tempDir.resolve("subdir");
-        java.nio.file.Files.createDirectory(subDir);
-        java.nio.file.Files.createFile(subDir.resolve("file.txt"));
+    void deleteFolderContents_ShouldDeleteContents(@TempDir Path tempDir) throws IOException {
+        Path subDir = tempDir.resolve("subdir");
+        Files.createDirectory(subDir);
+        Files.createFile(subDir.resolve("file.txt"));
         
         CommonUtils.deleteFolderContents(tempDir);
         
-        assertTrue(java.nio.file.Files.exists(tempDir));
-        try (java.util.stream.Stream<java.nio.file.Path> entries = java.nio.file.Files.list(tempDir)) {
+        assertTrue(Files.exists(tempDir));
+        try (Stream<Path> entries = Files.list(tempDir)) {
              assertEquals(0, entries.count());
         }
     }
     
     @Test
-    void deleteFolderContents_ShouldThrowIfFile(@org.junit.jupiter.api.io.TempDir java.nio.file.Path tempDir) throws java.io.IOException {
-        java.nio.file.Path file = tempDir.resolve("file.txt");
-        java.nio.file.Files.createFile(file);
+    void deleteFolderContents_ShouldThrowIfFile(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("file.txt");
+        Files.createFile(file);
         
         assertThrows(IllegalArgumentException.class, () -> CommonUtils.deleteFolderContents(file));
     }
 
     @Test
-    void getFutureResult_ShouldReturnResult() throws java.util.concurrent.ExecutionException, InterruptedException {
-        java.util.concurrent.Future<String> future = org.mockito.Mockito.mock(java.util.concurrent.Future.class);
-        org.mockito.Mockito.when(future.get()).thenReturn("result");
+    void getFutureResult_ShouldReturnResult() throws ExecutionException, InterruptedException {
+        Future<String> future = Mockito.mock(Future.class);
+        Mockito.when(future.get()).thenReturn("result");
         
         Optional<String> result = CommonUtils.getFutureResult(future, "task");
         assertTrue(result.isPresent());
@@ -248,18 +262,18 @@ class CommonUtilsTest {
     }
 
     @Test
-    void getFutureResult_ShouldReturnEmptyOnException() throws java.util.concurrent.ExecutionException, InterruptedException {
-        java.util.concurrent.Future<String> future = org.mockito.Mockito.mock(java.util.concurrent.Future.class);
-        org.mockito.Mockito.when(future.get()).thenThrow(new java.util.concurrent.ExecutionException(new RuntimeException("Error")));
+    void getFutureResult_ShouldReturnEmptyOnException() throws ExecutionException, InterruptedException {
+        Future<String> future = Mockito.mock(Future.class);
+        Mockito.when(future.get()).thenThrow(new ExecutionException(new RuntimeException("Error")));
         
         Optional<String> result = CommonUtils.getFutureResult(future, "task");
         assertTrue(result.isEmpty());
     }
     
     @Test
-    void getFutureResult_ShouldHandleInterruptedException() throws java.util.concurrent.ExecutionException, InterruptedException {
-        java.util.concurrent.Future<String> future = org.mockito.Mockito.mock(java.util.concurrent.Future.class);
-        org.mockito.Mockito.when(future.get()).thenThrow(new InterruptedException("Interrupted"));
+    void getFutureResult_ShouldHandleInterruptedException() throws ExecutionException, InterruptedException {
+        Future<String> future = Mockito.mock(Future.class);
+        Mockito.when(future.get()).thenThrow(new InterruptedException("Interrupted"));
         
         Optional<String> result = CommonUtils.getFutureResult(future, "task");
         assertTrue(result.isEmpty());
@@ -310,5 +324,12 @@ class CommonUtilsTest {
         CommonUtils.waitUntil(deadline);
         long end = System.currentTimeMillis();
         assertTrue((end - start) < 100); // Should be very fast
+    }
+
+    @Test
+    void getDurationInMillis_ShouldReturnCorrectDuration() {
+        Instant start = Instant.now().minusMillis(500);
+        long duration = CommonUtils.getDurationInMillis(start);
+        assertTrue(duration >= 500);
     }
 }

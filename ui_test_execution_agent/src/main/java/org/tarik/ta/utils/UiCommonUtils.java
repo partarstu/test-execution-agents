@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,10 @@
 package org.tarik.ta.utils;
 
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.tarik.ta.dto.ScreenRegion;
 
 import java.awt.*;
 import java.awt.geom.AffineTransform;
@@ -23,7 +27,6 @@ import java.awt.image.BufferedImage;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment;
@@ -31,6 +34,7 @@ import static java.util.Comparator.comparingInt;
 import static org.tarik.ta.utils.ImageUtils.toBufferedImage;
 
 public class UiCommonUtils {
+    private static final Logger LOG = LoggerFactory.getLogger(UiCommonUtils.class);
     private static Robot robot;
 
     public static Object getStaticFieldValue(Field field) {
@@ -132,43 +136,26 @@ public class UiCommonUtils {
         }
     }
 
-    public static Rectangle getPhysicalBoundingBox(@NotNull Rectangle logicalBoundingBox) {
-        var graphicsConfiguration = getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
-        AffineTransform tx = graphicsConfiguration.getDefaultTransform();
-        double uiScaleX = tx.getScaleX();
-        double uiScaleY = tx.getScaleY();
-        if (uiScaleX == 1 && uiScaleY == 1) {
-            return logicalBoundingBox;
-        } else {
-            var physicalX = logicalBoundingBox.getX() * uiScaleX;
-            var physicalY = logicalBoundingBox.getY() * uiScaleY;
-            var physicalWidth = logicalBoundingBox.getWidth() * uiScaleX;
-            var physicalHeight = logicalBoundingBox.getHeight() * uiScaleY;
-            return new Rectangle((int) physicalX, (int) physicalY, (int) physicalWidth, (int) physicalHeight);
-        }
-    }
-
-    public static Point getPhysicalScreenLocationCoordinates(@NotNull Point scaledScreenCoordinates) {
-        var gc = getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
-        AffineTransform tx = gc.getDefaultTransform();
-        double uiScaleX = tx.getScaleX();
-        double uiScaleY = tx.getScaleY();
-        return new Point((int) (scaledScreenCoordinates.getX() * uiScaleX), (int) (scaledScreenCoordinates.getY() * uiScaleY));
-    }
-
-    @NotNull
-    public static Rectangle getCommonArea(List<Rectangle> initialCandidates) {
-        if (initialCandidates.isEmpty()) {
-            return new Rectangle();
-        } else {
-            int minX = initialCandidates.stream().mapToInt(r -> r.x).min().getAsInt();
-            int minY = initialCandidates.stream().mapToInt(r -> r.y).min().getAsInt();
-            int maxX = initialCandidates.stream().mapToInt(r -> r.x + r.width).max().getAsInt();
-            int maxY = initialCandidates.stream().mapToInt(r -> r.y + r.height).max().getAsInt();
-            return new Rectangle(minX, minY, maxX - minX, maxY - minY);
+    /**
+     * Captures a cropped screenshot of the given physical screen region.
+     * Converts physical pixel coordinates to logical (DPI-scaled) before capture.
+     *
+     * @param region the physical pixel region to capture
+     * @return the cropped image, or {@code null} if the resulting rectangle is degenerate or capture fails
+     */
+    public static @Nullable BufferedImage captureElementScreenshot(@NotNull ScreenRegion region) {
+        try {
+            var logicalRect = getScaledBoundingBox(region.toRectangle());
+            var screenRect = new Rectangle(getScreenSize());
+            logicalRect = logicalRect.intersection(screenRect);
+            if (logicalRect.width <= 0 || logicalRect.height <= 0) {
+                LOG.warn("Degenerate bounding box after clamping to screen bounds: {}", logicalRect);
+                return null;
+            }
+            return captureScreenPart(logicalRect, true);
+        } catch (Exception e) {
+            LOG.warn("Failed to capture element screenshot for screen region {}: {}", region, e.getMessage(), e);
+            return null;
         }
     }
 }
-
-
-

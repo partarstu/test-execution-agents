@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.tarik.ta.user_dialogs;
 
 import org.jetbrains.annotations.NotNull;
@@ -43,7 +42,8 @@ public class UiElementInfoPopup extends AbstractDialog {
 
         JPanel contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
-        contentPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP,
+                DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP));
         nameField = addLabelWithValueField("Name", originalElementInfo.name(), contentPanel);
         descriptionArea = addLabelWithValueField("Description", originalElementInfo.description(), contentPanel);
         locationDetails = addLabelWithValueField("Location Details", originalElementInfo.locationDetails(),

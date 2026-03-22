@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus;
 import org.tarik.ta.core.dto.FinalResult;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
+import org.tarik.ta.core.model.DefaultToolErrorHandler;
 
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -58,7 +59,7 @@ public interface GenericAiAgent<T extends FinalResult> {
     /**
      * Executes an operation and returns the execution result. Any exception thrown during this execution will result in the immediate
      * interruption of the execution, no retries will be applied. The concept of each agent is to execute everything using tools,
-     * including returning a result. Any exception thrown by {@link org.tarik.ta.core.model.DefaultToolErrorHandler} is treated as the
+     * including returning a result. Any exception thrown by {@link DefaultToolErrorHandler} is treated as the
      * one that implies no retries.
      *
      * @param operation - operation to execute
@@ -96,7 +97,7 @@ public interface GenericAiAgent<T extends FinalResult> {
     /**
      * This method doesn't handle any exceptions - the concept of each agent is to execute everything using tools, including returning a
      * result. That's why any exception thrown during execution will be either an unexpected Exception or a {@link ToolExecutionException}
-     * thrown by {@link org.tarik.ta.core.model.DefaultToolErrorHandler}. Because the latter already handles exceptions related to the
+     * thrown by {@link DefaultToolErrorHandler}. Because the latter already handles exceptions related to the
      * retry, none of those two exceptions need a retry.
      */
     @NotNull
@@ -124,6 +125,7 @@ public interface GenericAiAgent<T extends FinalResult> {
                 LOG.info(message);
                 sleepMillis(policy.delayMillis());
             }
+            elapsedTime = currentTimeMillis() - startTime;
         } while (elapsedTime < policy.timeoutMillis() && (attempts - 1) <= policy.maxRetries());
         LOG.warn("{} failed after {} attempts (elapsed: {}ms). Last result: {}",
                 taskDescription, attempts, elapsedTime, operationResult.getResultPayload());

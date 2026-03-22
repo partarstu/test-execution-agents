@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,8 +56,7 @@ public class CommonTools extends UiAbstractTools {
         try {
             sleepSeconds(secondsAmount);
         } catch (Exception e) {
-            throw new ToolExecutionException("Failed to wait for " + secondsAmount + " seconds: " + e.getMessage(),
-                    UNKNOWN);
+            throw new ToolExecutionException("Failed to wait for " + secondsAmount + " seconds: " + e.getMessage(), UNKNOWN);
         }
     }
 
@@ -69,10 +68,8 @@ public class CommonTools extends UiAbstractTools {
             }
 
             String sanitizedUrl = url;
-            if (!sanitizedUrl.toLowerCase().startsWith(HTTP_PROTOCOL)
-                    && !sanitizedUrl.toLowerCase().startsWith(HTTPS_PROTOCOL)) {
-                LOG.warn("Provided URL '{}' doesn't have the protocol defined, using HTTP as the default one",
-                        sanitizedUrl);
+            if (!sanitizedUrl.toLowerCase().startsWith(HTTP_PROTOCOL) && !sanitizedUrl.toLowerCase().startsWith(HTTPS_PROTOCOL)) {
+                LOG.warn("Provided URL '{}' doesn't have the protocol defined, using HTTP as the default one", sanitizedUrl);
                 sanitizedUrl = HTTP_PROTOCOL + sanitizedUrl;
             }
 
@@ -84,13 +81,8 @@ public class CommonTools extends UiAbstractTools {
             }
 
             try {
-                closeBrowser(); // Close any existing browser instance
-
+                closeBrowser();
                 String os = System.getProperty(OS_NAME_SYS_PROPERTY).toLowerCase();
-
-                // On Linux (Docker), always use ProcessBuilder with custom flags to ensure
-                // Chrome starts with proper configuration (skip first-run, no-sandbox, etc.)
-                // Desktop.browse() would bypass these flags and cause Chrome welcome dialogs
                 if (os.contains("linux")) {
                     String[] command = buildBrowserStartupCommand(os, finalUrl.toString());
                     LOG.debug("Executing command: {}", String.join(" ", command));
@@ -136,15 +128,15 @@ public class CommonTools extends UiAbstractTools {
 
     private static String[] buildBrowserStartupCommand(String os, String url) {
         if (os.contains("win")) {
-            return new String[] { "cmd.exe", "/c", "start", url };
+            return new String[]{"cmd.exe", "/c", "start", url};
         } else if (os.contains("mac")) {
-            return new String[] { "open", url };
+            return new String[]{"open", url};
         } else {
             String browserCommand = System.getenv("BROWSER_COMMAND");
             if (browserCommand == null || browserCommand.trim().isEmpty()) {
                 browserCommand = "chromium-browser";
             }
-            return new String[] {
+            return new String[]{
                     browserCommand,
                     "--no-sandbox",
                     "--test-type",

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,9 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mockStatic;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.tarik.ta.core.error.ErrorCategory.NON_RETRYABLE_ERROR;
+import org.tarik.ta.core.exceptions.ToolExecutionException;
 
 class BaseAiAgentRetryTest {
 
@@ -41,7 +44,7 @@ class BaseAiAgentRetryTest {
 
     @BeforeEach
     void setUp() {
-        CoreUtilsMockedStatic = mockStatic(CommonUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        CoreUtilsMockedStatic = mockStatic(CommonUtils.class, CALLS_REAL_METHODS);
         CoreUtilsMockedStatic.when(() -> CommonUtils.sleepMillis(anyInt())).thenAnswer(invocation -> null);
     }
 
@@ -50,7 +53,8 @@ class BaseAiAgentRetryTest {
         CoreUtilsMockedStatic.close();
     }
 
-    record TestResult(String value) implements FinalResult {}
+    record TestResult(String value) implements FinalResult {
+    }
 
     // Concrete implementation for testing default methods
     static class TestAgent implements GenericAiAgent<TestResult> {
@@ -125,7 +129,8 @@ class BaseAiAgentRetryTest {
         };
 
         // When
-        OperationExecutionResult<TestResult> result = agent.executeWithRetry(action, r -> "Persistent error".equals(r.value()));
+        OperationExecutionResult<TestResult> result = agent.executeWithRetry(action,
+                r -> "Persistent error".equals(r.value()));
 
         // Then
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
@@ -145,7 +150,8 @@ class BaseAiAgentRetryTest {
         };
 
         // When
-        OperationExecutionResult<TestResult> result = agent.executeWithRetry(action, r -> "Slow error".equals(r.value()));
+        OperationExecutionResult<TestResult> result = agent.executeWithRetry(action,
+                r -> "Slow error".equals(r.value()));
 
         // Then
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
@@ -161,8 +167,8 @@ class BaseAiAgentRetryTest {
         AtomicInteger attempts = new AtomicInteger(0);
         Supplier<Result<?>> action = () -> {
             attempts.incrementAndGet();
-            throw new org.tarik.ta.core.exceptions.ToolExecutionException("Fatal error",
-                    org.tarik.ta.core.error.ErrorCategory.NON_RETRYABLE_ERROR);
+            throw new ToolExecutionException("Fatal error",
+                    NON_RETRYABLE_ERROR);
         };
 
         // When
@@ -188,7 +194,8 @@ class BaseAiAgentRetryTest {
 
         // When
         // Retry if result is "Failed"
-        OperationExecutionResult<TestResult> result = agent.executeWithRetry(action, res -> "Failed".equals(res.value()));
+        OperationExecutionResult<TestResult> result = agent.executeWithRetry(action,
+                res -> "Failed".equals(res.value()));
 
         // Then
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
@@ -211,7 +218,8 @@ class BaseAiAgentRetryTest {
         };
 
         // When
-        OperationExecutionResult<TestResult> result = agent.executeWithRetry(action, res -> "Failed".equals(res.value()));
+        OperationExecutionResult<TestResult> result = agent.executeWithRetry(action,
+                res -> "Failed".equals(res.value()));
 
         // Then
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,17 +34,20 @@ public class DefaultToolErrorHandler implements ToolExecutionErrorHandler {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultToolErrorHandler.class);
     private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT);
     private final RetryPolicy retryPolicy;
-    private final RetryState retryState;
+    private final ThreadLocal<RetryState> retryState = ThreadLocal.withInitial(RetryState::new);
     private final boolean failOnTimeout;
 
-    public DefaultToolErrorHandler(RetryPolicy retryPolicy, RetryState retryState) {
-        this(retryPolicy, retryState, true);
+    public DefaultToolErrorHandler(RetryPolicy retryPolicy) {
+        this(retryPolicy, true);
     }
 
-    public DefaultToolErrorHandler(RetryPolicy retryPolicy, RetryState retryState, boolean failOnTimeout) {
+    public DefaultToolErrorHandler(RetryPolicy retryPolicy, boolean failOnTimeout) {
         this.retryPolicy = retryPolicy;
-        this.retryState = retryState;
         this.failOnTimeout = failOnTimeout;
+    }
+
+    public void reset() {
+        retryState.remove();
     }
 
     protected List<ErrorCategory> getTerminalErrors() {
@@ -65,9 +68,10 @@ public class DefaultToolErrorHandler implements ToolExecutionErrorHandler {
     }
 
     protected ToolErrorHandlerResult handleRetryableToolError(String message) throws ToolExecutionException {
-        retryState.startIfNotStarted();
-        int attempts = retryState.incrementAttempts();
-        long elapsedTime = retryState.getElapsedTime();
+        var state = retryState.get();
+        state.startIfNotStarted();
+        int attempts = state.incrementAttempts();
+        long elapsedTime = state.getElapsedTime();
         boolean isTimeout = retryPolicy.timeoutMillis() > 0 && elapsedTime > retryPolicy.timeoutMillis();
         boolean isMaxRetriesReached = attempts > retryPolicy.maxRetries();
 
@@ -90,16 +94,16 @@ public class DefaultToolErrorHandler implements ToolExecutionErrorHandler {
             return false;
         }
         var that = (DefaultToolErrorHandler) obj;
-        return Objects.equals(this.retryPolicy, that.retryPolicy) && Objects.equals(this.retryState, that.retryState);
+        return Objects.equals(this.retryPolicy, that.retryPolicy);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(retryPolicy, retryState);
+        return Objects.hash(retryPolicy);
     }
 
     @Override
     public String toString() {
-        return "DefaultToolErrorHandler[" + "retryPolicy=" + retryPolicy + ", " + "retryState=" + retryState + ']';
+        return "DefaultToolErrorHandler[" + "retryPolicy=" + retryPolicy + ']';
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,11 +24,12 @@ import java.awt.image.BufferedImage;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.String.format;
+import static org.tarik.ta.utils.HtmlUtils.escapeHtml;
 
 /**
  * Modal popup that displays verification failure details with a screenshot.
  * The popup shows the failure information and provides OK and Terminate buttons.
- * Used in both ATTENDED and SEMI_ATTENDED modes to inform the operator
+ * Used in SUPERVISED mode to inform the operator
  * about verification failures before retrying or terminating execution.
  */
 public class VerificationFailurePopup extends AbstractDialog {
@@ -50,21 +51,20 @@ public class VerificationFailurePopup extends AbstractDialog {
                 escapeHtml(verificationDescription), escapeHtml(failureReason));
 
         JLabel messageLabel = new JLabel(message);
-        messageLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        messageLabel.setBorder(BorderFactory.createEmptyBorder(DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP,
+                DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP));
 
         // Center panel with message and optional screenshot
-        JPanel centerPanel = new JPanel(new BorderLayout(10, 10));
+        JPanel centerPanel = new JPanel(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
         centerPanel.add(messageLabel, BorderLayout.NORTH);
 
         if (screenshot != null) {
             // Scale screenshot to fit dialog
-            int maxWidth = 600;
-            int maxHeight = 400;
-            Image scaledImage = scaleImage(screenshot, maxWidth, maxHeight);
+            Image scaledImage = scaleImage(screenshot, SCREENSHOT_DISPLAY_MAX_WIDTH, SCREENSHOT_DISPLAY_MAX_HEIGHT);
             JLabel screenshotLabel = new JLabel(new ImageIcon(scaledImage));
             screenshotLabel.setBorder(BorderFactory.createTitledBorder("Screenshot at failure"));
             JScrollPane scrollPane = new JScrollPane(screenshotLabel);
-            scrollPane.setPreferredSize(new Dimension(maxWidth + 20, maxHeight + 40));
+            scrollPane.setPreferredSize(new Dimension(SCREENSHOT_DISPLAY_MAX_WIDTH + 20, SCREENSHOT_DISPLAY_MAX_HEIGHT + 40));
             centerPanel.add(scrollPane, BorderLayout.CENTER);
         }
 
@@ -105,15 +105,6 @@ public class VerificationFailurePopup extends AbstractDialog {
         int newHeight = (int) (height * scale);
 
         return original.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
-    }
-
-    private static String escapeHtml(String text) {
-        if (text == null) return "";
-        return text.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
     }
 
     /**

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.image.BufferedImage;
 
-import static org.tarik.ta.UiTestAgentConfig.isFullyUnattended;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
 public interface BaseUiAgent<T extends FinalResult> extends GenericAiAgent<T> {
@@ -48,8 +47,6 @@ public interface BaseUiAgent<T extends FinalResult> extends GenericAiAgent<T> {
 
     @Override
     default void checkBudget() {
-        if (isFullyUnattended()) {
-            GenericAiAgent.super.checkBudget();
-        }
+        GenericAiAgent.super.checkBudget();
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
+import org.assertj.core.api.Assertions;
 
 class BudgetManagerTest {
 
@@ -89,20 +90,20 @@ class BudgetManagerTest {
     void consumeTokens_AndCheckBudget_shouldTrackDetailedUsage() {
         BudgetManager.consumeTokens("test-model", 50, 30, 20);
 
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedInputTokens()).isEqualTo(50);
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedOutputTokens()).isEqualTo(30);
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedCachedTokens()).isEqualTo(20);
+        Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
+        Assertions.assertThat(BudgetManager.getAccumulatedInputTokens()).isEqualTo(50);
+        Assertions.assertThat(BudgetManager.getAccumulatedOutputTokens()).isEqualTo(30);
+        Assertions.assertThat(BudgetManager.getAccumulatedCachedTokens()).isEqualTo(20);
 
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens("test-model"))
+        Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens("test-model"))
                 .isEqualTo(100);
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedInputTokens("test-model")).isEqualTo(50);
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedOutputTokens("test-model"))
+        Assertions.assertThat(BudgetManager.getAccumulatedInputTokens("test-model")).isEqualTo(50);
+        Assertions.assertThat(BudgetManager.getAccumulatedOutputTokens("test-model"))
                 .isEqualTo(30);
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedCachedTokens("test-model"))
+        Assertions.assertThat(BudgetManager.getAccumulatedCachedTokens("test-model"))
                 .isEqualTo(20);
 
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens("other-model")).isZero();
+        Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens("other-model")).isZero();
     }
 
     @Test
@@ -111,10 +112,10 @@ class BudgetManagerTest {
         BudgetManager.consumeToolCalls(5);
         BudgetManager.reset();
 
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens()).isZero();
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedInputTokens()).isZero();
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedOutputTokens()).isZero();
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedCachedTokens()).isZero();
+        Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens()).isZero();
+        Assertions.assertThat(BudgetManager.getAccumulatedInputTokens()).isZero();
+        Assertions.assertThat(BudgetManager.getAccumulatedOutputTokens()).isZero();
+        Assertions.assertThat(BudgetManager.getAccumulatedCachedTokens()).isZero();
     }
 
     @Test
@@ -148,7 +149,7 @@ class BudgetManagerTest {
 
         BudgetManager.resetToolCallUsage();
 
-        org.assertj.core.api.Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
+        Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
         // We can't verify tool call usage count directly as it's private, but we can
         // verify it doesn't throw if we add more up to limit
         assertThatCode(BudgetManager::checkToolCallBudget).doesNotThrowAnyException();
@@ -162,8 +163,7 @@ class BudgetManagerTest {
         // The actual test verifies the behavior matches our expectation from the
         // implementation.
 
-        // When/Then - After reset() is called (in @BeforeEach), budget is activated and
-        // should work normally
+        // When/Then - reset() does not activate the timer, so checkTimeBudget() should not throw
         assertThatCode(BudgetManager::checkTimeBudget).doesNotThrowAnyException();
     }
 
@@ -178,7 +178,8 @@ class BudgetManagerTest {
 
         try (MockedStatic<Instant> mockedInstant = mockStatic(Instant.class, Mockito.CALLS_REAL_METHODS)) {
             mockedInstant.when(Instant::now).thenReturn(start);
-            BudgetManager.reset(); // Capture start time
+            BudgetManager.reset();
+            BudgetManager.activateTimeBudget(); // Capture start time
 
             mockedInstant.when(Instant::now).thenReturn(later);
 

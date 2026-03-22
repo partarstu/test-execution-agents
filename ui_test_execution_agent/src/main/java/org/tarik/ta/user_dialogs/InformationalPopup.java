@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
  */
 package org.tarik.ta.user_dialogs;
 
-import org.tarik.ta.tools.CommonUserInteractionTools.PopupType;
 import org.tarik.ta.utils.ImageUtils;
 
 import javax.swing.*;
@@ -29,27 +28,26 @@ public class InformationalPopup extends AbstractConfirmationDialog {
     }
 
     public static void display(String title, String message, BufferedImage screenshot, PopupType popupType) {
-        new InformationalPopup(null, title).initialize(message, screenshot);
+        new InformationalPopup(null, title).initialize(message, screenshot, popupType);
     }
 
-    private void initialize(String message, BufferedImage screenshot) {
-        var userMessageArea = getUserMessageArea(message);
-        var continueButton = new JButton("OK");
-        continueButton.addActionListener(e -> dispose());
-        setHoverAsClick(continueButton);
-        JPanel buttonsPanel = getButtonsPanel(continueButton);
+    private void initialize(String message, BufferedImage screenshot, PopupType popupType) {
+        var messagePanel = createMessageWithIconPanel(getUserMessageArea(message), popupType.getIcon());
+        var continueButton = createOkButton();
 
         JPanel mainPanel = getDefaultMainPanel();
+        mainPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(4, 0, 0, 0, popupType.getBorderColor()),
+                mainPanel.getBorder()
+        ));
 
         if (screenshot != null) {
-            mainPanel.add(new JScrollPane(userMessageArea), BorderLayout.NORTH);
+            mainPanel.add(new JScrollPane(messagePanel), BorderLayout.NORTH);
 
-            int maxWidth = 600;
-            int maxHeight = 400;
             BufferedImage displayImage = screenshot;
-            if (screenshot.getWidth() > maxWidth || screenshot.getHeight() > maxHeight) {
-                double scaleX = (double) maxWidth / screenshot.getWidth();
-                double scaleY = (double) maxHeight / screenshot.getHeight();
+            if (screenshot.getWidth() > SCREENSHOT_DISPLAY_MAX_WIDTH || screenshot.getHeight() > SCREENSHOT_DISPLAY_MAX_HEIGHT) {
+                double scaleX = (double) SCREENSHOT_DISPLAY_MAX_WIDTH / screenshot.getWidth();
+                double scaleY = (double) SCREENSHOT_DISPLAY_MAX_HEIGHT / screenshot.getHeight();
                 double ratio = Math.min(scaleX, scaleY);
                 displayImage = ImageUtils.scaleImage(screenshot, ratio);
             }
@@ -58,13 +56,20 @@ public class InformationalPopup extends AbstractConfirmationDialog {
             imageLabel.setHorizontalAlignment(JLabel.CENTER);
             mainPanel.add(new JScrollPane(imageLabel), BorderLayout.CENTER);
         } else {
-            mainPanel.add(new JScrollPane(userMessageArea), BorderLayout.CENTER);
+            mainPanel.add(new JScrollPane(messagePanel), BorderLayout.CENTER);
         }
 
-        mainPanel.add(buttonsPanel, BorderLayout.SOUTH);
-
+        mainPanel.add(getButtonsPanel(continueButton), BorderLayout.SOUTH);
         add(mainPanel);
         setDefaultSizeAndPosition();
         displayPopup();
+    }
+
+    private static JPanel createMessageWithIconPanel(JTextPane messageArea, Icon icon) {
+        JPanel panel = new JPanel(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, 0));
+        panel.setOpaque(false);
+        panel.add(new JLabel(icon), BorderLayout.WEST);
+        panel.add(messageArea, BorderLayout.CENTER);
+        return panel;
     }
 }

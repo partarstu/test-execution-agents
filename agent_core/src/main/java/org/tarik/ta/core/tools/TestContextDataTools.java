@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import java.util.*;
 import static java.lang.Math.min;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
+import java.nio.file.Files;
 
 public class TestContextDataTools extends AbstractTools {
     private final TestExecutionContext context;
@@ -56,7 +57,7 @@ public class TestContextDataTools extends AbstractTools {
                 throw new ToolExecutionException("File does not exist: " + filePath, TRANSIENT_TOOL_ERROR);
             }
 
-            String content = java.nio.file.Files.readString(file.toPath());
+            String content = Files.readString(file.toPath());
 
             if (!content.trim().isEmpty()) {
                 objectMapper.readTree(content);

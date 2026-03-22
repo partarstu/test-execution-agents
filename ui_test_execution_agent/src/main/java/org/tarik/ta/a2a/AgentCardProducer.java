@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,11 @@
  */
 package org.tarik.ta.a2a;
 
- import io.a2a.spec.AgentCapabilities;
 import io.a2a.spec.AgentCard;
- import io.a2a.spec.TransportProtocol;
- import org.tarik.ta.core.AgentConfig;
-
- import java.util.List;
+import io.a2a.spec.AgentCapabilities;
+import io.a2a.spec.TransportProtocol;
+import java.util.List;
+import org.tarik.ta.core.AgentConfig;
 
 public class AgentCardProducer {
     private static final String AGENT_URL = AgentConfig.getExternalUrl();
@@ -43,4 +42,3 @@ public class AgentCardProducer {
                 .build();
     }
 }
-

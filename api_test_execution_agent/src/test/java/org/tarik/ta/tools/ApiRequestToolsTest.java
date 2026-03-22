@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,34 +16,50 @@
 package org.tarik.ta.tools;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import io.restassured.response.Response;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.tarik.ta.context.ApiContext;
+import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.model.AuthType;
 import org.tarik.ta.core.model.TestExecutionContext;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 class ApiRequestToolsTest {
 
-    private WireMockServer wireMockServer;
+    private static WireMockServer wireMockServer;
     private ApiContext apiContext;
     private ApiRequestTools apiRequestTools;
     private TestExecutionContext testExecutionContext;
     private Map<String, Object> sharedData;
 
-    @BeforeEach
-    void setUp() {
+    @BeforeAll
+    static void setUpAll() {
         wireMockServer = new WireMockServer(wireMockConfig().dynamicPort());
         wireMockServer.start();
+    }
+
+    @AfterAll
+    static void tearDownAll() {
+        wireMockServer.stop();
+    }
+
+    @BeforeEach
+    void setUp() {
+        wireMockServer.resetAll();
 
         apiContext = Mockito.spy(new ApiContext());
         apiContext.setBaseUri(wireMockServer.baseUrl());
@@ -53,11 +69,6 @@ class ApiRequestToolsTest {
         when(testExecutionContext.getSharedData()).thenReturn(sharedData);
 
         apiRequestTools = new ApiRequestTools(apiContext, testExecutionContext);
-    }
-
-    @AfterEach
-    void tearDown() {
-        wireMockServer.stop();
     }
 
     @Test
@@ -241,5 +252,106 @@ class ApiRequestToolsTest {
                 null, null);
 
         assertThat(result).contains("Status: 201");
+    }
+
+    @Test
+    void testSendRequest_shouldThrowException_whenMethodIsEmpty() {
+        assertThatThrownBy(() -> apiRequestTools.sendRequest("", "http://url", null, null, AuthType.NONE))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("Method cannot be null or empty");
+    }
+
+    @Test
+    void testSendRequest_shouldThrowException_whenUrlIsEmpty() {
+        assertThatThrownBy(() -> apiRequestTools.sendRequest("GET", "", null, null, AuthType.NONE))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("URL cannot be null or empty");
+    }
+
+    @Test
+    void testSendRequest_shouldResolveHeaders_whenVariablesPresent() {
+        wireMockServer.stubFor(get(urlEqualTo("/headers"))
+                .withHeader("X-Var", equalTo("val"))
+                .willReturn(aResponse().withStatus(200)));
+
+        sharedData.put("myvar", "val");
+        Map<String, String> headers = new HashMap<>();
+        headers.put("X-Var", "${myvar}");
+
+        String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/headers", headers, null, AuthType.NONE);
+
+        assertThat(result).contains("Status: 200");
+    }
+
+    @Test
+    void testUploadFile_shouldThrowException_whenUrlIsEmpty() {
+        assertThatThrownBy(() -> apiRequestTools.uploadFile("", "path", "name", null, AuthType.NONE))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("URL cannot be null or empty");
+    }
+
+    @Test
+    void testUploadFile_shouldThrowException_whenFilePathIsEmpty() {
+        assertThatThrownBy(() -> apiRequestTools.uploadFile("http://url", "", "name", null, AuthType.NONE))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("File path cannot be null or empty");
+    }
+
+    @Test
+    void testUploadFile_shouldThrowException_whenMultipartNameIsEmpty() {
+        assertThatThrownBy(() -> apiRequestTools.uploadFile("http://url", "path", "", null, AuthType.NONE))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("Multipart name cannot be null or empty");
+    }
+
+    @Test
+    void testUploadFile_shouldThrowException_whenFileNotFound() {
+        assertThatThrownBy(() -> apiRequestTools.uploadFile("http://url", "non-existent-file", "name", null, AuthType.NONE))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("File not found at non-existent-file");
+    }
+
+    @Test
+    void testAddBasicAuth_shouldThrowException_whenEnvVarsMissing() {
+        assertThatThrownBy(() -> apiRequestTools.sendRequest("GET", "http://url", null, null, AuthType.BASIC))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("Username or password environment variables not set or empty");
+    }
+
+    @Test
+    void testAddBearerToken_shouldThrowException_whenEnvVarMissing() {
+        assertThatThrownBy(() -> apiRequestTools.sendRequest("GET", "http://url", null, null, AuthType.BEARER))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("Bearer token environment variable not set or empty");
+    }
+
+    @Test
+    void testAddApiTokenToHeader_shouldThrowException_whenEnvVarsMissing() {
+        assertThatThrownBy(() -> apiRequestTools.sendRequest("GET", "http://url", null, null, AuthType.API_TOKEN))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("API Key name or value environment variables not set or empty");
+    }
+
+    @Test
+    void testGetLastApiResponse_shouldReturnMessage_whenNoResponseAvailable() {
+        when(apiContext.getLastResponse()).thenReturn(Optional.empty());
+        String result = apiRequestTools.getLastApiResponse();
+        assertThat(result).isEqualTo("No API response available. No request has been made yet.");
+    }
+
+    @Test
+    void testGetLastApiResponse_shouldReturnDetails_whenResponseAvailable() {
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.getStatusCode()).thenReturn(200);
+        when(mockResponse.getBody()).thenReturn(mock(io.restassured.response.ResponseBody.class));
+        when(mockResponse.getBody().asString()).thenReturn("Body");
+        when(mockResponse.getHeaders()).thenReturn(new io.restassured.http.Headers());
+
+        when(apiContext.getLastResponse()).thenReturn(Optional.of(mockResponse));
+
+        String result = apiRequestTools.getLastApiResponse();
+        assertThat(result).contains("Last API Response:");
+        assertThat(result).contains("Status Code: 200");
+        assertThat(result).contains("Response Body: Body");
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@ package org.tarik.ta.core.model;
 import dev.langchain4j.model.azure.AzureOpenAiChatModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ToolChoice;
+import dev.langchain4j.model.googleai.GeminiMediaResolutionLevel;
 import dev.langchain4j.model.googleai.GeminiMode;
 import dev.langchain4j.model.googleai.GeminiThinkingConfig;
-import dev.langchain4j.model.googleai.GeminiThinkingLevel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.vertexai.gemini.VertexAiGeminiChatModel;
@@ -66,11 +66,11 @@ public class ModelFactory {
                     .logRequestsAndResponses(LOG_MODEL_OUTPUTS)
                     .thinkingConfig(GeminiThinkingConfig.builder()
                             .includeThoughts(OUTPUT_THOUGHTS)
-                            //.thinkingBudget(GEMINI_THINKING_BUDGET)
-                            .thinkingLevel(GeminiThinkingLevel.valueOf(getGeminiThinkingLevel().toUpperCase()))
+                            .thinkingLevel(GeminiThinkingConfig.GeminiThinkingLevel.valueOf(getGeminiThinkingLevel().toUpperCase()))
                             .build())
                     .returnThinking(true)
                     .sendThinking(true)
+                    .mediaResolutionPerPartEnabled(true)
                     .listeners(List.of(new ChatModelEventListener()))
                     .build();
 

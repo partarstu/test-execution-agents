@@ -1,0 +1,121 @@
+/*
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.tarik.ta.knowledge_graph.repository;
+
+import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.output.Response;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.neo4j.driver.EagerResult;
+import org.neo4j.driver.ExecutableQuery;
+import org.tarik.ta.knowledge_graph.Neo4jConnectionManager;
+import org.tarik.ta.knowledge_graph.model.node.UiElement;
+
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
+class UiElementRepositoryTest {
+
+    private UiElementRepository repository;
+
+    @Mock private EmbeddingModel mockEmbeddingModel;
+    @Mock private org.neo4j.driver.Driver mockDriver;
+    @Mock private ExecutableQuery mockExecutableQuery;
+    @Mock private EagerResult mockEagerResult;
+
+    @SuppressWarnings("rawtypes")
+    @Mock private Response mockEmbeddingResponse;
+
+    private MockedStatic<Neo4jConnectionManager> neo4jMock;
+    private MockedStatic<org.tarik.ta.UiTestAgentConfig> configMock;
+
+    @SuppressWarnings("unchecked")
+    @BeforeEach
+    void setUp() {
+        neo4jMock = mockStatic(Neo4jConnectionManager.class);
+        neo4jMock.when(Neo4jConnectionManager::getDriver).thenReturn(mockDriver);
+        neo4jMock.when(() -> Neo4jConnectionManager.executableQuery(anyString())).thenReturn(mockExecutableQuery);
+        lenient().when(mockDriver.executableQuery(anyString())).thenReturn(mockExecutableQuery);
+        lenient().when(mockExecutableQuery.withConfig(any())).thenReturn(mockExecutableQuery);
+        lenient().when(mockExecutableQuery.withParameters(anyMap())).thenReturn(mockExecutableQuery);
+        when(mockExecutableQuery.execute()).thenReturn(mockEagerResult);
+        when(mockEagerResult.records()).thenReturn(List.of());
+
+        configMock = mockStatic(org.tarik.ta.UiTestAgentConfig.class);
+        configMock.when(org.tarik.ta.UiTestAgentConfig::getNeo4jDatabase).thenReturn("neo4j");
+
+        when(mockEmbeddingModel.embed(anyString())).thenReturn(mockEmbeddingResponse);
+        when(mockEmbeddingResponse.content()).thenReturn(new Embedding(new float[384]));
+
+        repository = new UiElementRepository(mockEmbeddingModel);
+    }
+
+    @AfterEach
+    void tearDown() {
+        neo4jMock.close();
+        configMock.close();
+    }
+
+    @Test
+    @DisplayName("save should compute embedding and execute Neo4j query")
+    void save_shouldComputeEmbeddingAndExecuteQuery() {
+        UiElement element = new UiElement(UUID.randomUUID(), "test-button", "a button", "near header", "main page", null, false);
+
+        repository.save(element);
+
+        verify(mockEmbeddingModel).embed(element.name());
+        verify(mockDriver).executableQuery(anyString());
+        verify(mockExecutableQuery).withParameters(any());
+        verify(mockExecutableQuery).execute();
+    }
+
+    @Test
+    @DisplayName("findBySemanticSearch should return empty list when no matches")
+    void findBySemanticSearch_shouldReturnEmptyList_whenNoMatches() {
+        List<UiElementRepository.UiElementMatch> result = repository.findBySemanticSearch("query text", 5, 0.8);
+
+        assertThat(result).isEmpty();
+        verify(mockEmbeddingModel).embed("query text");
+    }
+
+    @Test
+    @DisplayName("remove should execute DETACH DELETE query")
+    void remove_shouldExecuteDeleteQuery() {
+        UiElement element = new UiElement(UUID.randomUUID(), "test", "desc", "details", "parent", null, false);
+
+        repository.remove(element);
+
+        verify(mockDriver).executableQuery(anyString());
+        verify(mockExecutableQuery).withParameters(any());
+        verify(mockExecutableQuery).execute();
+    }
+}

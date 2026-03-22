@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+# Copyright © 2026 Taras Paruta (partarstu@gmail.com)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -114,6 +114,7 @@ VNC_PW=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access 
 ANTHROPIC_API_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="ANTHROPIC_API_KEY" --project="${PROJECT_ID}")
 ANTHROPIC_ENDPOINT=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="ANTHROPIC_ENDPOINT" --project="${PROJECT_ID}")
 GOOGLE_API_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="GOOGLE_API_KEY" --project="${PROJECT_ID}")
+NEO4J_USERNAME=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="NEO4J_USERNAME" --project="${PROJECT_ID}" 2>/dev/null || echo "")
 
 # --- Creating Log Directory on Host ---
 echo "Creating log directory on the host..."
@@ -184,6 +185,7 @@ docker run -d --name ${SERVICE_NAME} --shm-size=4g --log-driver=gcplogs \
     -e UI_STATE_CHECK_AGENT_PROMPT_VERSION="${UI_STATE_CHECK_AGENT_PROMPT_VERSION}" \
     -e GOOGLE_LOCATION="${GOOGLE_LOCATION}" \
     -e GOOGLE_PROJECT="${GOOGLE_PROJECT}" \
+    -e NEO4J_USERNAME="${NEO4J_USERNAME}" \
     gcr.io/${PROJECT_ID}/${SERVICE_NAME}:${IMAGE_TAG} ${JAVA_APP_STARTUP_SCRIPT}
 
 echo "Container '${SERVICE_NAME}' is starting."

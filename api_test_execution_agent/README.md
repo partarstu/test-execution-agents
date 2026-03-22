@@ -202,11 +202,11 @@ The API Test Execution Agent uses the following tools:
 
 ### ApiAssertionTools
 
-- `assertStatusCode(expectedCode)` - Validates response status code
-- `assertJsonPath(jsonPath, expectedValue)` - Validates JSON path values
-- `extractValue(jsonPath, variableName)` - Extracts values from responses
-- `validateSchema(schemaPath)` - Validates response against JSON Schema
-- `validateOpenApi(specPath)` - Validates response against OpenAPI specification
+- `assertStatusCode(expectedCode)` - Validates response status code.
+- `validateJsonPath(jsonPath, expectedValue)` - Validates JSON path values against expected strings.
+- `extractValue(jsonPath, variableName)` - Extracts values from responses and saves them to context variables.
+- `validateSchema(schemaPath)` - Validates response against JSON Schema.
+- `validateOpenApi(specPath, method, path)` - Validates response against OpenAPI specification.
 
 ### TestContextDataTools
 

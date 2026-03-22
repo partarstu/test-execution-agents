@@ -1,5 +1,5 @@
 /*
- * Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+ * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
@@ -47,10 +48,13 @@ public interface UiTestStepVerificationAgent extends BaseUiAgent<VerificationExe
             The test data for this action was: {{actionTestData}}.
             
             Test context data: {{sharedData}}.
+            
+            Screenshot attached.
             """)
     Result<String> verify(
             @V("verificationDescription") String verificationDescription,
             @V("actionDescription") String actionDescription,
             @V("actionTestData") String actionTestData,
-            @V("sharedData") String sharedData);
+            @V("sharedData") String sharedData,
+            @UserMessage ImageContent imageContent);
 }
