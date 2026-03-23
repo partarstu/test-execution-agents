@@ -21,6 +21,8 @@ import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 
+import io.avaje.inject.Singleton;
+
 import java.awt.*;
 import java.awt.event.InputEvent;
 import java.awt.image.BufferedImage;
@@ -34,13 +36,10 @@ import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
+@Singleton
 public class MouseTools extends UiAbstractTools {
     private static final int MOUSE_ACTION_DELAY_MILLIS = 100;
     private static final long RETRIABLE_ACTION_DELAY_MILLIS = AgentConfig.getActionRetryPolicy().delayMillis() * 2;
-
-    public MouseTools() {
-        super();
-    }
 
     public MouseTools(UiStateCheckAgent uiStateCheckAgent) {
         super(uiStateCheckAgent);

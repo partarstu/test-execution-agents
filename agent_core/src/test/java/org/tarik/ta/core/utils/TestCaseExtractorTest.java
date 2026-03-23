@@ -58,7 +58,24 @@ class TestCaseExtractorTest {
 
     @BeforeEach
     void setUp() {
-        extractor = new TestCaseExtractor(mockAgentConfig, mockModelFactory);
+        when(mockAgentConfig.getTestCaseExtractionAgentModelName()).thenReturn("model-name");
+        when(mockAgentConfig.getTestCaseExtractionAgentModelProvider()).thenReturn(AgentConfig.ModelProvider.GOOGLE);
+        when(mockAgentConfig.getTestCaseExtractionAgentPromptVersion()).thenReturn("v1");
+        when(mockModelFactory.getModel(any(), any())).thenReturn(new GenAiModel(mockChatModel));
+
+        try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
+             MockedStatic<PromptUtils> promptUtils = mockStatic(PromptUtils.class)) {
+
+            when(PromptUtils.loadSystemPrompt(any(), any(), any())).thenReturn("system prompt");
+            aiServices.when(() -> AiServices.builder(TestCaseExtractionAgent.class))
+                    .thenReturn(mockExtractionAgentBuilder);
+            when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
+            when(mockExtractionAgentBuilder.systemMessageProvider(any())).thenReturn(mockExtractionAgentBuilder);
+            when(mockExtractionAgentBuilder.toolProvider(any())).thenReturn(mockExtractionAgentBuilder);
+            when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
+
+            extractor = new TestCaseExtractor(mockModelFactory, mockAgentConfig);
+        }
     }
 
     @Test
@@ -69,28 +86,12 @@ class TestCaseExtractorTest {
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
                 OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", expectedTestCase);
 
-        when(mockAgentConfig.getTestCaseExtractionAgentModelName()).thenReturn("model-name");
-        when(mockAgentConfig.getTestCaseExtractionAgentModelProvider()).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-        when(mockAgentConfig.getTestCaseExtractionAgentPromptVersion()).thenReturn("v1");
-        when(mockModelFactory.getModel(any(), any())).thenReturn(new GenAiModel(mockChatModel));
+        when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
 
-        try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
-                MockedStatic<PromptUtils> promptUtils = mockStatic(PromptUtils.class)) {
+        Optional<TestCase> result = extractor.extractTestCase(message);
 
-            when(PromptUtils.loadSystemPrompt(any(), any(), any())).thenReturn("system prompt");
-            aiServices.when(() -> AiServices.builder(TestCaseExtractionAgent.class))
-                    .thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.systemMessageProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.toolProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
-            when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
-
-            Optional<TestCase> result = extractor.extractTestCase(message);
-
-            assertThat(result).isPresent();
-            assertThat(result.get()).isEqualTo(expectedTestCase);
-        }
+        assertThat(result).isPresent();
+        assertThat(result.get()).isEqualTo(expectedTestCase);
     }
 
     @Test
@@ -99,27 +100,11 @@ class TestCaseExtractorTest {
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
                 OperationExecutionResult.ExecutionStatus.ERROR, "Failed", null);
 
-        when(mockAgentConfig.getTestCaseExtractionAgentModelName()).thenReturn("model-name");
-        when(mockAgentConfig.getTestCaseExtractionAgentModelProvider()).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-        when(mockAgentConfig.getTestCaseExtractionAgentPromptVersion()).thenReturn("v1");
-        when(mockModelFactory.getModel(any(), any())).thenReturn(new GenAiModel(mockChatModel));
+        when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
 
-        try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
-                MockedStatic<PromptUtils> promptUtils = mockStatic(PromptUtils.class)) {
+        Optional<TestCase> result = extractor.extractTestCase(message);
 
-            when(PromptUtils.loadSystemPrompt(any(), any(), any())).thenReturn("system prompt");
-            aiServices.when(() -> AiServices.builder(TestCaseExtractionAgent.class))
-                    .thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.systemMessageProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.toolProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
-            when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
-
-            Optional<TestCase> result = extractor.extractTestCase(message);
-
-            assertThat(result).isEmpty();
-        }
+        assertThat(result).isEmpty();
     }
 
     @Test
@@ -137,27 +122,11 @@ class TestCaseExtractorTest {
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
                 OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", invalidTestCase);
 
-        when(mockAgentConfig.getTestCaseExtractionAgentModelName()).thenReturn("model-name");
-        when(mockAgentConfig.getTestCaseExtractionAgentModelProvider()).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-        when(mockAgentConfig.getTestCaseExtractionAgentPromptVersion()).thenReturn("v1");
-        when(mockModelFactory.getModel(any(), any())).thenReturn(new GenAiModel(mockChatModel));
+        when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
 
-        try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
-                MockedStatic<PromptUtils> promptUtils = mockStatic(PromptUtils.class)) {
+        Optional<TestCase> result = extractor.extractTestCase(message);
 
-            when(PromptUtils.loadSystemPrompt(any(), any(), any())).thenReturn("system prompt");
-            aiServices.when(() -> AiServices.builder(TestCaseExtractionAgent.class))
-                    .thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.systemMessageProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.toolProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
-            when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
-
-            Optional<TestCase> result = extractor.extractTestCase(message);
-
-            assertThat(result).isEmpty();
-        }
+        assertThat(result).isEmpty();
     }
 
     @Test
@@ -167,26 +136,10 @@ class TestCaseExtractorTest {
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
                 OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", invalidTestCase);
 
-        when(mockAgentConfig.getTestCaseExtractionAgentModelName()).thenReturn("model-name");
-        when(mockAgentConfig.getTestCaseExtractionAgentModelProvider()).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-        when(mockAgentConfig.getTestCaseExtractionAgentPromptVersion()).thenReturn("v1");
-        when(mockModelFactory.getModel(any(), any())).thenReturn(new GenAiModel(mockChatModel));
+        when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
 
-        try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
-                MockedStatic<PromptUtils> promptUtils = mockStatic(PromptUtils.class)) {
+        Optional<TestCase> result = extractor.extractTestCase(message);
 
-            when(PromptUtils.loadSystemPrompt(any(), any(), any())).thenReturn("system prompt");
-            aiServices.when(() -> AiServices.builder(TestCaseExtractionAgent.class))
-                    .thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.systemMessageProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.toolProvider(any())).thenReturn(mockExtractionAgentBuilder);
-            when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
-            when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(executionResult);
-
-            Optional<TestCase> result = extractor.extractTestCase(message);
-
-            assertThat(result).isEmpty();
-        }
+        assertThat(result).isEmpty();
     }
 }

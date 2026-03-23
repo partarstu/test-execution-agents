@@ -29,20 +29,6 @@ public class UiAbstractTools extends AbstractTools {
     public static final String UI_STATE_CHECKER_PROMPT_FILE = "ui_state_checker_prompt.txt";
     protected final UiStateCheckAgent uiStateCheckAgent;
 
-    public UiAbstractTools() {
-        this(createUiStateCheckAgent());
-    }
-
-    private static UiStateCheckAgent createUiStateCheckAgent() {
-        var prompt = loadSystemPrompt(AGENT_PATH, getUiStateCheckAgentPromptVersion(), UI_STATE_CHECKER_PROMPT_FILE);
-        return AiServices.builder(UiStateCheckAgent.class)
-                .chatModel(getModel(getUiStateCheckAgentModelName(), getUiStateCheckAgentModelProvider()).chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
-                .tools(new UiStateCheckResult(false, ""))
-                .build();
-    }
-
     protected UiAbstractTools(UiStateCheckAgent uiStateCheckAgent) {
         this.uiStateCheckAgent = uiStateCheckAgent;
     }

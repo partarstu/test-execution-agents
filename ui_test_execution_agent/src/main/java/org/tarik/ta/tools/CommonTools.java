@@ -23,6 +23,8 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.avaje.inject.Singleton;
+
 import java.awt.*;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -34,6 +36,7 @@ import static java.awt.Desktop.isDesktopSupported;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
+@Singleton
 public class CommonTools extends UiAbstractTools {
     private static final int BROWSER_OPEN_TIME_SECONDS = 1;
     private static final Logger LOG = LoggerFactory.getLogger(CommonTools.class);
@@ -43,11 +46,7 @@ public class CommonTools extends UiAbstractTools {
     private static Process browserProcess;
     private static final Object LOCK = new Object();
 
-    public CommonTools() {
-        super();
-    }
-
-    protected CommonTools(UiStateCheckAgent uiStateCheckAgent) {
+    public CommonTools(UiStateCheckAgent uiStateCheckAgent) {
         super(uiStateCheckAgent);
     }
 

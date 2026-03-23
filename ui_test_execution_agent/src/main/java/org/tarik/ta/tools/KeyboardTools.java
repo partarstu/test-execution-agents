@@ -22,6 +22,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 
+import io.avaje.inject.Singleton;
+
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.KeyEvent;
 import java.util.*;
@@ -35,16 +37,13 @@ import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
+@Singleton
 public class KeyboardTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(KeyboardTools.class);
     private static final Map<String, Integer> actionableKeyCodeByNameMap = getActionableKeyCodesByName();
     private static final int MAX_KEY_INDEX = 120000;
     private static final int KEYBOARD_ACTION_DELAY_MILLIS = 500;
     private static final int AUTO_DELAY = 10;
-
-    public KeyboardTools() {
-        super();
-    }
 
     public KeyboardTools(UiStateCheckAgent uiStateCheckAgent) {
         super(uiStateCheckAgent);

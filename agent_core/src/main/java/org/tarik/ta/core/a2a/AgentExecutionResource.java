@@ -28,6 +28,8 @@ import io.a2a.spec.*;
 import io.a2a.spec.InternalError;
 import io.a2a.transport.jsonrpc.handler.JSONRPCHandler;
 import io.javalin.http.Context;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,12 +40,14 @@ import java.util.Set;
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import java.util.Map;
 
+@Singleton
 public class AgentExecutionResource {
     private static final Logger LOG = LoggerFactory.getLogger(AgentExecutionResource.class);
     private static final PushNotificationConfigStore pushNotificationConfigStore = new InMemoryPushNotificationConfigStore();
     private final JSONRPCHandler jsonRpcHandler;
     private final ObjectMapper objectMapper;
 
+    @Inject
     public AgentExecutionResource(AgentExecutor agentExecutor, AgentCard agentCard) {
         var executor = newSingleThreadExecutor();
         var taskStore = new InMemoryTaskStore();

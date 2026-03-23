@@ -34,10 +34,6 @@ import java.util.List;
 
 @Singleton
 public class ModelFactory {
-    // Static accessor for non-injectable contexts (e.g. class-level static agent fields).
-    // Populated on construction; remove once all callers are fully migrated to injected instances.
-    private static volatile ModelFactory instance;
-
     private final AgentConfig agentConfig;
     private final ChatModelEventListener chatModelEventListener;
 
@@ -45,15 +41,10 @@ public class ModelFactory {
     public ModelFactory(AgentConfig agentConfig, ChatModelEventListener chatModelEventListener) {
         this.agentConfig = agentConfig;
         this.chatModelEventListener = chatModelEventListener;
-        instance = this;
     }
 
-    public static ModelFactory getInstance() {
-        return instance;
-    }
-
-    public static GenAiModel getModel(String modelName, ModelProvider modelProvider) {
-        return getInstance().getModel(modelName, modelProvider, getInstance().agentConfig.getMaxRetries());
+    public GenAiModel getModel(String modelName, ModelProvider modelProvider) {
+        return getModel(modelName, modelProvider, agentConfig.getMaxRetries());
     }
 
     public GenAiModel getModel(String modelName, ModelProvider modelProvider, int maxRetries) {

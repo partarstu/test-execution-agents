@@ -27,6 +27,7 @@ import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 import static dev.langchain4j.service.AiServices.builder;
@@ -45,10 +46,20 @@ public class TestCaseExtractor {
 
     private final AgentConfig agentConfig;
     private final ModelFactory modelFactory;
+    private final TestCaseExtractionAgent testCaseExtractionAgent;
 
-    public TestCaseExtractor(AgentConfig agentConfig, ModelFactory modelFactory) {
-        this.agentConfig = agentConfig;
+    @Inject
+    public TestCaseExtractor(ModelFactory modelFactory, AgentConfig agentConfig) {
         this.modelFactory = modelFactory;
+        this.agentConfig = agentConfig;
+        
+        var model = this.modelFactory.getModel(agentConfig.getTestCaseExtractionAgentModelName(), agentConfig.getTestCaseExtractionAgentModelProvider());
+        var prompt = loadSystemPrompt("test_case_extractor", agentConfig.getTestCaseExtractionAgentPromptVersion(), "test_case_extraction_prompt.txt");
+        this.testCaseExtractionAgent = builder(TestCaseExtractionAgent.class)
+                .chatModel(model.chatModel())
+                .systemMessageProvider(_ -> prompt)
+                .toolProvider(new InheritanceAwareToolProvider<>(List.of(), TestCase.class))
+                .build();
     }
 
     /**
@@ -66,8 +77,7 @@ public class TestCaseExtractor {
         }
 
         try {
-            var agent = getTestCaseExtractionAgent();
-            TestCase extractedTestCase = agent.executeAndGetResult(() -> agent.extractTestCase(message)).getResultPayload();
+            TestCase extractedTestCase = testCaseExtractionAgent.executeAndGetResult(() -> testCaseExtractionAgent.extractTestCase(message)).getResultPayload();
             if (isTestCaseInvalid(extractedTestCase)) {
                 LOG.warn("Model could not extract a valid TestCase from the provided user message, original message: {}", message);
                 return empty();
@@ -79,21 +89,6 @@ public class TestCaseExtractor {
             LOG.error("Failed to extract test case from message", e);
             return empty();
         }
-    }
-
-    /**
-     * Creates and configures a TestCaseExtractionAgent instance.
-     *
-     * @return the configured TestCaseExtractionAgent
-     */
-    TestCaseExtractionAgent getTestCaseExtractionAgent() {
-        var model = modelFactory.getModel(agentConfig.getTestCaseExtractionAgentModelName(), agentConfig.getTestCaseExtractionAgentModelProvider());
-        var prompt = loadSystemPrompt("test_case_extractor", agentConfig.getTestCaseExtractionAgentPromptVersion(), "test_case_extraction_prompt.txt");
-        return builder(TestCaseExtractionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .toolProvider(new InheritanceAwareToolProvider<>(List.of(), TestCase.class))
-                .build();
     }
 
     /**
