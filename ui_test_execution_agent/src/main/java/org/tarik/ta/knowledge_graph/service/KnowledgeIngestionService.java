@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import io.avaje.inject.Singleton;
+
 import dev.langchain4j.data.embedding.Embedding;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +50,7 @@ import static org.tarik.ta.knowledge_graph.Neo4jConnectionManager.getSession;
  *   <li>Invalidates the decomposition cache</li>
  * </ol>
  */
+@Singleton
 public class KnowledgeIngestionService {
     private static final Logger LOG = LoggerFactory.getLogger(KnowledgeIngestionService.class);
 

@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import io.avaje.inject.Singleton;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.repository.ProcedureUsageByTestCaseTrackingRepository;
@@ -28,6 +30,7 @@ import static java.util.Objects.requireNonNull;
  * Service for tracking which test cases use which procedures via {@code USES_PROCEDURE} edges.
  * Exposes usage queries and lifecycle management without leaking the raw repository.
  */
+@Singleton
 public class ProcedureUsageByTestCaseTrackingService {
     private static final Logger LOG = LoggerFactory.getLogger(ProcedureUsageByTestCaseTrackingService.class);
 

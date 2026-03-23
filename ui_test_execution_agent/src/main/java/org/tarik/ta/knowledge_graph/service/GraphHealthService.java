@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import io.avaje.inject.Singleton;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
@@ -32,13 +34,16 @@ import java.util.List;
 /**
  * Runs knowledge graph health checks, generates structured reports, and exports them as HTML.
  */
+@Singleton
 class GraphHealthService {
     private static final Logger LOG = LoggerFactory.getLogger(GraphHealthService.class);
 
     private final GraphHealthRepository repository;
+    private final GraphHealthHtmlReportGenerator reportGenerator;
 
-    GraphHealthService(GraphHealthRepository repository) {
+    GraphHealthService(GraphHealthRepository repository, GraphHealthHtmlReportGenerator reportGenerator) {
         this.repository = repository;
+        this.reportGenerator = reportGenerator;
     }
 
     GraphHealthReport runFullHealthCheck() {
@@ -102,7 +107,7 @@ class GraphHealthService {
      */
     Path generateHtmlReport(Path outputPath) throws IOException {
         var report = runFullHealthCheck();
-        var html = new GraphHealthHtmlReportGenerator().generateHtml(report);
+        var html = reportGenerator.generateHtml(report);
         if (outputPath.getParent() != null) {
             Files.createDirectories(outputPath.getParent());
         }

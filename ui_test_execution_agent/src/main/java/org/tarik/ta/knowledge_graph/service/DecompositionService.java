@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import io.avaje.inject.Singleton;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
@@ -35,6 +37,7 @@ import static org.tarik.ta.UiTestAgentConfig.getKnowledgeMaxDepth;
  * <p>Results are cached per session in a {@link ConcurrentHashMap} for repeated access.
  * Cache is invalidated on session end or after knowledge ingestion.</p>
  */
+@Singleton
 public class DecompositionService {
     private static final Logger LOG = LoggerFactory.getLogger(DecompositionService.class);
 

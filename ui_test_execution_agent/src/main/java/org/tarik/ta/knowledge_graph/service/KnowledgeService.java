@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import io.avaje.inject.Singleton;
+
 import dev.langchain4j.data.embedding.Embedding;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +50,7 @@ import static org.tarik.ta.UiTestAgentConfig.getStabilityPenaltyThreshold;
  * {@link DecompositionService} for hierarchy traversal, and {@link EmbeddingService} for embedding generation.
  * </p>
  */
+@Singleton
 public class KnowledgeService {
     private static final Logger LOG = LoggerFactory.getLogger(KnowledgeService.class);
 

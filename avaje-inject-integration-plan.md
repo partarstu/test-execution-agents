@@ -332,76 +332,31 @@ constraints remain manually created. Everything else is DI-managed (`@Singleton`
 
 ### Phase 8: Neo4j Infrastructure
 
-- [x] Refactor `SchemaMigrationManager` (in `knowledge_graph.schema` package — **NO DI annotation**, remains a package-private static
-  utility): add `Driver driver` and `String databaseName` parameters to `migrateOnStartup()`. Replace the
-  `Neo4jConnectionManager.getSession()` call inside the method with a session opened from the passed driver on the passed database name.
-  Remove the `Neo4jConnectionManager` import
-- [x] **Annotate `Neo4jRepositorySupport` class with `@Singleton`**. Add **constructor**
-  `Neo4jRepositorySupport(Driver driver, UiTestAgentConfig uiTestAgentConfig)` — avaje auto-injects the `Driver` bean (produced by
-  `Neo4jFactory`) and `UiTestAgentConfig`. Store both in `private final` fields; extract database name from config. All static methods
-  become instance methods. All repository classes that currently call `Neo4jRepositorySupport` static methods are updated to declare
-  `Neo4jRepositorySupport` as a **constructor parameter** instead
-- [x] **Annotate `Neo4jFactory` class with `@Factory`** (class also `implements AutoCloseable`):
-    - Add **constructor** `Neo4jFactory(UiTestAgentConfig uiTestAgentConfig)` — avaje auto-injects `UiTestAgentConfig`. Store `databaseName`
-      from config in a `private` instance field. Also declare a `private Driver driver` instance field (assigned later by the `@Bean`
-      method)
-    - **Annotate method `driver()` with `@Bean @Singleton`** (returns `Driver`) — replaces `Neo4jConnectionManager.getDriver()`; connection
-      pool config and error handling move here; assigns the created driver to the `this.driver` instance field before returning it;
-      `verifyConnectivity()` called after creation.
-    - **Annotate method `initSchema()` with `@PostConstruct`** (void, no args) — avaje calls this after the factory is fully constructed.
-      Calls the refactored `SchemaMigrationManager.migrateOnStartup(driver, databaseName)` using the stored instance fields; replaces the
-      logic from `Server.initKnowledgePersistence()`
-    - `void close()` — closes the stored `driver` field; avaje auto-calls via `AutoCloseable` on scope shutdown
-    - **No `@Bean Session` method** — sessions are short-lived; callers call `driver.session(SessionConfig.forDatabase(databaseName))`
-      directly
-- [x] Delete `Neo4jConnectionManager` — its driver lifecycle and session logic have been moved into `Neo4jFactory` and
-  `Neo4jRepositorySupport`
-
 ### Phase 9: EmbeddingService & Repositories
-
-- [x] **Annotate `EmbeddingService` class with `@Singleton`**. Static `MODEL` field becomes an instance field. No constructor dependencies —
-  avaje uses the no-arg constructor
-- [x] **Annotate `ProcedureRepository` class with `@Singleton`**. Add **constructor**
-  `ProcedureRepository(Neo4jRepositorySupport repositorySupport)` — avaje auto-injects. Store in `private final` field. Remove the no-arg
-  constructor
-- [x] **Annotate `PhraseEmbeddingRepository` class with `@Singleton`**. Add **constructor**
-  `PhraseEmbeddingRepository(Neo4jRepositorySupport repositorySupport)` — avaje auto-injects. Store in `private final` field
-- [x] **Annotate `SatisfiesEdgeRepository` class with `@Singleton`**. Add **constructor**
-  `SatisfiesEdgeRepository(Neo4jRepositorySupport repositorySupport)` — avaje auto-injects. Store in `private final` field
-- [x] **Annotate `FailureContextRepository` class with `@Singleton`**. Add **constructor**
-  `FailureContextRepository(Neo4jRepositorySupport repositorySupport)` — avaje auto-injects. Store in `private final` field
-- [x] **Annotate `ProcedureUsageByTestCaseTrackingRepository` class with `@Singleton`**. Add **constructor** with `Neo4jRepositorySupport`
-  parameter — avaje auto-injects. Store in `private final` field
-- [x] **Annotate `GraphHealthRepository` class with `@Singleton`**. Add **constructor** with `Neo4jRepositorySupport` parameter — avaje
-  auto-injects. Store in `private final` field
-- [x] **Annotate `UiElementRepository` class with `@Singleton`**. Add **constructor**
-  `UiElementRepository(Neo4jRepositorySupport repositorySupport, EmbeddingModel embeddingModel)` — avaje auto-injects both (the
-  `EmbeddingModel` is obtained from `EmbeddingService`'s instance field). Store in `private final` fields. Remove the no-arg constructor
-  that called `EmbeddingService.getModel()` statically
 
 ### Phase 10: Knowledge Graph Services
 
-- [ ] **Annotate `DecompositionService` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `DecompositionService` class with `@Singleton`**. Add **constructor**
   `DecompositionService(ProcedureRepository procedureRepository)` — avaje auto-injects. Store in `private final` field
-- [ ] **Annotate `KnowledgeService` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `KnowledgeService` class with `@Singleton`**. Add **constructor**
   `KnowledgeService(ProcedureRepository procedureRepository, EmbeddingService embeddingService, DecompositionService decompositionService, PhraseEmbeddingRepository phraseEmbeddingRepository)` —
   avaje auto-injects all four. Store in `private final` fields
-- [ ] **Annotate `KnowledgeIngestionService` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `KnowledgeIngestionService` class with `@Singleton`**. Add **constructor**
   `KnowledgeIngestionService(ProcedureRepository procedureRepository, EmbeddingService embeddingService, DecompositionService decompositionService, SatisfiesEdgeRepository satisfiesEdgeRepository, FailureContextService failureContextService, PhraseEmbeddingRepository phraseEmbeddingRepository)` —
   avaje auto-injects all six. Store in `private final` fields. No factory wrapper needed
-- [ ] **Annotate `SatisfiesEdgeService` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `SatisfiesEdgeService` class with `@Singleton`**. Add **constructor**
   `SatisfiesEdgeService(SatisfiesEdgeRepository satisfiesEdgeRepository, PhraseEmbeddingRepository phraseEmbeddingRepository)` — avaje
   auto-injects both. Store in `private final` fields
-- [ ] **Annotate `FailureContextService` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `FailureContextService` class with `@Singleton`**. Add **constructor**
   `FailureContextService(FailureContextRepository failureContextRepository)` — avaje auto-injects. Store in `private final` field
-- [ ] **Annotate `ProcedureUsageByTestCaseTrackingService` class with `@Singleton`**. Add **constructor** with
+- [x] **Annotate `ProcedureUsageByTestCaseTrackingService` class with `@Singleton`**. Add **constructor** with
   `ProcedureUsageByTestCaseTrackingRepository` parameter — avaje auto-injects. Store in `private final` field
-- [ ] **Annotate `GraphHealthService` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `GraphHealthService` class with `@Singleton`**. Add **constructor**
   `GraphHealthService(GraphHealthRepository graphHealthRepository, GraphHealthHtmlReportGenerator reportGenerator)` — avaje auto-injects
   both. Store in `private final` fields. Replace `new GraphHealthHtmlReportGenerator()` with the injected instance
-- [ ] **Annotate `GraphHealthHtmlReportGenerator` class with `@Singleton`** (package-private). No constructor dependencies — avaje uses the
+- [x] **Annotate `GraphHealthHtmlReportGenerator` class with `@Singleton`** (package-private). No constructor dependencies — avaje uses the
   no-arg constructor. Annotated for DI consistency
-- [ ] **Annotate `KnowledgeServicesBeanFactory` class with `@Factory`** (NEW class). Add **constructor**
+- [x] **Annotate `KnowledgeServicesBeanFactory` class with `@Factory`** (NEW class). Add **constructor**
   `KnowledgeServicesBeanFactory(ProcedureRepository procedureRepository)` — avaje auto-injects. Store in `private final` field. Add two
   `@Bean` methods:
     - **Annotate method `locationHistoryRecorder()` with `@Bean @Singleton`** (returns `LocationHistoryRecorder`) — implementation:

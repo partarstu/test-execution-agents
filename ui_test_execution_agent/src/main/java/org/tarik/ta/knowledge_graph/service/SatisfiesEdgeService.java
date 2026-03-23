@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import io.avaje.inject.Singleton;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
@@ -28,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Singleton
 public class SatisfiesEdgeService {
     private static final Logger LOG = LoggerFactory.getLogger(SatisfiesEdgeService.class);
     private static final int SATISFIES_TOP_N = 50;
