@@ -23,12 +23,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.tarik.ta.agents.*;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator;
-import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.knowledge_graph.KnowledgeServices;
-import org.tarik.ta.knowledge_graph.service.ProcedureUsageByTestCaseTrackingService;
+import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.tools.CommonTools;
 
@@ -57,19 +57,27 @@ class KnowledgeBasedExecutionOrchestratorTest {
     private FailureContextService mockFailureContextService;
     @Mock
     private ProcedureUsageByTestCaseTrackingService mockProcedureUsageByTestCaseTrackingService;
+    @Mock
+    private UiTestStepVerificationAgent mockTestStepVerificationAgent;
+    @Mock
+    private UiPreconditionVerificationAgent mockPreconditionVerificationAgent;
+    @Mock
+    private UiTestStepActionAgent mockTestStepActionAgent;
+    @Mock
+    private UiPreconditionActionAgent mockPreconditionActionAgent;
+    @Mock
+    private KnowledgeSuggestionAgent mockKnowledgeSuggestionAgent;
 
     private KnowledgeServices mockKnowledgeServices;
 
-    private MockedStatic<AgentFactory> agentFactoryMock;
     private MockedStatic<UiTestAgentConfig> configMock;
     private MockedStatic<KnowledgeServiceFactory> knowledgeServiceFactoryMock;
 
     @BeforeEach
     void setUp() {
-        agentFactoryMock = mockStatic(AgentFactory.class);
         configMock = mockStatic(UiTestAgentConfig.class);
         knowledgeServiceFactoryMock = mockStatic(KnowledgeServiceFactory.class);
-        
+
         configMock.when(UiTestAgentConfig::isFullyUnattended).thenReturn(true);
         knowledgeServiceFactoryMock.when(() -> KnowledgeServiceFactory.createKnowledgeIngestionService(any(), any(), any())).thenReturn(mockIngestionService);
         mockKnowledgeServices = new KnowledgeServices(mockKnowledgeService, mockIngestionService, mockSatisfiesEdgeService,
@@ -78,7 +86,6 @@ class KnowledgeBasedExecutionOrchestratorTest {
 
     @AfterEach
     void tearDown() {
-        agentFactoryMock.close();
         configMock.close();
         knowledgeServiceFactoryMock.close();
     }
@@ -91,7 +98,9 @@ class KnowledgeBasedExecutionOrchestratorTest {
 
         // This should throw MissingProcedureException
         org.junit.jupiter.api.Assertions.assertThrows(org.tarik.ta.exceptions.MissingProcedureException.class, () -> {
-            KnowledgeBasedExecutionOrchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, mockKnowledgeServices, mockCommonTools);
+            KnowledgeBasedExecutionOrchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, mockKnowledgeServices, mockCommonTools,
+                    mockTestStepVerificationAgent, mockPreconditionVerificationAgent, mockTestStepActionAgent,
+                    mockPreconditionActionAgent, mockKnowledgeSuggestionAgent);
         });
     }
 }

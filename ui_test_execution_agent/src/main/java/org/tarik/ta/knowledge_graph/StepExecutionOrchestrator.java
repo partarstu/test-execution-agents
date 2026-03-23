@@ -50,6 +50,7 @@ import java.util.Optional;
 
 import static java.time.Instant.now;
 import static java.util.stream.Collectors.joining;
+import org.tarik.ta.agents.KnowledgeSuggestionAgent;
 import static org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator.triggerEditProcedureFlow;
 import static org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator.triggerNewProcedureFlow;
 import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.RetryLoopOutcome.*;
@@ -134,7 +135,8 @@ class StepExecutionOrchestrator {
                                                            List<UiPreconditionResult> preconditionResults,
                                                            KnowledgeServices knowledgeServices,
                                                            List<Procedure> executedAtomics,
-                                                           AtomicStepExecutionContext execContext) {
+                                                           AtomicStepExecutionContext execContext,
+                                                           KnowledgeSuggestionAgent knowledgeSuggestionAgent) {
         boolean isPreconditionItem = item instanceof PreconditionItem;
         var actionAgent = actionAgentFactory.get();
         var preconditionActionAgent = preconditionActionAgentFactory.get();
@@ -156,7 +158,7 @@ class StepExecutionOrchestrator {
                     var haltResult = handleHaltDecision(
                             "Execution is about to start but you chose to halt. What would you like to do?",
                             atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem,
-                            knowledgeService, ingestionService, context, executedAtomics);
+                            knowledgeService, ingestionService, context, executedAtomics, knowledgeSuggestionAgent);
                     switch (haltResult) {
                         case HaltHandlerResult.ShouldReturn(var outcome) -> { return outcome; }
                         case HaltHandlerResult.ShouldRetry(var updated) -> {
@@ -186,7 +188,7 @@ class StepExecutionOrchestrator {
                         var haltResult = handleHaltDecision(
                                 "Execution succeeded but you chose to halt. What would you like to do?",
                                 atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem,
-                                knowledgeService, ingestionService, context, executedAtomics);
+                                knowledgeService, ingestionService, context, executedAtomics, knowledgeSuggestionAgent);
                         switch (haltResult) {
                             case HaltHandlerResult.ShouldReturn(var outcome) -> { return outcome; }
                             case HaltHandlerResult.ShouldRetry(var updated) -> {
@@ -205,7 +207,7 @@ class StepExecutionOrchestrator {
                     var outcome = promptUserAndDispatch("Verification failed for '%s': %s"
                                     .formatted(failure.description(), failure.reason()), atomicStep, itemTestData,
                             itemExpectedResults, itemDescription, isPreconditionItem, knowledgeService, ingestionService,
-                            context, executedAtomics);
+                            context, executedAtomics, knowledgeSuggestionAgent);
                     if (outcome == TERMINATE_EXECUTION) {
                         return TERMINATE_EXECUTION;
                     }
@@ -223,7 +225,7 @@ class StepExecutionOrchestrator {
                     InformationalPopup.display("Error During Execution", errorMessage, errorScreenshot,
                             PopupType.ERROR);
                     var outcome = promptUserAndDispatch(errorMessage, atomicStep, itemTestData, itemExpectedResults,
-                            itemDescription, isPreconditionItem, knowledgeService, ingestionService, context, executedAtomics);
+                            itemDescription, isPreconditionItem, knowledgeService, ingestionService, context, executedAtomics, knowledgeSuggestionAgent);
                     if (outcome == TERMINATE_EXECUTION) {
                         return TERMINATE_EXECUTION;
                     }
@@ -246,7 +248,8 @@ class StepExecutionOrchestrator {
                                                           boolean isPreconditionItem, KnowledgeService knowledgeService,
                                                           KnowledgeIngestionService ingestionService,
                                                           UiTestExecutionContext executionContext,
-                                                          List<Procedure> executedAtomics) {
+                                                          List<Procedure> executedAtomics,
+                                                          KnowledgeSuggestionAgent knowledgeSuggestionAgent) {
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPreconditionItem);
         while (true) {
             var decision = NextActionPopup.displayAndGetUserDecision(null, message);
@@ -255,7 +258,7 @@ class StepExecutionOrchestrator {
                     LOG.info("User chose to edit procedure '{}'", atomicStep.description());
                     var editResult = triggerEditProcedureFlow(atomicStep, testData, expectedResults,
                             knowledgeService, ingestionService, !isPreconditionItem, itemContext, executionContext,
-                            executedAtomics);
+                            executedAtomics, knowledgeSuggestionAgent);
                     if (editResult.isSaved()) {
                         ingestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
                         knowledgeService.onKnowledgeIngested();
@@ -273,7 +276,7 @@ class StepExecutionOrchestrator {
                     LOG.info("User chose to create a new procedure for '{}'", atomicStep.description());
                     var creationResult = triggerNewProcedureFlow(itemDescription, testData,
                             expectedResults, knowledgeService, ingestionService, isPreconditionItem, executionContext,
-                            executedAtomics);
+                            executedAtomics, knowledgeSuggestionAgent);
                     if (creationResult.isPresent()) {
                         ingestionService.ingest(creationResult.get());
                         knowledgeService.onKnowledgeIngested();
@@ -351,11 +354,12 @@ class StepExecutionOrchestrator {
                                                         String itemExpectedResults, String itemDescription,
                                                         boolean isPreconditionItem, KnowledgeService knowledgeService,
                                                         KnowledgeIngestionService ingestionService,
-                                                        UiTestExecutionContext context, List<Procedure> executedAtomics) {
+                                                        UiTestExecutionContext context, List<Procedure> executedAtomics,
+                                                        KnowledgeSuggestionAgent knowledgeSuggestionAgent) {
         Procedure current = atomicStep;
         while (true) {
             var outcome = promptUserAndDispatch(message, current, itemTestData, itemExpectedResults, itemDescription,
-                    isPreconditionItem, knowledgeService, ingestionService, context, executedAtomics);
+                    isPreconditionItem, knowledgeService, ingestionService, context, executedAtomics, knowledgeSuggestionAgent);
             if (outcome == TERMINATE_EXECUTION) {
                 return new HaltHandlerResult.ShouldReturn(TERMINATE_EXECUTION);
             }

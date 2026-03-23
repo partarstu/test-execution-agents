@@ -19,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiAgentsBeanFactory;
 import org.tarik.ta.dto.IngestionNode;
 import org.tarik.ta.dto.KnowledgeSuggestionResult;
 import org.tarik.ta.dto.KnowledgeSuggestionResult.SuggestedStep;
@@ -137,6 +138,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
 
         var elementIdRef = new AtomicReference<>(cfg.targetUiElementId());
         this.handlers = UiElementDialogHelper.buildElementHandlers(
+                UiAgentsBeanFactory.getInstance().getKnowledgeCollectionAgent(),
                 () -> descriptionArea.getText().trim(),
                 () -> getEffectiveTestData().toString(),
                 elementIdRef);

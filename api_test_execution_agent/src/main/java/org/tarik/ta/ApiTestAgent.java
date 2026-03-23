@@ -15,6 +15,7 @@
  */
 package org.tarik.ta;
 
+import io.avaje.inject.BeanScope;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,38 +28,34 @@ import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
-import org.tarik.ta.core.dto.VerificationExecutionResult;
-import org.tarik.ta.core.error.RetryState;
 import org.tarik.ta.core.manager.BudgetManager;
-import org.tarik.ta.core.model.DefaultToolErrorHandler;
 import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.tools.ApiAssertionTools;
 import org.tarik.ta.core.tools.TestContextDataTools;
 import org.tarik.ta.tools.ApiRequestTools;
 import org.tarik.ta.core.utils.LogCapture;
-import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 
 import java.time.Instant;
 import java.util.List;
 
-import static dev.langchain4j.service.AiServices.builder;
 import static java.time.Instant.now;
 import static java.util.Optional.ofNullable;
-import static org.tarik.ta.core.AgentConfig.*;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.FAILED;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.*;
 import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
-import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
-import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 import static org.tarik.ta.core.utils.TestCaseExtractor.extractTestCase;
 
 public class ApiTestAgent {
     private static final Logger LOG = LoggerFactory.getLogger(ApiTestAgent.class);
 
-    public static TestExecutionResult executeTestCase(String receivedMessage) {
+    public static TestExecutionResult executeTestCase(String receivedMessage, BeanScope appScope) {
+        return executeTestCase(receivedMessage, appScope.get(ApiAgentsBeanFactory.class));
+    }
+
+    private static TestExecutionResult executeTestCase(String receivedMessage, ApiAgentsBeanFactory agentsBeanFactory) {
         BudgetManager.reset();
         BudgetManager.activateTimeBudget();
         LogCapture logCapture = new LogCapture();
@@ -80,7 +77,7 @@ public class ApiTestAgent {
             var dataTools = new TestContextDataTools(executionContext);
 
             if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
-                executePreconditions(executionContext, requestTools, assertionTools, dataTools);
+                executePreconditions(executionContext, requestTools, assertionTools, dataTools, agentsBeanFactory);
                 if (hasPreconditionFailures(executionContext)) {
                     var failedPrecondition = executionContext.getPreconditionExecutionHistory().getLast();
                     return getFailedTestExecutionResult(executionContext, testExecutionStartTimestamp,
@@ -88,7 +85,7 @@ public class ApiTestAgent {
                 }
             }
 
-            executeTestSteps(executionContext, apiContext, requestTools, assertionTools, dataTools);
+            executeTestSteps(executionContext, apiContext, requestTools, assertionTools, dataTools, agentsBeanFactory);
             if (hasStepFailures(executionContext)) {
                 var lastStep = executionContext.getTestStepExecutionHistory().getLast();
                 if (lastStep.getExecutionStatus() == FAILURE) {
@@ -108,10 +105,11 @@ public class ApiTestAgent {
     }
 
     private static void executePreconditions(TestExecutionContext executionContext, ApiRequestTools requestTools,
-                                             ApiAssertionTools assertionTools, TestContextDataTools dataTools) {
+                                             ApiAssertionTools assertionTools, TestContextDataTools dataTools,
+                                             ApiAgentsBeanFactory agentsBeanFactory) {
         List<String> preconditions = executionContext.getTestCase().preconditions();
         if (preconditions != null && !preconditions.isEmpty()) {
-            var preconditionActionAgent = getApiPreconditionActionAgent(requestTools, assertionTools, dataTools);
+            var preconditionActionAgent = agentsBeanFactory.createPreconditionActionAgent(requestTools, assertionTools, dataTools);
             LOG.info("Executing and verifying preconditions for test case: {}", executionContext.getTestCase().name());
             for (String precondition : preconditions) {
                 var executionStartTimestamp = now();
@@ -156,8 +154,8 @@ public class ApiTestAgent {
 
     private static void executeTestSteps(TestExecutionContext executionContext, ApiContext apiContext,
                                          ApiRequestTools requestTools, ApiAssertionTools assertionTools,
-                                         TestContextDataTools dataTools) {
-        var testStepActionAgent = getApiTestStepActionAgent(requestTools, assertionTools, dataTools);
+                                         TestContextDataTools dataTools, ApiAgentsBeanFactory agentsBeanFactory) {
+        var testStepActionAgent = agentsBeanFactory.createTestStepActionAgent(requestTools, assertionTools, dataTools);
         for (TestStep testStep : executionContext.getTestCase().testSteps()) {
             var actionInstruction = testStep.stepDescription();
             var testData = ofNullable(testStep.testData()).map(Object::toString).orElse("");
@@ -235,31 +233,4 @@ public class ApiTestAgent {
                 new TestStepResult(testStep, status, errorMessage, actualResult, executionStartTimestamp, executionEndTimestamp));
     }
 
-    private static ApiTestStepActionAgent getApiTestStepActionAgent(ApiRequestTools requestTools, ApiAssertionTools assertionTools,
-                                                                    TestContextDataTools dataTools) {
-        var model = getModel(getTestStepActionAgentModelName(), getTestStepActionAgentModelProvider());
-        var prompt = loadSystemPrompt("test_step/executor", getTestStepActionAgentPromptVersion(),
-                "test_step_action_prompt.txt");
-        return builder(ApiTestStepActionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
-                .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiTestStepActionAgent.RETRY_POLICY))
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
-                .build();
-    }
-
-    private static ApiPreconditionActionAgent getApiPreconditionActionAgent(ApiRequestTools requestTools, ApiAssertionTools assertionTools,
-                                                                            TestContextDataTools dataTools) {
-        var model = getModel(getPreconditionActionAgentModelName(), getPreconditionActionAgentModelProvider());
-        var prompt = loadSystemPrompt("precondition/executor", getPreconditionAgentPromptVersion(),
-                "precondition_execution_prompt.txt");
-        return builder(ApiPreconditionActionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
-                .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiPreconditionActionAgent.RETRY_POLICY))
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
-                .build();
-    }
 }

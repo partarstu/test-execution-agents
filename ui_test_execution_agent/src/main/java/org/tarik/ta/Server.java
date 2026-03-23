@@ -42,7 +42,7 @@ public class Server extends AbstractServer {
 
     @Override
     protected AgentExecutor createAgentExecutor() {
-        return new UiAgentExecutor();
+        return new UiAgentExecutor(appScope);
     }
 
     @Override

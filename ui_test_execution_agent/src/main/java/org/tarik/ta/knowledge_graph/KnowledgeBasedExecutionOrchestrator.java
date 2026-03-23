@@ -17,8 +17,10 @@ package org.tarik.ta.knowledge_graph;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.agents.UiTestStepActionAgent;
 import org.tarik.ta.agents.UiPreconditionActionAgent;
+import org.tarik.ta.agents.UiPreconditionVerificationAgent;
+import org.tarik.ta.agents.UiTestStepActionAgent;
+import org.tarik.ta.agents.UiTestStepVerificationAgent;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.dto.*;
@@ -56,7 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.time.Instant.now;
 import static java.util.Optional.empty;
-import static org.tarik.ta.AgentFactory.*;
+import org.tarik.ta.agents.KnowledgeSuggestionAgent;
 import static org.tarik.ta.UiTestAgentConfig.isFullyUnattended;
 import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.*;
 import static org.tarik.ta.knowledge_graph.service.ExecutionGraphContextBuilder.*;
@@ -80,16 +82,17 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                TestCase testCase,
                                                int startingStepIndex,
                                                KnowledgeServices knowledgeServices,
-                                               CommonTools commonTools) {
+                                               CommonTools commonTools,
+                                               UiTestStepVerificationAgent testStepVerificationAgent,
+                                               UiPreconditionVerificationAgent preconditionVerificationAgent,
+                                               UiTestStepActionAgent testStepActionAgent,
+                                               UiPreconditionActionAgent preconditionActionAgent,
+                                               KnowledgeSuggestionAgent knowledgeSuggestionAgent) {
         var stateTracker = new ExecutionStateTracker();
         var queue = ExecutionQueue.fromTestCase(testCase, startingStepIndex);
         LOG.info("Created preconditions and test steps executions queue with {} item(s)", queue.remainingCount());
-        var stabilityRecorder = knowledgeServices.locationHistoryRecorder();
-        var stabilityLookup = knowledgeServices.stabilityLookup();
-        var preconditionActionAgentFactory = (Supplier<UiPreconditionActionAgent>) () -> getPreconditionActionAgent(commonTools, stabilityRecorder, stabilityLookup);
-        var actionAgentFactory = (Supplier<UiTestStepActionAgent>) () -> getUiTestStepActionAgent(commonTools, stabilityRecorder, stabilityLookup);
-        var preconditionVerificationAgent = getPreconditionVerificationAgent();
-        var testStepVerificationAgent = getTestStepVerificationAgent();
+        Supplier<UiPreconditionActionAgent> preconditionActionAgentFactory = () -> preconditionActionAgent;
+        Supplier<UiTestStepActionAgent> actionAgentFactory = () -> testStepActionAgent;
 
         var knowledgeService = knowledgeServices.mainKnowledgeService();
         var ingestionService = knowledgeServices.ingestionService();
@@ -119,7 +122,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                                         "UNATTENDED mode").formatted(itemDescription));
                     }
                     if (!handleNoProcedureMatchFoundCase(item, itemDescription, itemTestData, itemExpectedResults, knowledgeService,
-                            ingestionService, queue, context, stateTracker.getExecutedAtomicProcedures(), stateTracker)) {
+                            ingestionService, queue, context, stateTracker.getExecutedAtomicProcedures(), stateTracker, knowledgeSuggestionAgent)) {
                         recordFailure(context, item, itemDescription,
                                 "No matching procedure found and knowledge collection was cancelled or failed");
                         return;
@@ -141,7 +144,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                         return;
                     }
                     var resolved = handleLowConfidenceProcedureMatchCase(item, itemDescription, itemTestData, itemExpectedResults, match,
-                            knowledgeServices, stateTracker, context);
+                            knowledgeServices, stateTracker, context, knowledgeSuggestionAgent);
                     if (resolved.isEmpty()) {
                         recordFailure(context, item, itemDescription, "User cancelled after no feasible procedure branch found");
                         return;
@@ -150,7 +153,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                 } else if (match.confidence() == KnowledgeService.MatchConfidence.LOW && !isFullyUnattended()) {
                     LOG.info("Low confidence match for '{}' - prompting user for selection/editing", itemDescription);
                     var resolved = handleLowConfidenceProcedureMatchCase(item, itemDescription, itemTestData, itemExpectedResults, match,
-                            knowledgeServices, stateTracker, context);
+                            knowledgeServices, stateTracker, context, knowledgeSuggestionAgent);
                     if (resolved.isEmpty()) {
                         recordFailure(context, item, itemDescription, "User cancelled low-confidence selection");
                         return;
@@ -237,7 +240,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                     var loopOutcome = executeAtomicStepWithRetryLoop(item, atomicStep, procedure.isAtomic() ? null : procedure, context,
                             preconditionActionAgentFactory,
                             preconditionVerificationAgent, actionAgentFactory, testStepVerificationAgent, testStepResults, preconditionResults,
-                            knowledgeServices, stateTracker.getExecutedAtomicProcedures(), execContext);
+                            knowledgeServices, stateTracker.getExecutedAtomicProcedures(), execContext, knowledgeSuggestionAgent);
 
                     if (loopOutcome == StepExecutionOrchestrator.RetryLoopOutcome.TERMINATE_EXECUTION) {
                         LOG.error("Terminating execution after failure of atomic procedure '{}'", atomicStep.description());
@@ -391,7 +394,8 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                                              KnowledgeService.MatchResult match,
                                                                              KnowledgeServices knowledgeServices,
                                                                              ExecutionStateTracker stateTracker,
-                                                                             UiTestExecutionContext executionContext) {
+                                                                             UiTestExecutionContext executionContext,
+                                                                             KnowledgeSuggestionAgent knowledgeSuggestionAgent) {
         while (true) {
             var selectionResult = ProcedureLowConfidenceSelectionPopup.displayAndGetSelection(null, itemDescription, match.allMatches());
             if (selectionResult.isEmpty()) {
@@ -422,7 +426,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                     var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
                     var editResult = triggerEditProcedureFlow(existing, itemTestData, itemExpectedResults,
                             knowledgeService, ingestionService, !isPreconditionItem, itemContext, executionContext,
-                            stateTracker.getExecutedAtomicProcedures());
+                            stateTracker.getExecutedAtomicProcedures(), knowledgeSuggestionAgent);
                     if (editResult.isSaved()) {
                         ingestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
                         knowledgeService.onKnowledgeIngested();
@@ -437,7 +441,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                 case CREATE -> {
                     var newProcedureResult = triggerNewProcedureFlow(itemDescription, itemTestData,
                             itemExpectedResults, knowledgeService, ingestionService, isPreconditionItem,
-                            executionContext, stateTracker.getExecutedAtomicProcedures());
+                            executionContext, stateTracker.getExecutedAtomicProcedures(), knowledgeSuggestionAgent);
                     newProcedureResult.ifPresent(r -> {
                         ingestionService.ingest(r);
                         knowledgeService.onKnowledgeIngested();
@@ -480,10 +484,11 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                            KnowledgeIngestionService ingestionService, ExecutionQueue queue,
                                                            UiTestExecutionContext executionContext,
                                                            List<Procedure> executedAtomics,
-                                                           ExecutionStateTracker stateTracker) {
+                                                           ExecutionStateTracker stateTracker,
+                                                           KnowledgeSuggestionAgent knowledgeSuggestionAgent) {
         boolean isPreconditionItem = item instanceof PreconditionItem;
         var knowledgeCollectionResult = triggerNewProcedureFlow(itemDescription, itemTestData, itemExpectedResults,
-                knowledgeService, ingestionService, isPreconditionItem, executionContext, executedAtomics);
+                knowledgeService, ingestionService, isPreconditionItem, executionContext, executedAtomics, knowledgeSuggestionAgent);
         if (knowledgeCollectionResult.isEmpty()) {
             LOG.warn("User cancelled collecting knowledge for a new procedure for '{}', stopping execution", itemDescription);
             return false;
@@ -522,15 +527,17 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                            KnowledgeIngestionService ingestionService,
                                                            boolean isPrecondition,
                                                            UiTestExecutionContext executionContext,
-                                                           List<Procedure> executedAtomics) {
+                                                           List<Procedure> executedAtomics,
+                                                           KnowledgeSuggestionAgent knowledgeSuggestionAgent) {
         LOG.info("Triggering new procedure knowledge collection flow for: '{}'", itemDescription);
         // Factory builds the projected execution graph context for any new procedure (root or child step)
         SuggestionLoaderFactory childLoaderFactory = (precedingAtomicsSupplier) -> (desc) ->
                 loadSuggestionsWithSpinner(desc, testData, expectedResults,
-                        buildExecutionGraphContext(executionContext, executedAtomics, precedingAtomicsSupplier.get()));
+                        buildExecutionGraphContext(executionContext, executedAtomics, precedingAtomicsSupplier.get()),
+                        knowledgeSuggestionAgent);
         // Pre-load suggestions for the root level (no preceding siblings)
         var aiSuggestions = loadSuggestionsWithSpinner(itemDescription, testData, expectedResults,
-                buildExecutionGraphContext(executionContext, executedAtomics, List.of()));
+                buildExecutionGraphContext(executionContext, executedAtomics, List.of()), knowledgeSuggestionAgent);
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPrecondition);
         return ProcedureKnowledgeCollectionDialog.displayAndGetResult(null, itemDescription, aiSuggestions,
                 !isPrecondition, itemContext, knowledgeService, ingestionService, childLoaderFactory);
@@ -551,11 +558,13 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                         boolean showTestDataAndExpectedResults,
                                                         ExecutionItemContext itemContext,
                                                         UiTestExecutionContext executionContext,
-                                                        List<Procedure> executedAtomics) {
+                                                        List<Procedure> executedAtomics,
+                                                        KnowledgeSuggestionAgent knowledgeSuggestionAgent) {
         // Factory is the same regardless of which procedure is being edited — built once before the loop
         SuggestionLoaderFactory childLoaderFactory = (precedingAtomicsSupplier) -> (desc) ->
                 loadSuggestionsWithSpinner(desc, testData, expectedResults,
-                        buildExecutionGraphContext(executionContext, executedAtomics, precedingAtomicsSupplier.get()));
+                        buildExecutionGraphContext(executionContext, executedAtomics, precedingAtomicsSupplier.get()),
+                        knowledgeSuggestionAgent);
         Procedure current = startingProcedure;
         while (true) {
             var parents = knowledgeService.findParents(current.id());
@@ -593,15 +602,15 @@ public class KnowledgeBasedExecutionOrchestrator {
     }
 
     private static KnowledgeSuggestionResult loadSuggestionsWithSpinner(String itemDescription, List<String> testData,
-                                                                        String expectedResults, String agentContext) {
+                                                                        String expectedResults, String agentContext,
+                                                                        KnowledgeSuggestionAgent knowledgeSuggestionAgent) {
         var suggestionsRef = new AtomicReference<>(KnowledgeSuggestionResult.empty());
         // Capture screen before showing the spinner so no dialog/spinner overlays appear in the screenshot
         var screenshot = singleImageContent(captureScreen());
         UiElementDialogHelper.showSpinnerUntilDone(() -> {
             try {
-                var agent = getKnowledgeSuggestionAgent();
-                var result = agent.executeAndGetResult(
-                        () -> agent.suggest(itemDescription, agentContext, testData.toString(), expectedResults, screenshot));
+                var result = knowledgeSuggestionAgent.executeAndGetResult(
+                        () -> knowledgeSuggestionAgent.suggest(itemDescription, agentContext, testData.toString(), expectedResults, screenshot));
                 var payload = result.getResultPayload();
                 if (payload != null) {
                     suggestionsRef.set(payload);

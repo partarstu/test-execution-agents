@@ -26,6 +26,7 @@ import dev.langchain4j.model.chat.response.ChatResponseMetadata;
 import dev.langchain4j.model.output.TokenUsage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.manager.BudgetManager;
 
 import java.util.Collections;
@@ -37,12 +38,14 @@ import static org.mockito.Mockito.*;
 
 class ChatModelEventListenerTest {
 
+    private BudgetManager budgetManager;
     private ChatModelEventListener listener;
 
     @BeforeEach
     void setUp() {
-        listener = new ChatModelEventListener();
-        BudgetManager.reset();
+        budgetManager = new BudgetManager(new AgentConfig());
+        budgetManager.reset();
+        listener = new ChatModelEventListener(budgetManager);
     }
 
     @Test
@@ -61,21 +64,21 @@ class ChatModelEventListenerTest {
 
         listener.onResponse(responseContext);
 
-        assertThat(BudgetManager.getAccumulatedInputTokens("test-model")).isEqualTo(10);
-        assertThat(BudgetManager.getAccumulatedOutputTokens("test-model")).isEqualTo(20);
+        assertThat(budgetManager.getAccumulatedInputTokens("test-model")).isEqualTo(10);
+        assertThat(budgetManager.getAccumulatedOutputTokens("test-model")).isEqualTo(20);
     }
 
     @Test
     void onResponse_shouldHandleThinkingAndToolRequests() {
         ChatModelResponseContext responseContext = mock(ChatModelResponseContext.class);
         ChatResponse chatResponse = mock(ChatResponse.class);
-        
+
         ToolExecutionRequest toolRequest = ToolExecutionRequest.builder()
                 .id("1")
                 .name("test-tool")
                 .arguments("{}")
                 .build();
-                
+
         AiMessage aiMessage = AiMessage.builder()
                 .text("text")
                 .thinking("thinking")
@@ -88,14 +91,13 @@ class ChatModelEventListenerTest {
         when(chatResponse.metadata()).thenReturn(metadata);
 
         listener.onResponse(responseContext);
-        // Mainly checking no exception and logs are triggered (visually or via LogCapture if needed)
     }
 
     @Test
     void onResponse_shouldHandleEmptyResponse() {
         ChatModelResponseContext responseContext = mock(ChatModelResponseContext.class);
         ChatResponse chatResponse = mock(ChatResponse.class);
-        AiMessage aiMessage = AiMessage.from(""); // Empty text
+        AiMessage aiMessage = AiMessage.from("");
 
         when(responseContext.chatResponse()).thenReturn(chatResponse);
         when(chatResponse.aiMessage()).thenReturn(aiMessage);
@@ -108,7 +110,7 @@ class ChatModelEventListenerTest {
     void onRequest_shouldLogMessages() {
         ChatModelRequestContext requestContext = mock(ChatModelRequestContext.class);
         ChatRequest chatRequest = mock(ChatRequest.class);
-        
+
         List<ChatMessage> messages = List.of(
                 SystemMessage.from("sys"),
                 UserMessage.from("user")
@@ -124,7 +126,7 @@ class ChatModelEventListenerTest {
     void onRequest_shouldLogLatestMessageWhenMoreThanTwo() {
         ChatModelRequestContext requestContext = mock(ChatModelRequestContext.class);
         ChatRequest chatRequest = mock(ChatRequest.class);
-        
+
         List<ChatMessage> messages = List.of(
                 SystemMessage.from("sys"),
                 UserMessage.from("user"),
@@ -142,24 +144,18 @@ class ChatModelEventListenerTest {
     void logMessage_shouldHandleDifferentMessageTypes() {
         ChatModelRequestContext requestContext = mock(ChatModelRequestContext.class);
         ChatRequest chatRequest = mock(ChatRequest.class);
-        
-        // Testing logMessage indirectly via onRequest with 1 message
+
         when(requestContext.chatRequest()).thenReturn(chatRequest);
 
-        // System
         when(chatRequest.messages()).thenReturn(List.of(SystemMessage.from("sys")));
         listener.onRequest(requestContext);
 
-        // User
         when(chatRequest.messages()).thenReturn(List.of(UserMessage.from("user")));
         listener.onRequest(requestContext);
 
-        // Tool Result
         when(chatRequest.messages()).thenReturn(List.of(ToolExecutionResultMessage.from("1", "tool", "res")));
         listener.onRequest(requestContext);
-        
-        // User Message with non-text content (simulated via mock if possible, or just UserMessage.from)
-        // UserMessage can have multiple contents
+
         UserMessage complexUserMessage = UserMessage.from(TextContent.from("text"), ImageContent.from("base64", "image/png"));
         when(chatRequest.messages()).thenReturn(List.of(complexUserMessage));
         listener.onRequest(requestContext);

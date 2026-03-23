@@ -30,7 +30,7 @@ public class Server extends AbstractServer {
 
     @Override
     protected AgentExecutor createAgentExecutor() {
-        return new ApiAgentExecutor();
+        return new ApiAgentExecutor(appScope);
     }
 
     @Override

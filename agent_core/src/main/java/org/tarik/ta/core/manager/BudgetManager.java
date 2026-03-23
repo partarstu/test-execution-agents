@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.core.manager;
 
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.AgentConfig;
@@ -28,14 +30,28 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.time.Instant.now;
 
+@Singleton
 public class BudgetManager {
     private static final Logger LOG = LoggerFactory.getLogger(BudgetManager.class);
-    public static final int TIME_BUDGET_SECONDS = new AgentConfig().getAgentExecutionTimeBudgetSeconds();
-    private static final int TOKEN_BUDGET = new AgentConfig().getAgentTokenBudget();
-    private static final int TOOL_CALLS_BUDGET = new AgentConfig().getAgentToolCallsBudget();
-    private static final AtomicInteger toolCallUsage = new AtomicInteger(0);
-    private static final AtomicReference<Instant> startTime = new AtomicReference<>(null);
-    private static final Map<String, ModelUsage> tokenUsagePerModel = new ConcurrentHashMap<>();
+
+    // Bridge accessor for non-injectable contexts (e.g. GenericAiAgent interface default methods).
+    // Falls back to a lazily created default in unit-test contexts that skip the DI container.
+    private static volatile BudgetManager instance;
+
+    public final int timeBudgetSeconds;
+    private final int tokenBudget;
+    private final int toolCallsBudget;
+    private final AtomicInteger toolCallUsage = new AtomicInteger(0);
+    private final AtomicReference<Instant> startTime = new AtomicReference<>(null);
+    private final Map<String, ModelUsage> tokenUsagePerModel = new ConcurrentHashMap<>();
+
+    @Inject
+    public BudgetManager(AgentConfig agentConfig) {
+        timeBudgetSeconds = agentConfig.getAgentExecutionTimeBudgetSeconds();
+        tokenBudget = agentConfig.getAgentTokenBudget();
+        toolCallsBudget = agentConfig.getAgentToolCallsBudget();
+        instance = this;
+    }
 
     public record ModelUsage(AtomicInteger input, AtomicInteger output, AtomicInteger cached, AtomicInteger total) {
         public ModelUsage() {
@@ -43,24 +59,35 @@ public class BudgetManager {
         }
     }
 
-    public static void reset() {
+    public static BudgetManager getInstance() {
+        if (instance == null) {
+            synchronized (BudgetManager.class) {
+                if (instance == null) {
+                    instance = new BudgetManager(new AgentConfig());
+                }
+            }
+        }
+        return instance;
+    }
+
+    public void reset() {
         toolCallUsage.set(0);
         startTime.set(null);
         tokenUsagePerModel.clear();
         LOG.debug("Budget counters reset.");
     }
 
-    public static void activateTimeBudget() {
+    public void activateTimeBudget() {
         startTime.set(now());
         LOG.debug("Execution time budget activated.");
     }
 
-    public static void resetToolCallUsage() {
+    public void resetToolCallUsage() {
         toolCallUsage.set(0);
         LOG.debug("Tool call usage reset.");
     }
 
-    public static void consumeTokens(String modelName, int input, int output, int cached) {
+    public void consumeTokens(String modelName, int input, int output, int cached) {
         ModelUsage usage = tokenUsagePerModel.computeIfAbsent(modelName, _ -> new ModelUsage());
         usage.input.addAndGet(input);
         usage.output.addAndGet(output);
@@ -68,76 +95,76 @@ public class BudgetManager {
         usage.total.addAndGet(input + output + cached);
     }
 
-    public static int getAccumulatedInputTokens() {
+    public int getAccumulatedInputTokens() {
         return tokenUsagePerModel.values().stream().mapToInt(u -> u.input.get()).sum();
     }
 
-    public static int getAccumulatedOutputTokens() {
+    public int getAccumulatedOutputTokens() {
         return tokenUsagePerModel.values().stream().mapToInt(u -> u.output.get()).sum();
     }
 
-    public static int getAccumulatedCachedTokens() {
+    public int getAccumulatedCachedTokens() {
         return tokenUsagePerModel.values().stream().mapToInt(u -> u.cached.get()).sum();
     }
 
-    public static int getAccumulatedTotalTokens() {
+    public int getAccumulatedTotalTokens() {
         return getAccumulatedInputTokens() + getAccumulatedOutputTokens() + getAccumulatedCachedTokens();
     }
 
-    public static int getAccumulatedInputTokens(String modelName) {
+    public int getAccumulatedInputTokens(String modelName) {
         ModelUsage usage = tokenUsagePerModel.get(modelName);
         return usage != null ? usage.input.get() : 0;
     }
 
-    public static int getAccumulatedOutputTokens(String modelName) {
+    public int getAccumulatedOutputTokens(String modelName) {
         ModelUsage usage = tokenUsagePerModel.get(modelName);
         return usage != null ? usage.output.get() : 0;
     }
 
-    public static int getAccumulatedCachedTokens(String modelName) {
+    public int getAccumulatedCachedTokens(String modelName) {
         ModelUsage usage = tokenUsagePerModel.get(modelName);
         return usage != null ? usage.cached.get() : 0;
     }
 
-    public static int getAccumulatedTotalTokens(String modelName) {
+    public int getAccumulatedTotalTokens(String modelName) {
         return getAccumulatedInputTokens(modelName) + getAccumulatedOutputTokens(modelName)
                 + getAccumulatedCachedTokens(modelName);
     }
 
-    public static void consumeToolCalls(int count) {
+    public void consumeToolCalls(int count) {
         toolCallUsage.addAndGet(count);
     }
 
-    public static void checkTimeBudget() {
+    public void checkTimeBudget() {
         var start = startTime.get();
         if (start == null) {
-            // Time budget not yet activated (reset() has not been called)
+            // Time budget not yet activated (activateTimeBudget() has not been called)
             return;
         }
         long elapsedSeconds = Duration.between(start, now()).getSeconds();
-        if (TIME_BUDGET_SECONDS > 0 && elapsedSeconds > TIME_BUDGET_SECONDS) {
+        if (timeBudgetSeconds > 0 && elapsedSeconds > timeBudgetSeconds) {
             throw new RuntimeException(
-                    "Execution time budget exceeded: " + elapsedSeconds + "s > " + TIME_BUDGET_SECONDS + "s");
+                    "Execution time budget exceeded: " + elapsedSeconds + "s > " + timeBudgetSeconds + "s");
         }
     }
 
-    public static void checkTokenBudget() {
+    public void checkTokenBudget() {
         int current = getAccumulatedTotalTokens();
-        if (TOKEN_BUDGET > 0 && current > TOKEN_BUDGET) {
-            throw new RuntimeException("Token budget exceeded: " + current + " > " + TOKEN_BUDGET);
+        if (tokenBudget > 0 && current > tokenBudget) {
+            throw new RuntimeException("Token budget exceeded: " + current + " > " + tokenBudget);
         }
     }
 
-    public static void checkToolCallBudget() {
+    public void checkToolCallBudget() {
         int current = toolCallUsage.get();
-        if (TOOL_CALLS_BUDGET > 0 && current > TOOL_CALLS_BUDGET) {
-            throw new RuntimeException("Tool call budget exceeded: " + current + " > " + TOOL_CALLS_BUDGET);
+        if (toolCallsBudget > 0 && current > toolCallsBudget) {
+            throw new RuntimeException("Tool call budget exceeded: " + current + " > " + toolCallsBudget);
         }
     }
 
-    public static void checkAllBudgets() {
-        BudgetManager.checkTimeBudget();
-        BudgetManager.checkTokenBudget();
-        BudgetManager.checkToolCallBudget();
+    public void checkAllBudgets() {
+        checkTimeBudget();
+        checkTokenBudget();
+        checkToolCallBudget();
     }
 }

@@ -37,7 +37,6 @@ import static org.tarik.ta.UiTestAgentConfig.getVectorDbUrl;
 
 /**
  * Singleton connection manager for the Neo4j driver lifecycle.
- * The shared {@link Driver} instance is used by both {@code Neo4jEmbeddingStore} instances
  * and custom Cypher queries for relationship management.
  */
 public class Neo4jConnectionManager {

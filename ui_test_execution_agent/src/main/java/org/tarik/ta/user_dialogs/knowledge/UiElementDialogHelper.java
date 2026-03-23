@@ -40,20 +40,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
-
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.tarik.ta.AgentFactory.getKnowledgeCollectionElementResolutionAgent;
 import static org.tarik.ta.tools.UiElementRefinementHelper.retrieveUiElements;
 import static org.tarik.ta.utils.UiCommonUtils.captureElementScreenshot;
 
 public class UiElementDialogHelper {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementDialogHelper.class);
-    // Knowledge collection dialogs run outside the main execution graph, so they own their repository for stability tracking.
-    private static final ProcedureRepository STABILITY_REPOSITORY = new ProcedureRepository();
     private static final UiElementRepository UI_ELEMENT_REPOSITORY = new UiElementRepository();
-    private static final UiElementResolutionAgent KNOWLEDGE_COLLECTION_AGENT =
-            getKnowledgeCollectionElementResolutionAgent(STABILITY_REPOSITORY::updateElementStability, STABILITY_REPOSITORY::getElementStability);
 
     private UiElementDialogHelper() {
     }
@@ -63,14 +56,15 @@ public class UiElementDialogHelper {
      * timeout and dispatches the {@link ElementSelectionResult} back to the dialog on the EDT. On success, also
      * populates {@code elementIdRef} so that edit-details and replace-screenshot handlers can read the located element's ID.
      */
-    public static AutoLocateHandler buildAutoLocateHandler(Supplier<String> itemDescriptionSupplier,
+    public static AutoLocateHandler buildAutoLocateHandler(UiElementResolutionAgent knowledgeCollectionAgent,
+                                                           Supplier<String> itemDescriptionSupplier,
                                                            Supplier<String> elementDataSupplier,
                                                            AtomicReference<UUID> elementIdRef) {
         return resultCallback -> Thread.ofVirtual().start(() -> {
             LOG.info("Starting workflow: Automatic Resolution of UI Element...");
             String itemDesc = itemDescriptionSupplier.get();
             String elementData = elementDataSupplier.get();
-            var future = CompletableFuture.supplyAsync(() -> KNOWLEDGE_COLLECTION_AGENT.executeAndGetResult(() -> KNOWLEDGE_COLLECTION_AGENT.resolve(itemDesc, elementData)))
+            var future = CompletableFuture.supplyAsync(() -> knowledgeCollectionAgent.executeAndGetResult(() -> knowledgeCollectionAgent.resolve(itemDesc, elementData)))
                     .orTimeout(UiTestAgentConfig.getMaxActionExecutionDurationMillis(), MILLISECONDS);
             try {
                 var payload = future.join().getResultPayload();
@@ -132,11 +126,12 @@ public class UiElementDialogHelper {
     /**
      * Builds an {@link ElementHandlers} instance, wiring all element dialog handlers for the given item description.
      */
-    public static ElementHandlers buildElementHandlers(Supplier<String> itemDescriptionSupplier,
+    public static ElementHandlers buildElementHandlers(UiElementResolutionAgent knowledgeCollectionAgent,
+                                                       Supplier<String> itemDescriptionSupplier,
                                                        Supplier<String> elementDataSupplier,
                                                        AtomicReference<UUID> elementIdRef) {
         return new ElementHandlers(
-                buildAutoLocateHandler(itemDescriptionSupplier, elementDataSupplier, elementIdRef),
+                buildAutoLocateHandler(knowledgeCollectionAgent, itemDescriptionSupplier, elementDataSupplier, elementIdRef),
                 () -> {
                     LOG.info("Starting workflow: Edit Element Details");
                     try {

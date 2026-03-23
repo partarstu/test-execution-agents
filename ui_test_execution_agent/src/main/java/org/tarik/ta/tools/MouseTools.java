@@ -42,7 +42,7 @@ public class MouseTools extends UiAbstractTools {
         super();
     }
 
-    protected MouseTools(UiStateCheckAgent uiStateCheckAgent) {
+    public MouseTools(UiStateCheckAgent uiStateCheckAgent) {
         super(uiStateCheckAgent);
     }
 

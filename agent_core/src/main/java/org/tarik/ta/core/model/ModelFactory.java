@@ -18,7 +18,6 @@ package org.tarik.ta.core.model;
 import dev.langchain4j.model.azure.AzureOpenAiChatModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ToolChoice;
-import dev.langchain4j.model.googleai.GeminiMediaResolutionLevel;
 import dev.langchain4j.model.googleai.GeminiMode;
 import dev.langchain4j.model.googleai.GeminiThinkingConfig;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
@@ -26,6 +25,7 @@ import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.vertexai.gemini.VertexAiGeminiChatModel;
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.vertexai.anthropic.VertexAiAnthropicChatModel;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.AgentConfig.ModelProvider;
@@ -34,14 +34,26 @@ import java.util.List;
 
 @Singleton
 public class ModelFactory {
-    private final AgentConfig agentConfig;
+    // Static accessor for non-injectable contexts (e.g. class-level static agent fields).
+    // Populated on construction; remove once all callers are fully migrated to injected instances.
+    private static volatile ModelFactory instance;
 
-    public ModelFactory(AgentConfig agentConfig) {
+    private final AgentConfig agentConfig;
+    private final ChatModelEventListener chatModelEventListener;
+
+    @Inject
+    public ModelFactory(AgentConfig agentConfig, ChatModelEventListener chatModelEventListener) {
         this.agentConfig = agentConfig;
+        this.chatModelEventListener = chatModelEventListener;
+        instance = this;
     }
 
-    public GenAiModel getModel(String modelName, ModelProvider modelProvider) {
-        return getModel(modelName, modelProvider, agentConfig.getMaxRetries());
+    public static ModelFactory getInstance() {
+        return instance;
+    }
+
+    public static GenAiModel getModel(String modelName, ModelProvider modelProvider) {
+        return getInstance().getModel(modelName, modelProvider, getInstance().agentConfig.getMaxRetries());
     }
 
     public GenAiModel getModel(String modelName, ModelProvider modelProvider, int maxRetries) {
@@ -72,7 +84,7 @@ public class ModelFactory {
                     .returnThinking(true)
                     .sendThinking(true)
                     .mediaResolutionPerPartEnabled(true)
-                    .listeners(List.of(new ChatModelEventListener()))
+                    .listeners(List.of(chatModelEventListener))
                     .build();
 
             case VERTEX_AI -> VertexAiGeminiChatModel.builder()
@@ -84,7 +96,7 @@ public class ModelFactory {
                     .temperature((float) agentConfig.getTemperature())
                     .topP((float) agentConfig.getTopP())
                     .logResponses(agentConfig.isModelLoggingEnabled())
-                    .listeners(List.of(new ChatModelEventListener()))
+                    .listeners(List.of(chatModelEventListener))
                     .build();
         };
     }
@@ -98,7 +110,7 @@ public class ModelFactory {
                 .endpoint(agentConfig.getOpenAiEndpoint())
                 .temperature(agentConfig.getTemperature())
                 .topP(agentConfig.getTopP())
-                .listeners(List.of(new ChatModelEventListener()))
+                .listeners(List.of(chatModelEventListener))
                 .build();
     }
 
@@ -111,7 +123,7 @@ public class ModelFactory {
                 .maxTokens(agentConfig.getMaxOutputTokens())
                 .temperature(agentConfig.getTemperature())
                 .topP(agentConfig.getTopP())
-                .listeners(List.of(new ChatModelEventListener()))
+                .listeners(List.of(chatModelEventListener))
                 .build();
     }
 
@@ -135,7 +147,7 @@ public class ModelFactory {
                         .temperature(agentConfig.getTemperature())
                         .toolChoice(ToolChoice.REQUIRED)
                         // .topP(TOP_P)
-                        .listeners(List.of(new ChatModelEventListener()))
+                        .listeners(List.of(chatModelEventListener))
                         .build();
             }
             case VERTEX_AI -> VertexAiAnthropicChatModel.builder()
@@ -146,7 +158,7 @@ public class ModelFactory {
                     .temperature(agentConfig.getTemperature())
                     .topP(agentConfig.getTopP())
                     .logResponses(agentConfig.isModelLoggingEnabled())
-                    .listeners(List.of(new ChatModelEventListener()))
+                    .listeners(List.of(chatModelEventListener))
                     .build();
         };
     }

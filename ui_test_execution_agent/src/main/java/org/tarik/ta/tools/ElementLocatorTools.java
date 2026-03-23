@@ -27,8 +27,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.agents.UiElementBoundingBoxAgent;
 import org.tarik.ta.agents.BestUiElementMatchSelectionAgent;
+import org.tarik.ta.agents.UiElementBoundingBoxAgent;
+import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.dto.*;
 import org.tarik.ta.exceptions.ElementLocationException;
 import org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus;
@@ -96,6 +97,18 @@ public class ElementLocatorTools extends UiAbstractTools {
 
     public ElementLocatorTools(LocationHistoryRecorder locationHistoryRecorder, Function<UUID, Optional<ElementLocationHistory>> stabilityLookup) {
         this(new UiElementRepository(), locationHistoryRecorder, stabilityLookup);
+    }
+
+    public ElementLocatorTools(UiElementBoundingBoxAgent boundingBoxAgent, BestUiElementMatchSelectionAgent selectionAgent,
+                                UiStateCheckAgent stateCheckAgent, LocationHistoryRecorder locationHistoryRecorder,
+                                Function<UUID, Optional<ElementLocationHistory>> stabilityLookup) {
+        super(stateCheckAgent);
+        this.elementRepository = new UiElementRepository();
+        this.uiElementBoundingBoxAgent = boundingBoxAgent;
+        this.bestUiElementMatchSelectionAgent = selectionAgent;
+        this.locationHistoryRecorder = locationHistoryRecorder != null ?
+                locationHistoryRecorder : (elementId, located, locationTimeMs, strategy) -> {};
+        this.stabilityLookup = stabilityLookup != null ? stabilityLookup : _ -> Optional.empty();
     }
 
     // package-private for testing

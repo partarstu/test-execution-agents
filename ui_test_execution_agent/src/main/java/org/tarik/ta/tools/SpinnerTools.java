@@ -19,7 +19,7 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.tarik.ta.user_dialogs.SpinnerManager;
 
-public class SpinnerTools {
+public class SpinnerTools extends UiAbstractTools{
 
     @Tool("Displays a spinner with the given message.")
     public void showSpinner(@P("The message to display on the spinner") String message) {

@@ -18,6 +18,7 @@ package org.tarik.ta.core.model;
 import dev.langchain4j.model.chat.ChatModel;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.core.manager.BudgetManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -27,7 +28,9 @@ import static org.mockito.Mockito.withSettings;
 class ModelFactoryTest {
 
     private final AgentConfig agentConfig = new AgentConfig();
-    private final ModelFactory modelFactory = new ModelFactory(agentConfig);
+    private final BudgetManager budgetManager = new BudgetManager(agentConfig);
+    private final ChatModelEventListener chatModelEventListener = new ChatModelEventListener(budgetManager);
+    private final ModelFactory modelFactory = new ModelFactory(agentConfig, chatModelEventListener);
 
     @Test
     void shouldGetGoogleModel() {

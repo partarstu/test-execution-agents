@@ -46,7 +46,7 @@ public class KeyboardTools extends UiAbstractTools {
         super();
     }
 
-    protected KeyboardTools(UiStateCheckAgent uiStateCheckAgent) {
+    public KeyboardTools(UiStateCheckAgent uiStateCheckAgent) {
         super(uiStateCheckAgent);
     }
 

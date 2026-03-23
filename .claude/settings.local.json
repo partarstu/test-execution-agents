@@ -1,13 +1,13 @@
 {
-  "permissions": {
-    "allow": [            
+  "permissions": {	  
+    "allow": [
       "WebSearch",
       "WebFetch(domain:neo4j.com)",
-      "WebFetch(domain:github.com)",      
+      "WebFetch(domain:github.com)",
       "Bash(jar:*)",
       "Bash(findstr:*)",
       "WebFetch(domain:docs.langchain4j.dev)",
-      "Bash(gh:*)",      
+      "Bash(gh:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:medium.com)",
       "Bash(dir:*)",
@@ -16,12 +16,12 @@
       "WebFetch(domain:central.sonatype.com)",
       "WebFetch(domain:community.neo4j.com)",
       "Bash(grep:*)",
-      "Bash(java:*)",      
+      "Bash(java:*)",
       "WebFetch(domain:openjdk.org)",
-      "WebFetch(domain:rockthejvm.com)",      
+      "WebFetch(domain:rockthejvm.com)",
       "Bash(find:*)",
       "Bash(mvn:*)",
-      "Bash(npm:*)",      
+      "Bash(npm:*)",
       "Bash(git stash:*)",
       "Bash(curl:*)",
       "WebFetch(domain:avaje.io)",
@@ -36,12 +36,18 @@
       "Bash(cd:*)",
       "Bash(wc:*)",
       "WebFetch(domain:linkerd.io)",
-      "WebFetch(domain:blog.mbedded.ninja)",      
+      "WebFetch(domain:blog.mbedded.ninja)",
       "Bash(BASE=\"knowledge_graph/model\")",
       "Bash(mv \"$BASE/Procedure.java\" \"$BASE/node/\")",
       "Bash(mv \"$BASE/FailureContext.java\" \"$BASE/node/\")",
       "Bash(mv \"$BASE/SatisfiesEdge.java\" \"$BASE/edge/\")",
-      "Bash(mv \"$BASE/ExecutionItem.java\" \"knowledge_graph/execution/\")"      
+      "Bash(mv \"$BASE/ExecutionItem.java\" \"knowledge_graph/execution/\")",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Read(//d/Projects/test-execution-agents/**)",
+      "Bash(done)",      
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(x[''''name''''], x[''''type'''']\\) for x in data if isinstance\\(data, list\\)]\")"
     ]
-  }
+  },
+  "defaultMode": "bypassPermissions"
 }

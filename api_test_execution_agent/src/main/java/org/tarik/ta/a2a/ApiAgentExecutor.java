@@ -16,6 +16,7 @@
 package org.tarik.ta.a2a;
 
 import io.a2a.spec.Part;
+import io.avaje.inject.BeanScope;
 import org.tarik.ta.ApiTestAgent;
 import org.tarik.ta.core.a2a.AbstractAgentExecutor;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -24,10 +25,15 @@ import java.util.List;
 import java.util.Optional;
 
 public class ApiAgentExecutor extends AbstractAgentExecutor {
+    private final BeanScope appScope;
+
+    public ApiAgentExecutor(BeanScope appScope) {
+        this.appScope = appScope;
+    }
 
     @Override
     protected TestExecutionResult executeTestCase(String message) {
-        return ApiTestAgent.executeTestCase(message);
+        return ApiTestAgent.executeTestCase(message, appScope);
     }
 
     @Override

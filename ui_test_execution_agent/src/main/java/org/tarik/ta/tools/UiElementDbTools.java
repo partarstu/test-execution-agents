@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.DbUiElementSelectionAgent;
 import org.tarik.ta.agents.UiElementExtendedDescriptionAgent;
+import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.dto.DbElementSearchResult;
 import org.tarik.ta.dto.ElementCreationResult;
@@ -61,6 +62,14 @@ public class UiElementDbTools extends UiAbstractTools {
 
     public UiElementDbTools() {
         this(new UiElementRepository());
+    }
+
+    public UiElementDbTools(UiElementExtendedDescriptionAgent descriptionAgent, DbUiElementSelectionAgent selectionAgent,
+                             UiStateCheckAgent stateCheckAgent) {
+        super(stateCheckAgent);
+        this.elementRepository = new UiElementRepository();
+        this.uiElementExtendedDescriptionAgent = descriptionAgent;
+        this.dbUiElementSelectionAgent = selectionAgent;
     }
 
     // package-private for testing

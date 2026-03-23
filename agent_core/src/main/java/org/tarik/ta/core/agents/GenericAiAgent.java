@@ -34,14 +34,14 @@ import static java.lang.System.currentTimeMillis;
 
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.*;
 import static org.tarik.ta.core.error.ErrorCategory.TERMINATION_BY_USER;
-import static org.tarik.ta.core.manager.BudgetManager.checkAllBudgets;
+import org.tarik.ta.core.manager.BudgetManager;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 
 public interface GenericAiAgent<T extends FinalResult> {
     Logger LOG = LoggerFactory.getLogger(GenericAiAgent.class);
 
     default void checkBudget() {
-        checkAllBudgets();
+        BudgetManager.getInstance().checkAllBudgets();
     }
 
     default OperationExecutionResult<T> createSuccessResult(T result) {

@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.a2a;
 
+import io.avaje.inject.BeanScope;
 import io.a2a.spec.FilePart;
 import io.a2a.spec.FileWithBytes;
 import io.a2a.spec.Part;
@@ -33,9 +34,15 @@ import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
 public class UiAgentExecutor extends AbstractAgentExecutor {
     public static final String SCREENSHOT_FORMAT = "png";
 
+    private final BeanScope appScope;
+
+    public UiAgentExecutor(BeanScope appScope) {
+        this.appScope = appScope;
+    }
+
     @Override
     protected TestExecutionResult executeTestCase(String message) {
-        return UiTestAgent.executeTestCase(message);
+        return UiTestAgent.executeTestCase(message, appScope);
     }
 
     @Override

@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.core;
 
+import io.avaje.inject.BeanScope;
 import io.a2a.spec.AgentCard;
 import io.javalin.json.JavalinJackson;
 import org.slf4j.Logger;
@@ -25,9 +26,8 @@ import org.tarik.ta.core.a2a.AgentExecutor;
 import static io.javalin.Javalin.create;
 
 /**
- * Abstract base class for agent servers. Provides common server initialization
- * logic
- * while allowing subclasses to specify agent-specific components.
+ * Abstract base class for agent servers. Bootstraps the application DI container and provides
+ * common server initialization logic while allowing subclasses to specify agent-specific components.
  */
 public abstract class AbstractServer {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractServer.class);
@@ -35,43 +35,24 @@ public abstract class AbstractServer {
     private static final String MAIN_PATH = "/";
     private static final String AGENT_CARD_PATH = "/.well-known/agent-card.json";
 
+    protected final BeanScope appScope;
     private final AgentConfig agentConfig;
 
-    protected AbstractServer(AgentConfig agentConfig) {
-        this.agentConfig = agentConfig;
+    protected AbstractServer() {
+        this.appScope = BeanScope.builder().build();
+        this.agentConfig = appScope.get(AgentConfig.class);
     }
 
-    /**
-     * Creates the agent-specific executor.
-     *
-     * @return the agent executor instance
-     */
     protected abstract AgentExecutor createAgentExecutor();
 
-    /**
-     * Creates the agent-specific card.
-     *
-     * @return the agent card instance
-     */
     protected abstract AgentCard createAgentCard();
 
-    /**
-     * Returns the startup log message for this agent.
-     *
-     * @param host the host the server is listening on
-     * @param port the port the server is listening on
-     * @return the formatted startup log message
-     */
     protected abstract String getStartupLogMessage(String host, int port);
 
-    /**
-     * Starts the agent server.
-     */
     public void start() {
         int port = agentConfig.getStartPort();
         String host = agentConfig.getHost();
-        AgentExecutor executor = createAgentExecutor();
-        AgentExecutionResource agentExecutionResource = new AgentExecutionResource(executor, createAgentCard());
+        AgentExecutionResource agentExecutionResource = new AgentExecutionResource(createAgentExecutor(), createAgentCard());
 
         create(config -> {
             config.http.maxRequestSize = MAX_REQUEST_SIZE;

@@ -13,25 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.core.agents;
+package org.tarik.ta.knowledge_graph.location_history;
 
-import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.dto.EmptyExecutionResult;
-import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 
-/**
- * Agent responsible for executing test steps.
- */
-public interface TestStepActionAgent extends GenericAiAgent<EmptyExecutionResult> {
-    RetryPolicy RETRY_POLICY = new AgentConfig().getActionRetryPolicy();
+import java.util.Optional;
+import java.util.UUID;
 
-    @Override
-    default String getAgentTaskDescription() {
-        return "Executing test step action";
-    }
-
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
-    }
+@FunctionalInterface
+public interface ElementLocationHistoryLookup {
+    Optional<ElementLocationHistory> lookup(UUID elementId);
 }
