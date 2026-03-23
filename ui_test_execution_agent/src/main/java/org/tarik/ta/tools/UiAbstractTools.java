@@ -16,13 +16,7 @@
 package org.tarik.ta.tools;
 
 import org.tarik.ta.agents.UiStateCheckAgent;
-import dev.langchain4j.service.AiServices;
 import org.tarik.ta.core.tools.AbstractTools;
-import org.tarik.ta.dto.UiStateCheckResult;
-
-import static org.tarik.ta.UiTestAgentConfig.*;
-import static org.tarik.ta.core.model.ModelFactory.getModel;
-import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
 public class UiAbstractTools extends AbstractTools {
     public static final String AGENT_PATH = "common/ui_state_checker";

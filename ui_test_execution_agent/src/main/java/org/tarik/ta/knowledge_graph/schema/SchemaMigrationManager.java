@@ -21,10 +21,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.knowledge_graph.Neo4jConnectionManager;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PhraseType;
-import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -83,9 +81,9 @@ public class SchemaMigrationManager {
     /**
      * Runs all pending migrations in order. Safe to call multiple times (idempotent).
      */
-    public static void migrateOnStartup() {
+    public static void migrateOnStartup(org.neo4j.driver.Driver driver, String databaseName) {
         LOG.info("Starting Neo4j schema migration check");
-        int currentVersion = readCurrentVersion();
+        int currentVersion = readCurrentVersion(driver, databaseName);
         LOG.info("Current schema version: {}", currentVersion);
 
         var pendingDdl = DDL_MIGRATIONS.stream()
@@ -94,24 +92,24 @@ public class SchemaMigrationManager {
 
         for (var migration : pendingDdl) {
             LOG.info("Applying DDL migration v{}: {}", migration.version(), migration.description());
-            Neo4jConnectionManager.executableQuery(migration.cypherStatement()).execute();
-            updateVersion(migration.version());
+            executableQuery(driver, databaseName, migration.cypherStatement()).execute();
+            updateVersion(driver, databaseName, migration.version());
             LOG.info("DDL migration v{} applied successfully", migration.version());
         }
 
         if (currentVersion < 6) {
             LOG.info("Applying data migration v6: Extract PhraseEmbedding nodes from legacy Procedure JSON");
-            migratePhraseEmbeddingNodes();
-            updateVersion(6);
+            migratePhraseEmbeddingNodes(driver, databaseName);
+            updateVersion(driver, databaseName, 6);
             LOG.info("Data migration v6 applied successfully");
         }
 
         if (currentVersion < DATA_MIGRATION_VERSION) {
             LOG.info("Applying data migration v{}: Flatten Procedure properties and normalise UiElement property names",
                     DATA_MIGRATION_VERSION);
-            migrateProcedureToFlatProperties();
-            migrateUiElementPropertyNames();
-            updateVersion(DATA_MIGRATION_VERSION);
+            migrateProcedureToFlatProperties(driver, databaseName);
+            migrateUiElementPropertyNames(driver, databaseName);
+            updateVersion(driver, databaseName, DATA_MIGRATION_VERSION);
             LOG.info("Data migration v{} applied successfully", DATA_MIGRATION_VERSION);
         }
 
@@ -123,16 +121,20 @@ public class SchemaMigrationManager {
         LOG.info("Schema is now at version {}", highestApplied);
     }
 
+    private static org.neo4j.driver.ExecutableQuery executableQuery(org.neo4j.driver.Driver driver, String databaseName, String cypher) {
+        return driver.executableQuery(cypher).withConfig(org.neo4j.driver.QueryConfig.builder().withDatabase(databaseName).build());
+    }
+
     /**
      * Reads Procedure nodes that still have the legacy {@code data} JSON property and writes
      * all fields as individual flat Neo4j properties, then removes the {@code data} property.
      */
-    private static void migrateProcedureToFlatProperties() {
+    private static void migrateProcedureToFlatProperties(org.neo4j.driver.Driver driver, String databaseName) {
         var objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
-        var records = Neo4jConnectionManager.executableQuery("""
+        var records = executableQuery(driver, databaseName, """
                 MATCH (p:Procedure) WHERE p.data IS NOT NULL
                 RETURN p.id AS id, p.data AS data
                 """).execute().records();
@@ -162,7 +164,7 @@ public class SchemaMigrationManager {
                 params.put("createdAt", data.createdAt() != null ? data.createdAt().toString() : Instant.now().toString());
                 params.put("updatedAt", data.updatedAt() != null ? data.updatedAt().toString() : Instant.now().toString());
 
-                Neo4jConnectionManager.executableQuery("""
+                executableQuery(driver, databaseName, """
                         MATCH (p:Procedure {id: $id})
                         SET p.description = $description,
                             p.testData = $testData,
@@ -187,8 +189,8 @@ public class SchemaMigrationManager {
      * Renames legacy uppercase UiElement metadata properties (stored by the old Neo4jEmbeddingStore)
      * to camelCase property names, and removes the redundant {@code text} and uppercase {@code ID} properties.
      */
-    private static void migrateUiElementPropertyNames() {
-        Neo4jConnectionManager.executableQuery("""
+    private static void migrateUiElementPropertyNames(org.neo4j.driver.Driver driver, String databaseName) {
+        executableQuery(driver, databaseName, """
                 MATCH (el:UiElement) WHERE el.NAME IS NOT NULL
                 SET el.name = el.NAME,
                     el.ownDescription = el.OWN_DESCRIPTION,
@@ -209,11 +211,10 @@ public class SchemaMigrationManager {
      * Reads all Procedure nodes that do not yet have HAS_PREREQUISITE or HAS_EFFECT relationships,
      * extracts phrase+embedding pairs from their legacy JSON data, and creates PhraseEmbedding nodes.
      */
-    private static void migratePhraseEmbeddingNodes() {
+    private static void migratePhraseEmbeddingNodes(org.neo4j.driver.Driver driver, String databaseName) {
         var objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-        var phraseRepo = new PhraseEmbeddingRepository();
 
-        var records = Neo4jConnectionManager.executableQuery("""
+        var records = executableQuery(driver, databaseName, """
                 MATCH (p:%s)
                 WHERE NOT (p)-[:%s|%s]->()
                 RETURN p.id AS id, p.data AS data
@@ -237,7 +238,44 @@ public class SchemaMigrationManager {
                 if (prereqNodes.isEmpty() && effectNodes.isEmpty()) {
                     continue;
                 }
-                phraseRepo.saveBatchForProcedure(procedureId, prereqNodes, effectNodes);
+                
+                // Directly create the nodes instead of using PhraseEmbeddingRepository to avoid cyclic dependencies
+                for (var phraseNode : prereqNodes) {
+                    executableQuery(driver, databaseName, """
+                            MATCH (p:Procedure {id: $procedureId})
+                            CREATE (pe:PhraseEmbedding {
+                                id: $id,
+                                phrase: $phrase,
+                                type: $type,
+                                embedding: $embedding
+                            })
+                            CREATE (p)-[:HAS_PREREQUISITE]->(pe)
+                            """).withParameters(Map.of(
+                            "procedureId", procedureId.toString(),
+                            "id", phraseNode.getId().toString(),
+                            "phrase", phraseNode.getPhrase(),
+                            "type", phraseNode.getType().name(),
+                            "embedding", phraseNode.getEmbedding()
+                    )).execute();
+                }
+                for (var phraseNode : effectNodes) {
+                    executableQuery(driver, databaseName, """
+                            MATCH (p:Procedure {id: $procedureId})
+                            CREATE (pe:PhraseEmbedding {
+                                id: $id,
+                                phrase: $phrase,
+                                type: $type,
+                                embedding: $embedding
+                            })
+                            CREATE (p)-[:HAS_EFFECT]->(pe)
+                            """).withParameters(Map.of(
+                            "procedureId", procedureId.toString(),
+                            "id", phraseNode.getId().toString(),
+                            "phrase", phraseNode.getPhrase(),
+                            "type", phraseNode.getType().name(),
+                            "embedding", phraseNode.getEmbedding()
+                    )).execute();
+                }
                 migrated++;
             } catch (Exception e) {
                 LOG.warn("Data migration v6: failed to migrate procedure id={}: {}", idVal.asString(), e.getMessage());
@@ -269,14 +307,14 @@ public class SchemaMigrationManager {
         return result;
     }
 
-    private static void updateVersion(int version) {
-        Neo4jConnectionManager.executableQuery("MERGE (sv:%s) SET sv.version = $version".formatted(SchemaVersion.LABEL))
+    private static void updateVersion(org.neo4j.driver.Driver driver, String databaseName, int version) {
+        executableQuery(driver, databaseName, "MERGE (sv:%s) SET sv.version = $version".formatted(SchemaVersion.LABEL))
                 .withParameters(Map.of("version", version))
                 .execute();
     }
 
-    private static int readCurrentVersion() {
-        var records = Neo4jConnectionManager.executableQuery(
+    private static int readCurrentVersion(org.neo4j.driver.Driver driver, String databaseName) {
+        var records = executableQuery(driver, databaseName,
                 "MERGE (sv:%s) ON CREATE SET sv.version = 0 RETURN sv.version AS version".formatted(SchemaVersion.LABEL)
         ).execute().records();
         return records.isEmpty() ? 0 : records.getFirst().get("version").asInt();

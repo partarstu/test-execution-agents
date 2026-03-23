@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph.repository;
 
+import io.avaje.inject.Singleton;
 import org.neo4j.driver.TransactionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,12 +27,12 @@ import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
 import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.*;
-import static org.tarik.ta.knowledge_graph.repository.Neo4jRepositorySupport.*;
 
+@Singleton
 public class SatisfiesEdgeRepository {
-    private static final Logger LOG = LoggerFactory.getLogger(SatisfiesEdgeRepository.class);
-
-    private static final String PERSIST_EDGES = cypher("""
+    public SatisfiesEdgeRepository(Neo4jRepositorySupport repositorySupport) {
+        this.repositorySupport = repositorySupport;
+        this.PERSIST_EDGES = repositorySupport.cypher("""
             UNWIND $edges AS edge
             MATCH (producer:${LABEL_PROCEDURE} {${PROP_ID}: edge.producerId})
             MATCH (consumer:${LABEL_PROCEDURE} {${PROP_ID}: edge.consumerId})
@@ -39,37 +40,49 @@ public class SatisfiesEdgeRepository {
             ON CREATE SET r.${PROP_SCORE} = edge.score, r.${PROP_CREATED_AT} = timestamp(), r.${PROP_LAST_VERIFIED_AT} = timestamp()
             ON MATCH SET r.${PROP_SCORE} = edge.score, r.${PROP_LAST_VERIFIED_AT} = timestamp()
             """);
-
-    private static final String DELETE_EDGES = cypher("""
+        this.DELETE_EDGES = repositorySupport.cypher("""
             MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $id})-[r:${REL_SATISFIES}]-()
             DELETE r
             """);
-
-    private static final String REFRESH_EDGE = cypher("""
+        this.REFRESH_EDGE = repositorySupport.cypher("""
             MATCH (producer:${LABEL_PROCEDURE} {${PROP_ID}: $producerId})-[r:${REL_SATISFIES}]->(consumer:${LABEL_PROCEDURE} {${PROP_ID}: $consumerId})
             SET r.${PROP_LAST_VERIFIED_AT} = timestamp()
             """);
-
-    private static final String FIND_STALE_EDGES = cypher("""
+        this.FIND_STALE_EDGES = repositorySupport.cypher("""
             MATCH (producer:${LABEL_PROCEDURE})-[r:${REL_SATISFIES}]->(consumer:${LABEL_PROCEDURE})
             WHERE r.${PROP_LAST_VERIFIED_AT} < timestamp() - ($staleDays * 86400000)
             RETURN producer.${PROP_ID} AS producerId, consumer.${PROP_ID} AS consumerId,
                    r.${PROP_SCORE} AS score, r.${PROP_EFFECT_PHRASE} AS effectPhrase,
                    r.${PROP_PREREQUISITE_PHRASE} AS prerequisitePhrase
             """);
-
-    private static final String HAS_EDGES = cypher("""
+        this.HAS_EDGES = repositorySupport.cypher("""
             MATCH ()-[r:${REL_SATISFIES}]->()
             RETURN count(r) > 0 AS hasEdges
             """);
-
-    private static final String FIND_ORDERING_CONFLICTS = cypher("""
+        this.FIND_ORDERING_CONFLICTS = repositorySupport.cypher("""
             UNWIND $ids AS pId
             MATCH (consumer:${LABEL_PROCEDURE} {${PROP_ID}: pId})
             MATCH (producer:${LABEL_PROCEDURE})-[r:${REL_SATISFIES}]->(consumer)
             WHERE producer.${PROP_ID} IN $ids
             RETURN producer.${PROP_ID} AS producerId, consumer.${PROP_ID} AS consumerId
             """);
+    }
+
+    private final Neo4jRepositorySupport repositorySupport;
+
+    private static final Logger LOG = LoggerFactory.getLogger(SatisfiesEdgeRepository.class);
+
+    private final String PERSIST_EDGES;
+
+    private final String DELETE_EDGES;
+
+    private final String REFRESH_EDGE;
+
+    private final String FIND_STALE_EDGES;
+
+    private final String HAS_EDGES;
+
+    private final String FIND_ORDERING_CONFLICTS;
 
     public void persistSatisfiesEdges(List<SatisfiesEdge> edges) {
         if (edges.isEmpty()) {
@@ -83,7 +96,7 @@ public class SatisfiesEdgeRepository {
                 PROP_PREREQUISITE_PHRASE, e.prerequisitePhrase()
         )).toList();
 
-        executeSingleWriteQuery(PERSIST_EDGES, Map.of("edges", mappedEdges));
+        repositorySupport.executeSingleWriteQuery(PERSIST_EDGES, Map.of("edges", mappedEdges));
         LOG.debug("Persisted {} SATISFIES edges", edges.size());
     }
 
@@ -96,14 +109,14 @@ public class SatisfiesEdgeRepository {
     public void refreshSatisfiesEdge(UUID producerId, UUID consumerId) {
         requireNonNull(producerId, "producerId");
         requireNonNull(consumerId, "consumerId");
-        executeSingleWriteQuery(REFRESH_EDGE, Map.of(
+        repositorySupport.executeSingleWriteQuery(REFRESH_EDGE, Map.of(
                 "producerId", producerId.toString(),
                 "consumerId", consumerId.toString()
         ));
     }
 
     public List<SatisfiesEdge> findStaleSatisfiesEdges(int staleDays) {
-        return executeSingleReadQuery(FIND_STALE_EDGES, Map.of("staleDays", staleDays))
+        return repositorySupport.executeSingleReadQuery(FIND_STALE_EDGES, Map.of("staleDays", staleDays))
                 .stream()
                 .map(r -> new SatisfiesEdge(
                         UUID.fromString(r.get("producerId").asString()),
@@ -116,7 +129,7 @@ public class SatisfiesEdgeRepository {
     }
 
     public boolean hasSatisfiesEdges() {
-        var records = executeSingleReadQuery(HAS_EDGES);
+        var records = repositorySupport.executeSingleReadQuery(HAS_EDGES);
         return !records.isEmpty() && records.getFirst().get("hasEdges").asBoolean();
     }
 
@@ -124,7 +137,7 @@ public class SatisfiesEdgeRepository {
 
     public List<OrderingConflict> findOrderingConflicts(List<UUID> orderedProcedureIds, Map<UUID, Integer> indexMap) {
         var idsAsStrings = orderedProcedureIds.stream().map(UUID::toString).toList();
-        return executeSingleReadQuery(FIND_ORDERING_CONFLICTS, Map.of("ids", idsAsStrings))
+        return repositorySupport.executeSingleReadQuery(FIND_ORDERING_CONFLICTS, Map.of("ids", idsAsStrings))
                 .stream()
                 .map(r -> new OrderingConflict(
                         UUID.fromString(r.get("producerId").asString()),

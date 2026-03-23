@@ -16,12 +16,12 @@
 package org.tarik.ta.knowledge_graph.repository;
 
 import dev.langchain4j.model.embedding.EmbeddingModel;
+import io.avaje.inject.Singleton;
 import org.neo4j.driver.types.Node;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.Screenshot;
-import org.tarik.ta.knowledge_graph.service.EmbeddingService;
 
 import java.util.HashMap;
 import java.util.List;
@@ -33,7 +33,6 @@ import static java.util.Objects.requireNonNull;
 import static org.tarik.ta.knowledge_graph.model.node.IEntity.PROP_ID;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.*;
 import static org.tarik.ta.knowledge_graph.model.node.Embeddable.PROP_EMBEDDING;
-import static org.tarik.ta.knowledge_graph.repository.Neo4jRepositorySupport.*;
 import static org.tarik.ta.knowledge_graph.repository.UiElementRepository.QueryAliases.*;
 
 /**
@@ -45,7 +44,10 @@ import static org.tarik.ta.knowledge_graph.repository.UiElementRepository.QueryA
  * {@link org.tarik.ta.knowledge_graph.schema.SchemaMigrationManager}.
  * UUID-based lookup queries Neo4j directly by node property.</p>
  */
+@Singleton
 public class UiElementRepository {
+    private final Neo4jRepositorySupport repositorySupport;
+
     private static final Logger LOG = LoggerFactory.getLogger(UiElementRepository.class);
     private static final String VECTOR_INDEX_NAME = "ui_element_embedding_index";
 
@@ -56,9 +58,21 @@ public class UiElementRepository {
         private QueryAliases() {}
     }
 
-    private static final String FIND_BY_ID = cypher("MATCH (n:${LABEL_UI_ELEMENT} {${PROP_ID}: $id}) RETURN n");
+    private final String FIND_BY_ID;
 
-    private static final String SAVE_UI_ELEMENT = cypher("""
+    private final String SAVE_UI_ELEMENT;
+
+    private final String REMOVE_UI_ELEMENT;
+
+    // No entity/property tokens — vector search uses runtime parameters for index name
+    private final String FIND_BY_SEMANTIC_SEARCH;
+
+    private final EmbeddingModel embeddingModel;
+
+    public UiElementRepository(Neo4jRepositorySupport repositorySupport, EmbeddingModel embeddingModel) {
+        this.repositorySupport = repositorySupport;
+        this.FIND_BY_ID = repositorySupport.cypher("MATCH (n:${LABEL_UI_ELEMENT} {${PROP_ID}: $id}) RETURN n");
+        this.SAVE_UI_ELEMENT = repositorySupport.cypher("""
             MERGE (n:${LABEL_UI_ELEMENT} {${PROP_ID}: $id})
             SET n.${PROP_NAME} = $name,
                 n.${PROP_OWN_DESCRIPTION} = $ownDescription,
@@ -70,35 +84,24 @@ public class UiElementRepository {
                 n.${PROP_SCREENSHOT_MIME_TYPE} = $screenshotMimeType,
                 n.${PROP_SCREENSHOT_IMAGE} = $screenshotImage
             """);
-
-    private static final String REMOVE_UI_ELEMENT = cypher("""
+        this.REMOVE_UI_ELEMENT = repositorySupport.cypher("""
             MATCH (n:${LABEL_UI_ELEMENT} {${PROP_ID}: $id})
             DETACH DELETE n
             """);
-
-    // No entity/property tokens — vector search uses runtime parameters for index name
-    private static final String FIND_BY_SEMANTIC_SEARCH = cypher("""
+        this.FIND_BY_SEMANTIC_SEARCH = repositorySupport.cypher("""
             CALL db.index.vector.queryNodes($indexName, $topN, $queryVector)
             YIELD node, score
             WHERE score >= $minScore
             RETURN node AS n, score
             """);
 
-    private final EmbeddingModel embeddingModel;
-
-    public UiElementRepository() {
-        this.embeddingModel = EmbeddingService.getModel();
-    }
-
-    // package-private for testing — allows injecting a mock EmbeddingModel
-    UiElementRepository(EmbeddingModel embeddingModel) {
         this.embeddingModel = embeddingModel;
     }
 
     public void save(UiElement element) {
         requireNonNull(element, "element");
         var embedding = embeddingModel.embed(element.name()).content().vector();
-        executeSingleWriteQuery(SAVE_UI_ELEMENT, buildSaveParams(element, embedding));
+        repositorySupport.executeSingleWriteQuery(SAVE_UI_ELEMENT, buildSaveParams(element, embedding));
         LOG.info("Saved UiElement '{}' (id={})", element.name(), element.id());
     }
 
@@ -109,7 +112,7 @@ public class UiElementRepository {
     public List<UiElementMatch> findBySemanticSearch(String query, int topN, double minScore) {
         requireNonNull(query, "query");
         var queryVector = embeddingModel.embed(query).content().vector();
-        return executeSingleReadQuery(FIND_BY_SEMANTIC_SEARCH, Map.of(
+        return repositorySupport.executeSingleReadQuery(FIND_BY_SEMANTIC_SEARCH, Map.of(
                 "indexName", VECTOR_INDEX_NAME,
                 "topN", topN,
                 "queryVector", queryVector,
@@ -124,7 +127,7 @@ public class UiElementRepository {
      */
     public Optional<UiElement> findById(UUID id) {
         requireNonNull(id, "id");
-        var records = executeSingleReadQuery(FIND_BY_ID, Map.of(PROP_ID, id.toString()));
+        var records = repositorySupport.executeSingleReadQuery(FIND_BY_ID, Map.of(PROP_ID, id.toString()));
         if (!records.isEmpty()) {
             var element = fromNode(records.getFirst().get(ALIAS_N).asNode());
             LOG.debug("Retrieved UiElement by UUID: name='{}', id={}", element.name(), id);
@@ -143,7 +146,7 @@ public class UiElementRepository {
 
     public void remove(UiElement element) {
         requireNonNull(element, "element");
-        executeSingleWriteQuery(REMOVE_UI_ELEMENT, Map.of(PROP_ID, element.id().toString()));
+        repositorySupport.executeSingleWriteQuery(REMOVE_UI_ELEMENT, Map.of(PROP_ID, element.id().toString()));
         LOG.info("Removed UiElement '{}' from DB", element.name());
     }
 

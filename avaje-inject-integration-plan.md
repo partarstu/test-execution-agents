@@ -2,7 +2,7 @@
 
 **Created**: 2026-03-06
 **Updated**: 2026-03-23
-**Status**: Phase 5 complete — request scope architecture added; `EmbeddingStore<TextSegment>` removed; agent_core compiles; plan inconsistencies resolved (scope annotations, constructors, BudgetManager, UiTestAgent)
+**Status**: Phase 7 complete — UiTestAgentConfig @Singleton, UiAbstractTools refactored, all basic UI tool singletons wired
 
 ## 1. Objective
 
@@ -324,61 +324,19 @@ constraints remain manually created. Everything else is DI-managed (`@Singleton`
 
 ### Phase 4: Core Model & Extractor Beans
 
-- [ ] **Annotate `ModelFactory` class with `@Singleton`**. Add `AgentConfig` as a **constructor parameter** (
-  `ModelFactory(AgentConfig agentConfig)`), store in a `private final AgentConfig agentConfig` field — avaje auto-injects it. `getModel()`
-  becomes an instance method
-- [ ] **Annotate `TestCaseExtractor` class with `@Singleton`**. Add **constructor**
-  `TestCaseExtractor(ModelFactory modelFactory, AgentConfig agentConfig)`, store both in `private final` fields — avaje auto-injects both
-  parameters. All static methods become instance methods. The `TestCaseExtractionAgent` is created once in the constructor body via
-  `AiServices.builder()` using the injected `modelFactory` and `agentConfig`, and stored as a `private final TestCaseExtractionAgent`
-  field — the agent proxy is stateless and reused across all invocations. Delete the `getTestCaseExtractionAgent()` method that previously
-  created a new agent per call
-- [ ] Verify `mvn compile -pl agent_core` succeeds
-
 ### Phase 5: Core Server Infrastructure & Module Declaration
-
-- [ ] Refactor `AbstractServer` to **concrete class, annotate with `@Singleton`**: remove `abstract` keyword and all three abstract methods.
-  Add **constructor** `AbstractServer(AgentExecutionResource agentExecutionResource, AgentConfig agentConfig)`, store both in
-  `private final` fields — avaje auto-injects both parameters. `start()` uses the injected resource directly
-- [ ] **Annotate `AgentExecutionResource` class with `@Singleton`** — add `@Singleton` to the class declaration; constructor signature (
-  `AgentExecutionResource(AgentExecutor agentExecutor, AgentCard agentCard)`) remains unchanged, avaje auto-injects both parameters
-- [ ] **Add `@InjectModule` annotation to a `package-info.java`** file in `agent_core`'s root package (e.g., `package org.tarik.ta.core;`);
-  create the file if it does not exist. The annotation declares
-  `provides = {AgentConfig.class, BudgetManager.class, ModelFactory.class, ChatModelEventListener.class, TestCaseExtractor.class, AbstractServer.class, AgentExecutionResource.class}`
-  and `requires = {AgentExecutor.class, AgentCard.class}` — this tells avaje that `AgentExecutor` and `AgentCard` will be provided by
-  consuming modules, not by `agent_core`
-- [ ] Verify `mvn compile -pl agent_core` succeeds
 
 ### Phase 6: UI Config & UiAbstractTools Base Refactor
 
-- [ ] **Annotate `UiTestAgentConfig` class with `@Singleton`** (it extends the already-`@Singleton` `AgentConfig`). The subclass constructor
-  calls `super()` first, then initializes its own `ConfigProperty` instance fields using inherited helper methods. Add
-  `getActionVerificationDelayMillis()` as a `public` instance method. Avaje sees the `@Singleton` on the subclass and registers it; the
-  parent `AgentConfig` is NOT instantiated separately — avaje uses the subclass as the provider for both `UiTestAgentConfig` and
-  `AgentConfig` types
-- [ ] **Refactor `UiAbstractTools`** (NO DI annotation — this is an abstract base class, not a bean): remove the no-arg constructor and its
-  internal static `createUiStateCheckAgent()` method. Add a single `protected` constructor
-  `UiAbstractTools(UiStateCheckAgent uiStateCheckAgent)` that assigns the parameter to the existing field. All `@Singleton` subclasses will
-  pass their own injected `UiStateCheckAgent` to `super(uiStateCheckAgent)`
-
 ### Phase 7: UI Basic Tool Singletons
-
-- [x] **Annotate `MouseTools` class with `@Singleton`**. Add **constructor** `MouseTools(UiStateCheckAgent uiStateCheckAgent)` — avaje
-  auto-injects `UiStateCheckAgent`. Constructor body calls `super(uiStateCheckAgent)` to pass the agent to `UiAbstractTools`
-- [x] **Annotate `KeyboardTools` class with `@Singleton`**. Add **constructor** `KeyboardTools(UiStateCheckAgent uiStateCheckAgent)` — avaje
-  auto-injects `UiStateCheckAgent`. Constructor body calls `super(uiStateCheckAgent)`
-- [x] **Annotate `CommonTools` class with `@Singleton`**. Add **constructor** `CommonTools(UiStateCheckAgent uiStateCheckAgent)` — avaje
-  auto-injects `UiStateCheckAgent`. Constructor body calls `super(uiStateCheckAgent)`
-- [x] **Annotate `SpinnerTools` class with `@Singleton`**. No constructor dependencies — avaje uses the no-arg constructor. Annotated for DI
-  consistency so that all tool classes are DI-managed
 
 ### Phase 8: Neo4j Infrastructure
 
-- [ ] Refactor `SchemaMigrationManager` (in `knowledge_graph.schema` package — **NO DI annotation**, remains a package-private static
+- [x] Refactor `SchemaMigrationManager` (in `knowledge_graph.schema` package — **NO DI annotation**, remains a package-private static
   utility): add `Driver driver` and `String databaseName` parameters to `migrateOnStartup()`. Replace the
   `Neo4jConnectionManager.getSession()` call inside the method with a session opened from the passed driver on the passed database name.
   Remove the `Neo4jConnectionManager` import
-- [ ] **Annotate `Neo4jRepositorySupport` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `Neo4jRepositorySupport` class with `@Singleton`**. Add **constructor**
   `Neo4jRepositorySupport(Driver driver, UiTestAgentConfig uiTestAgentConfig)` — avaje auto-injects the `Driver` bean (produced by
   `Neo4jFactory`) and `UiTestAgentConfig`. Store both in `private final` fields; extract database name from config. All static methods
   become instance methods. All repository classes that currently call `Neo4jRepositorySupport` static methods are updated to declare
@@ -396,27 +354,27 @@ constraints remain manually created. Everything else is DI-managed (`@Singleton`
     - `void close()` — closes the stored `driver` field; avaje auto-calls via `AutoCloseable` on scope shutdown
     - **No `@Bean Session` method** — sessions are short-lived; callers call `driver.session(SessionConfig.forDatabase(databaseName))`
       directly
-- [ ] Delete `Neo4jConnectionManager` — its driver lifecycle and session logic have been moved into `Neo4jFactory` and
+- [x] Delete `Neo4jConnectionManager` — its driver lifecycle and session logic have been moved into `Neo4jFactory` and
   `Neo4jRepositorySupport`
 
 ### Phase 9: EmbeddingService & Repositories
 
-- [ ] **Annotate `EmbeddingService` class with `@Singleton`**. Static `MODEL` field becomes an instance field. No constructor dependencies —
+- [x] **Annotate `EmbeddingService` class with `@Singleton`**. Static `MODEL` field becomes an instance field. No constructor dependencies —
   avaje uses the no-arg constructor
-- [ ] **Annotate `ProcedureRepository` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `ProcedureRepository` class with `@Singleton`**. Add **constructor**
   `ProcedureRepository(Neo4jRepositorySupport repositorySupport)` — avaje auto-injects. Store in `private final` field. Remove the no-arg
   constructor
-- [ ] **Annotate `PhraseEmbeddingRepository` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `PhraseEmbeddingRepository` class with `@Singleton`**. Add **constructor**
   `PhraseEmbeddingRepository(Neo4jRepositorySupport repositorySupport)` — avaje auto-injects. Store in `private final` field
-- [ ] **Annotate `SatisfiesEdgeRepository` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `SatisfiesEdgeRepository` class with `@Singleton`**. Add **constructor**
   `SatisfiesEdgeRepository(Neo4jRepositorySupport repositorySupport)` — avaje auto-injects. Store in `private final` field
-- [ ] **Annotate `FailureContextRepository` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `FailureContextRepository` class with `@Singleton`**. Add **constructor**
   `FailureContextRepository(Neo4jRepositorySupport repositorySupport)` — avaje auto-injects. Store in `private final` field
-- [ ] **Annotate `ProcedureUsageByTestCaseTrackingRepository` class with `@Singleton`**. Add **constructor** with `Neo4jRepositorySupport`
+- [x] **Annotate `ProcedureUsageByTestCaseTrackingRepository` class with `@Singleton`**. Add **constructor** with `Neo4jRepositorySupport`
   parameter — avaje auto-injects. Store in `private final` field
-- [ ] **Annotate `GraphHealthRepository` class with `@Singleton`**. Add **constructor** with `Neo4jRepositorySupport` parameter — avaje
+- [x] **Annotate `GraphHealthRepository` class with `@Singleton`**. Add **constructor** with `Neo4jRepositorySupport` parameter — avaje
   auto-injects. Store in `private final` field
-- [ ] **Annotate `UiElementRepository` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `UiElementRepository` class with `@Singleton`**. Add **constructor**
   `UiElementRepository(Neo4jRepositorySupport repositorySupport, EmbeddingModel embeddingModel)` — avaje auto-injects both (the
   `EmbeddingModel` is obtained from `EmbeddingService`'s instance field). Store in `private final` fields. Remove the no-arg constructor
   that called `EmbeddingService.getModel()` statically

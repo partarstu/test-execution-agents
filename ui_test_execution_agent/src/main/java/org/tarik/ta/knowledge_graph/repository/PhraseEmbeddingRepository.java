@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph.repository;
 
+import io.avaje.inject.Singleton;
 import org.neo4j.driver.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +34,6 @@ import static org.tarik.ta.knowledge_graph.model.node.Embeddable.PROP_EMBEDDING;
 import static org.tarik.ta.knowledge_graph.model.node.IEntity.PROP_ID;
 import static org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PROP_PHRASE;
 import static org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PROP_TYPE;
-import static org.tarik.ta.knowledge_graph.repository.Neo4jRepositorySupport.*;
 import static org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository.QueryAliases.*;
 import static org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository.QueryParams.*;
 
@@ -43,7 +43,68 @@ import static org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository.
  * <p>Handles creation of native {@code PhraseEmbedding} nodes with vector-indexed embeddings,
  * relationship linking to {@code Procedure} nodes, and Cypher-native vector similarity queries.</p>
  */
+@Singleton
 public class PhraseEmbeddingRepository {
+    public PhraseEmbeddingRepository(Neo4jRepositorySupport repositorySupport) {
+        this.repositorySupport = repositorySupport;
+        this.CREATE_NODE = repositorySupport.cypher("""
+            CREATE (pe:${LABEL_PHRASE_EMBEDDING} {${PROP_ID}: $id, ${PROP_PHRASE}: $phrase, ${PROP_EMBEDDING}: $embedding, ${PROP_TYPE}: $type})
+            """);
+        this.BATCH_CREATE_PREREQUISITES = repositorySupport.cypher("""
+            UNWIND $nodes AS node
+            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $procedureId})
+            CREATE (pe:${LABEL_PHRASE_EMBEDDING} {${PROP_ID}: node.${PROP_ID}, ${PROP_PHRASE}: node.${PROP_PHRASE}, ${PROP_EMBEDDING}: node.${PROP_EMBEDDING}, ${PROP_TYPE}: $phraseType})
+            CREATE (p)-[:${REL_HAS_PREREQUISITE} {${PROP_SEQUENCE}: node.${PROP_SEQUENCE}}]->(pe)
+            """);
+        this.BATCH_CREATE_EFFECTS = repositorySupport.cypher("""
+            UNWIND $nodes AS node
+            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $procedureId})
+            CREATE (pe:${LABEL_PHRASE_EMBEDDING} {${PROP_ID}: node.${PROP_ID}, ${PROP_PHRASE}: node.${PROP_PHRASE}, ${PROP_EMBEDDING}: node.${PROP_EMBEDDING}, ${PROP_TYPE}: $phraseType})
+            CREATE (p)-[:${REL_HAS_EFFECT} {${PROP_SEQUENCE}: node.${PROP_SEQUENCE}}]->(pe)
+            """);
+        this.FIND_PREREQUISITES_FOR_PROCEDURE = repositorySupport.cypher("""
+            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $procedureId})-[r:${REL_HAS_PREREQUISITE}]->(pe:${LABEL_PHRASE_EMBEDDING})
+            RETURN pe
+            ORDER BY r.${PROP_SEQUENCE} ASC
+            """);
+        this.FIND_EFFECTS_FOR_PROCEDURE = repositorySupport.cypher("""
+            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $procedureId})-[r:${REL_HAS_EFFECT}]->(pe:${LABEL_PHRASE_EMBEDDING})
+            RETURN pe
+            ORDER BY r.${PROP_SEQUENCE} ASC
+            """);
+        this.FIND_SIMILAR_TO_VECTOR = repositorySupport.cypher("""
+            CALL db.index.vector.queryNodes($indexName, $topN, $queryVector)
+            YIELD node, score
+            WHERE score >= $minScore
+            RETURN node, score
+            """);
+        this.DELETE_FOR_PROCEDURE = repositorySupport.cypher("""
+            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $procedureId})-[:${REL_HAS_PREREQUISITE}|${REL_HAS_EFFECT}]->(pe:${LABEL_PHRASE_EMBEDDING})
+            DETACH DELETE pe
+            """);
+        this.FIND_PREREQUISITES_SATISFIED_BY_PRODUCER = repositorySupport.cypher("""
+            MATCH (producer:${LABEL_PROCEDURE} {${PROP_ID}: $producerId})-[:${REL_HAS_EFFECT}]->(eff:${LABEL_PHRASE_EMBEDDING})
+            WITH eff
+            CALL db.index.vector.queryNodes($indexName, $topN, eff.${PROP_EMBEDDING})
+            YIELD node AS prereqNode, score
+            WHERE score >= $threshold AND prereqNode.${PROP_TYPE} = $phraseType
+            MATCH (consumer:${LABEL_PROCEDURE})-[:${REL_HAS_PREREQUISITE}]->(prereqNode)
+            WHERE consumer.${PROP_ID} <> $producerId
+            RETURN consumer.${PROP_ID} AS consumerId, eff.${PROP_PHRASE} AS effectPhrase,
+                   prereqNode.${PROP_PHRASE} AS prerequisitePhrase, score
+            ORDER BY score DESC
+            """);
+        this.IS_PREREQUISITE_MET_BY_EFFECTS = repositorySupport.cypher("""
+            MATCH (pe:${LABEL_PHRASE_EMBEDDING} {${PROP_ID}: $prereqNodeId})
+            CALL db.index.vector.queryNodes($indexName, $topN, pe.${PROP_EMBEDDING})
+            YIELD node, score
+            WHERE score >= $threshold AND node.${PROP_TYPE} = $phraseType AND node.${PROP_ID} IN $effectNodeIds
+            RETURN count(node) > 0 AS isMet
+            """);
+    }
+
+    private final Neo4jRepositorySupport repositorySupport;
+
     private static final Logger LOG = LoggerFactory.getLogger(PhraseEmbeddingRepository.class);
 
     private static final String VECTOR_INDEX_NAME = "phrase_embedding_vector_index";
@@ -76,78 +137,33 @@ public class PhraseEmbeddingRepository {
         private QueryParams() {}
     }
 
-    private static final String CREATE_NODE = cypher("""
-            CREATE (pe:${LABEL_PHRASE_EMBEDDING} {${PROP_ID}: $id, ${PROP_PHRASE}: $phrase, ${PROP_EMBEDDING}: $embedding, ${PROP_TYPE}: $type})
-            """);
+    private final String CREATE_NODE;
 
-    private static final String BATCH_CREATE_PREREQUISITES = cypher("""
-            UNWIND $nodes AS node
-            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $procedureId})
-            CREATE (pe:${LABEL_PHRASE_EMBEDDING} {${PROP_ID}: node.${PROP_ID}, ${PROP_PHRASE}: node.${PROP_PHRASE}, ${PROP_EMBEDDING}: node.${PROP_EMBEDDING}, ${PROP_TYPE}: $phraseType})
-            CREATE (p)-[:${REL_HAS_PREREQUISITE} {${PROP_SEQUENCE}: node.${PROP_SEQUENCE}}]->(pe)
-            """);
+    private final String BATCH_CREATE_PREREQUISITES;
 
-    private static final String BATCH_CREATE_EFFECTS = cypher("""
-            UNWIND $nodes AS node
-            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $procedureId})
-            CREATE (pe:${LABEL_PHRASE_EMBEDDING} {${PROP_ID}: node.${PROP_ID}, ${PROP_PHRASE}: node.${PROP_PHRASE}, ${PROP_EMBEDDING}: node.${PROP_EMBEDDING}, ${PROP_TYPE}: $phraseType})
-            CREATE (p)-[:${REL_HAS_EFFECT} {${PROP_SEQUENCE}: node.${PROP_SEQUENCE}}]->(pe)
-            """);
+    private final String BATCH_CREATE_EFFECTS;
 
-    private static final String FIND_PREREQUISITES_FOR_PROCEDURE = cypher("""
-            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $procedureId})-[r:${REL_HAS_PREREQUISITE}]->(pe:${LABEL_PHRASE_EMBEDDING})
-            RETURN pe
-            ORDER BY r.${PROP_SEQUENCE} ASC
-            """);
+    private final String FIND_PREREQUISITES_FOR_PROCEDURE;
 
-    private static final String FIND_EFFECTS_FOR_PROCEDURE = cypher("""
-            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $procedureId})-[r:${REL_HAS_EFFECT}]->(pe:${LABEL_PHRASE_EMBEDDING})
-            RETURN pe
-            ORDER BY r.${PROP_SEQUENCE} ASC
-            """);
+    private final String FIND_EFFECTS_FOR_PROCEDURE;
 
-    private static final String FIND_SIMILAR_TO_VECTOR = cypher("""
-            CALL db.index.vector.queryNodes($indexName, $topN, $queryVector)
-            YIELD node, score
-            WHERE score >= $minScore
-            RETURN node, score
-            """);
+    private final String FIND_SIMILAR_TO_VECTOR;
 
-    private static final String DELETE_FOR_PROCEDURE = cypher("""
-            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $procedureId})-[:${REL_HAS_PREREQUISITE}|${REL_HAS_EFFECT}]->(pe:${LABEL_PHRASE_EMBEDDING})
-            DETACH DELETE pe
-            """);
+    private final String DELETE_FOR_PROCEDURE;
 
     /**
      * For each effect of the given producer procedure, queries the vector index for similar prerequisite nodes
      * and returns matches representing potential SATISFIES edges.
      * Replaces the O(effects × all prerequisites) Java cosine similarity loop in {@code SatisfiesEdgeService}.
      */
-    private static final String FIND_PREREQUISITES_SATISFIED_BY_PRODUCER = cypher("""
-            MATCH (producer:${LABEL_PROCEDURE} {${PROP_ID}: $producerId})-[:${REL_HAS_EFFECT}]->(eff:${LABEL_PHRASE_EMBEDDING})
-            WITH eff
-            CALL db.index.vector.queryNodes($indexName, $topN, eff.${PROP_EMBEDDING})
-            YIELD node AS prereqNode, score
-            WHERE score >= $threshold AND prereqNode.${PROP_TYPE} = $phraseType
-            MATCH (consumer:${LABEL_PROCEDURE})-[:${REL_HAS_PREREQUISITE}]->(prereqNode)
-            WHERE consumer.${PROP_ID} <> $producerId
-            RETURN consumer.${PROP_ID} AS consumerId, eff.${PROP_PHRASE} AS effectPhrase,
-                   prereqNode.${PROP_PHRASE} AS prerequisitePhrase, score
-            ORDER BY score DESC
-            """);
+    private final String FIND_PREREQUISITES_SATISFIED_BY_PRODUCER;
 
     /**
      * Checks whether the given prerequisite node is semantically matched by any of the supplied effect node IDs.
      * Queries the vector index with the prerequisite's embedding and checks if any top-N result is an effect
      * node present in the accumulated effects set.
      */
-    private static final String IS_PREREQUISITE_MET_BY_EFFECTS = cypher("""
-            MATCH (pe:${LABEL_PHRASE_EMBEDDING} {${PROP_ID}: $prereqNodeId})
-            CALL db.index.vector.queryNodes($indexName, $topN, pe.${PROP_EMBEDDING})
-            YIELD node, score
-            WHERE score >= $threshold AND node.${PROP_TYPE} = $phraseType AND node.${PROP_ID} IN $effectNodeIds
-            RETURN count(node) > 0 AS isMet
-            """);
+    private final String IS_PREREQUISITE_MET_BY_EFFECTS;
 
     /**
      * Creates a standalone {@link PhraseEmbedding} in Neo4j without linking it to any Procedure.
@@ -155,7 +171,7 @@ public class PhraseEmbeddingRepository {
      */
     public void save(PhraseEmbedding node) {
         requireNonNull(node, "node");
-        executeSingleWriteQuery(CREATE_NODE, Map.of(
+        repositorySupport.executeSingleWriteQuery(CREATE_NODE, Map.of(
                 PROP_ID, node.id().toString(),
                 PROP_PHRASE, node.phrase(),
                 PROP_EMBEDDING, node.embedding(),
@@ -180,8 +196,8 @@ public class PhraseEmbeddingRepository {
                         PROP_TYPE, n.type().name()
                 ))
                 .toList();
-        executeSingleWriteQuery(
-                cypher("UNWIND $nodes AS node CREATE (pe:${LABEL_PHRASE_EMBEDDING} {${PROP_ID}: node.${PROP_ID}, ${PROP_PHRASE}: node.${PROP_PHRASE}, ${PROP_EMBEDDING}: node.${PROP_EMBEDDING}, ${PROP_TYPE}: node.${PROP_TYPE}})"),
+        repositorySupport.executeSingleWriteQuery(
+                repositorySupport.cypher("UNWIND $nodes AS node CREATE (pe:${LABEL_PHRASE_EMBEDDING} {${PROP_ID}: node.${PROP_ID}, ${PROP_PHRASE}: node.${PROP_PHRASE}, ${PROP_EMBEDDING}: node.${PROP_EMBEDDING}, ${PROP_TYPE}: node.${PROP_TYPE}})"),
                 Map.of(PARAM_NODES, nodeParams));
         LOG.debug("Batch-saved {} PhraseEmbeddingNode(s)", nodes.size());
     }
@@ -196,14 +212,14 @@ public class PhraseEmbeddingRepository {
         requireNonNull(effects, "effects");
         var idStr = procedureId.toString();
         if (!prerequisites.isEmpty()) {
-            executeSingleWriteQuery(BATCH_CREATE_PREREQUISITES, Map.of(
+            repositorySupport.executeSingleWriteQuery(BATCH_CREATE_PREREQUISITES, Map.of(
                     PARAM_PROCEDURE_ID, idStr,
                     PARAM_NODES, toNodeParams(prerequisites),
                     PARAM_PHRASE_TYPE, PhraseType.PREREQUISITE.name()
             ));
         }
         if (!effects.isEmpty()) {
-            executeSingleWriteQuery(BATCH_CREATE_EFFECTS, Map.of(
+            repositorySupport.executeSingleWriteQuery(BATCH_CREATE_EFFECTS, Map.of(
                     PARAM_PROCEDURE_ID, idStr,
                     PARAM_NODES, toNodeParams(effects),
                     PARAM_PHRASE_TYPE, PhraseType.EFFECT.name()
@@ -238,7 +254,7 @@ public class PhraseEmbeddingRepository {
      */
     public List<SimilarPhraseMatch> findSimilarToVector(float[] queryVector, double minScore, int topN) {
         requireNonNull(queryVector, "queryVector");
-        return executeSingleReadQuery(FIND_SIMILAR_TO_VECTOR, Map.of(
+        return repositorySupport.executeSingleReadQuery(FIND_SIMILAR_TO_VECTOR, Map.of(
                 PARAM_INDEX_NAME, VECTOR_INDEX_NAME,
                 PARAM_TOP_N, topN,
                 PARAM_QUERY_VECTOR, queryVector,
@@ -254,7 +270,7 @@ public class PhraseEmbeddingRepository {
      */
     public void deleteForProcedure(UUID procedureId) {
         requireNonNull(procedureId, "procedureId");
-        executeSingleWriteQuery(DELETE_FOR_PROCEDURE, Map.of(PARAM_PROCEDURE_ID, procedureId.toString()));
+        repositorySupport.executeSingleWriteQuery(DELETE_FOR_PROCEDURE, Map.of(PARAM_PROCEDURE_ID, procedureId.toString()));
         LOG.debug("Deleted phrase embedding nodes for procedure id={}", procedureId);
     }
 
@@ -268,7 +284,7 @@ public class PhraseEmbeddingRepository {
      */
     public List<SatisfiesMatch> findPrerequisitesSatisfiedByProducer(UUID producerId, double threshold, int topN) {
         requireNonNull(producerId, "producerId");
-        return executeSingleReadQuery(FIND_PREREQUISITES_SATISFIED_BY_PRODUCER, Map.of(
+        return repositorySupport.executeSingleReadQuery(FIND_PREREQUISITES_SATISFIED_BY_PRODUCER, Map.of(
                 PARAM_PRODUCER_ID, producerId.toString(),
                 PARAM_INDEX_NAME, VECTOR_INDEX_NAME,
                 PARAM_TOP_N, topN,
@@ -299,7 +315,7 @@ public class PhraseEmbeddingRepository {
         // topN must be large enough to find all relevant effects
         int topN = Math.max(effectNodeIds.size() + 10, 50);
         var effectIdStrings = effectNodeIds.stream().map(UUID::toString).toList();
-        var records = executeSingleReadQuery(IS_PREREQUISITE_MET_BY_EFFECTS, Map.of(
+        var records = repositorySupport.executeSingleReadQuery(IS_PREREQUISITE_MET_BY_EFFECTS, Map.of(
                 PARAM_PREREQ_NODE_ID, prereqNodeId.toString(),
                 PARAM_INDEX_NAME, VECTOR_INDEX_NAME,
                 PARAM_TOP_N, topN,
@@ -314,7 +330,7 @@ public class PhraseEmbeddingRepository {
     public record SatisfiesMatch(UUID consumerId, String effectPhrase, String prerequisitePhrase, double score) {}
 
     private List<PhraseEmbedding> queryNodes(String cypher, Map<String, Object> params) {
-        return executeSingleReadQuery(cypher, params).stream()
+        return repositorySupport.executeSingleReadQuery(cypher, params).stream()
                 .map(r -> fromNode(r.get(ALIAS_PE).asNode()))
                 .toList();
     }

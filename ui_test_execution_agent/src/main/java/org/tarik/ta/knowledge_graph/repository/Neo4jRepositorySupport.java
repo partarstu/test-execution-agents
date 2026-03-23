@@ -15,12 +15,17 @@
  */
 package org.tarik.ta.knowledge_graph.repository;
 
+import jakarta.inject.Singleton;
 import org.apache.commons.text.StringSubstitutor;
+import org.neo4j.driver.Driver;
 import org.neo4j.driver.QueryConfig;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.RoutingControl;
+import org.neo4j.driver.Session;
+import org.neo4j.driver.SessionConfig;
 import org.neo4j.driver.TransactionCallback;
 import org.neo4j.driver.TransactionContext;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.Embeddable;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
 import org.tarik.ta.knowledge_graph.model.node.IEntity;
@@ -34,9 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.tarik.ta.UiTestAgentConfig.getNeo4jDatabase;
-import static org.tarik.ta.knowledge_graph.Neo4jConnectionManager.getDriver;
-import static org.tarik.ta.knowledge_graph.Neo4jConnectionManager.getSession;
 import static org.tarik.ta.knowledge_graph.model.GraphRelationships.*;
 import static org.tarik.ta.knowledge_graph.model.node.IEntity.PROP_ID;
 import static org.tarik.ta.knowledge_graph.model.node.Embeddable.PROP_EMBEDDING;
@@ -92,7 +94,8 @@ import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_LAST_VE
  *       with client-side logic between them.</li>
  * </ul>
  */
-class Neo4jRepositorySupport {
+@Singleton
+public class Neo4jRepositorySupport {
 
     /** Maps node/relationship constant names to their values for use in {@link #cypher(String)} templates. */
     private static final Map<String, String> QUERY_TOKENS = Map.ofEntries(
@@ -154,7 +157,12 @@ class Neo4jRepositorySupport {
             Map.entry("PROP_LAST_VERIFIED_AT", PROP_LAST_VERIFIED_AT)
     );
 
-    private Neo4jRepositorySupport() {
+    private final Driver driver;
+    private final String databaseName;
+
+    public Neo4jRepositorySupport(Driver driver, UiTestAgentConfig uiTestAgentConfig) {
+        this.driver = driver;
+        this.databaseName = uiTestAgentConfig.getNeo4jDatabase();
     }
 
     /**
@@ -162,46 +170,46 @@ class Neo4jRepositorySupport {
      * from node classes and {@link org.tarik.ta.knowledge_graph.model.GraphRelationships}.
      * Unresolved tokens are left unchanged.
      */
-    static String cypher(String template) {
+    public String cypher(String template) {
         return StringSubstitutor.replace(template, QUERY_TOKENS);
     }
 
-    static List<Record> executeSingleReadQuery(String cypher, Map<String, Object> params) {
-        return getDriver().executableQuery(cypher)
-                .withConfig(QueryConfig.builder().withDatabase(getNeo4jDatabase()).withRouting(RoutingControl.READ).build())
+    public List<Record> executeSingleReadQuery(String cypher, Map<String, Object> params) {
+        return driver.executableQuery(cypher)
+                .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.READ).build())
                 .withParameters(params)
                 .execute().records();
     }
 
-    static List<Record> executeSingleReadQuery(String cypher) {
+    public List<Record> executeSingleReadQuery(String cypher) {
         return executeSingleReadQuery(cypher, Map.of());
     }
 
-    static List<Record> executeSingleWriteQuery(String cypher, Map<String, Object> params) {
-        return getDriver().executableQuery(cypher)
-                .withConfig(QueryConfig.builder().withDatabase(getNeo4jDatabase()).withRouting(RoutingControl.WRITE).build())
+    public List<Record> executeSingleWriteQuery(String cypher, Map<String, Object> params) {
+        return driver.executableQuery(cypher)
+                .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.WRITE).build())
                 .withParameters(params)
                 .execute().records();
     }
 
-    static List<Record> executeSingleWriteQuery(String cypher) {
+    public List<Record> executeSingleWriteQuery(String cypher) {
         return executeSingleWriteQuery(cypher, Map.of());
     }
 
-    static <T> T executeComplexReadQuery(TransactionCallback<T> action) {
-        try (var session = getSession()) {
+    public <T> T executeComplexReadQuery(TransactionCallback<T> action) {
+        try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             return session.executeRead(action);
         }
     }
 
-    static void executeComplexWriteQuery(Consumer<TransactionContext> action) {
-        try (var session = getSession()) {
+    public void executeComplexWriteQuery(Consumer<TransactionContext> action) {
+        try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             session.executeWriteWithoutResult(action);
         }
     }
 
-    static <T> T executeComplexWriteQuery(TransactionCallback<T> action) {
-        try (var session = getSession()) {
+    public <T> T executeComplexWriteQuery(TransactionCallback<T> action) {
+        try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             return session.executeWrite(action);
         }
     }
