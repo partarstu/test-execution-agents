@@ -19,8 +19,6 @@ import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
@@ -29,11 +27,6 @@ import org.tarik.ta.core.error.RetryPolicy;
  * It uses tools to perform the actual verification.
  */
 public interface UiTestStepVerificationAgent extends BaseUiAgent<VerificationExecutionResult> {
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return UiTestAgentConfig.getInstance().getVerificationRetryPolicy();
-    }
-
     @Override
     default String getAgentTaskDescription() {
         return "Verifying test step actual results";

@@ -19,8 +19,6 @@ import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
@@ -28,14 +26,10 @@ import org.tarik.ta.core.error.RetryPolicy;
  * Agent responsible for executing test case preconditions.
  */
 public interface UiPreconditionActionAgent extends BaseUiAgent<EmptyExecutionResult> {
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return UiTestAgentConfig.getInstance().getActionRetryPolicy();
-    }
-
     Result<String> execute(
             @UserMessage String userMessage,
             @UserMessage ImageContent screenshot);
+
     @Override
     default String getAgentTaskDescription() {
         return "Executing precondition action related to UI";
