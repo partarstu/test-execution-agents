@@ -28,9 +28,13 @@ It is implemented as a standalone Cloud Run-deployable service that communicates
 
 ## Key Classes
 
+The runtime bootstrap now uses Avaje Inject modules. `Server` creates the root `BeanScope`, resolves `AbstractServer` from `agent_core`,
+and `ApiTestAgent` creates a child request scope with `BaseAgentRequestModule` and `ApiAgentRequestModule` for each test case.
+
 | Class | Description |
 |-------|-------------|
-| `Server` | HTTP server entry point, extends `AbstractServer` from core |
+| `Server` | Thin bootstrap entry point that creates the root `BeanScope` and starts the injected `AbstractServer` |
+| `ApiAgentCardFactory` | Produces the singleton A2A `AgentCard` bean from injected configuration |
 | `ApiAgentExecutor` | Handles A2A task execution, extends `AbstractAgentExecutor` |
 | `ApiTestAgent` | Main orchestrator for API test execution |
 | `ApiTestAgentConfig` | API-specific configuration properties |

@@ -18,7 +18,6 @@ package org.tarik.ta.a2a;
 import io.a2a.spec.Part;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.ApiTestAgent;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -28,30 +27,31 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ApiAgentExecutorTest {
 
     @Test
     void executeTestCase_shouldDelegateToApiTestAgent() {
-        ApiAgentExecutor executor = new ApiAgentExecutor();
+        ApiTestAgent apiTestAgent = mock(ApiTestAgent.class);
+        ApiAgentExecutor executor = new ApiAgentExecutor(apiTestAgent);
         String message = "run test";
         TestExecutionResult expectedResult = mock(TestExecutionResult.class);
 
-        try (MockedStatic<ApiTestAgent> apiTestAgent = mockStatic(ApiTestAgent.class)) {
-            apiTestAgent.when(() -> ApiTestAgent.executeTestCase(message)).thenReturn(expectedResult);
+        when(apiTestAgent.executeTestCase(message)).thenReturn(expectedResult);
 
-            TestExecutionResult result = executor.executeTestCase(message);
+        TestExecutionResult result = executor.executeTestCase(message);
 
-            assertThat(result).isSameAs(expectedResult);
-            apiTestAgent.verify(() -> ApiTestAgent.executeTestCase(message));
-        }
+        assertThat(result).isSameAs(expectedResult);
+        verify(apiTestAgent).executeTestCase(message);
     }
 
     @Test
     void testAddSpecificArtifacts_shouldDoNothing() {
-        ApiAgentExecutor executor = new ApiAgentExecutor();
+        ApiAgentExecutor executor = new ApiAgentExecutor(mock(ApiTestAgent.class));
         TestExecutionResult result = mock(TestExecutionResult.class);
         List<Part<?>> parts = new ArrayList<>();
         
@@ -62,7 +62,7 @@ class ApiAgentExecutorTest {
 
     @Test
     void testExtractLogs() {
-        ApiAgentExecutor executor = new ApiAgentExecutor();
+        ApiAgentExecutor executor = new ApiAgentExecutor(mock(ApiTestAgent.class));
         TestExecutionResult result = mock(TestExecutionResult.class);
         List<String> logs = List.of("log1", "log2");
         when(result.getLogs()).thenReturn(logs);
@@ -72,4 +72,3 @@ class ApiAgentExecutorTest {
         assertThat(resultLogs).contains(logs);
     }
 }
-

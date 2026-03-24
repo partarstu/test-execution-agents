@@ -57,7 +57,7 @@ class ApiAgentsBeanFactory {
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
-                .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiTestStepActionAgent.RETRY_POLICY))
+                .toolExecutionErrorHandler(new DefaultToolErrorHandler(config.getActionRetryPolicy()))
                 .maxSequentialToolsInvocations(config.getAgentToolCallsBudget())
                 .build();
     }
@@ -72,7 +72,7 @@ class ApiAgentsBeanFactory {
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
-                .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiPreconditionActionAgent.RETRY_POLICY))
+                .toolExecutionErrorHandler(new DefaultToolErrorHandler(config.getActionRetryPolicy()))
                 .maxSequentialToolsInvocations(config.getAgentToolCallsBudget())
                 .build();
     }

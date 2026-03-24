@@ -22,7 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.ApiPreconditionActionAgent;
 import org.tarik.ta.agents.ApiTestStepActionAgent;
-import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -31,13 +30,10 @@ import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.core.model.TestExecutionContext;
-import org.tarik.ta.tools.ApiAssertionTools;
-import org.tarik.ta.core.tools.TestContextDataTools;
-import org.tarik.ta.tools.ApiRequestTools;
 import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.model.ModelFactory;
 import org.tarik.ta.core.utils.TestCaseExtractor;
-import org.tarik.ta.core.config.scopes.BaseAgentRequestScopeModule;
+import org.tarik.ta.core.BaseAgentRequestModule;
 
 import java.time.Instant;
 import java.util.List;
@@ -81,7 +77,7 @@ public class ApiTestAgent {
 
         try (BeanScope requestScope = BeanScope.builder()
                 .parent(appScope)
-                .modules(new BaseAgentRequestScopeModule(testCase), new ApiAgentRequestScopeModule())
+                .modules(new BaseAgentRequestModule(testCase), new ApiAgentRequestModule())
                 .build()) {
             
             var logCapture = requestScope.get(LogCapture.class);
@@ -89,12 +85,7 @@ public class ApiTestAgent {
             
             try {
                 var testExecutionStartTimestamp = now();
-                var apiContext = requestScope.get(ApiContext.class);
                 var executionContext = requestScope.get(TestExecutionContext.class);
-                var requestTools = requestScope.get(ApiRequestTools.class);
-                var assertionTools = requestScope.get(ApiAssertionTools.class);
-                var dataTools = requestScope.get(TestContextDataTools.class);
-                
                 var preconditionActionAgent = requestScope.get(ApiPreconditionActionAgent.class);
                 var testStepActionAgent = requestScope.get(ApiTestStepActionAgent.class);
 

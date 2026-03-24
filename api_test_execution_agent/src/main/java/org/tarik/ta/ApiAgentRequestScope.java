@@ -16,6 +16,9 @@
 package org.tarik.ta;
 
 import jakarta.inject.Scope;
+import io.avaje.inject.InjectModule;
+import org.tarik.ta.core.config.scopes.BaseAgentRequestScope;
 
 @Scope
+@InjectModule(requires = BaseAgentRequestScope.class)
 public @interface ApiAgentRequestScope {}

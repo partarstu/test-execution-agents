@@ -17,6 +17,7 @@ package org.tarik.ta;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.avaje.inject.BeanScope;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -112,10 +113,12 @@ class ApiManualTest {
         TestCase testCase = new TestCase("Swagger Petstore End-to-End Flow", List.of(precondition), steps);
 
         // When
-        TestExecutionResult actualResult = ApiTestAgent.executeTestCase(OBJECT_MAPPER.writeValueAsString(testCase));
+        TestExecutionResult actualResult;
+        try (BeanScope scope = BeanScope.builder().build()) {
+            actualResult = scope.get(ApiTestAgent.class).executeTestCase(OBJECT_MAPPER.writeValueAsString(testCase));
+        }
 
         // Then
         assertThat(actualResult.getTestExecutionStatus()).isEqualTo(TestExecutionResult.TestExecutionStatus.PASSED);
     }
 }
-

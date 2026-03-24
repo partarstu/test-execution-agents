@@ -17,7 +17,6 @@ package org.tarik.ta.agents;
 
 import dev.langchain4j.service.Result;
 import org.junit.jupiter.api.Test;
-import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,6 +30,11 @@ class AgentsInterfacesTest {
             public Result<String> execute(String precondition, String sharedData) {
                 return null;
             }
+
+            @Override
+            public RetryPolicy getRetryPolicy() {
+                return new RetryPolicy(1, 1, 1);
+            }
         };
         
         assertThat(agent.getAgentTaskDescription()).isEqualTo("Executing and verifying API test preconditions");
@@ -43,6 +47,11 @@ class AgentsInterfacesTest {
             @Override
             public Result<String> execute(String testStep, String expectedResults, String testData, String sharedData) {
                 return null;
+            }
+
+            @Override
+            public RetryPolicy getRetryPolicy() {
+                return new RetryPolicy(1, 1, 1);
             }
         };
         

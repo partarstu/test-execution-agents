@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.tarik.ta.ApiTestAgentConfig;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.model.AuthType;
@@ -43,6 +44,7 @@ class ApiRequestToolsTest {
     private static WireMockServer wireMockServer;
     private ApiContext apiContext;
     private ApiRequestTools apiRequestTools;
+    private ApiTestAgentConfig config;
     private TestExecutionContext testExecutionContext;
     private Map<String, Object> sharedData;
 
@@ -61,14 +63,22 @@ class ApiRequestToolsTest {
     void setUp() {
         wireMockServer.resetAll();
 
-        apiContext = Mockito.spy(new ApiContext());
+        config = mock(ApiTestAgentConfig.class);
+        when(config.getDefaultAuthType()).thenReturn(AuthType.NONE);
+        when(config.getDefaultContentType()).thenReturn("application/json");
+        when(config.getBasicAuthUsernameEnv()).thenReturn("API_USERNAME");
+        when(config.getBasicAuthPasswordEnv()).thenReturn("API_PASSWORD");
+        when(config.getBearerTokenEnv()).thenReturn("API_TOKEN");
+        when(config.getApiKeyNameEnv()).thenReturn("API_KEY_NAME");
+        when(config.getApiKeyValueEnv()).thenReturn("API_KEY_VALUE");
+        apiContext = Mockito.spy(new ApiContext(config));
         apiContext.setBaseUri(wireMockServer.baseUrl());
 
         sharedData = new HashMap<>();
         testExecutionContext = Mockito.mock(TestExecutionContext.class);
         when(testExecutionContext.getSharedData()).thenReturn(sharedData);
 
-        apiRequestTools = new ApiRequestTools(apiContext, testExecutionContext);
+        apiRequestTools = new ApiRequestTools(apiContext, testExecutionContext, config);
     }
 
     @Test
