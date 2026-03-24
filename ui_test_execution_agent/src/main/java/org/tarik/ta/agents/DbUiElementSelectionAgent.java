@@ -18,8 +18,6 @@ package org.tarik.ta.agents;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.dto.DbUiElementSelectionResult;
 
@@ -28,11 +26,6 @@ import org.tarik.ta.dto.DbUiElementSelectionResult;
  * retrieved from the database, based on the current screenshot of the screen.
  */
 public interface DbUiElementSelectionAgent extends BaseUiAgent<DbUiElementSelectionResult> {
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return UiTestAgentConfig.getInstance().getActionRetryPolicy();
-    }
-
     Result<String> selectBestElementFromCandidates(@UserMessage String candidatesInfo,
                                                    @UserMessage ImageContent screenshot);
 

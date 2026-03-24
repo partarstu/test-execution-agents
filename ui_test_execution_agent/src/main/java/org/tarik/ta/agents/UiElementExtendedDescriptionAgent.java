@@ -19,22 +19,15 @@ import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.dto.UiElementIdentificationResult;
 import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.dto.UiElementIdentificationResult;
 
 public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElementIdentificationResult> {
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return UiTestAgentConfig.getInstance().getActionRetryPolicy();
-    }
-
     @UserMessage("""
             Target Element Description: {{target_element_description}}
-
+            
             Relevant Data Context: {{relevant_data}}
-
+            
             The screenshot is attached.
             """)
     Result<String> describeUiElement(

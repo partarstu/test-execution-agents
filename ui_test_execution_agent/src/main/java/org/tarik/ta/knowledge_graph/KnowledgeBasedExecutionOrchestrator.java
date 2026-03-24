@@ -53,6 +53,7 @@ import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
 import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.*;
 import static org.tarik.ta.user_dialogs.PopupType.WARNING;
+import static org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup.SelectionAction.*;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 @Singleton
@@ -208,7 +209,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                             allAtomicsSuccess = false;
                             break;
                         } else {
-                            InformationalPopup.display("Prerequisites Not Satisfied", reason, null, WARNING);
+                            InformationalPopup.display("Prerequisites Not Satisfied", reason, null, WARNING, uiTestAgentConfig);
                             allAtomicsSuccess = false;
                             break;
                         }
@@ -396,7 +397,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                                       UiTestExecutionContext executionContext) {
         while (true) {
             var selectionResult = org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup
-                    .displayAndGetSelection(null, itemDescription, match.allMatches(), uiTestAgentConfig);
+                    .displayAndGetSelection(null, itemDescription, match.allMatches());
             if (selectionResult.isEmpty()) {
                 LOG.warn("User cancelled selection for '{}', stopping execution", itemDescription);
                 throw new IllegalStateException("User cancelled knowledge workflow");
@@ -418,7 +419,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                         String tcList = String.join("\n- ", testCasesUsingIt);
                         String msg = "This procedure is used by %d test case(s):\n- %s\n\nEditing it may affect all of them."
                                 .formatted(testCasesUsingIt.size(), tcList);
-                        InformationalPopup.display("Shared Procedure Warning", msg, null, WARNING);
+                        InformationalPopup.display("Shared Procedure Warning", msg, null, WARNING, uiTestAgentConfig);
                     }
                     var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
                     var editResult = procedureKnowledgeCollectionService.triggerEditProcedureFlow(existing, itemTestData,

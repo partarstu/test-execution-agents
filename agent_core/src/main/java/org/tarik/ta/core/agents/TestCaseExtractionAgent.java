@@ -24,8 +24,6 @@ import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.dto.TestCase;
 
 public interface TestCaseExtractionAgent extends GenericAiAgent<TestCase> {
-    RetryPolicy RETRY_POLICY = new AgentConfig().getActionRetryPolicy();
-
     @UserMessage("{{user_request}}")
     Result<String> extractTestCase(
             @V("user_request") String userRequest);
@@ -33,11 +31,6 @@ public interface TestCaseExtractionAgent extends GenericAiAgent<TestCase> {
     @Override
     default String getAgentTaskDescription() {
         return "Extracting test case from user request";
-    }
-
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
     }
 }
 

@@ -19,17 +19,10 @@ package org.tarik.ta.agents;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.dto.BoundingBoxes;
 import org.tarik.ta.core.error.RetryPolicy;
 
 public interface UiElementBoundingBoxAgent extends BaseUiAgent<BoundingBoxes> {
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return UiTestAgentConfig.getInstance().getActionRetryPolicy();
-    }
-
     Result<String> identifyBoundingBoxes(@UserMessage String userMessage, @UserMessage ImageContent screenshot);
 
     @Override

@@ -19,7 +19,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.UiAgentsBeanFactory;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.dto.IngestionNode;
 import org.tarik.ta.dto.KnowledgeSuggestionResult;
@@ -54,7 +53,6 @@ import static java.util.Optional.ofNullable;
 import static javax.swing.JOptionPane.*;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.createAtomic;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.createComposite;
-import static org.tarik.ta.utils.ImageUtils.getInstance;
 
 import java.awt.event.ActionListener;
 
@@ -816,6 +814,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                                                               @NotNull KnowledgeService knowledgeService,
                                                               @NotNull KnowledgeIngestionService ingestionService,
                                                               @Nullable SuggestionLoaderFactory childLoaderFactory,
+                                                              @NotNull UiTestAgentConfig uiTestAgentConfig,
                                                               @NotNull UiElementRepository uiElementRepository,
                                                               @NotNull UiElementDialogHelper uiElementDialogHelper) {
         List<ChildProcedureInDialog> preloadedChildren = (aiSuggestions != null && !aiSuggestions.suggestedChildSteps().isEmpty())
@@ -828,8 +827,8 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                 buildTransientProcedure(initialDescription, aiSuggestions, showTestDataAndExpectedResults),
                 preloadedChildren, null, showTestDataAndExpectedResults, false, false,
                 itemContext, knowledgeService, ingestionService, null, childLoaderFactory, null,
-                UiTestAgentConfig.getDialogDefaultFontSize(), UiTestAgentConfig.getDialogDefaultFontType(),
-                UiTestAgentConfig.getProcedureLookupDelayMs(),
+                uiTestAgentConfig.getDialogDefaultFontSize(), uiTestAgentConfig.getDialogDefaultFontType(),
+                uiTestAgentConfig.getProcedureLookupDelayMs(),
                 uiElementRepository, uiElementDialogHelper);
         var outcome = openDialog(owner, cfg);
         return (outcome.cancelled() || outcome.editParentRequested()) ? empty() : ofNullable(outcome.result());
@@ -868,6 +867,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                                                            @NotNull KnowledgeIngestionService ingestionService,
                                                            @Nullable SuggestionLoaderFactory childLoaderFactory,
                                                            @Nullable List<Procedure> preloadedChildren,
+                                                           @NotNull UiTestAgentConfig uiTestAgentConfig,
                                                            @NotNull UiElementRepository uiElementRepository,
                                                            @NotNull UiElementDialogHelper uiElementDialogHelper) {
         List<ChildProcedureInDialog> childSteps = preloadedChildren == null ? null
@@ -875,8 +875,8 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         var cfg = new DialogConfig("Edit Procedure", "Modify the existing procedure definition.",
                 existingProcedure, childSteps, targetUiElementId, showTestDataAndExpectedResults,
                 hasParent, false, itemContext, knowledgeService, ingestionService, existingProcedure.id(),
-                childLoaderFactory, null, UiTestAgentConfig.getDialogDefaultFontSize(), UiTestAgentConfig.getDialogDefaultFontType(),
-                UiTestAgentConfig.getProcedureLookupDelayMs(),
+                childLoaderFactory, null, uiTestAgentConfig.getDialogDefaultFontSize(), uiTestAgentConfig.getDialogDefaultFontType(),
+                uiTestAgentConfig.getProcedureLookupDelayMs(),
                 uiElementRepository, uiElementDialogHelper);
         return openDialog(owner, cfg);
     }

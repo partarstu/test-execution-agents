@@ -18,8 +18,6 @@ package org.tarik.ta.agents;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.agents.GenericAiAgent;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.dto.UiElementLocationResult;
@@ -32,11 +30,6 @@ import org.tarik.ta.dto.UiElementLocationResult;
  * which signals completion with the resolved element's UUID, name, and bounding box.
  */
 public interface UiElementResolutionAgent extends GenericAiAgent<UiElementLocationResult> {
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return UiTestAgentConfig.getInstance().getActionRetryPolicy();
-    }
-
     @UserMessage("""
             Action description: {{description}}
             

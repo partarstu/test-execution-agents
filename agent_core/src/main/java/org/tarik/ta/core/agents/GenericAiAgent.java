@@ -52,8 +52,6 @@ public interface GenericAiAgent<T extends FinalResult> {
         return new OperationExecutionResult<>(status, message, result);
     }
 
-    RetryPolicy getRetryPolicy();
-
     String getAgentTaskDescription();
 
     /**
@@ -101,8 +99,7 @@ public interface GenericAiAgent<T extends FinalResult> {
      * retry, none of those two exceptions need a retry.
      */
     @NotNull
-    default OperationExecutionResult<T> executeWithRetry(Supplier<Result<?>> action, @NotNull Predicate<T> shouldRetry) {
-        RetryPolicy policy = getRetryPolicy();
+    default OperationExecutionResult<T> executeWithRetry(Supplier<Result<?>> action, @NotNull Predicate<T> shouldRetry, RetryPolicy policy) {
         int attempts = 0;
         long startTime = currentTimeMillis();
         String taskDescription = getAgentTaskDescription();
