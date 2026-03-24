@@ -1,8 +1,8 @@
 package org.tarik.ta.config.scopes;
 
-import io.avaje.inject.InjectModule;
 import io.avaje.inject.Bean;
 import io.avaje.inject.Factory;
+import io.avaje.inject.InjectModule;
 import org.tarik.ta.model.VisualState;
 
 @Factory

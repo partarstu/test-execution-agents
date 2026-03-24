@@ -19,30 +19,35 @@ import io.a2a.spec.FilePart;
 import io.a2a.spec.FileWithBytes;
 import io.a2a.spec.Part;
 import jakarta.inject.Singleton;
+import org.tarik.ta.UiAgentRequestScopeFactory;
 import org.tarik.ta.UiTestAgent;
 import org.tarik.ta.core.a2a.AbstractAgentExecutor;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.dto.UiTestExecutionResult;
 import org.tarik.ta.dto.UiTestStepResult;
+import org.tarik.ta.model.VisualState;
 
 import java.util.List;
 import java.util.Optional;
 
 import static java.util.Optional.ofNullable;
 import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
+import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 @Singleton
 public class UiAgentExecutor extends AbstractAgentExecutor {
     public static final String SCREENSHOT_FORMAT = "png";
-    private final UiTestAgent uiTestAgent;
+    private final UiAgentRequestScopeFactory requestScopeFactory;
 
-    public UiAgentExecutor(UiTestAgent uiTestAgent) {
-        this.uiTestAgent = uiTestAgent;
+    public UiAgentExecutor(UiAgentRequestScopeFactory requestScopeFactory) {
+        this.requestScopeFactory = requestScopeFactory;
     }
 
     @Override
     protected TestExecutionResult executeTestCase(String message) {
-        return uiTestAgent.executeTestCase(message);
+        try (var requestScope = requestScopeFactory.create(new VisualState(captureScreen()))) {
+            return requestScope.get(UiTestAgent.class).executeTestCase(message);
+        }
     }
 
     @Override

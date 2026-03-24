@@ -30,15 +30,9 @@ class AgentsInterfacesTest {
             public Result<String> execute(String precondition, String sharedData) {
                 return null;
             }
-
-            @Override
-            public RetryPolicy getRetryPolicy() {
-                return new RetryPolicy(1, 1, 1);
-            }
         };
         
         assertThat(agent.getAgentTaskDescription()).isEqualTo("Executing and verifying API test preconditions");
-        assertThat(agent.getRetryPolicy()).isNotNull();
     }
 
     @Test
@@ -48,14 +42,8 @@ class AgentsInterfacesTest {
             public Result<String> execute(String testStep, String expectedResults, String testData, String sharedData) {
                 return null;
             }
-
-            @Override
-            public RetryPolicy getRetryPolicy() {
-                return new RetryPolicy(1, 1, 1);
-            }
         };
         
         assertThat(agent.getAgentTaskDescription()).isEqualTo("Executing and verifying API test step actions");
-        assertThat(agent.getRetryPolicy()).isNotNull();
     }
 }

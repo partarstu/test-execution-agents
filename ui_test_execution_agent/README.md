@@ -189,6 +189,9 @@ a part of this framework for executing a sample test case inside Google Cloud.
       port configured via `port` in `config.properties`). The server accepts only one test case execution at a time (the agent has been
       designed as a static utility for simplicity purposes). Upon receiving a valid request when idle, it returns `200 OK` and starts the
       test case execution. If busy, it returns `429 Too Many Requests`.
+    * The runtime request lifecycle now mirrors the API agent: [UiAgentExecutor](src/main/java/org/tarik/ta/a2a/UiAgentExecutor.java)
+      opens a child request `BeanScope` through [UiAgentRequestScopeFactory](src/main/java/org/tarik/ta/UiAgentRequestScopeFactory.java)
+      and resolves a request-scoped [UiTestAgent](src/main/java/org/tarik/ta/UiTestAgent.java) from that scope.
 
 * **Knowledge Persistence (Neo4j):**
     * Optional knowledge persistence layer backed by Neo4j 5.x that enables the agent to learn and remember procedures (reusable
