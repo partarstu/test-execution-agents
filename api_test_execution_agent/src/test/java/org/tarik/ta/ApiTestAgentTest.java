@@ -15,11 +15,14 @@
  */
 package org.tarik.ta;
 
-import io.avaje.inject.BeanScope;
+import jakarta.inject.Provider;
 import org.junit.jupiter.api.Test;
+import org.tarik.ta.agents.ApiPreconditionActionAgent;
+import org.tarik.ta.agents.ApiTestStepActionAgent;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.manager.BudgetManager;
-import org.tarik.ta.core.model.ModelFactory;
+import org.tarik.ta.core.model.TestExecutionContext;
+import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 
 import java.util.Optional;
@@ -33,13 +36,18 @@ class ApiTestAgentTest {
 
     @Test
     void executeTestCase_shouldReturnError_whenTestCaseCannotBeExtracted() {
-        ModelFactory modelFactory = mock(ModelFactory.class);
         ApiTestAgentConfig config = mock(ApiTestAgentConfig.class);
         TestCaseExtractor testCaseExtractor = mock(TestCaseExtractor.class);
         BudgetManager budgetManager = mock(BudgetManager.class);
-        BeanScope appScope = mock(BeanScope.class);
+        TestExecutionContext testExecutionContext = mock(TestExecutionContext.class);
+        LogCapture logCapture = mock(LogCapture.class);
+        @SuppressWarnings("unchecked")
+        Provider<ApiPreconditionActionAgent> preconditionActionAgentProvider = mock(Provider.class);
+        @SuppressWarnings("unchecked")
+        Provider<ApiTestStepActionAgent> testStepActionAgentProvider = mock(Provider.class);
         when(testCaseExtractor.extractTestCase("run test")).thenReturn(Optional.empty());
-        ApiTestAgent agent = new ApiTestAgent(modelFactory, config, testCaseExtractor, budgetManager, appScope);
+        ApiTestAgent agent = new ApiTestAgent(config, testCaseExtractor, budgetManager, testExecutionContext, logCapture,
+                preconditionActionAgentProvider, testStepActionAgentProvider);
 
         TestExecutionResult result = agent.executeTestCase("run test");
 

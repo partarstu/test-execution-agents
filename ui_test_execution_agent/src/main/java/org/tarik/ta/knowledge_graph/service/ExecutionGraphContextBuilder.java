@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.model.UiTestExecutionContext;
 
@@ -38,11 +39,11 @@ public class ExecutionGraphContextBuilder {
      * @param executedAtomics   atomic procedures already executed during this test run, in order
      * @param precedingAtomics  atomic procedures that will execute before the new one (preceding siblings, flattened)
      */
-    public static String buildExecutionGraphContext(UiTestExecutionContext executionContext,
+    public static String buildExecutionGraphContext(TestCase testCase, UiTestExecutionContext executionContext,
                                                     List<Procedure> executedAtomics,
                                                     List<Procedure> precedingAtomics) {
         var sb = new StringBuilder();
-        appendTestCaseContext(sb, executionContext);
+        appendTestCaseContext(sb, testCase);
 
         if (executedAtomics.isEmpty() && precedingAtomics.isEmpty()) {
             sb.append("\nNo procedures have executed yet — this is likely the first step being defined.\n");
@@ -76,8 +77,7 @@ public class ExecutionGraphContextBuilder {
         sb.append("\n");
     }
 
-    private static void appendTestCaseContext(StringBuilder sb, UiTestExecutionContext executionContext) {
-        var testCase = executionContext.getTestCase();
+    private static void appendTestCaseContext(StringBuilder sb, TestCase testCase) {
         sb.append("Test case: %s\n".formatted(testCase.name()));
         if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
             sb.append("Test case preconditions: %s\n".formatted(join(", ", testCase.preconditions())));

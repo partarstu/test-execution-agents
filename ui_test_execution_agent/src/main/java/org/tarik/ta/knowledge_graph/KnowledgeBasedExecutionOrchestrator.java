@@ -123,7 +123,8 @@ public class KnowledgeBasedExecutionOrchestrator {
                                 ("No matching procedure found for '%s' and knowledge collection is not available in " +
                                         "UNATTENDED mode").formatted(itemDescription));
                     }
-                    if (!handleNoProcedureMatchFoundCase(item, itemDescription, itemTestData, itemExpectedResults, queue, context, stateTracker.getExecutedAtomicProcedures(), stateTracker)) {
+                    if (!handleNoProcedureMatchFoundCase(item, itemDescription, itemTestData, itemExpectedResults, queue, testCase,
+                            context, stateTracker.getExecutedAtomicProcedures(), stateTracker)) {
                         recordFailure(context, item, itemDescription,
                                 "No matching procedure found and knowledge collection was cancelled or failed");
                         return;
@@ -145,7 +146,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                         return;
                     }
                     var resolved = handleLowConfidenceProcedureMatchCase(item, itemDescription, itemTestData, itemExpectedResults, match,
-                            stateTracker, context);
+                            stateTracker, testCase, context);
                     if (resolved.isEmpty()) {
                         recordFailure(context, item, itemDescription, "User cancelled after no feasible procedure branch found");
                         return;
@@ -154,7 +155,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                 } else if (match.confidence() == KnowledgeService.MatchConfidence.LOW && !uiTestAgentConfig.isFullyUnattended()) {
                     LOG.info("Low confidence match for '{}' - prompting user for selection/editing", itemDescription);
                     var resolved = handleLowConfidenceProcedureMatchCase(item, itemDescription, itemTestData, itemExpectedResults, match,
-                            stateTracker, context);
+                            stateTracker, testCase, context);
                     if (resolved.isEmpty()) {
                         recordFailure(context, item, itemDescription, "User cancelled low-confidence selection");
                         return;
@@ -239,7 +240,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                     );
 
                     var loopOutcome = stepExecutionOrchestrator.executeAtomicStepWithRetryLoop(item, atomicStep,
-                            procedure.isAtomic() ? null : procedure, context,
+                            testCase, procedure.isAtomic() ? null : procedure, context,
                             testStepResults, preconditionResults,
                             stateTracker.getExecutedAtomicProcedures(), execContext);
 
@@ -394,6 +395,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                                       List<String> itemTestData, String itemExpectedResults,
                                                                       KnowledgeService.MatchResult match,
                                                                       ExecutionStateTracker stateTracker,
+                                                                      TestCase testCase,
                                                                       UiTestExecutionContext executionContext) {
         while (true) {
             var selectionResult = org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup
@@ -423,7 +425,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                     }
                     var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
                     var editResult = procedureKnowledgeCollectionService.triggerEditProcedureFlow(existing, itemTestData,
-                            itemExpectedResults, !isPreconditionItem, itemContext, executionContext,
+                            itemExpectedResults, !isPreconditionItem, itemContext, testCase, executionContext,
                             stateTracker.getExecutedAtomicProcedures());
                     if (editResult.isSaved()) {
                         knowledgeIngestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
@@ -438,7 +440,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                 }
                 case CREATE -> {
                     var newProcedureResult = procedureKnowledgeCollectionService.triggerNewProcedureFlow(itemDescription,
-                            itemTestData, itemExpectedResults, isPreconditionItem,
+                            itemTestData, itemExpectedResults, isPreconditionItem, testCase,
                             executionContext, stateTracker.getExecutedAtomicProcedures());
                     newProcedureResult.ifPresent(r -> {
                         knowledgeIngestionService.ingest(r);
@@ -477,12 +479,13 @@ public class KnowledgeBasedExecutionOrchestrator {
     private boolean handleNoProcedureMatchFoundCase(ExecutionItem item, String itemDescription,
                                                     List<String> itemTestData, String itemExpectedResults,
                                                     ExecutionQueue queue,
+                                                    TestCase testCase,
                                                     UiTestExecutionContext executionContext,
                                                     List<Procedure> executedAtomics,
                                                     ExecutionStateTracker stateTracker) {
         boolean isPreconditionItem = item instanceof PreconditionItem;
         var knowledgeCollectionResult = procedureKnowledgeCollectionService.triggerNewProcedureFlow(itemDescription,
-                itemTestData, itemExpectedResults, isPreconditionItem, executionContext, executedAtomics);
+                itemTestData, itemExpectedResults, isPreconditionItem, testCase, executionContext, executedAtomics);
         if (knowledgeCollectionResult.isEmpty()) {
             LOG.warn("User cancelled collecting knowledge for a new procedure for '{}', stopping execution", itemDescription);
             return false;

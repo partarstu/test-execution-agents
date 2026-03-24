@@ -40,6 +40,7 @@ D:\Projects\test-execution-agents\
     * **`GenericAiAgent`**: Core interface for all AI agents with retry logic and budget management.
     * **`TestCaseExtractor`**: Utility class that provides shared test case extraction functionality using an AI model.
     * **`TestContextDataTools`**: Shared tools for loading and managing test data (JSON, CSV).
+    * **`TestExecutionContext`**: Shared request-scoped execution state for step history, precondition history, and shared data; test case data is passed explicitly by the agents instead of being stored in the context.
     * **`DefaultToolErrorHandler`**: Centralized tool error handling with configurable retry policies.
     * **`InheritanceAwareToolProvider`**: Enhanced tool provider that supports tool inheritance and discovery.
     * **`LogCapture`**: Utility for capturing execution logs to include in test results.

@@ -115,7 +115,9 @@ class ApiManualTest {
         // When
         TestExecutionResult actualResult;
         try (BeanScope scope = BeanScope.builder().build()) {
-            actualResult = scope.get(ApiTestAgent.class).executeTestCase(OBJECT_MAPPER.writeValueAsString(testCase));
+            try (BeanScope requestScope = scope.get(ApiAgentRequestScopeFactory.class).create()) {
+                actualResult = requestScope.get(ApiTestAgent.class).executeTestCase(OBJECT_MAPPER.writeValueAsString(testCase));
+            }
         }
 
         // Then

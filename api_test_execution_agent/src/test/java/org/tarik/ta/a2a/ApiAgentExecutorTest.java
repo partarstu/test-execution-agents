@@ -15,10 +15,12 @@
  */
 package org.tarik.ta.a2a;
 
+import io.avaje.inject.BeanScope;
 import io.a2a.spec.Part;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.tarik.ta.ApiAgentRequestScopeFactory;
 import org.tarik.ta.ApiTestAgent;
 import org.tarik.ta.core.dto.TestExecutionResult;
 
@@ -36,22 +38,29 @@ class ApiAgentExecutorTest {
 
     @Test
     void executeTestCase_shouldDelegateToApiTestAgent() {
+        ApiAgentRequestScopeFactory requestScopeFactory = mock(ApiAgentRequestScopeFactory.class);
+        BeanScope requestScope = mock(BeanScope.class);
         ApiTestAgent apiTestAgent = mock(ApiTestAgent.class);
-        ApiAgentExecutor executor = new ApiAgentExecutor(apiTestAgent);
+        ApiAgentExecutor executor = new ApiAgentExecutor(requestScopeFactory);
         String message = "run test";
         TestExecutionResult expectedResult = mock(TestExecutionResult.class);
 
+        when(requestScopeFactory.create()).thenReturn(requestScope);
+        when(requestScope.get(ApiTestAgent.class)).thenReturn(apiTestAgent);
         when(apiTestAgent.executeTestCase(message)).thenReturn(expectedResult);
 
         TestExecutionResult result = executor.executeTestCase(message);
 
         assertThat(result).isSameAs(expectedResult);
+        verify(requestScopeFactory).create();
+        verify(requestScope).get(ApiTestAgent.class);
         verify(apiTestAgent).executeTestCase(message);
+        verify(requestScope).close();
     }
 
     @Test
     void testAddSpecificArtifacts_shouldDoNothing() {
-        ApiAgentExecutor executor = new ApiAgentExecutor(mock(ApiTestAgent.class));
+        ApiAgentExecutor executor = new ApiAgentExecutor(mock(ApiAgentRequestScopeFactory.class));
         TestExecutionResult result = mock(TestExecutionResult.class);
         List<Part<?>> parts = new ArrayList<>();
         
@@ -62,7 +71,7 @@ class ApiAgentExecutorTest {
 
     @Test
     void testExtractLogs() {
-        ApiAgentExecutor executor = new ApiAgentExecutor(mock(ApiTestAgent.class));
+        ApiAgentExecutor executor = new ApiAgentExecutor(mock(ApiAgentRequestScopeFactory.class));
         TestExecutionResult result = mock(TestExecutionResult.class);
         List<String> logs = List.of("log1", "log2");
         when(result.getLogs()).thenReturn(logs);

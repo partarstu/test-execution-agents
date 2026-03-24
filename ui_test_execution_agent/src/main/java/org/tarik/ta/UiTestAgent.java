@@ -156,10 +156,10 @@ public class UiTestAgent {
                 var lastStep = context.getTestStepExecutionHistory().isEmpty() ? null
                         : context.getTestStepExecutionHistory().getLast();
                 if (lastStep != null && lastStep.getExecutionStatus() == FAILURE) {
-                    return buildErrorResult(context, FAILED, testExecutionStartTimestamp, lastStep.getErrorMessage(),
+                    return buildErrorResult(testCase.name(), context, FAILED, testExecutionStartTimestamp, lastStep.getErrorMessage(),
                             null, systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                 } else if (lastStep != null) {
-                    return buildErrorResult(context, ERROR, testExecutionStartTimestamp, lastStep.getErrorMessage(),
+                    return buildErrorResult(testCase.name(), context, ERROR, testExecutionStartTimestamp, lastStep.getErrorMessage(),
                             captureScreen(), systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                 } else {
                     var failedPrecondition = context.getPreconditionExecutionHistory().stream()
@@ -167,7 +167,7 @@ public class UiTestAgent {
                             .findFirst();
                     String errorMessage = failedPrecondition.map(PreconditionResult::getErrorMessage)
                             .orElse("Unknown error during knowledge-based execution");
-                    return buildErrorResult(context, ERROR, testExecutionStartTimestamp, errorMessage,
+                    return buildErrorResult(testCase.name(), context, ERROR, testExecutionStartTimestamp, errorMessage,
                             context.getVisualState().screenshot(), systemInfo, screenRecorder.getCurrentRecordingPath(),
                             logCapture.getLogs());
                 }
@@ -218,13 +218,13 @@ public class UiTestAgent {
     }
 
     @NotNull
-    static UiTestExecutionResult buildErrorResult(TestExecutionContext context,
+    static UiTestExecutionResult buildErrorResult(String testCaseName, TestExecutionContext context,
                                                   TestExecutionResult.TestExecutionStatus status,
                                                   Instant testExecutionStartTimestamp, String errorMessage,
                                                   BufferedImage screenshot, SystemInfo systemInfo,
                                                   String videoPath, List<String> logs) {
         LOG.error(errorMessage);
-        return new UiTestExecutionResult(context.getTestCase().name(), status,
+        return new UiTestExecutionResult(testCaseName, status,
                 context.getPreconditionExecutionHistory(), context.getTestStepExecutionHistory(),
                 screenshot, systemInfo, videoPath, logs, testExecutionStartTimestamp, now(), errorMessage);
     }

@@ -19,6 +19,7 @@ import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.KnowledgeSuggestionAgent;
+import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.dto.IngestionNode;
 import org.tarik.ta.dto.KnowledgeSuggestionResult;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
@@ -89,19 +90,21 @@ class ProcedureKnowledgeCollectionService {
      * @return the collected procedure if user completed, empty if cancelled
      */
     public Optional<IngestionNode> triggerNewProcedureFlow(String itemDescription,
-                                                            List<String> testData,
-                                                            String expectedResults,
-                                                            boolean isPrecondition,
-                                                            UiTestExecutionContext executionContext,
-                                                            List<Procedure> executedAtomics) {
+                                                           List<String> testData,
+                                                           String expectedResults,
+                                                           boolean isPrecondition,
+                                                           TestCase testCase,
+                                                           UiTestExecutionContext executionContext,
+                                                           List<Procedure> executedAtomics) {
         LOG.info("Triggering new procedure knowledge collection flow for: '{}'", itemDescription);
         // Factory builds the projected execution graph context for any new procedure (root or child step)
         SuggestionLoaderFactory childLoaderFactory = (precedingAtomicsSupplier) -> (desc) ->
                 loadSuggestionsWithSpinner(desc, testData, expectedResults,
-                        ExecutionGraphContextBuilder.buildExecutionGraphContext(executionContext, executedAtomics, precedingAtomicsSupplier.get()));
+                        ExecutionGraphContextBuilder.buildExecutionGraphContext(testCase, executionContext, executedAtomics,
+                                precedingAtomicsSupplier.get()));
         // Pre-load suggestions for the root level (no preceding siblings)
         var aiSuggestions = loadSuggestionsWithSpinner(itemDescription, testData, expectedResults,
-                ExecutionGraphContextBuilder.buildExecutionGraphContext(executionContext, executedAtomics, List.of()));
+                ExecutionGraphContextBuilder.buildExecutionGraphContext(testCase, executionContext, executedAtomics, List.of()));
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPrecondition);
         return ProcedureKnowledgeCollectionDialog.displayAndGetResult(null, itemDescription, aiSuggestions,
                 !isPrecondition, itemContext, knowledgeService, knowledgeIngestionService, childLoaderFactory,
@@ -124,15 +127,17 @@ class ProcedureKnowledgeCollectionService {
      * @return saved result carrying the updated node (caller must ingest), or cancelled
      */
     public ProcedureEditResult triggerEditProcedureFlow(Procedure startingProcedure, List<String> testData,
-                                                         String expectedResults,
-                                                         boolean showTestDataAndExpectedResults,
-                                                         ExecutionItemContext itemContext,
-                                                         UiTestExecutionContext executionContext,
-                                                         List<Procedure> executedAtomics) {
+                                                        String expectedResults,
+                                                        boolean showTestDataAndExpectedResults,
+                                                        ExecutionItemContext itemContext,
+                                                        TestCase testCase,
+                                                        UiTestExecutionContext executionContext,
+                                                        List<Procedure> executedAtomics) {
         // Factory is the same regardless of which procedure is being edited — built once before the loop
         SuggestionLoaderFactory childLoaderFactory = (precedingAtomicsSupplier) -> (desc) ->
                 loadSuggestionsWithSpinner(desc, testData, expectedResults,
-                        ExecutionGraphContextBuilder.buildExecutionGraphContext(executionContext, executedAtomics, precedingAtomicsSupplier.get()));
+                        ExecutionGraphContextBuilder.buildExecutionGraphContext(testCase, executionContext, executedAtomics,
+                                precedingAtomicsSupplier.get()));
         Procedure current = startingProcedure;
         while (true) {
             var parents = knowledgeService.findParents(current.id());

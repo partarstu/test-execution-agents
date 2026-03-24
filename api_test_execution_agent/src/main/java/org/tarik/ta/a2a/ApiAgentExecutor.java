@@ -18,6 +18,7 @@ package org.tarik.ta.a2a;
 import io.a2a.spec.Part;
 import jakarta.inject.Singleton;
 import org.tarik.ta.ApiTestAgent;
+import org.tarik.ta.ApiAgentRequestScopeFactory;
 import org.tarik.ta.core.a2a.AbstractAgentExecutor;
 import org.tarik.ta.core.dto.TestExecutionResult;
 
@@ -26,15 +27,17 @@ import java.util.Optional;
 
 @Singleton
 public class ApiAgentExecutor extends AbstractAgentExecutor {
-    private final ApiTestAgent apiTestAgent;
+    private final ApiAgentRequestScopeFactory requestScopeFactory;
 
-    public ApiAgentExecutor(ApiTestAgent apiTestAgent) {
-        this.apiTestAgent = apiTestAgent;
+    public ApiAgentExecutor(ApiAgentRequestScopeFactory requestScopeFactory) {
+        this.requestScopeFactory = requestScopeFactory;
     }
 
     @Override
     protected TestExecutionResult executeTestCase(String message) {
-        return apiTestAgent.executeTestCase(message);
+        try (var requestScope = requestScopeFactory.create()) {
+            return requestScope.get(ApiTestAgent.class).executeTestCase(message);
+        }
     }
 
     @Override

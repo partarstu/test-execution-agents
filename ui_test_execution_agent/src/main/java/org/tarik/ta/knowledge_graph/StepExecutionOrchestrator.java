@@ -150,6 +150,7 @@ class StepExecutionOrchestrator {
     }
 
     RetryLoopOutcome executeAtomicStepWithRetryLoop(ExecutionItem item, Procedure atomicStep,
+                                                    TestCase testCase,
                                                     @Nullable Procedure parentProcedure,
                                                     UiTestExecutionContext context,
                                                     List<UiTestStepResult> testStepResults,
@@ -173,7 +174,7 @@ class StepExecutionOrchestrator {
                     LOG.info("User halted execution before step — prompting for next action");
                     var haltResult = handleHaltDecision(
                             "Execution is about to start but you chose to halt. What would you like to do?",
-                            atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem,
+                            atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem, testCase,
                             context, executedAtomics);
                     switch (haltResult) {
                         case HaltHandlerResult.ShouldReturn(var outcome) -> { return outcome; }
@@ -201,7 +202,7 @@ class StepExecutionOrchestrator {
                         LOG.info("User halted execution after success — prompting for next action");
                         var haltResult = handleHaltDecision(
                                 "Execution succeeded but you chose to halt. What would you like to do?",
-                                atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem,
+                                atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem, testCase,
                                 context, executedAtomics);
                         switch (haltResult) {
                             case HaltHandlerResult.ShouldReturn(var outcome) -> { return outcome; }
@@ -220,7 +221,7 @@ class StepExecutionOrchestrator {
                     }
                     var outcome = promptUserAndDispatch("Verification failed for '%s': %s"
                                     .formatted(failure.description(), failure.reason()), atomicStep, itemTestData,
-                            itemExpectedResults, itemDescription, isPreconditionItem, context, executedAtomics);
+                            itemExpectedResults, itemDescription, isPreconditionItem, testCase, context, executedAtomics);
                     if (outcome == TERMINATE_EXECUTION) {
                         return TERMINATE_EXECUTION;
                     }
@@ -238,7 +239,7 @@ class StepExecutionOrchestrator {
                     InformationalPopup.display("Error During Execution", errorMessage, errorScreenshot,
                             PopupType.ERROR, uiTestAgentConfig);
                     var outcome = promptUserAndDispatch(errorMessage, atomicStep, itemTestData, itemExpectedResults,
-                            itemDescription, isPreconditionItem, context, executedAtomics);
+                            itemDescription, isPreconditionItem, testCase, context, executedAtomics);
                     if (outcome == TERMINATE_EXECUTION) {
                         return TERMINATE_EXECUTION;
                     }
@@ -259,6 +260,7 @@ class StepExecutionOrchestrator {
     private RetryLoopOutcome promptUserAndDispatch(String message, Procedure atomicStep, List<String> testData,
                                                    String expectedResults, String itemDescription,
                                                    boolean isPreconditionItem,
+                                                   TestCase testCase,
                                                    UiTestExecutionContext executionContext,
                                                    List<Procedure> executedAtomics) {
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPreconditionItem);
@@ -268,7 +270,7 @@ class StepExecutionOrchestrator {
                 case EDIT_CURRENT_PROCEDURE -> {
                     LOG.info("User chose to edit procedure '{}'", atomicStep.description());
                     var editResult = procedureKnowledgeCollectionService.triggerEditProcedureFlow(atomicStep, testData,
-                            expectedResults, !isPreconditionItem, itemContext, executionContext, executedAtomics);
+                            expectedResults, !isPreconditionItem, itemContext, testCase, executionContext, executedAtomics);
                     if (editResult.isSaved()) {
                         knowledgeIngestionService
                                 .update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
@@ -285,7 +287,7 @@ class StepExecutionOrchestrator {
                 case CREATE_NEW_PROCEDURE -> {
                     LOG.info("User chose to create a new procedure for '{}'", atomicStep.description());
                     var creationResult = procedureKnowledgeCollectionService.triggerNewProcedureFlow(itemDescription,
-                            testData, expectedResults, isPreconditionItem, executionContext, executedAtomics);
+                            testData, expectedResults, isPreconditionItem, testCase, executionContext, executedAtomics);
                     if (creationResult.isPresent()) {
                         knowledgeIngestionService.ingest(creationResult.get());
                         knowledgeService.onKnowledgeIngested();
@@ -360,11 +362,12 @@ class StepExecutionOrchestrator {
     private HaltHandlerResult handleHaltDecision(String message, Procedure atomicStep, List<String> itemTestData,
                                                  String itemExpectedResults, String itemDescription,
                                                  boolean isPreconditionItem,
+                                                 TestCase testCase,
                                                  UiTestExecutionContext context, List<Procedure> executedAtomics) {
         Procedure current = atomicStep;
         while (true) {
             var outcome = promptUserAndDispatch(message, current, itemTestData, itemExpectedResults, itemDescription,
-                    isPreconditionItem, context, executedAtomics);
+                    isPreconditionItem, testCase, context, executedAtomics);
             if (outcome == TERMINATE_EXECUTION) {
                 return new HaltHandlerResult.ShouldReturn(TERMINATE_EXECUTION);
             }
