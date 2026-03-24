@@ -20,6 +20,7 @@ import dev.langchain4j.agent.tool.Tool;
 import io.restassured.response.Response;
 import io.restassured.response.ResponseBody;
 import io.restassured.specification.RequestSpecification;
+import org.tarik.ta.ApiAgentRequestScope;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.core.model.TestExecutionContext;
@@ -37,23 +38,25 @@ import java.util.regex.Pattern;
 
 import static io.restassured.RestAssured.given;
 import static java.util.Optional.ofNullable;
-import static org.tarik.ta.ApiTestAgentConfig.*;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.core.utils.CommonUtils.getEnvironmentVariable;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import org.tarik.ta.core.tools.AbstractTools;
 
+@ApiAgentRequestScope
 public class ApiRequestTools extends AbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(ApiRequestTools.class);
     public static final String LAST_REQUEST_METHOD = "_last_request_method";
     public static final String LAST_REQUEST_URL = "_last_request_path";
     private final ApiContext apiContext;
     private final TestExecutionContext testExecutionContext;
+    private final ApiTestAgentConfig config;
     private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
 
-    public ApiRequestTools(ApiContext context, TestExecutionContext executionContext) {
-        this.apiContext = context;
-        this.testExecutionContext = executionContext;
+    public ApiRequestTools(ApiContext apiContext, TestExecutionContext testExecutionContext, ApiTestAgentConfig config) {
+        this.apiContext = apiContext;
+        this.testExecutionContext = testExecutionContext;
+        this.config = config;
     }
 
     @Tool("Sends an HTTP request.")
@@ -70,7 +73,7 @@ public class ApiRequestTools extends AbstractTools {
             throw new ToolExecutionException("URL cannot be null or empty", TRANSIENT_TOOL_ERROR);
         }
 
-        AuthType effectiveAuthType = authType != null ? authType : ApiTestAgentConfig.getDefaultAuthType();
+        AuthType effectiveAuthType = authType != null ? authType : config.getDefaultAuthType();
 
         try {
             String resolvedUrl = resolveVariables(url);
@@ -88,7 +91,7 @@ public class ApiRequestTools extends AbstractTools {
             Map<String, String> requestHeaders = headers != null ? new HashMap<>(headers) : new HashMap<>();
 
             if (!requestHeaders.containsKey("Content-Type") && !requestHeaders.containsKey("content-type")) {
-                requestHeaders.put("Content-Type", ApiTestAgentConfig.getDefaultContentType());
+                requestHeaders.put("Content-Type", config.getDefaultContentType());
             }
 
             requestHeaders.forEach((k, v) -> request.header(resolveVariables(k), resolveVariables(v)));
@@ -150,7 +153,7 @@ public class ApiRequestTools extends AbstractTools {
             throw new ToolExecutionException("Multipart name cannot be null or empty", TRANSIENT_TOOL_ERROR);
         }
 
-        AuthType effectiveAuthType = authType != null ? authType : ApiTestAgentConfig.getDefaultAuthType();
+        AuthType effectiveAuthType = authType != null ? authType : config.getDefaultAuthType();
 
         try {
             String resolvedUrl = resolveVariables(url);
@@ -198,9 +201,9 @@ public class ApiRequestTools extends AbstractTools {
         }
     }
 
-    private static void addApiTokenToHeader(RequestSpecification request) {
-        String keyNameEnv = getApiKeyNameEnv();
-        String keyValueEnv = getApiKeyValueEnv();
+    private void addApiTokenToHeader(RequestSpecification request) {
+        String keyNameEnv = config.getApiKeyNameEnv();
+        String keyValueEnv = config.getApiKeyValueEnv();
         String key = getEnvironmentVariable(keyNameEnv);
         String value = getEnvironmentVariable(keyValueEnv);
         if (isBlank(key) || isBlank(value)) {
@@ -209,8 +212,8 @@ public class ApiRequestTools extends AbstractTools {
         request.header(key, value);
     }
 
-    private static void addBearerToken(RequestSpecification request) {
-        String tokenEnv = getBearerTokenEnv();
+    private void addBearerToken(RequestSpecification request) {
+        String tokenEnv = config.getBearerTokenEnv();
         String token = getEnvironmentVariable(tokenEnv);
         if (isBlank(token)) {
             throw new ToolExecutionException("Bearer token environment variable not set or empty", TRANSIENT_TOOL_ERROR);
@@ -218,9 +221,9 @@ public class ApiRequestTools extends AbstractTools {
         request.auth().oauth2(token);
     }
 
-    private static void addBasicAuth(RequestSpecification request) {
-        String usernameEnv = getBasicAuthUsernameEnv();
-        String passwordEnv = getBasicAuthPasswordEnv();
+    private void addBasicAuth(RequestSpecification request) {
+        String usernameEnv = config.getBasicAuthUsernameEnv();
+        String passwordEnv = config.getBasicAuthPasswordEnv();
         String username = getEnvironmentVariable(usernameEnv);
         String password = getEnvironmentVariable(passwordEnv);
         if (isBlank(username) || isBlank(password)) {

@@ -16,6 +16,7 @@
 package org.tarik.ta;
 
 import io.avaje.inject.BeanScope;
+import jakarta.inject.Singleton;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,9 @@ import org.tarik.ta.tools.ApiAssertionTools;
 import org.tarik.ta.core.tools.TestContextDataTools;
 import org.tarik.ta.tools.ApiRequestTools;
 import org.tarik.ta.core.utils.LogCapture;
+import org.tarik.ta.core.model.ModelFactory;
+import org.tarik.ta.core.utils.TestCaseExtractor;
+import org.tarik.ta.core.config.scopes.BaseAgentRequestScopeModule;
 
 import java.time.Instant;
 import java.util.List;
@@ -44,72 +48,88 @@ import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.ERRO
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.FAILED;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.*;
-import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
-import static org.tarik.ta.core.utils.TestCaseExtractor.extractTestCase;
 
+@Singleton
 public class ApiTestAgent {
     private static final Logger LOG = LoggerFactory.getLogger(ApiTestAgent.class);
 
-    public static TestExecutionResult executeTestCase(String receivedMessage, BeanScope appScope) {
-        return executeTestCase(receivedMessage, appScope.get(ApiAgentsBeanFactory.class));
+    private final ModelFactory modelFactory;
+    private final ApiTestAgentConfig apiTestAgentConfig;
+    private final TestCaseExtractor testCaseExtractor;
+    private final BudgetManager budgetManager;
+    private final BeanScope appScope;
+
+    public ApiTestAgent(ModelFactory modelFactory, ApiTestAgentConfig apiTestAgentConfig, TestCaseExtractor testCaseExtractor, BudgetManager budgetManager, BeanScope appScope) {
+        this.modelFactory = modelFactory;
+        this.apiTestAgentConfig = apiTestAgentConfig;
+        this.testCaseExtractor = testCaseExtractor;
+        this.budgetManager = budgetManager;
+        this.appScope = appScope;
     }
 
-    private static TestExecutionResult executeTestCase(String receivedMessage, ApiAgentsBeanFactory agentsBeanFactory) {
-        BudgetManager.reset();
-        BudgetManager.activateTimeBudget();
-        LogCapture logCapture = new LogCapture();
-        TestCase testCase = extractTestCase(receivedMessage).orElse(null);
+    public TestExecutionResult executeTestCase(String receivedMessage) {
+        budgetManager.reset();
+        budgetManager.activateTimeBudget();
+        TestCase testCase = testCaseExtractor.extractTestCase(receivedMessage).orElse(null);
         if (testCase == null) {
             return new TestExecutionResult("Unknown", ERROR, List.of(), List.of(), now(), now(),
-                    "Could not extract test case", null, logCapture.getLogs());
+                    "Could not extract test case", null, List.of());
         }
 
-
         LOG.info("Starting execution of the API test case '{}'", testCase.name());
-        logCapture.start();
-        try {
-            var testExecutionStartTimestamp = now();
-            var apiContext = ApiContext.createFromConfig();
-            var executionContext = new TestExecutionContext(testCase);
-            var requestTools = new ApiRequestTools(apiContext, executionContext);
-            var assertionTools = new ApiAssertionTools(apiContext, executionContext);
-            var dataTools = new TestContextDataTools(executionContext);
 
-            if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
-                executePreconditions(executionContext, requestTools, assertionTools, dataTools, agentsBeanFactory);
-                if (hasPreconditionFailures(executionContext)) {
-                    var failedPrecondition = executionContext.getPreconditionExecutionHistory().getLast();
-                    return getFailedTestExecutionResult(executionContext, testExecutionStartTimestamp,
-                            failedPrecondition.getErrorMessage(), logCapture.getLogs());
+        try (BeanScope requestScope = BeanScope.builder()
+                .parent(appScope)
+                .modules(new BaseAgentRequestScopeModule(testCase), new ApiAgentRequestScopeModule())
+                .build()) {
+            
+            var logCapture = requestScope.get(LogCapture.class);
+            logCapture.start();
+            
+            try {
+                var testExecutionStartTimestamp = now();
+                var apiContext = requestScope.get(ApiContext.class);
+                var executionContext = requestScope.get(TestExecutionContext.class);
+                var requestTools = requestScope.get(ApiRequestTools.class);
+                var assertionTools = requestScope.get(ApiAssertionTools.class);
+                var dataTools = requestScope.get(TestContextDataTools.class);
+                
+                var preconditionActionAgent = requestScope.get(ApiPreconditionActionAgent.class);
+                var testStepActionAgent = requestScope.get(ApiTestStepActionAgent.class);
+
+                if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
+                    executePreconditions(executionContext, preconditionActionAgent);
+                    if (hasPreconditionFailures(executionContext)) {
+                        var failedPrecondition = executionContext.getPreconditionExecutionHistory().getLast();
+                        return getFailedTestExecutionResult(executionContext, testExecutionStartTimestamp,
+                                failedPrecondition.getErrorMessage(), logCapture.getLogs());
+                    }
                 }
-            }
 
-            executeTestSteps(executionContext, apiContext, requestTools, assertionTools, dataTools, agentsBeanFactory);
-            if (hasStepFailures(executionContext)) {
-                var lastStep = executionContext.getTestStepExecutionHistory().getLast();
-                if (lastStep.getExecutionStatus() == FAILURE) {
-                    return getFailedTestExecutionResult(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage(), logCapture.getLogs());
+                executeTestSteps(executionContext, testStepActionAgent);
+                if (hasStepFailures(executionContext)) {
+                    var lastStep = executionContext.getTestStepExecutionHistory().getLast();
+                    if (lastStep.getExecutionStatus() == FAILURE) {
+                        return getFailedTestExecutionResult(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage(), logCapture.getLogs());
+                    } else {
+                        return getTestExecutionResultWithError(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage(), logCapture.getLogs());
+                    }
                 } else {
-                    return getTestExecutionResultWithError(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage(), logCapture.getLogs());
+                    return new TestExecutionResult(testCase.name(), PASSED, executionContext.getPreconditionExecutionHistory(),
+                            executionContext.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), null,
+                            null, logCapture.getLogs());
                 }
-            } else {
-                return new TestExecutionResult(testCase.name(), PASSED, executionContext.getPreconditionExecutionHistory(),
-                        executionContext.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), null,
-                        null, logCapture.getLogs());
+            } finally {
+                LOG.info("Finished execution of the test case '{}'", testCase.name());
+                logCapture.stop();
             }
-        } finally {
-            LOG.info("Finished execution of the test case '{}'", testCase.name());
-            logCapture.stop();
         }
     }
 
-    private static void executePreconditions(TestExecutionContext executionContext, ApiRequestTools requestTools,
-                                             ApiAssertionTools assertionTools, TestContextDataTools dataTools,
-                                             ApiAgentsBeanFactory agentsBeanFactory) {
+    private void executePreconditions(TestExecutionContext executionContext, ApiPreconditionActionAgent preconditionActionAgent) {
         List<String> preconditions = executionContext.getTestCase().preconditions();
         if (preconditions != null && !preconditions.isEmpty()) {
-            var preconditionActionAgent = agentsBeanFactory.createPreconditionActionAgent(requestTools, assertionTools, dataTools);
             LOG.info("Executing and verifying preconditions for test case: {}", executionContext.getTestCase().name());
             for (String precondition : preconditions) {
                 var executionStartTimestamp = now();
@@ -117,7 +137,7 @@ public class ApiTestAgent {
                 var executionResult = preconditionActionAgent.executeWithRetry(
                         () -> preconditionActionAgent.execute(precondition, executionContext.getSharedData().toString()),
                         r -> r == null || !r.success());
-                resetToolCallUsage();
+                budgetManager.resetToolCallUsage();
 
                 if (!executionResult.isSuccess()) {
                     var errorMessage = "Failure while executing precondition '%s'. Root cause: %s".formatted(
@@ -152,10 +172,7 @@ public class ApiTestAgent {
         }
     }
 
-    private static void executeTestSteps(TestExecutionContext executionContext, ApiContext apiContext,
-                                         ApiRequestTools requestTools, ApiAssertionTools assertionTools,
-                                         TestContextDataTools dataTools, ApiAgentsBeanFactory agentsBeanFactory) {
-        var testStepActionAgent = agentsBeanFactory.createTestStepActionAgent(requestTools, assertionTools, dataTools);
+    private void executeTestSteps(TestExecutionContext executionContext, ApiTestStepActionAgent testStepActionAgent) {
         for (TestStep testStep : executionContext.getTestCase().testSteps()) {
             var actionInstruction = testStep.stepDescription();
             var testData = ofNullable(testStep.testData()).map(Object::toString).orElse("");
@@ -170,7 +187,7 @@ public class ApiTestAgent {
                         () -> testStepActionAgent.execute(actionInstruction, expectedResults, testData,
                                 executionContext.getSharedData().toString()),
                         result -> result == null || !result.success());
-                resetToolCallUsage();
+                budgetManager.resetToolCallUsage();
 
                 if (!executionResult.isSuccess()) {
                     var errorMessage = "Error while executing test step '%s'. Root cause: %s"
@@ -201,17 +218,17 @@ public class ApiTestAgent {
     }
 
 
-    private static boolean hasPreconditionFailures(TestExecutionContext context) {
+    private boolean hasPreconditionFailures(TestExecutionContext context) {
         return !context.getPreconditionExecutionHistory().stream().allMatch(PreconditionResult::isSuccess);
     }
 
-    private static boolean hasStepFailures(TestExecutionContext context) {
+    private boolean hasStepFailures(TestExecutionContext context) {
         return context.getTestStepExecutionHistory().stream().map(TestStepResult::getExecutionStatus)
                 .anyMatch(s -> s != SUCCESS);
     }
 
     @NotNull
-    private static TestExecutionResult getFailedTestExecutionResult(TestExecutionContext context,
+    private TestExecutionResult getFailedTestExecutionResult(TestExecutionContext context,
                                                                     Instant testExecutionStartTimestamp, String errorMessage, List<String> logs) {
         LOG.error(errorMessage);
         return new TestExecutionResult(context.getTestCase().name(), FAILED, context.getPreconditionExecutionHistory(),
@@ -219,14 +236,14 @@ public class ApiTestAgent {
     }
 
     @NotNull
-    private static TestExecutionResult getTestExecutionResultWithError(TestExecutionContext context,
+    private TestExecutionResult getTestExecutionResultWithError(TestExecutionContext context,
                                                                        Instant testExecutionStartTimestamp, String errorMessage, List<String> logs) {
         LOG.error(errorMessage);
         return new TestExecutionResult(context.getTestCase().name(), ERROR, context.getPreconditionExecutionHistory(),
                 context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), errorMessage, null, logs);
     }
 
-    private static void addFailedTestStep(TestExecutionContext context, TestStep testStep, String errorMessage,
+    private void addFailedTestStep(TestExecutionContext context, TestStep testStep, String errorMessage,
                                           String actualResult,
                                           Instant executionStartTimestamp, Instant executionEndTimestamp, TestStepResultStatus status) {
         context.addStepResult(

@@ -15,8 +15,8 @@
  */
 package org.tarik.ta;
 
-import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
+import io.avaje.inject.Bean;
+import io.avaje.inject.Factory;
 import org.tarik.ta.agents.ApiPreconditionActionAgent;
 import org.tarik.ta.agents.ApiTestStepActionAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
@@ -30,47 +30,50 @@ import org.tarik.ta.core.tools.TestContextDataTools;
 import java.util.List;
 
 import static dev.langchain4j.service.AiServices.builder;
-import static org.tarik.ta.core.AgentConfig.*;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
 /**
  * DI-managed factory that creates request-scoped API agent instances.
  * Each create* method produces a fresh agent instance intended for use within a single request.
  */
-@Singleton
+@ApiAgentRequestScope
+@Factory
 class ApiAgentsBeanFactory {
     private final ModelFactory modelFactory;
+    private final ApiTestAgentConfig config;
 
-    @Inject
-    ApiAgentsBeanFactory(ModelFactory modelFactory) {
+    ApiAgentsBeanFactory(ModelFactory modelFactory, ApiTestAgentConfig config) {
         this.modelFactory = modelFactory;
+        this.config = config;
     }
 
-    ApiTestStepActionAgent createTestStepActionAgent(ApiRequestTools requestTools, ApiAssertionTools assertionTools,
+    @Bean
+    ApiTestStepActionAgent testStepAgent(ApiRequestTools requestTools, ApiAssertionTools assertionTools,
                                                      TestContextDataTools dataTools) {
-        var model = modelFactory.getModel(getTestStepActionAgentModelName(), getTestStepActionAgentModelProvider());
-        var prompt = loadSystemPrompt("test_step/executor", getTestStepActionAgentPromptVersion(),
+        var model = modelFactory.getModel(config.getTestStepActionAgentModelName(), config.getTestStepActionAgentModelProvider());
+        var prompt = loadSystemPrompt("test_step/executor", config.getTestStepActionAgentPromptVersion(),
                 "test_step_action_prompt.txt");
         return builder(ApiTestStepActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
                 .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiTestStepActionAgent.RETRY_POLICY))
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
+                .maxSequentialToolsInvocations(config.getAgentToolCallsBudget())
                 .build();
     }
 
-    ApiPreconditionActionAgent createPreconditionActionAgent(ApiRequestTools requestTools, ApiAssertionTools assertionTools,
+    @Bean
+    ApiPreconditionActionAgent preconditionAgent(ApiRequestTools requestTools, ApiAssertionTools assertionTools,
                                                              TestContextDataTools dataTools) {
-        var model = modelFactory.getModel(getPreconditionActionAgentModelName(), getPreconditionActionAgentModelProvider());
-        var prompt = loadSystemPrompt("precondition/executor", getPreconditionAgentPromptVersion(),
+        var model = modelFactory.getModel(config.getPreconditionActionAgentModelName(), config.getPreconditionActionAgentModelProvider());
+        var prompt = loadSystemPrompt("precondition/executor", config.getPreconditionAgentPromptVersion(),
                 "precondition_execution_prompt.txt");
         return builder(ApiPreconditionActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
                 .toolExecutionErrorHandler(new DefaultToolErrorHandler(ApiPreconditionActionAgent.RETRY_POLICY))
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
+                .maxSequentialToolsInvocations(config.getAgentToolCallsBudget())
                 .build();
     }
 }

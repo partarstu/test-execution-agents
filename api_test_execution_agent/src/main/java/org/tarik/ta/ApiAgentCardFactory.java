@@ -15,14 +15,25 @@
  */
 package org.tarik.ta;
 
-import io.avaje.inject.BeanScope;
-import org.tarik.ta.core.AbstractServer;
+import io.a2a.spec.AgentCard;
+import io.avaje.inject.Bean;
+import io.avaje.inject.Factory;
+import jakarta.inject.Singleton;
+import org.tarik.ta.a2a.AgentCardProducer;
+import org.tarik.ta.core.AgentConfig;
 
-public class Server {
+@Factory
+public class ApiAgentCardFactory {
 
-    public static void main(String[] args) {
-        try (BeanScope scope = BeanScope.builder().shutdownHook(true).build()) {
-            scope.get(AbstractServer.class).start();
-        }
+    private final AgentConfig agentConfig;
+
+    public ApiAgentCardFactory(AgentConfig agentConfig) {
+        this.agentConfig = agentConfig;
+    }
+
+    @Bean
+    @Singleton
+    AgentCard agentCard() {
+        return new AgentCardProducer().agentCard(agentConfig.getExternalUrl());
     }
 }

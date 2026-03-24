@@ -15,14 +15,9 @@
  */
 package org.tarik.ta;
 
-import io.avaje.inject.BeanScope;
-import org.tarik.ta.core.AbstractServer;
+import io.avaje.inject.Scope;
+import io.avaje.inject.InjectModule;
 
-public class Server {
-
-    public static void main(String[] args) {
-        try (BeanScope scope = BeanScope.builder().shutdownHook(true).build()) {
-            scope.get(AbstractServer.class).start();
-        }
-    }
-}
+@Scope
+@InjectModule(requires = {})
+public @interface ApiAgentRequestScope {}

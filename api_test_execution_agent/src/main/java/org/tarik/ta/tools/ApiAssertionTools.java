@@ -19,6 +19,7 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import io.restassured.module.jsv.JsonSchemaValidator;
 import io.restassured.response.Response;
+import org.tarik.ta.ApiAgentRequestScope;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 
@@ -35,6 +36,7 @@ import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import org.tarik.ta.core.tools.AbstractTools;
 
+@ApiAgentRequestScope
 public class ApiAssertionTools extends AbstractTools {
     private final ApiContext apiContext;
     private final TestExecutionContext testExecutionContext;
