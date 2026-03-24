@@ -15,7 +15,8 @@
  */
 package org.tarik.ta;
 
-import jakarta.inject.Inject;
+import io.avaje.inject.Bean;
+import io.avaje.inject.Factory;
 import jakarta.inject.Singleton;
 import org.tarik.ta.agents.*;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
@@ -25,57 +26,59 @@ import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 import org.tarik.ta.dto.*;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
-import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
-import org.tarik.ta.tools.*;
-import org.tarik.ta.user_dialogs.knowledge.UiElementDialogHelper;
+.import org.tarik.ta.tools.*;
 
 import java.util.List;
 
 import static dev.langchain4j.service.AiServices.builder;
-import static org.tarik.ta.UiTestAgentConfig.*;
-import static org.tarik.ta.core.agents.PreconditionVerificationAgent.RETRY_POLICY;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
 /**
- * DI-managed factory that creates request-scoped AI agent instances.
- * Each create* method produces a fresh agent instance intended for use within a single request.
+ * Avaje DI factory that produces all UI agent beans.
+ * The class itself is NOT a bean - only its @Bean methods produce beans.
  */
-@Singleton
+@Factory
 class UiAgentsBeanFactory {
-    // Separate stability tracking for the knowledge-collection flow, which runs outside the main execution graph.
-    private static final ProcedureRepository KNOWLEDGE_COLLECTION_STABILITY_REPO = new ProcedureRepository();
-
-    // Static accessor for non-injectable contexts (e.g. Swing dialogs).
-    private static volatile UiAgentsBeanFactory instance;
-
     private final ModelFactory modelFactory;
-    // App-level singleton: one agent shared across all knowledge-collection dialogs.
-    private final UiElementResolutionAgent knowledgeCollectionAgent;
-    private final UiElementDialogHelper uiElementDialogHelper;
+    private final UiTestAgentConfig uiTestAgentConfig;
 
-    @Inject
-    UiAgentsBeanFactory(ModelFactory modelFactory, UiElementDialogHelper uiElementDialogHelper) {
+    UiAgentsBeanFactory(ModelFactory modelFactory, UiTestAgentConfig uiTestAgentConfig) {
         this.modelFactory = modelFactory;
-        this.knowledgeCollectionAgent = createKnowledgeCollectionElementResolutionAgent();
-        this.uiElementDialogHelper = uiElementDialogHelper;
-        instance = this;
+        this.uiTestAgentConfig = uiTestAgentConfig;
     }
 
-    static UiAgentsBeanFactory getInstance() {
-        return instance;
+    // Knowledge Collection - used by UiElementDialogHelper
+    @Bean
+    @Singleton
+    UiElementResolutionAgent getKnowledgeCollectionElementResolutionAgent(
+            ElementLocatorTools elementLocatorTools,
+            UiElementDbTools uiElementDbTools,
+            SpinnerTools spinnerTools,
+            LocationHistoryRecorder locationHistoryRecorder,
+            ElementLocationHistoryLookup elementLocationHistoryLookup) {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getKnowledgeCollectionElementResolutionAgentModelName(),
+                uiTestAgentConfig.getKnowledgeCollectionElementResolutionAgentModelProvider());
+        var prompt = loadSystemPrompt("knowledge/knowledge_collection_element_resolution",
+                uiTestAgentConfig.getKnowledgeCollectionElementResolutionAgentPromptVersion(), "ui_element_resolution_prompt.txt");
+        var agentBuilder = builder(UiElementResolutionAgent.class)
+                .chatModel(model.chatModel())
+                .systemMessageProvider(_ -> prompt)
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiElementResolutionAgent.RETRY_POLICY))
+                .maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget());
+        agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(
+                List.of(elementLocatorTools, uiElementDbTools, spinnerTools),
+                UiElementLocationResult.class));
+        return agentBuilder.build();
     }
 
-    UiElementResolutionAgent getKnowledgeCollectionAgent() {
-        return knowledgeCollectionAgent;
-    }
-
-    UiElementDialogHelper getUiElementDialogHelper() {
-        return uiElementDialogHelper;
-    }
-
-    KnowledgeSuggestionAgent createKnowledgeSuggestionAgent() {
-        var model = modelFactory.getModel(getKnowledgeSuggestionAgentModelName(), getKnowledgeSuggestionAgentModelProvider());
-        var prompt = loadSystemPrompt("knowledge/suggestion", getKnowledgeSuggestionAgentPromptVersion(), "knowledge_suggestion_prompt.txt");
+    @Bean
+    @Singleton
+    KnowledgeSuggestionAgent getKnowledgeSuggestionAgent() {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getKnowledgeSuggestionAgentModelName(),
+                uiTestAgentConfig.getKnowledgeSuggestionAgentModelProvider());
+        var prompt = loadSystemPrompt("knowledge/suggestion", uiTestAgentConfig.getKnowledgeSuggestionAgentPromptVersion(), "knowledge_suggestion_prompt.txt");
         return builder(KnowledgeSuggestionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
@@ -83,85 +86,105 @@ class UiAgentsBeanFactory {
                 .build();
     }
 
-    UiTestStepVerificationAgent createTestStepVerificationAgent() {
-        var model = modelFactory.getModel(getTestStepVerificationAgentModelName(), getTestStepVerificationAgentModelProvider(),
-                getVerificationModelMaxRetries());
-        var prompt = loadSystemPrompt("test_step/verifier", getTestStepVerificationAgentPromptVersion(), "main_verification_prompt.txt");
+    @Bean
+    @Singleton
+    UiStateCheckAgent getUiStateCheckAgent() {
+        var prompt = loadSystemPrompt("common/ui_state_checker", uiTestAgentConfig.getUiStateCheckAgentPromptVersion(), "ui_state_checker_prompt.txt");
+        return builder(UiStateCheckAgent.class)
+                .chatModel(modelFactory.getModel(uiTestAgentConfig.getUiStateCheckAgentModelName(), uiTestAgentConfig.getUiStateCheckAgentModelProvider()).chatModel())
+                .systemMessageProvider(_ -> prompt)
+                .maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget())
+                .tools(new UiStateCheckResult(false, ""))
+                .build();
+    }
+
+    @Bean
+    @Singleton
+    UiTestStepVerificationAgent getTestStepVerificationAgent() {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getTestStepVerificationAgentModelName(),
+                uiTestAgentConfig.getTestStepVerificationAgentModelProvider(),
+                uiTestAgentConfig.getVerificationModelMaxRetries());
+        var prompt = loadSystemPrompt("test_step/verifier", uiTestAgentConfig.getTestStepVerificationAgentPromptVersion(), "main_verification_prompt.txt");
         var agentBuilder = builder(UiTestStepVerificationAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
+                .maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget())
                 .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY));
         agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(List.of(), VerificationExecutionResult.class));
         return agentBuilder.build();
     }
 
-    UiPreconditionVerificationAgent createPreconditionVerificationAgent() {
-        var model = modelFactory.getModel(getPreconditionVerificationAgentModelName(),
-                getPreconditionVerificationAgentModelProvider(), getVerificationModelMaxRetries());
-        var prompt = loadSystemPrompt("precondition/verifier", getPreconditionVerificationAgentPromptVersion(),
+    @Bean
+    @Singleton
+    UiPreconditionVerificationAgent getPreconditionVerificationAgent() {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getPreconditionVerificationAgentModelName(),
+                uiTestAgentConfig.getPreconditionVerificationAgentModelProvider(),
+                uiTestAgentConfig.getVerificationModelMaxRetries());
+        var prompt = loadSystemPrompt("precondition/verifier", uiTestAgentConfig.getPreconditionVerificationAgentPromptVersion(),
                 "precondition_verification_prompt.txt");
         return builder(UiPreconditionVerificationAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(RETRY_POLICY))
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiPreconditionVerificationAgent.RETRY_POLICY))
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(), VerificationExecutionResult.class))
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
+                .maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget())
                 .build();
     }
 
-    UiTestStepActionAgent createTestStepActionAgent(CommonTools commonTools,
-                                                    LocationHistoryRecorder locationHistoryRecorder,
-                                                    ElementLocationHistoryLookup stabilityLookup) {
-        var model = modelFactory.getModel(getTestStepActionAgentModelName(), getTestStepActionAgentModelProvider());
-        var prompt = loadSystemPrompt("test_step/executor", getTestStepActionAgentPromptVersion(),
+    @Bean
+    @Singleton
+    UiTestStepActionAgent getUiTestStepActionAgent(
+            CommonTools commonTools,
+            MouseTools mouseTools,
+            KeyboardTools keyboardTools,
+            ElementLocatorTools elementLocatorTools) {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getTestStepActionAgentModelName(),
+                uiTestAgentConfig.getTestStepActionAgentModelProvider());
+        var prompt = loadSystemPrompt("test_step/executor", uiTestAgentConfig.getTestStepActionAgentPromptVersion(),
                 "test_step_action_agent_system_prompt.txt");
         var agentBuilder = builder(UiTestStepActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepActionAgent.RETRY_POLICY))
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget());
+                .maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget());
         agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(
-                List.of(new MouseTools(createUiStateCheckAgent()), new KeyboardTools(createUiStateCheckAgent()),
-                        new ElementLocatorTools(createUiElementBoundingBoxAgent(), createBestUiElementMatchSelectionAgent(),
-                                createUiStateCheckAgent(), locationHistoryRecorder, stabilityLookup::lookup),
-                        commonTools),
+                List.of(mouseTools, keyboardTools, elementLocatorTools, commonTools),
                 EmptyExecutionResult.class));
         return agentBuilder.build();
     }
 
-    UiPreconditionActionAgent createPreconditionActionAgent(CommonTools commonTools,
-                                                            LocationHistoryRecorder locationHistoryRecorder,
-                                                            ElementLocationHistoryLookup stabilityLookup) {
-        var model = modelFactory.getModel(getPreconditionActionAgentModelName(), getPreconditionActionAgentModelProvider());
-        var prompt = loadSystemPrompt("precondition/executor", getPreconditionAgentPromptVersion(),
+    @Bean
+    @Singleton
+    UiPreconditionActionAgent getPreconditionActionAgent(
+            CommonTools commonTools,
+            MouseTools mouseTools,
+            KeyboardTools keyboardTools,
+            ElementLocatorTools elementLocatorTools) {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getPreconditionActionAgentModelName(),
+                uiTestAgentConfig.getPreconditionActionAgentModelProvider());
+        var prompt = loadSystemPrompt("precondition/executor", uiTestAgentConfig.getPreconditionAgentPromptVersion(),
                 "precondition_action_agent_system_prompt.txt");
         var agentBuilder = builder(UiPreconditionActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(PreconditionActionAgent.RETRY_POLICY));
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiPreconditionActionAgent.RETRY_POLICY));
         agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(
-                List.of(new MouseTools(createUiStateCheckAgent()), new KeyboardTools(createUiStateCheckAgent()),
-                        new ElementLocatorTools(createUiElementBoundingBoxAgent(), createBestUiElementMatchSelectionAgent(),
-                                createUiStateCheckAgent(), locationHistoryRecorder, stabilityLookup::lookup),
-                        commonTools),
+                List.of(mouseTools, keyboardTools, elementLocatorTools, commonTools),
                 EmptyExecutionResult.class));
-        return agentBuilder.maxSequentialToolsInvocations(getAgentToolCallsBudget()).build();
+        return agentBuilder.maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget()).build();
     }
 
-    UiStateCheckAgent createUiStateCheckAgent() {
-        var prompt = loadSystemPrompt("common/ui_state_checker", getUiStateCheckAgentPromptVersion(), "ui_state_checker_prompt.txt");
-        return builder(UiStateCheckAgent.class)
-                .chatModel(modelFactory.getModel(getUiStateCheckAgentModelName(), getUiStateCheckAgentModelProvider()).chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget())
-                .tools(new UiStateCheckResult(false, ""))
-                .build();
-    }
-
-    UiElementBoundingBoxAgent createUiElementBoundingBoxAgent() {
-        var model = modelFactory.getModel(getElementBoundingBoxAgentModelName(), getElementBoundingBoxAgentModelProvider());
-        var prompt = loadSystemPrompt("element_locator/bounding_box", getElementBoundingBoxAgentPromptVersion(),
+    @Bean
+    @Singleton
+    UiElementBoundingBoxAgent getUiElementBoundingBoxAgent() {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getElementBoundingBoxAgentModelName(),
+                uiTestAgentConfig.getElementBoundingBoxAgentModelProvider());
+        var prompt = loadSystemPrompt("element_locator/bounding_box", uiTestAgentConfig.getElementBoundingBoxAgentPromptVersion(),
                 "element_bounding_box_prompt.txt");
         return builder(UiElementBoundingBoxAgent.class)
                 .chatModel(model.chatModel())
@@ -170,9 +193,13 @@ class UiAgentsBeanFactory {
                 .build();
     }
 
-    BestUiElementMatchSelectionAgent createBestUiElementMatchSelectionAgent() {
-        var model = modelFactory.getModel(getUiElementVisualMatchAgentModelName(), getUiElementVisualMatchAgentModelProvider());
-        var prompt = loadSystemPrompt("element_locator/best_ui_match_selection", getElementSelectionAgentPromptVersion(),
+    @Bean
+    @Singleton
+    BestUiElementMatchSelectionAgent getBestUiElementMatchSelectionAgent() {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getUiElementVisualMatchAgentModelName(),
+                uiTestAgentConfig.getUiElementVisualMatchAgentModelProvider());
+        var prompt = loadSystemPrompt("element_locator/best_ui_match_selection", uiTestAgentConfig.getElementSelectionAgentPromptVersion(),
                 "find_best_matching_ui_element_id.txt");
         return builder(BestUiElementMatchSelectionAgent.class)
                 .chatModel(model.chatModel())
@@ -181,10 +208,13 @@ class UiAgentsBeanFactory {
                 .build();
     }
 
-    UiElementExtendedDescriptionAgent createUiElementExtendedDescriptionAgent() {
-        var model = modelFactory.getModel(getUiElementDescriptionMatcherAgentModelName(),
-                getUiElementDescriptionMatcherAgentModelProvider());
-        var prompt = loadSystemPrompt("element_describer", getUiElementDescriptionMatcherAgentPromptVersion(),
+    @Bean
+    @Singleton
+    UiElementExtendedDescriptionAgent getUiElementExtendedDescriptionAgent() {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getUiElementDescriptionMatcherAgentModelName(),
+                uiTestAgentConfig.getUiElementDescriptionMatcherAgentModelProvider());
+        var prompt = loadSystemPrompt("element_describer", uiTestAgentConfig.getUiElementDescriptionMatcherAgentPromptVersion(),
                 "description_matcher_prompt.txt");
         return builder(UiElementExtendedDescriptionAgent.class)
                 .chatModel(model.chatModel())
@@ -194,36 +224,18 @@ class UiAgentsBeanFactory {
                 .build();
     }
 
-    DbUiElementSelectionAgent createDbUiElementSelectionAgent() {
-        var model = modelFactory.getModel(getDbElementCandidateSelectionAgentModelName(),
-                getDbElementCandidateSelectionAgentModelProvider());
-        var prompt = loadSystemPrompt("db_element_selector", getDbElementCandidateSelectionAgentPromptVersion(),
+    @Bean
+    @Singleton
+    DbUiElementSelectionAgent getDbUiElementSelectionAgent() {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getDbElementCandidateSelectionAgentModelName(),
+                uiTestAgentConfig.getDbElementCandidateSelectionAgentModelProvider());
+        var prompt = loadSystemPrompt("db_element_selector", uiTestAgentConfig.getDbElementCandidateSelectionAgentPromptVersion(),
                 "select_best_db_search_result_prompt.txt");
         return builder(DbUiElementSelectionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .tools(new DbUiElementSelectionResult(false, false, "", ""))
                 .build();
-    }
-
-    UiElementResolutionAgent createKnowledgeCollectionElementResolutionAgent() {
-        var model = modelFactory.getModel(getKnowledgeCollectionElementResolutionAgentModelName(),
-                getKnowledgeCollectionElementResolutionAgentModelProvider());
-        var prompt = loadSystemPrompt("knowledge/knowledge_collection_element_resolution",
-                getKnowledgeCollectionElementResolutionAgentPromptVersion(), "ui_element_resolution_prompt.txt");
-        var locatorTools = new ElementLocatorTools(createUiElementBoundingBoxAgent(), createBestUiElementMatchSelectionAgent(),
-                createUiStateCheckAgent(), KNOWLEDGE_COLLECTION_STABILITY_REPO::updateElementStability,
-                KNOWLEDGE_COLLECTION_STABILITY_REPO::getElementStability);
-        var dbTools = new UiElementDbTools(createUiElementExtendedDescriptionAgent(), createDbUiElementSelectionAgent(),
-                createUiStateCheckAgent());
-        var agentBuilder = builder(UiElementResolutionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(UiElementResolutionAgent.RETRY_POLICY))
-                .maxSequentialToolsInvocations(getAgentToolCallsBudget());
-        agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(
-                List.of(locatorTools, dbTools, new SpinnerTools()),
-                UiElementLocationResult.class));
-        return agentBuilder.build();
     }
 }

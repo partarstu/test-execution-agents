@@ -15,8 +15,6 @@
  */
 package org.tarik.ta.utils;
 
-import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -34,16 +32,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment;
 import static java.util.Comparator.comparingInt;
 
-@Singleton
 public class UiCommonUtils {
     private static final Logger LOG = LoggerFactory.getLogger(UiCommonUtils.class);
     private static Robot robot;
-    private final ImageUtils imageUtils;
-
-    @Inject
-    public UiCommonUtils(ImageUtils imageUtils) {
-        this.imageUtils = imageUtils;
-    }
 
     public static Object getStaticFieldValue(Field field) {
         try {
@@ -96,7 +87,7 @@ public class UiCommonUtils {
         }
 
         return screenShots.getResolutionVariants().stream()
-                .map(i -> imageUtils.toBufferedImage(i, target.width, target.height))
+                .map(i -> ImageUtils.getInstance().toBufferedImage(i, target.width, target.height))
                 .min(comparator)
                 .orElseThrow();
     }

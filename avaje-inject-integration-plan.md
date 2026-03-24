@@ -2,7 +2,7 @@
 
 **Created**: 2026-03-06
 **Updated**: 2026-03-24
-**Status**: Phase 12 complete — UI helper & utility classes refactored (UiElementRefinementHelper, UiElementDialogHelper, ImageUtils, BoundingBox, ProcedureKnowledgeCollectionDialog, ExistingProcedureLookupDialog, AgentCardProducer)
+**Status**: Phase 12 complete — UI helper & utility classes refactored (UiElementRefinementHelper, UiElementDialogHelper, ImageUtils, BoundingBox, ProcedureKnowledgeCollectionDialog, ExistingProcedureLookupDialog, AgentCardProducer). Architecture decision documented: static utility classes with no injectable dependencies are excluded from DI and remain as static utilities; `UiCommonUtils` reverted to pure static (removed erroneous `@Singleton`/`@Inject`/instance field introduced in Phase 12).
 
 ## 1. Objective
 
@@ -65,11 +65,15 @@ ui and api module POMs).
   singletons)
 - **Non-DI classes** (value objects, Swing dialogs with EDT lifecycle, objects requiring multiple distinct instances per request with
   different config): callers create via `new` and pass dependencies as constructor parameters
+- **Static utility classes** (pure collections of stateless helper functions with no injectable dependencies — e.g., `CommonUtils`,
+  `PromptUtils`, `BoundingBoxUtil`, `HtmlUtils`, `UiCommonUtils`, `ImageMatchingUtil`): remain as static utilities. DI adds no value
+  when there is nothing to inject; converting them would force unnecessary injection across all callers without any testability or
+  lifecycle benefit.
 
 **Guiding principle:** Use DI everywhere it is applicable. Avoid mixing DI and non-DI initialization patterns. Only fall back to manual
 `new` when the object's lifecycle is fundamentally incompatible with DI (Swing dialogs created on the EDT, value objects with per-instance
 data like `BoundingBox`, objects where multiple distinct instances with different config exist per request like
-`DefaultToolErrorHandler`).
+`DefaultToolErrorHandler`). Static utility classes with no injectable dependencies are also excluded — they remain as static utilities.
 
 ### Module Dependency Graph (DI perspective)
 
