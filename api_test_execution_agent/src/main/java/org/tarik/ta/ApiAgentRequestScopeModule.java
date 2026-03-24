@@ -15,7 +15,15 @@
  */
 package org.tarik.ta;
 
-import jakarta.inject.Scope;
+import io.avaje.inject.Factory;
+import io.avaje.inject.InjectModule;
 
-@Scope
-public @interface ApiAgentRequestScope {}
+/**
+ * Activates the {@link ApiAgentRequestScope} in a child {@link io.avaje.inject.BeanScope}.
+ * All beans annotated with {@code @ApiAgentRequestScope} are auto-wired from constructor
+ * injection; no external state needs to be supplied at request time.
+ */
+@Factory
+@InjectModule(requires = ApiAgentRequestScope.class)
+class ApiAgentRequestScopeModule {
+}

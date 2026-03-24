@@ -20,9 +20,6 @@ import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.core.agents.GenericAiAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
-import org.tarik.ta.core.error.RetryPolicy;
-
-import org.tarik.ta.core.AgentConfig;
 
 /**
  * Agent responsible for executing and verifying API test case preconditions.
@@ -44,8 +41,6 @@ import org.tarik.ta.core.AgentConfig;
  * </ul>
  */
 public interface ApiPreconditionActionAgent extends GenericAiAgent<VerificationExecutionResult> {
-    RetryPolicy RETRY_POLICY = new AgentConfig().getActionRetryPolicy();
-
     @UserMessage("""
             Precondition: {{precondition}}
             
@@ -58,10 +53,5 @@ public interface ApiPreconditionActionAgent extends GenericAiAgent<VerificationE
     @Override
     default String getAgentTaskDescription() {
         return "Executing and verifying API test preconditions";
-    }
-
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
     }
 }

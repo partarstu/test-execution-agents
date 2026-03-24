@@ -282,6 +282,13 @@
                     <configuration>
                         <source>${jdk.version}</source>
                         <target>${jdk.version}</target>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>io.avaje</groupId>
+                                <artifactId>avaje-inject-generator</artifactId>
+                                <version>${avaje.inject.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
                     </configuration>
                 </plugin>
                 <plugin>

@@ -136,7 +136,7 @@ public class ApiTestAgent {
                 LOG.info("Executing precondition: {}", precondition);
                 var executionResult = preconditionActionAgent.executeWithRetry(
                         () -> preconditionActionAgent.execute(precondition, executionContext.getSharedData().toString()),
-                        r -> r == null || !r.success());
+                        r -> r == null || !r.success(), apiTestAgentConfig.getActionRetryPolicy());
                 budgetManager.resetToolCallUsage();
 
                 if (!executionResult.isSuccess()) {
@@ -186,7 +186,7 @@ public class ApiTestAgent {
                 var executionResult = testStepActionAgent.executeWithRetry(
                         () -> testStepActionAgent.execute(actionInstruction, expectedResults, testData,
                                 executionContext.getSharedData().toString()),
-                        result -> result == null || !result.success());
+                        result -> result == null || !result.success(), apiTestAgentConfig.getActionRetryPolicy());
                 budgetManager.resetToolCallUsage();
 
                 if (!executionResult.isSuccess()) {
