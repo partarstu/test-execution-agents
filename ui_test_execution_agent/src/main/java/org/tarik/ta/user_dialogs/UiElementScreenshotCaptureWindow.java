@@ -29,7 +29,8 @@ import static java.util.Optional.ofNullable;
 import static javax.swing.JOptionPane.YES_OPTION;
 import static org.tarik.ta.utils.BoundingBoxUtil.drawBoundingBox;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
-import static org.tarik.ta.utils.ImageUtils.*;
+import static org.tarik.ta.utils.ImageUtils.getInstance;
+import static org.tarik.ta.utils.ImageUtils.cloneImage;
 
 public class UiElementScreenshotCaptureWindow extends AbstractDialog {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementScreenshotCaptureWindow.class);
@@ -111,7 +112,7 @@ public class UiElementScreenshotCaptureWindow extends AbstractDialog {
                 drawnScaledBoundingBox = scaleRectangle(new Rectangle(x, y, width, height));
                 elementScreenshot = originalScreenshot.getSubimage(drawnScaledBoundingBox.x, drawnScaledBoundingBox.y,
                         drawnScaledBoundingBox.width, drawnScaledBoundingBox.height);
-                wholeScreenshotWithBoundingBox = cloneImage(originalScreenshot);
+                wholeScreenshotWithBoundingBox = getInstance().cloneImage(originalScreenshot);
                 drawBoundingBox(wholeScreenshotWithBoundingBox, drawnScaledBoundingBox, boundingBoxColor);
 
                 JPanel panel = getElementScreenshotPanel();

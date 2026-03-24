@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.user_dialogs.knowledge;
 
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
@@ -41,14 +42,23 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.tarik.ta.tools.UiElementRefinementHelper.retrieveUiElements;
 import static org.tarik.ta.utils.UiCommonUtils.captureElementScreenshot;
 
+@Singleton
 public class UiElementDialogHelper {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementDialogHelper.class);
-    private static final UiElementRepository UI_ELEMENT_REPOSITORY = new UiElementRepository();
 
-    private UiElementDialogHelper() {
+    private final UiElementResolutionAgent uiElementResolutionAgent;
+    private final UiTestAgentConfig uiTestAgentConfig;
+    private final UiElementRepository uiElementRepository;
+    private final UiElementRefinementHelper uiElementRefinementHelper;
+
+    public UiElementDialogHelper(UiElementResolutionAgent uiElementResolutionAgent, UiTestAgentConfig uiTestAgentConfig,
+                                  UiElementRepository uiElementRepository, UiElementRefinementHelper uiElementRefinementHelper) {
+        this.uiElementResolutionAgent = uiElementResolutionAgent;
+        this.uiTestAgentConfig = uiTestAgentConfig;
+        this.uiElementRepository = uiElementRepository;
+        this.uiElementRefinementHelper = uiElementRefinementHelper;
     }
 
     /**
@@ -56,16 +66,15 @@ public class UiElementDialogHelper {
      * timeout and dispatches the {@link ElementSelectionResult} back to the dialog on the EDT. On success, also
      * populates {@code elementIdRef} so that edit-details and replace-screenshot handlers can read the located element's ID.
      */
-    public static AutoLocateHandler buildAutoLocateHandler(UiElementResolutionAgent knowledgeCollectionAgent,
-                                                           Supplier<String> itemDescriptionSupplier,
-                                                           Supplier<String> elementDataSupplier,
-                                                           AtomicReference<UUID> elementIdRef) {
+    public AutoLocateHandler buildAutoLocateHandler(Supplier<String> itemDescriptionSupplier,
+                                                     Supplier<String> elementDataSupplier,
+                                                     AtomicReference<UUID> elementIdRef) {
         return resultCallback -> Thread.ofVirtual().start(() -> {
             LOG.info("Starting workflow: Automatic Resolution of UI Element...");
             String itemDesc = itemDescriptionSupplier.get();
             String elementData = elementDataSupplier.get();
-            var future = CompletableFuture.supplyAsync(() -> knowledgeCollectionAgent.executeAndGetResult(() -> knowledgeCollectionAgent.resolve(itemDesc, elementData)))
-                    .orTimeout(UiTestAgentConfig.getMaxActionExecutionDurationMillis(), MILLISECONDS);
+            var future = CompletableFuture.supplyAsync(() -> uiElementResolutionAgent.executeAndGetResult(() -> uiElementResolutionAgent.resolve(itemDesc, elementData)))
+                    .orTimeout(uiTestAgentConfig.getMaxActionExecutionDurationMillis(), MILLISECONDS);
             try {
                 var payload = future.join().getResultPayload();
                 if (payload == null || !payload.success()) {
@@ -86,7 +95,7 @@ public class UiElementDialogHelper {
                 UUID uuid = UUID.fromString(elementIdStr);
                 elementIdRef.set(uuid);
                 var elementName = payload.elementName() != null ? payload.elementName() : "(unknown)";
-                var existingElement = UI_ELEMENT_REPOSITORY.findById(uuid).orElse(null);
+                var existingElement = uiElementRepository.findById(uuid).orElse(null);
                 BufferedImage screenshot;
                 if (existingElement != null && existingElement.screenshot() != null) {
                     screenshot = existingElement.screenshot().toBufferedImage();
@@ -98,7 +107,7 @@ public class UiElementDialogHelper {
                                 existingElement.description(), existingElement.locationDetails(), existingElement.parentElementSummary(),
                                 UiElement.Screenshot.fromBufferedImage(screenshot, "png"),
                                 existingElement.isDataDependent());
-                        UI_ELEMENT_REPOSITORY.update(updatedElement);
+                        uiElementRepository.update(updatedElement);
                         LOG.debug("Updated screenshot for element '{}' ({}) in DB during auto-locate", elementName, uuid);
                     }
                 }
@@ -126,16 +135,15 @@ public class UiElementDialogHelper {
     /**
      * Builds an {@link ElementHandlers} instance, wiring all element dialog handlers for the given item description.
      */
-    public static ElementHandlers buildElementHandlers(UiElementResolutionAgent knowledgeCollectionAgent,
-                                                       Supplier<String> itemDescriptionSupplier,
-                                                       Supplier<String> elementDataSupplier,
-                                                       AtomicReference<UUID> elementIdRef) {
+    public ElementHandlers buildElementHandlers(Supplier<String> itemDescriptionSupplier,
+                                                Supplier<String> elementDataSupplier,
+                                                AtomicReference<UUID> elementIdRef) {
         return new ElementHandlers(
-                buildAutoLocateHandler(knowledgeCollectionAgent, itemDescriptionSupplier, elementDataSupplier, elementIdRef),
+                buildAutoLocateHandler(itemDescriptionSupplier, elementDataSupplier, elementIdRef),
                 () -> {
                     LOG.info("Starting workflow: Edit Element Details");
                     try {
-                        return UiElementRefinementHelper.updateElementInfo(UI_ELEMENT_REPOSITORY, elementIdRef.get());
+                        return uiElementRefinementHelper.updateElementInfo(uiElementRepository, elementIdRef.get());
                     } finally {
                         LOG.info("Completed workflow: Edit Element Details");
                     }
@@ -143,7 +151,7 @@ public class UiElementDialogHelper {
                 () -> {
                     LOG.info("Starting workflow: Replace Screenshot");
                     try {
-                        return UiElementRefinementHelper.updateElementScreenshot(UI_ELEMENT_REPOSITORY, elementIdRef.get());
+                        return uiElementRefinementHelper.updateElementScreenshot(uiElementRepository, elementIdRef.get());
                     } finally {
                         LOG.info("Completed workflow: Replace Screenshot");
                     }
@@ -181,12 +189,12 @@ public class UiElementDialogHelper {
      * similar to {@code itemDescription}, allowing the user to update or delete
      * them.
      */
-    public static Runnable buildElementRefinementHandler(Supplier<String> itemDescriptionSupplier) {
+    public Runnable buildElementRefinementHandler(Supplier<String> itemDescriptionSupplier) {
         return () -> {
             LOG.info("Starting workflow: Refine Elements...");
             try {
                 String itemDesc = itemDescriptionSupplier.get();
-                List<UiElement> elements = retrieveUiElements(UI_ELEMENT_REPOSITORY, itemDesc).stream()
+                List<UiElement> elements = uiElementRefinementHelper.retrieveUiElements(uiElementRepository, itemDesc).stream()
                         .map(UiElementRepository.UiElementMatch::element)
                         .toList();
                 if (elements.isEmpty()) {
@@ -195,7 +203,7 @@ public class UiElementDialogHelper {
                     return;
                 }
                 UiElementRefinementPopup.displayAndGetChoice(null, "Refine existing UI elements for: %s".formatted(itemDesc), elements)
-                        .ifPresent(op -> processRefinementOperation(op, UI_ELEMENT_REPOSITORY));
+                        .ifPresent(op -> processRefinementOperation(op, uiElementRepository));
             } finally {
                 LOG.info("Completed workflow: Refine Elements...");
             }
@@ -206,11 +214,11 @@ public class UiElementDialogHelper {
      * Processes a {@link ElementRefinementOperation} chosen by the user in
      * {@link UiElementRefinementPopup}.
      */
-    public static void processRefinementOperation(ElementRefinementOperation op, UiElementRepository repository) {
+    public void processRefinementOperation(ElementRefinementOperation op, UiElementRepository repository) {
         switch (op.operation()) {
-            case DELETE_ELEMENT -> UiElementRefinementHelper.deleteElement(repository, op.elementId());
-            case UPDATE_ELEMENT -> UiElementRefinementHelper.updateElementInfo(repository, op.elementId());
-            case UPDATE_SCREENSHOT -> UiElementRefinementHelper.updateElementScreenshot(repository, op.elementId());
+            case DELETE_ELEMENT -> uiElementRefinementHelper.deleteElement(repository, op.elementId());
+            case UPDATE_ELEMENT -> uiElementRefinementHelper.updateElementInfo(repository, op.elementId());
+            case UPDATE_SCREENSHOT -> uiElementRefinementHelper.updateElementScreenshot(repository, op.elementId());
             case DONE -> {
                 /* no-op */
             }

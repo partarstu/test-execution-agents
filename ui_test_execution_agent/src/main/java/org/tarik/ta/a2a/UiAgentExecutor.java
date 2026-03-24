@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static java.util.Optional.ofNullable;
-import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
+import static org.tarik.ta.utils.ImageUtils.getInstance;
 
 public class UiAgentExecutor extends AbstractAgentExecutor {
     public static final String SCREENSHOT_FORMAT = "png";
@@ -55,7 +55,7 @@ public class UiAgentExecutor extends AbstractAgentExecutor {
                         "image/" + SCREENSHOT_FORMAT,
                         "screenshot_for_the_test_step_%s.%s".formatted(
                                 r.getTestStep().stepDescription().replaceAll("\\s", "_").toLowerCase(), SCREENSHOT_FORMAT),
-                        convertImageToBase64(r.getScreenshot(), SCREENSHOT_FORMAT)))
+                        getInstance().convertImageToBase64(r.getScreenshot(), SCREENSHOT_FORMAT)))
                 .map(FilePart::new)
                 .forEach(parts::add);
 

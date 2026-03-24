@@ -28,7 +28,6 @@ import static org.tarik.ta.UiTestAgentConfig.getExecutionMode;
 
 import static org.tarik.ta.UiTestAgentConfig.getNeo4jUsername;
 import static org.tarik.ta.UiTestAgentConfig.isNeo4jAuthConfigured;
-import static org.tarik.ta.a2a.AgentCardProducer.agentCard;
 import org.tarik.ta.core.AgentConfig;
 
 public class Server extends AbstractServer {
@@ -47,7 +46,7 @@ public class Server extends AbstractServer {
 
     @Override
     protected AgentCard createAgentCard() {
-        return agentCard();
+        return new org.tarik.ta.a2a.AgentCardProducer(AgentConfig.getExternalUrl()).agentCard();
     }
 
     @Override

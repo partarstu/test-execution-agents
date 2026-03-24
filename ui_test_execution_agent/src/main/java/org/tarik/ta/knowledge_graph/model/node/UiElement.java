@@ -25,8 +25,7 @@ import java.time.Instant;
 import java.util.StringJoiner;
 import java.util.UUID;
 
-import static org.tarik.ta.utils.ImageUtils.convertBase64ToImage;
-import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
+import static org.tarik.ta.utils.ImageUtils.getInstance;
 
 public class UiElement implements IEntity {
 
@@ -101,12 +100,12 @@ public class UiElement implements IEntity {
     public record Screenshot(@NotNull String fileExtension, @NotNull String mimeType, @NotNull String base64EncodedImage) {
         public static Screenshot fromBufferedImage(@NotNull BufferedImage image, @NotNull String fileExtension) {
             String mimeType = "image/" + fileExtension;
-            String base64EncodedImage = convertImageToBase64(image, fileExtension);
+            String base64EncodedImage = ImageUtils.getInstance().convertImageToBase64(image, fileExtension);
             return new Screenshot(fileExtension, mimeType, base64EncodedImage);
         }
 
         public BufferedImage toBufferedImage() {
-            return convertBase64ToImage(base64EncodedImage);
+            return ImageUtils.getInstance().convertBase64ToImage(base64EncodedImage);
         }
     }
 

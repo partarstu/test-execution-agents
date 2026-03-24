@@ -58,7 +58,7 @@ import static org.tarik.ta.UiTestAgentConfig.*;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.*;
 import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.dto.ProcedureExecutionConfirmationResult.Decision.HALTED;
-import static org.tarik.ta.utils.ImageUtils.singleImageContent;
+import static org.tarik.ta.utils.ImageUtils.getInstance;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
@@ -311,7 +311,7 @@ class StepExecutionOrchestrator {
                 () -> {
                     String userMessage = getPreconditionExecutionUserMessage(context, precondition, testDataString, relevantData,
                             execContext.uiElementId(), execContext.failureHints());
-                    return preconditionActionAgent.execute(userMessage, singleImageContent(actionScreenshot));
+                    return preconditionActionAgent.execute(userMessage, getInstance().singleImageContent(actionScreenshot));
                 });
         resetToolCallUsage();
 
@@ -416,7 +416,7 @@ class StepExecutionOrchestrator {
             context.setVisualState(new VisualState(screenshot));
             var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) actionAgent.executeAndGetResult(() -> {
                 String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, execContext.uiElementId(), execContext.failureHints());
-                actionAgent.execute(userMessage, singleImageContent(screenshot));
+                actionAgent.execute(userMessage, getInstance().singleImageContent(screenshot));
                 return null;
             }));
             resetToolCallUsage();

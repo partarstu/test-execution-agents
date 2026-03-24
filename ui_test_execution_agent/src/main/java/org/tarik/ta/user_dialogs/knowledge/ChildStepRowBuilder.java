@@ -34,7 +34,7 @@ import static java.awt.BorderLayout.*;
 import static java.awt.image.BufferedImage.TYPE_INT_ARGB;
 import static javax.swing.BorderFactory.createEmptyBorder;
 import static org.tarik.ta.utils.HtmlUtils.escapeHtml;
-import static org.tarik.ta.utils.ImageUtils.scaleToFitBox;
+import static org.tarik.ta.utils.ImageUtils.getInstance;
 
 /**
  * Builds Swing row panels for the child-steps list in {@link ProcedureKnowledgeCollectionDialog}.
@@ -175,7 +175,7 @@ class ChildStepRowBuilder {
         if (!step.isAtomic() || step.elementScreenshot() == null) {
             return new ImageIcon(new BufferedImage(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, TYPE_INT_ARGB));
         }
-        return new ImageIcon(scaleToFitBox(step.elementScreenshot(), THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
+        return new ImageIcon(getInstance().scaleToFitBox(step.elementScreenshot(), THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
     }
 
     private static Color getListColor(String key, Color fallback) {

@@ -64,7 +64,7 @@ import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.*;
 import static org.tarik.ta.knowledge_graph.service.ExecutionGraphContextBuilder.*;
 import static org.tarik.ta.user_dialogs.PopupType.WARNING;
 import static org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup.SelectionAction.EDIT;
-import static org.tarik.ta.utils.ImageUtils.singleImageContent;
+import static org.tarik.ta.utils.ImageUtils.getInstance;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 import java.util.function.Supplier;
@@ -540,7 +540,8 @@ public class KnowledgeBasedExecutionOrchestrator {
                 buildExecutionGraphContext(executionContext, executedAtomics, List.of()), knowledgeSuggestionAgent);
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPrecondition);
         return ProcedureKnowledgeCollectionDialog.displayAndGetResult(null, itemDescription, aiSuggestions,
-                !isPrecondition, itemContext, knowledgeService, ingestionService, childLoaderFactory);
+                !isPrecondition, itemContext, knowledgeService, ingestionService, childLoaderFactory,
+                knowledgeService.getUiElementRepository(), UiAgentsBeanFactory.getInstance().getUiElementDialogHelper());
     }
 
     /**
@@ -577,7 +578,8 @@ public class KnowledgeBasedExecutionOrchestrator {
             var preloadedChildren = children.isEmpty() ? null : children;
             var outcome = ProcedureKnowledgeCollectionDialog.displayForEditing(null, current, targetElementId,
                     showTestDataAndExpectedResults, hasParent, itemContext, knowledgeService, ingestionService,
-                    childLoaderFactory, preloadedChildren);
+                    childLoaderFactory, preloadedChildren,
+                    knowledgeService.getUiElementRepository(), UiAgentsBeanFactory.getInstance().getUiElementDialogHelper());
             if (outcome.result() instanceof IngestionNode.NewProcedure np) {
                 LOG.info("Procedure '{}' edited by user", current.description());
                 return ProcedureEditResult.saved(current.id(), np);
@@ -606,7 +608,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                                         KnowledgeSuggestionAgent knowledgeSuggestionAgent) {
         var suggestionsRef = new AtomicReference<>(KnowledgeSuggestionResult.empty());
         // Capture screen before showing the spinner so no dialog/spinner overlays appear in the screenshot
-        var screenshot = singleImageContent(captureScreen());
+        var screenshot = getInstance().singleImageContent(captureScreen());
         UiElementDialogHelper.showSpinnerUntilDone(() -> {
             try {
                 var result = knowledgeSuggestionAgent.executeAndGetResult(

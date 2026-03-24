@@ -32,7 +32,6 @@ import static java.awt.BorderLayout.*;
 import static javax.swing.BorderFactory.createEmptyBorder;
 import static javax.swing.BorderFactory.createTitledBorder;
 import static javax.swing.JOptionPane.*;
-import static org.tarik.ta.UiTestAgentConfig.getProcedureLookupDelayMs;
 import static org.tarik.ta.utils.HtmlUtils.escapeHtml;
 
 /**
@@ -60,6 +59,7 @@ class ExistingProcedureLookupDialog extends AbstractDialog {
     private final KnowledgeService knowledgeService;
     private final boolean showCreateNew;
     private final Set<UUID> excludedIds;
+    private final long procedureLookupDelayMs;
 
     private JTextField searchField;
     private DefaultListModel<Procedure> resultsModel;
@@ -70,11 +70,12 @@ class ExistingProcedureLookupDialog extends AbstractDialog {
     private LookupResult result = new LookupResult.Cancelled();
 
     private ExistingProcedureLookupDialog(Window owner, String initialText, KnowledgeService knowledgeService,
-                                          boolean showCreateNew, Set<UUID> excludedIds) {
+                                          boolean showCreateNew, Set<UUID> excludedIds, long procedureLookupDelayMs) {
         super(owner, "Search Existing Procedures");
         this.knowledgeService = knowledgeService;
         this.showCreateNew = showCreateNew;
         this.excludedIds = excludedIds;
+        this.procedureLookupDelayMs = procedureLookupDelayMs;
 
         JPanel mainPanel = getDefaultMainPanel();
         mainPanel.add(createSearchPanel(initialText), NORTH);
@@ -241,7 +242,7 @@ class ExistingProcedureLookupDialog extends AbstractDialog {
         }
         // Show spinner immediately so the user sees feedback as soon as they type
         showSpinner();
-        searchTimer = new Timer(getProcedureLookupDelayMs(), _ -> runSearch(searchField.getText().trim()));
+        searchTimer = new Timer((int) procedureLookupDelayMs, _ -> runSearch(searchField.getText().trim()));
         searchTimer.setRepeats(false);
         searchTimer.start();
     }
@@ -301,14 +302,16 @@ class ExistingProcedureLookupDialog extends AbstractDialog {
     /**
      * Displays the lookup dialog and returns the user's choice.
      *
-     * @param owner            parent window
-     * @param initialText      pre-populated search text (empty string for the "Add" flow)
-     * @param knowledgeService service for semantic search
-     * @param showCreateNew    whether to show the "Create New" button
+     * @param owner                  parent window
+     * @param initialText            pre-populated search text (empty string for the "Add" flow)
+     * @param knowledgeService       service for semantic search
+     * @param showCreateNew         whether to show the "Create New" button
+     * @param excludedIds           IDs to exclude from results
+     * @param procedureLookupDelayMs delay before triggering search
      * @return the lookup result
      */
     static LookupResult displayAndGetResult(Window owner, String initialText, KnowledgeService knowledgeService,
-                                            boolean showCreateNew, Set<UUID> excludedIds) {
-        return new ExistingProcedureLookupDialog(owner, initialText, knowledgeService, showCreateNew, excludedIds).result;
+                                            boolean showCreateNew, Set<UUID> excludedIds, long procedureLookupDelayMs) {
+        return new ExistingProcedureLookupDialog(owner, initialText, knowledgeService, showCreateNew, excludedIds, procedureLookupDelayMs).result;
     }
 }

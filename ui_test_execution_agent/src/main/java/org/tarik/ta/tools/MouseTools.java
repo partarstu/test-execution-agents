@@ -17,11 +17,12 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
-
-import io.avaje.inject.Singleton;
+import org.tarik.ta.utils.ImageUtils;
 
 import java.awt.*;
 import java.awt.event.InputEvent;
@@ -34,15 +35,18 @@ import static org.tarik.ta.core.error.ErrorCategory.TIMEOUT;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
-import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
 @Singleton
 public class MouseTools extends UiAbstractTools {
     private static final int MOUSE_ACTION_DELAY_MILLIS = 100;
     private static final long RETRIABLE_ACTION_DELAY_MILLIS = AgentConfig.getActionRetryPolicy().delayMillis() * 2;
 
-    public MouseTools(UiStateCheckAgent uiStateCheckAgent) {
+    private final ImageUtils imageUtils;
+
+    @Inject
+    public MouseTools(UiStateCheckAgent uiStateCheckAgent, ImageUtils imageUtils) {
         super(uiStateCheckAgent);
+        this.imageUtils = imageUtils;
     }
 
     @Tool(value = "Performs a right click with a mouse at the specified coordinates. Use this tool when you need to right-click at a " +
@@ -137,7 +141,7 @@ public class MouseTools extends UiAbstractTools {
             var actionDescription = "Clicked at location (%s, %s)".formatted(x, y);
             var checkResult = uiStateCheckAgent.executeAndGetResult(() ->
                     uiStateCheckAgent.verify(expectedStateDescription, actionDescription, "",
-                            singleImageContent(captureScreen()))).getResultPayload();
+                            imageUtils.singleImageContent(captureScreen()))).getResultPayload();
             if (checkResult == null || !checkResult.success()) {
                 var waitDuration = getMaxActionExecutionDurationMillis();
                 long deadline = currentTimeMillis() + waitDuration;
@@ -149,7 +153,7 @@ public class MouseTools extends UiAbstractTools {
                     var screenshot = latestScreenshot.updateAndGet(_ -> captureScreen());
                     var result = uiStateCheckAgent.executeAndGetResult(() ->
                             uiStateCheckAgent.verify(expectedStateDescription, actionDescription, "",
-                                    singleImageContent(screenshot))).getResultPayload();
+                                    imageUtils.singleImageContent(screenshot))).getResultPayload();
                     if (result != null && result.success()) {
                         return;
                     }

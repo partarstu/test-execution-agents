@@ -19,8 +19,7 @@ import io.a2a.spec.AgentCard;
 import org.tarik.ta.a2a.ApiAgentExecutor;
 import org.tarik.ta.core.AbstractServer;
 import org.tarik.ta.core.a2a.AgentExecutor;
-
-import static org.tarik.ta.a2a.AgentCardProducer.agentCard;
+import org.tarik.ta.core.AgentConfig;
 
 public class Server extends AbstractServer {
 
@@ -35,7 +34,7 @@ public class Server extends AbstractServer {
 
     @Override
     protected AgentCard createAgentCard() {
-        return agentCard();
+        return new org.tarik.ta.a2a.AgentCardProducer(AgentConfig.getExternalUrl()).agentCard();
     }
 
     @Override

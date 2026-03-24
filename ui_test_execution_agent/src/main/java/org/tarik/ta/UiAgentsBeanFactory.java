@@ -27,6 +27,7 @@ import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLooku
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
 import org.tarik.ta.tools.*;
+import org.tarik.ta.user_dialogs.knowledge.UiElementDialogHelper;
 
 import java.util.List;
 
@@ -50,11 +51,13 @@ class UiAgentsBeanFactory {
     private final ModelFactory modelFactory;
     // App-level singleton: one agent shared across all knowledge-collection dialogs.
     private final UiElementResolutionAgent knowledgeCollectionAgent;
+    private final UiElementDialogHelper uiElementDialogHelper;
 
     @Inject
-    UiAgentsBeanFactory(ModelFactory modelFactory) {
+    UiAgentsBeanFactory(ModelFactory modelFactory, UiElementDialogHelper uiElementDialogHelper) {
         this.modelFactory = modelFactory;
         this.knowledgeCollectionAgent = createKnowledgeCollectionElementResolutionAgent();
+        this.uiElementDialogHelper = uiElementDialogHelper;
         instance = this;
     }
 
@@ -64,6 +67,10 @@ class UiAgentsBeanFactory {
 
     UiElementResolutionAgent getKnowledgeCollectionAgent() {
         return knowledgeCollectionAgent;
+    }
+
+    UiElementDialogHelper getUiElementDialogHelper() {
+        return uiElementDialogHelper;
     }
 
     KnowledgeSuggestionAgent createKnowledgeSuggestionAgent() {

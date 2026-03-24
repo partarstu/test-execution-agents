@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.tools;
 
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
@@ -36,11 +37,20 @@ import java.util.UUID;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.Screenshot.fromBufferedImage;
 
+@Singleton
 public class UiElementRefinementHelper {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementRefinementHelper.class);
     protected static final int USER_DIALOG_DISMISS_DELAY_MILLIS = 2000;
 
-    public static Optional<UiElement> updateElementScreenshot(UiElementRepository repository, UUID elementId) {
+    private final AgentConfig agentConfig;
+    private final UiTestAgentConfig uiTestAgentConfig;
+
+    public UiElementRefinementHelper(AgentConfig agentConfig, UiTestAgentConfig uiTestAgentConfig) {
+        this.agentConfig = agentConfig;
+        this.uiTestAgentConfig = uiTestAgentConfig;
+    }
+
+    public Optional<UiElement> updateElementScreenshot(UiElementRepository repository, UUID elementId) {
         return findElementById(repository, elementId).flatMap(elementToUpdate -> {
             LOG.info("User chose to update screenshot for element: {}", elementToUpdate.name());
 
@@ -61,7 +71,7 @@ public class UiElementRefinementHelper {
         });
     }
 
-    public static Optional<UiElement> updateElementInfo(UiElementRepository repository, UUID elementId) {
+    public Optional<UiElement> updateElementInfo(UiElementRepository repository, UUID elementId) {
         LOG.info("User chose to update info for element with ID {}", elementId);
         return findElementById(repository, elementId)
                 .flatMap(elementToUpdate -> {
@@ -79,7 +89,7 @@ public class UiElementRefinementHelper {
                 });
     }
 
-    public static void deleteElement(UiElementRepository repository, UUID elementId) {
+    public void deleteElement(UiElementRepository repository, UUID elementId) {
         Optional<UiElement> elementOpt = findElementById(repository, elementId);
         LOG.info("User chose to delete element with ID {}", elementId);
         if (elementOpt.isPresent()) {
@@ -90,12 +100,12 @@ public class UiElementRefinementHelper {
         }
     }
 
-    public static Optional<UiElement> findElementById(UiElementRepository repository, UUID elementId) {
+    public Optional<UiElement> findElementById(UiElementRepository repository, UUID elementId) {
         return repository.findById(elementId);
     }
 
-    public static List<UiElementMatch> retrieveUiElements(UiElementRepository repository, String query) {
-        return repository.findBySemanticSearch(query, AgentConfig.getRetrieverTopN(),
-                UiTestAgentConfig.getElementRetrievalMinGeneralScore());
+    public List<UiElementMatch> retrieveUiElements(UiElementRepository repository, String query) {
+        return repository.findBySemanticSearch(query, agentConfig.getRetrieverTopN(),
+                uiTestAgentConfig.getElementRetrievalMinGeneralScore());
     }
 }

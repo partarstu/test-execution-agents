@@ -18,6 +18,7 @@ package org.tarik.ta.user_dialogs.knowledge;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
 
@@ -44,4 +45,9 @@ record DialogConfig(
         @NotNull KnowledgeIngestionService ingestionService,
         @Nullable UUID currentProcedureId,
         @Nullable SuggestionLoaderFactory childLoaderFactory,
-        @Nullable BufferedImage preloadedElementScreenshot) {}
+        @Nullable BufferedImage preloadedElementScreenshot,
+        int dialogDefaultFontSize,
+        String dialogDefaultFontType,
+        long procedureLookupDelayMs,
+        @NotNull UiElementRepository uiElementRepository,
+        @NotNull UiElementDialogHelper uiElementDialogHelper) {}

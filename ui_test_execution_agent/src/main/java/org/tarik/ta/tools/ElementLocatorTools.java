@@ -41,6 +41,7 @@ import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.user_dialogs.SpinnerManager;
 import org.tarik.ta.utils.UiCommonUtils;
+import org.tarik.ta.utils.ImageUtils;
 import org.tarik.ta.knowledge_graph.location_history.LocationStrategy;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 
@@ -77,7 +78,6 @@ import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithORB;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithTemplateMatching;
-import static org.tarik.ta.utils.ImageUtils.*;
 
 @Singleton
 public class ElementLocatorTools extends UiAbstractTools {
@@ -89,8 +89,7 @@ public class ElementLocatorTools extends UiAbstractTools {
     private final LocationHistoryRecorder locationHistoryRecorder;
     private final Function<UUID, Optional<ElementLocationHistory>> stabilityLookup;
     private final UiTestAgentConfig uiTestAgentConfig;
-    private final AgentConfig agentConfig;
-    private final String boundingBoxColorName;
+    private final ImageUtils imageUtils;
     private final Color boundingBoxColor;
     private final boolean debugMode;
 
@@ -100,7 +99,8 @@ public class ElementLocatorTools extends UiAbstractTools {
                                 Function<UUID, Optional<ElementLocationHistory>> elementLocationHistoryLookup,
                                 UiElementBoundingBoxAgent uiElementBoundingBoxAgent,
                                 BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent,
-                                UiTestAgentConfig uiTestAgentConfig, AgentConfig agentConfig) {
+                                UiTestAgentConfig uiTestAgentConfig,
+                                ImageUtils imageUtils) {
         super(uiStateCheckAgent);
         this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
         this.uiElementBoundingBoxAgent = requireNonNull(uiElementBoundingBoxAgent, "uiElementBoundingBoxAgent");
@@ -109,10 +109,10 @@ public class ElementLocatorTools extends UiAbstractTools {
                 locationHistoryRecorder : (elementId, located, locationTimeMs, strategy) -> {};
         this.stabilityLookup = elementLocationHistoryLookup != null ? elementLocationHistoryLookup : _ -> Optional.empty();
         this.uiTestAgentConfig = requireNonNull(uiTestAgentConfig, "uiTestAgentConfig");
-        this.agentConfig = requireNonNull(agentConfig, "agentConfig");
-        this.boundingBoxColorName = uiTestAgentConfig.getElementBoundingBoxColorName();
+        String boundingBoxColorName = uiTestAgentConfig.getElementBoundingBoxColorName();
         this.boundingBoxColor = getColorByName(boundingBoxColorName);
-        this.debugMode = agentConfig.isDebugMode();
+        this.debugMode = uiTestAgentConfig.isDebugMode();
+        this.imageUtils = requireNonNull(imageUtils, "imageUtils");
     }
 
     /**
@@ -294,7 +294,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                     findMatchingRegionsWithTemplateMatching(wholeScreenshot, elementScreenshot)));
             featureMatchedBoundingBoxes = featureMatchedBoundingBoxesByElementFuture.join();
             templateMatchedBoundingBoxes = templateMatchedBoundingBoxesByElementFuture.join();
-            if (DEBUG_MODE) {
+            if (this.debugMode) {
                 markElementsToPlotWithBoundingBoxes(cloneImage(wholeScreenshot),
                         getElementToPlot(elementRetrievedFromMemory, featureMatchedBoundingBoxes), "opencv_features_original");
                 markElementsToPlotWithBoundingBoxes(cloneImage(wholeScreenshot),
@@ -440,7 +440,8 @@ public class ElementLocatorTools extends UiAbstractTools {
                         .flatMap(Optional::stream)
                         .flatMap(Collection::stream)
                         .map(bb -> {
-                            Rectangle rectOnScaledImage = bb.getActualBoundingBox(imageToSend.getWidth(), imageToSend.getHeight());
+                            Rectangle rectOnScaledImage = bb.getActualBoundingBox(imageToSend.getWidth(), imageToSend.getHeight(),
+                                    uiTestAgentConfig.isBoundingBoxAlreadyNormalized());
                             return scalingRatio < 1.0 ? getRescaledBox(rectOnScaledImage, scalingRatio) : rectOnScaledImage;
                         })
                         .filter(bb -> bb.width > 0 && bb.height > 0)
@@ -449,7 +450,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                 if (debugMode) {
                     var imageWithAllBoxes = cloneImage(wholeScreenshot);
                     allBoundingBoxes.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, boundingBoxColor));
-                    saveImage(imageWithAllBoxes, "vision_identified_boxes_before_clustering");
+                    imageUtils.saveImage(imageWithAllBoxes, "vision_identified_boxes_before_clustering");
                 }
 
                 if (allBoundingBoxes.isEmpty()) {
@@ -470,10 +471,10 @@ public class ElementLocatorTools extends UiAbstractTools {
                                 return calculateAverageBoundingBox(clusterBoxes);
                             })
                             .toList();
-                    if (DEBUG_MODE) {
+                    if (this.debugMode) {
                         var imageWithAllBoxes = cloneImage(wholeScreenshot);
-                        result.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, BOUNDING_BOX_COLOR));
-                        saveImage(imageWithAllBoxes, "vision_identified_boxes_after_clustering");
+                        result.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, boundingBoxColor));
+                        imageUtils.saveImage(imageWithAllBoxes, "vision_identified_boxes_after_clustering");
                     }
                     LOG.info("Model identified {} bounding boxes with {} votes, resulting in {} common regions", allBoundingBoxes.size(),
                             voteCount, result.size());
@@ -527,7 +528,7 @@ public class ElementLocatorTools extends UiAbstractTools {
             var resultingScreenshot = cloneImage(screenshot);
             drawBoundingBoxes(resultingScreenshot, boxesWithIds);
             if (debugMode) {
-                saveImage(resultingScreenshot, "model_selection_%s".formatted(matchAlgorithm));
+                imageUtils.saveImage(resultingScreenshot, "model_selection_%s".formatted(matchAlgorithm));
             }
 
             var successfulIdentificationResults = getValidSuccessfulIdentificationResultsFromModelUsingQuorum(
@@ -610,8 +611,8 @@ public class ElementLocatorTools extends UiAbstractTools {
                                                      String postfix) {
         var elementBoundingBoxesByLabel = elementToPlot.boundingBoxesByIds();
         drawBoundingBoxes(resultingScreenshot, elementBoundingBoxesByLabel);
-        if (DEBUG_MODE) {
-            saveImage(resultingScreenshot, postfix);
+        if (debugMode) {
+            imageUtils.saveImage(resultingScreenshot, postfix);
         }
     }
 

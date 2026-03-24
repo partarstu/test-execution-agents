@@ -17,9 +17,11 @@ package org.tarik.ta.utils;
 
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.ImageContent;
+import jakarta.inject.Singleton;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -35,25 +37,35 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 
-import static dev.langchain4j.data.message.ImageContent.DetailLevel.HIGH;
 import static dev.langchain4j.data.message.ImageContent.DetailLevel.ULTRA_HIGH;
 import static java.awt.Image.SCALE_AREA_AVERAGING;
 import static java.awt.Image.SCALE_SMOOTH;
-import static java.awt.RenderingHints.KEY_INTERPOLATION;
-import static java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR;
 import static java.lang.Math.min;
 import static java.nio.file.Files.createDirectories;
 import static java.time.LocalDateTime.now;
 import static java.time.format.DateTimeFormatter.ofPattern;
 import static javax.imageio.ImageIO.write;
-import static org.tarik.ta.UiTestAgentConfig.getScreenshotsSaveFolder;
 
-
+@Singleton
 public class ImageUtils {
     private static final Logger LOG = LoggerFactory.getLogger(ImageUtils.class);
     private static final String DEFAULT_IMAGE_FORMAT = "png";
 
-    public static Image getImage(@NotNull String base64Image, @NotNull String format) {
+    private static volatile ImageUtils instance;
+
+    private final UiTestAgentConfig uiTestAgentConfig;
+
+    @Inject
+    public ImageUtils(UiTestAgentConfig uiTestAgentConfig) {
+        this.uiTestAgentConfig = uiTestAgentConfig;
+        instance = this;
+    }
+
+    public static ImageUtils getInstance() {
+        return instance;
+    }
+
+    public Image getImage(@NotNull String base64Image, @NotNull String format) {
         return Image.builder()
                 .mimeType("image/" + format)
                 .base64Data(base64Image)
@@ -61,7 +73,7 @@ public class ImageUtils {
     }
 
     @NotNull
-    public static BufferedImage toBufferedImage(@NotNull java.awt.Image image, int targetWidth, int targetHeight) {
+    public BufferedImage toBufferedImage(@NotNull java.awt.Image image, int targetWidth, int targetHeight) {
         if (image instanceof BufferedImage result) {
             return result;
         } else {
@@ -74,7 +86,7 @@ public class ImageUtils {
         }
     }
 
-    public static byte[] imageToByteArray(@NotNull BufferedImage image, @NotNull String formatName) {
+    public byte[] imageToByteArray(@NotNull BufferedImage image, @NotNull String formatName) {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             write(image, formatName, stream);
             return stream.toByteArray();
@@ -83,11 +95,11 @@ public class ImageUtils {
         }
     }
 
-    public static Image getImage(@NotNull BufferedImage bufferedImage, @NotNull String format) {
+    public Image getImage(@NotNull BufferedImage bufferedImage, @NotNull String format) {
         return getImage(convertImageToBase64(bufferedImage, format), format);
     }
 
-    public static String convertImageToBase64(@NotNull BufferedImage image, @NotNull String format) {
+    public String convertImageToBase64(@NotNull BufferedImage image, @NotNull String format) {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             write(image, format, stream);
             byte[] imageBytes = stream.toByteArray();
@@ -97,7 +109,7 @@ public class ImageUtils {
         }
     }
 
-    public static BufferedImage convertBase64ToImage(@NotNull String encodedString) {
+    public BufferedImage convertBase64ToImage(@NotNull String encodedString) {
         byte[] imageBytes = Base64.getDecoder().decode(encodedString);
         try (ByteArrayInputStream bis = new ByteArrayInputStream(imageBytes)) {
             return ImageIO.read(bis);
@@ -106,14 +118,14 @@ public class ImageUtils {
         }
     }
 
-    public static BufferedImage cloneImage(BufferedImage image) {
+    public BufferedImage cloneImage(BufferedImage image) {
         ColorModel cm = image.getColorModel();
         boolean isAlphaPremultiplied = cm.isAlphaPremultiplied();
         WritableRaster raster = image.copyData(image.getRaster().createCompatibleWritableRaster());
         return new BufferedImage(cm, raster, isAlphaPremultiplied, null);
     }
 
-    public static BufferedImage padImage(BufferedImage source, int targetWidth, int targetHeight) {
+    public BufferedImage padImage(BufferedImage source, int targetWidth, int targetHeight) {
         int width = source.getWidth();
         int height = source.getHeight();
         if (width >= targetWidth && height >= targetHeight) {
@@ -132,11 +144,11 @@ public class ImageUtils {
         return paddedImage;
     }
 
-    public static boolean saveImage(BufferedImage resultingScreenshot, String postfix) {
+    public boolean saveImage(BufferedImage resultingScreenshot, String postfix) {
         LocalDateTime now = now();
         DateTimeFormatter formatter = ofPattern("yyyy_MM_dd_HH_mm_ss_SSS");
         String timestamp = now.format(formatter);
-        var filePath = Paths.get(getScreenshotsSaveFolder())
+        var filePath = Paths.get(uiTestAgentConfig.getScreenshotsSaveFolder())
                 .resolve("%s_%s.png".formatted(timestamp, postfix)).toAbsolutePath();
         try {
             createDirectories(filePath.getParent());
@@ -150,21 +162,21 @@ public class ImageUtils {
         }
     }
 
-    public static java.awt.Image scaleToFitBox(BufferedImage src, int maxW, int maxH) {
+    public java.awt.Image scaleToFitBox(BufferedImage src, int maxW, int maxH) {
         double ratio = min((double) maxW / src.getWidth(), (double) maxH / src.getHeight());
         int w = Math.max(1, (int) (src.getWidth() * ratio));
         int h = Math.max(1, (int) (src.getHeight() * ratio));
         return src.getScaledInstance(w, h, SCALE_AREA_AVERAGING);
     }
 
-    public static BufferedImage scaleImage(BufferedImage source, double ratio) {
+    public BufferedImage scaleImage(BufferedImage source, double ratio) {
         int newWidth = (int) (source.getWidth() * ratio);
         int newHeight = (int) (source.getHeight() * ratio);
         var scaledImage = source.getScaledInstance(newWidth, newHeight, SCALE_SMOOTH);
         return toBufferedImage(scaledImage, newWidth, newHeight);
     }
 
-    public static ImageContent singleImageContent(BufferedImage image) {
-        return ImageContent.from(ImageUtils.getImage(image, DEFAULT_IMAGE_FORMAT), ULTRA_HIGH);
+    public ImageContent singleImageContent(BufferedImage image) {
+        return ImageContent.from(getImage(image, DEFAULT_IMAGE_FORMAT), ULTRA_HIGH);
     }
 }

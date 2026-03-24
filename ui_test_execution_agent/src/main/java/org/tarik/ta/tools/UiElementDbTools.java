@@ -32,6 +32,7 @@ import org.tarik.ta.dto.UiElementIdentificationResult;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.user_dialogs.SpinnerManager;
+import org.tarik.ta.utils.ImageUtils;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
@@ -46,7 +47,6 @@ import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
-import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static java.util.UUID.randomUUID;
 import static java.util.Objects.requireNonNull;
@@ -57,15 +57,18 @@ public class UiElementDbTools extends UiAbstractTools {
     private final UiElementRepository elementRepository;
     private final UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
     private final DbUiElementSelectionAgent dbUiElementSelectionAgent;
+    private final ImageUtils imageUtils;
 
     @Inject
     public UiElementDbTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
                              UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent,
-                             DbUiElementSelectionAgent dbUiElementSelectionAgent) {
+                             DbUiElementSelectionAgent dbUiElementSelectionAgent,
+                             ImageUtils imageUtils) {
         super(uiStateCheckAgent);
         this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
         this.uiElementExtendedDescriptionAgent = requireNonNull(uiElementExtendedDescriptionAgent, "uiElementExtendedDescriptionAgent");
         this.dbUiElementSelectionAgent = requireNonNull(dbUiElementSelectionAgent, "dbUiElementSelectionAgent");
+        this.imageUtils = requireNonNull(imageUtils, "imageUtils");
     }
 
     @Tool("Searches for a UI element in the database using vector similarity and selects the best candidate.")
@@ -131,7 +134,7 @@ public class UiElementDbTools extends UiAbstractTools {
 
     private UiElementIdentificationResult getElementIdentification(String elementDescription, String relevantTestData,
                                                                    BufferedImage screenshot) {
-        var imageContent = singleImageContent(screenshot);
+        var imageContent = imageUtils.singleImageContent(screenshot);
         var relevantDataString = relevantTestData == null ? "" : relevantTestData;
         return uiElementExtendedDescriptionAgent
                 .executeAndGetResult(() -> uiElementExtendedDescriptionAgent.describeUiElement(elementDescription,
@@ -155,7 +158,7 @@ public class UiElementDbTools extends UiAbstractTools {
         BufferedImage screenshot = getScreenshotTogglingSpinner();
         try {
             var result = dbUiElementSelectionAgent.executeAndGetResult(() ->
-                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, singleImageContent(screenshot)))
+                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, imageUtils.singleImageContent(screenshot)))
                     .getResultPayload();
             if (result == null) {
                 LOG.warn("Model returned null result. Returning empty.");

@@ -1,8 +1,8 @@
 # Implementation Plan: Avaje Inject DI Integration
 
 **Created**: 2026-03-06
-**Updated**: 2026-03-23
-**Status**: Phase 7 complete — UiTestAgentConfig @Singleton, UiAbstractTools refactored, all basic UI tool singletons wired
+**Updated**: 2026-03-24
+**Status**: Phase 12 complete — UI helper & utility classes refactored (UiElementRefinementHelper, UiElementDialogHelper, ImageUtils, BoundingBox, ProcedureKnowledgeCollectionDialog, ExistingProcedureLookupDialog, AgentCardProducer)
 
 ## 1. Objective
 
@@ -338,59 +338,36 @@ constraints remain manually created. Everything else is DI-managed (`@Singleton`
 
 ### Phase 11: Specialized Tool Singletons
 
-- [ ] **Annotate `KnowledgeElementTools` class with `@Singleton`**. Add **constructor**
-  `KnowledgeElementTools(UiStateCheckAgent uiStateCheckAgent, ProcedureRepository procedureRepository, EmbeddingService embeddingService, FailureContextService failureContextService)` —
-  avaje auto-injects all four. Constructor body calls `super(uiStateCheckAgent)` to pass the agent to `UiAbstractTools`. Store remaining
-  three in `private final` fields
-- [ ] **Annotate `ElementLocatorTools` class with `@Singleton`**. Add **constructor**
-  `ElementLocatorTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent, LocationHistoryRecorder locationHistoryRecorder, ElementLocationHistoryLookup elementLocationHistoryLookup, UiElementBoundingBoxAgent uiElementBoundingBoxAgent, BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent)` —
-  avaje auto-injects all six (the last two are `@Bean @Singleton` agents produced by `UiAgentsBeanFactory`; `LocationHistoryRecorder` and stability
-  lookup are `@Bean` singletons from `KnowledgeServicesBeanFactory`). Constructor body calls `super(uiStateCheckAgent)`. Store remaining
-  five in `private final` fields. **Delete** the private methods `createElementBoundingBoxAgent()` and `createElementSelectionAgent()` —
-  agent creation is now in `UiAgentsBeanFactory`. Remove the no-arg and 2-arg constructors
-- [ ] **Annotate `UiElementDbTools` class with `@Singleton`**. Add **constructor**
-  `UiElementDbTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent, UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent, DbUiElementSelectionAgent dbUiElementSelectionAgent)` —
-  avaje auto-injects all four (the last two are `@Bean @Singleton` agents produced by `UiAgentsBeanFactory`). Constructor body calls
-  `super(uiStateCheckAgent)`. Store remaining three in `private final` fields. **Delete** the private methods
-  `createUiElementDescriptionMatcherAgent()` and `createDbElementSelectionAgent()` — agent creation is now in `UiAgentsBeanFactory`. `ModelFactory`
-  and `UiTestAgentConfig` are no longer needed as constructor parameters (they were only used for agent creation). **Do NOT
-  add `UiAgentsBeanFactory` as a constructor parameter** — `UiAgentsBeanFactory` already injects `UiElementDbTools` via `@Bean` method parameter, so
-  injecting it back would create a direct `A → B → A` cycle
-- [ ] **Annotate `VerificationTools` class with `@Singleton`**. Add **constructor**
-  `VerificationTools(BudgetManager budgetManager, AgentConfig agentConfig)` — avaje auto-injects both. Store in `private final` fields. All
-  static methods become instance methods. Replace `resetToolCallUsage()` static import calls with
-  `budgetManager.resetToolCallUsage()`, and `getVerificationRetryPolicy()` with `agentConfig.getVerificationRetryPolicy()`
-
 ### Phase 12: UI Helper & Utility Class Refactoring
 
-- [ ] **Annotate `UiElementRefinementHelper` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `UiElementRefinementHelper` class with `@Singleton`**. Add **constructor**
   `UiElementRefinementHelper(AgentConfig agentConfig, UiTestAgentConfig uiTestAgentConfig)` — avaje auto-injects both. Store in
   `private final` fields. All static methods become instance methods. Replace static imports of `AgentConfig.getRetrieverTopN()` and
   `UiTestAgentConfig.getElementRetrievalMinGeneralScore()` with `agentConfig.getRetrieverTopN()` and
   `uiTestAgentConfig.getElementRetrievalMinGeneralScore()`
-- [ ] **Annotate `UiElementDialogHelper` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `UiElementDialogHelper` class with `@Singleton`**. Add **constructor**
   `UiElementDialogHelper(UiElementResolutionAgent uiElementResolutionAgent, UiTestAgentConfig uiTestAgentConfig, UiElementRepository uiElementRepository, UiElementRefinementHelper uiElementRefinementHelper)` —
   avaje auto-injects all four (`UiElementResolutionAgent` is a `@Bean @Singleton` from `UiAgentsBeanFactory`). Store in `private final` fields. All
   static methods become instance methods. Replace static imports of `UiAgentsBeanFactory.getKnowledgeCollectionElementResolutionAgent()` with the
   injected `uiElementResolutionAgent` field and `UiTestAgentConfig.getMaxActionExecutionDurationMillis()` with
   `uiTestAgentConfig.getMaxActionExecutionDurationMillis()`. Remove internal static repository creation
-- [ ] **Annotate `ImageUtils` class with `@Singleton`**. Add **constructor** `ImageUtils(UiTestAgentConfig uiTestAgentConfig)` — avaje
+- [x] **Annotate `ImageUtils` class with `@Singleton`**. Add **constructor** `ImageUtils(UiTestAgentConfig uiTestAgentConfig)` — avaje
   auto-injects. Store in `private final` field. Static methods that use `UiTestAgentConfig.getScreenshotsSaveFolder()` become instance
   methods. Replace static import with `uiTestAgentConfig.getScreenshotsSaveFolder()`
-- [ ] Refactor `BoundingBox` record (**NO DI annotation** — value object with per-instance coordinates, not a singleton): change
+- [x] Refactor `BoundingBox` record (**NO DI annotation** — value object with per-instance coordinates, not a singleton): change
   `getActualBoundingBox()` to `getActualBoundingBox(boolean isAlreadyNormalized)`. Remove static import of
   `UiTestAgentConfig.isBoundingBoxAlreadyNormalized()`. Update all callers (which are `@Singleton` beans with injected `UiTestAgentConfig`)
   to pass `uiTestAgentConfig.isBoundingBoxAlreadyNormalized()` as the argument
-- [ ] Update `ProcedureKnowledgeCollectionDialog` (**NO DI annotation** — Swing dialog created on-demand, not a bean): replace static
+- [x] Update `ProcedureKnowledgeCollectionDialog` (**NO DI annotation** — Swing dialog created on-demand, not a bean): replace static
   imports of `UiTestAgentConfig.getDialogDefaultFontSize()` and `getDialogDefaultFontType()` with constructor parameters (`int fontSize`,
   `String fontType`). Replace `new UiElementRepository()` with a constructor parameter (`UiElementRepository uiElementRepository`). Update
   all callers (which are `@Singleton` beans with injected `UiTestAgentConfig` and `UiElementRepository`) to pass their injected values when
   creating the dialog via
   `new ProcedureKnowledgeCollectionDialog(..., uiTestAgentConfig.getDialogDefaultFontSize(), uiTestAgentConfig.getDialogDefaultFontType(), uiElementRepository)`
-- [ ] Update `ExistingProcedureLookupDialog` (**NO DI annotation** — Swing dialog created on-demand): replace static import of
+- [x] Update `ExistingProcedureLookupDialog` (**NO DI annotation** — Swing dialog created on-demand): replace static import of
   `UiTestAgentConfig.getProcedureLookupDelayMs()` with a constructor parameter (`long procedureLookupDelayMs`). Update all callers (which
   are `@Singleton` beans with injected `UiTestAgentConfig`) to pass `uiTestAgentConfig.getProcedureLookupDelayMs()`
-- [ ] Refactor `AgentCardProducer` (UI version — **NO DI annotation**, used as a helper by `UiAgentCardFactory`): replace static field
+- [x] Refactor `AgentCardProducer` (UI version — **NO DI annotation**, used as a helper by `UiAgentCardFactory`): replace static field
   initialized from `AgentConfig.getExternalUrl()` with a constructor/method parameter. The `@Factory` `UiAgentCardFactory` passes
   `agentConfig.getExternalUrl()` from its injected `AgentConfig` instance when calling `AgentCardProducer`
 
