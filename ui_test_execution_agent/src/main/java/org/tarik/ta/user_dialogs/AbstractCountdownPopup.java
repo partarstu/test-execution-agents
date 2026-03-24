@@ -28,8 +28,8 @@ public abstract class AbstractCountdownPopup<T> extends AbstractDialog {
     protected int remainingSeconds;
     private Timer countdownTimer;
 
-    protected AbstractCountdownPopup(String title, T defaultResult, int seconds) {
-        super(null, title);
+    protected AbstractCountdownPopup(String title, T defaultResult, int seconds, org.tarik.ta.UiTestAgentConfig config) {
+        super(null, title, config);
         this.result = new AtomicReference<>(defaultResult);
         this.remainingSeconds = seconds;
         setUndecorated(true);

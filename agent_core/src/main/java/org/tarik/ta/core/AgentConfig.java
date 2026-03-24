@@ -50,64 +50,64 @@ public class AgentConfig {
     private final ConfigProperty<Boolean> debugMode;
 
     // RAG Config
-    private final ConfigProperty<RagDbProvider> VECTOR_DB_PROVIDER;
-    private final ConfigProperty<String> VECTOR_DB_URL;
-    private final ConfigProperty<String> VECTOR_DB_KEY;
-    private final ConfigProperty<Integer> RETRIEVER_TOP_N;
-    private final ConfigProperty<Integer> MAX_OUTPUT_TOKENS;
-    private final ConfigProperty<Double> TEMPERATURE;
-    private final ConfigProperty<Double> TOP_P;
-    private final ConfigProperty<Boolean> MODEL_LOGGING_ENABLED;
-    private final ConfigProperty<Boolean> THINKING_OUTPUT_ENABLED;
-    private final ConfigProperty<Integer> GEMINI_THINKING_BUDGET;
-    private final ConfigProperty<Integer> MAX_RETRIES;
-    private final ConfigProperty<String> GEMINI_THINKING_LEVEL;
+    private final ConfigProperty<RagDbProvider> vectorDbProvider;
+    private final ConfigProperty<String> vectorDbUrl;
+    private final ConfigProperty<String> vectorDbKey;
+    private final ConfigProperty<Integer> retrieverTopN;
+    private final ConfigProperty<Integer> maxOutputTokens;
+    private final ConfigProperty<Double> temperature;
+    private final ConfigProperty<Double> topP;
+    private final ConfigProperty<Boolean> modelLoggingEnabled;
+    private final ConfigProperty<Boolean> thinkingOutputEnabled;
+    private final ConfigProperty<Integer> geminiThinkingBudget;
+    private final ConfigProperty<Integer> maxRetries;
+    private final ConfigProperty<String> geminiThinkingLevel;
 
     // Google API Config
-    private final ConfigProperty<GoogleApiProvider> GOOGLE_API_PROVIDER;
-    private final ConfigProperty<String> GOOGLE_API_TOKEN;
-    private final ConfigProperty<String> GOOGLE_PROJECT;
-    private final ConfigProperty<String> GOOGLE_LOCATION;
+    private final ConfigProperty<GoogleApiProvider> googleApiProvider;
+    private final ConfigProperty<String> googleApiToken;
+    private final ConfigProperty<String> googleProject;
+    private final ConfigProperty<String> googleLocation;
 
     // OpenAI API Config
-    private final ConfigProperty<String> OPENAI_API_KEY;
-    private final ConfigProperty<String> OPENAI_API_ENDPOINT;
+    private final ConfigProperty<String> openaiApiKey;
+    private final ConfigProperty<String> openaiApiEndpoint;
 
     // Groq API Config
-    private final ConfigProperty<String> GROQ_API_KEY;
-    private final ConfigProperty<String> GROQ_API_ENDPOINT;
+    private final ConfigProperty<String> groqApiKey;
+    private final ConfigProperty<String> groqApiEndpoint;
 
     // Anthropic API Config
-    private final ConfigProperty<AnthropicApiProvider> ANTHROPIC_API_PROVIDER;
-    private final ConfigProperty<String> ANTHROPIC_API_KEY;
-    private final ConfigProperty<String> ANTHROPIC_API_ENDPOINT;
+    private final ConfigProperty<AnthropicApiProvider> anthropicApiProvider;
+    private final ConfigProperty<String> anthropicApiKey;
+    private final ConfigProperty<String> anthropicApiEndpoint;
 
     // Timeout and Retry Config
-    private final ConfigProperty<Integer> TEST_STEP_EXECUTION_RETRY_TIMEOUT_MILLIS;
-    private final ConfigProperty<Integer> TEST_STEP_EXECUTION_RETRY_INTERVAL_MILLIS;
-    private final ConfigProperty<Integer> VERIFICATION_RETRY_TIMEOUT_MILLIS;
-    private final ConfigProperty<Integer> ACTION_VERIFICATION_DELAY_MILLIS;
-    private final ConfigProperty<Integer> MAX_ACTION_EXECUTION_DURATION_MILLIS;
+    private final ConfigProperty<Integer> testStepExecutionRetryTimeoutMillis;
+    private final ConfigProperty<Integer> testStepExecutionRetryIntervalMillis;
+    private final ConfigProperty<Integer> verificationRetryTimeoutMillis;
+    private final ConfigProperty<Integer> actionVerificationDelayMillis;
+    private final ConfigProperty<Integer> maxActionExecutionDurationMillis;
 
     // Agent Specific Configs - Budgets
-    private final ConfigProperty<Integer> AGENT_TOKEN_BUDGET;
-    private final ConfigProperty<Integer> AGENT_TOOL_CALLS_BUDGET;
-    private final ConfigProperty<Integer> AGENT_EXECUTION_TIME_BUDGET_SECONDS;
+    private final ConfigProperty<Integer> agentTokenBudget;
+    private final ConfigProperty<Integer> agentToolCallsBudget;
+    private final ConfigProperty<Integer> agentExecutionTimeBudgetSeconds;
 
     // Precondition Agent
-    private final ConfigProperty<String> PRECONDITION_AGENT_MODEL_NAME;
-    private final ConfigProperty<ModelProvider> PRECONDITION_AGENT_MODEL_PROVIDER;
-    private final ConfigProperty<String> PRECONDITION_AGENT_PROMPT_VERSION;
+    private final ConfigProperty<String> preconditionAgentModelName;
+    private final ConfigProperty<ModelProvider> preconditionAgentModelProvider;
+    private final ConfigProperty<String> preconditionAgentPromptVersion;
 
     // Test Step Action Agent
-    private final ConfigProperty<String> TEST_STEP_ACTION_AGENT_MODEL_NAME;
-    private final ConfigProperty<ModelProvider> TEST_STEP_ACTION_AGENT_MODEL_PROVIDER;
-    private final ConfigProperty<String> TEST_STEP_ACTION_AGENT_PROMPT_VERSION;
+    private final ConfigProperty<String> testStepActionAgentModelName;
+    private final ConfigProperty<ModelProvider> testStepActionAgentModelProvider;
+    private final ConfigProperty<String> testStepActionAgentPromptVersion;
 
     // Test Case Extraction Agent
-    private final ConfigProperty<String> TEST_CASE_EXTRACTION_AGENT_MODEL_NAME;
-    private final ConfigProperty<ModelProvider> TEST_CASE_EXTRACTION_AGENT_MODEL_PROVIDER;
-    private final ConfigProperty<String> TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION;
+    private final ConfigProperty<String> testCaseExtractionAgentModelName;
+    private final ConfigProperty<ModelProvider> testCaseExtractionAgentModelProvider;
+    private final ConfigProperty<String> testCaseExtractionAgentPromptVersion;
 
     public record ConfigProperty<T>(T value, boolean isSecret) {
     }
@@ -140,7 +140,7 @@ public class AgentConfig {
         this.debugMode = loadProperty("debug.mode", "DEBUG_MODE", "false", Boolean::parseBoolean, false);
 
         // RAG Config
-        this.VECTOR_DB_PROVIDER = getProperty("vector.db.provider", "VECTOR_DB_PROVIDER", "qdrant",
+        this.vectorDbProvider = getProperty("vector.db.provider", "VECTOR_DB_PROVIDER", "qdrant",
                 s -> stream(RagDbProvider.values())
                         .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
                         .findAny()
@@ -148,20 +148,20 @@ public class AgentConfig {
                                 "%s is not a supported RAG DB provider. Supported ones: %s".formatted(s,
                                         Arrays.toString(RagDbProvider.values())))),
                 false);
-        this.VECTOR_DB_URL = getRequiredProperty("vector.db.url", "VECTOR_DB_URL", false);
-        this.VECTOR_DB_KEY = loadProperty("vector.db.key", "VECTOR_DB_KEY", "", s -> s, true);
-        this.RETRIEVER_TOP_N = loadPropertyAsInteger("retriever.top.n", "RETRIEVER_TOP_N", "5", false);
-        this.MAX_OUTPUT_TOKENS = loadPropertyAsInteger("model.max.output.tokens", "MAX_OUTPUT_TOKENS", "5000", false);
-        this.TEMPERATURE = loadPropertyAsDouble("model.temperature", "TEMPERATURE", "0.0", false);
-        this.TOP_P = loadPropertyAsDouble("model.top.p", "TOP_P", "1.0", false);
-        this.MODEL_LOGGING_ENABLED = loadProperty("model.logging.enabled", "LOG_MODEL_OUTPUT", "false", Boolean::parseBoolean, false);
-        this.THINKING_OUTPUT_ENABLED = loadProperty("thinking.output.enabled", "OUTPUT_THINKING", "false", Boolean::parseBoolean, false);
-        this.GEMINI_THINKING_BUDGET = loadPropertyAsInteger("gemini.thinking.budget", "GEMINI_THINKING_BUDGET", "5000", false);
-        this.MAX_RETRIES = loadPropertyAsInteger("model.max.retries", "MAX_RETRIES", "10", false);
-        this.GEMINI_THINKING_LEVEL = loadProperty("gemini.thinking.level", "GEMINI_THINKING_LEVEL", "MINIMAL", s -> s, false);
+        this.vectorDbUrl = getRequiredProperty("vector.db.url", "VECTOR_DB_URL", false);
+        this.vectorDbKey = loadProperty("vector.db.key", "VECTOR_DB_KEY", "", s -> s, true);
+        this.retrieverTopN = loadPropertyAsInteger("retriever.top.n", "RETRIEVER_TOP_N", "5", false);
+        this.maxOutputTokens = loadPropertyAsInteger("model.max.output.tokens", "MAX_OUTPUT_TOKENS", "5000", false);
+        this.temperature = loadPropertyAsDouble("model.temperature", "TEMPERATURE", "0.0", false);
+        this.topP = loadPropertyAsDouble("model.top.p", "TOP_P", "1.0", false);
+        this.modelLoggingEnabled = loadProperty("model.logging.enabled", "LOG_MODEL_OUTPUT", "false", Boolean::parseBoolean, false);
+        this.thinkingOutputEnabled = loadProperty("thinking.output.enabled", "OUTPUT_THINKING", "false", Boolean::parseBoolean, false);
+        this.geminiThinkingBudget = loadPropertyAsInteger("gemini.thinking.budget", "GEMINI_THINKING_BUDGET", "5000", false);
+        this.maxRetries = loadPropertyAsInteger("model.max.retries", "MAX_RETRIES", "10", false);
+        this.geminiThinkingLevel = loadProperty("gemini.thinking.level", "GEMINI_THINKING_LEVEL", "MINIMAL", s -> s, false);
 
         // Google API Config
-        this.GOOGLE_API_PROVIDER = getProperty("google.api.provider", "GOOGLE_API_PROVIDER", "studio_ai",
+        this.googleApiProvider = getProperty("google.api.provider", "GOOGLE_API_PROVIDER", "studio_ai",
                 s -> stream(GoogleApiProvider.values())
                         .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
                         .findAny()
@@ -169,20 +169,20 @@ public class AgentConfig {
                                 "%s is not a supported Google API provider. Supported ones: %s".formatted(s,
                                         Arrays.toString(GoogleApiProvider.values())))),
                 false);
-        this.GOOGLE_API_TOKEN = getRequiredProperty("google.api.token", "GOOGLE_API_KEY", true);
-        this.GOOGLE_PROJECT = getRequiredProperty("google.project", "GOOGLE_PROJECT", false);
-        this.GOOGLE_LOCATION = getRequiredProperty("google.location", "GOOGLE_LOCATION", false);
+        this.googleApiToken = getRequiredProperty("google.api.token", "GOOGLE_API_KEY", true);
+        this.googleProject = getRequiredProperty("google.project", "GOOGLE_PROJECT", false);
+        this.googleLocation = getRequiredProperty("google.location", "GOOGLE_LOCATION", false);
 
         // OpenAI API Config
-        this.OPENAI_API_KEY = getRequiredProperty("azure.openai.api.key", "OPENAI_API_KEY", true);
-        this.OPENAI_API_ENDPOINT = getRequiredProperty("azure.openai.endpoint", "OPENAI_API_ENDPOINT", false);
+        this.openaiApiKey = getRequiredProperty("azure.openai.api.key", "OPENAI_API_KEY", true);
+        this.openaiApiEndpoint = getRequiredProperty("azure.openai.endpoint", "OPENAI_API_ENDPOINT", false);
 
         // Groq API Config
-        this.GROQ_API_KEY = getRequiredProperty("groq.api.key", "GROQ_API_KEY", true);
-        this.GROQ_API_ENDPOINT = getRequiredProperty("groq.endpoint", "GROQ_ENDPOINT", false);
+        this.groqApiKey = getRequiredProperty("groq.api.key", "GROQ_API_KEY", true);
+        this.groqApiEndpoint = getRequiredProperty("groq.endpoint", "GROQ_ENDPOINT", false);
 
         // Anthropic API Config
-        this.ANTHROPIC_API_PROVIDER = getProperty("anthropic.api.provider", "ANTHROPIC_API_PROVIDER", "anthropic_api",
+        this.anthropicApiProvider = getProperty("anthropic.api.provider", "ANTHROPIC_API_PROVIDER", "anthropic_api",
                 s -> stream(AnthropicApiProvider.values())
                         .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
                         .findAny()
@@ -190,54 +190,54 @@ public class AgentConfig {
                                 "%s is not a supported Anthropic API provider. Supported ones: %s".formatted(s,
                                         Arrays.toString(AnthropicApiProvider.values())))),
                 false);
-        this.ANTHROPIC_API_KEY = loadProperty("anthropic.api.key", "ANTHROPIC_API_KEY", "", s -> s, true);
-        this.ANTHROPIC_API_ENDPOINT = loadProperty("anthropic.endpoint", "ANTHROPIC_ENDPOINT",
+        this.anthropicApiKey = loadProperty("anthropic.api.key", "ANTHROPIC_API_KEY", "", s -> s, true);
+        this.anthropicApiEndpoint = loadProperty("anthropic.endpoint", "ANTHROPIC_ENDPOINT",
                 "https://api.anthropic.com/v1/", s -> s, false);
 
         // Timeout and Retry Config
-        this.TEST_STEP_EXECUTION_RETRY_TIMEOUT_MILLIS = loadPropertyAsInteger(
+        this.testStepExecutionRetryTimeoutMillis = loadPropertyAsInteger(
                 "test.step.execution.retry.timeout.millis", "TEST_STEP_EXECUTION_RETRY_TIMEOUT_MILLIS", "10000", false);
-        this.TEST_STEP_EXECUTION_RETRY_INTERVAL_MILLIS = loadPropertyAsInteger(
+        this.testStepExecutionRetryIntervalMillis = loadPropertyAsInteger(
                 "test.step.execution.retry.interval.millis", "TEST_STEP_EXECUTION_RETRY_INTERVAL_MILLIS", "1000", false);
-        this.VERIFICATION_RETRY_TIMEOUT_MILLIS = loadPropertyAsInteger(
+        this.verificationRetryTimeoutMillis = loadPropertyAsInteger(
                 "verification.retry.timeout.millis", "VERIFICATION_RETRY_TIMEOUT_MILLIS", "10000", false);
-        this.ACTION_VERIFICATION_DELAY_MILLIS = loadPropertyAsInteger(
+        this.actionVerificationDelayMillis = loadPropertyAsInteger(
                 "action.verification.delay.millis", "ACTION_VERIFICATION_DELAY_MILLIS", "1000", false);
-        this.MAX_ACTION_EXECUTION_DURATION_MILLIS = loadPropertyAsInteger(
+        this.maxActionExecutionDurationMillis = loadPropertyAsInteger(
                 "max.action.execution.duration.millis", "MAX_ACTION_EXECUTION_DURATION_MILLIS", "15000", false);
 
         // Agent Specific Configs - Budgets
-        this.AGENT_TOKEN_BUDGET = loadPropertyAsInteger("agent.token.budget", "AGENT_TOKEN_BUDGET", "1000000", false);
-        this.AGENT_TOOL_CALLS_BUDGET = loadPropertyAsInteger(
+        this.agentTokenBudget = loadPropertyAsInteger("agent.token.budget", "AGENT_TOKEN_BUDGET", "1000000", false);
+        this.agentToolCallsBudget = loadPropertyAsInteger(
                 "agent.tool.calls.budget.unattended", "AGENT_TOOL_CALLS_BUDGET_UNATTENDED", "5", false);
-        this.AGENT_EXECUTION_TIME_BUDGET_SECONDS = loadPropertyAsInteger(
+        this.agentExecutionTimeBudgetSeconds = loadPropertyAsInteger(
                 "agent.execution.time.budget.seconds", "AGENT_EXECUTION_TIME_BUDGET_SECONDS", "3000", false);
 
         // Precondition Agent
-        this.PRECONDITION_AGENT_MODEL_NAME = loadProperty(
+        this.preconditionAgentModelName = loadProperty(
                 "precondition.agent.model.name", "PRECONDITION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
-        this.PRECONDITION_AGENT_MODEL_PROVIDER = getProperty(
+        this.preconditionAgentModelProvider = getProperty(
                 "precondition.agent.model.provider", "PRECONDITION_AGENT_MODEL_PROVIDER", "google",
                 this::getModelProvider, false);
-        this.PRECONDITION_AGENT_PROMPT_VERSION = loadProperty(
+        this.preconditionAgentPromptVersion = loadProperty(
                 "precondition.agent.prompt.version", "PRECONDITION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
 
         // Test Step Action Agent
-        this.TEST_STEP_ACTION_AGENT_MODEL_NAME = loadProperty(
+        this.testStepActionAgentModelName = loadProperty(
                 "test.step.action.agent.model.name", "TEST_STEP_ACTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
-        this.TEST_STEP_ACTION_AGENT_MODEL_PROVIDER = getProperty(
+        this.testStepActionAgentModelProvider = getProperty(
                 "test.step.action.agent.model.provider", "TEST_STEP_ACTION_AGENT_MODEL_PROVIDER", "google",
                 this::getModelProvider, false);
-        this.TEST_STEP_ACTION_AGENT_PROMPT_VERSION = loadProperty(
+        this.testStepActionAgentPromptVersion = loadProperty(
                 "test.step.action.agent.prompt.version", "TEST_STEP_ACTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
 
         // Test Case Extraction Agent
-        this.TEST_CASE_EXTRACTION_AGENT_MODEL_NAME = loadProperty(
+        this.testCaseExtractionAgentModelName = loadProperty(
                 "test.case.extraction.agent.model.name", "TEST_CASE_EXTRACTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
-        this.TEST_CASE_EXTRACTION_AGENT_MODEL_PROVIDER = getProperty(
+        this.testCaseExtractionAgentModelProvider = getProperty(
                 "test.case.extraction.agent.model.provider", "TEST_CASE_EXTRACTION_AGENT_MODEL_PROVIDER", "google",
                 this::getModelProvider, false);
-        this.TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION = loadProperty(
+        this.testCaseExtractionAgentPromptVersion = loadProperty(
                 "test.case.extraction.agent.prompt.version", "TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
     }
 
@@ -262,19 +262,19 @@ public class AgentConfig {
     // -----------------------------------------------------
     // RAG Config
     public RagDbProvider getVectorDbProvider() {
-        return VECTOR_DB_PROVIDER.value();
+        return vectorDbProvider.value();
     }
 
     public String getVectorDbUrl() {
-        return VECTOR_DB_URL.value();
+        return vectorDbUrl.value();
     }
 
     public String getVectorDbToken() {
-        return VECTOR_DB_KEY.value();
+        return vectorDbKey.value();
     }
 
     public int getRetrieverTopN() {
-        return RETRIEVER_TOP_N.value();
+        return retrieverTopN.value();
     }
 
     // -----------------------------------------------------
@@ -289,164 +289,164 @@ public class AgentConfig {
     }
 
     public int getMaxOutputTokens() {
-        return MAX_OUTPUT_TOKENS.value();
+        return maxOutputTokens.value();
     }
 
     public double getTemperature() {
-        return TEMPERATURE.value();
+        return temperature.value();
     }
 
     public double getTopP() {
-        return TOP_P.value();
+        return topP.value();
     }
 
     public boolean isModelLoggingEnabled() {
-        return MODEL_LOGGING_ENABLED.value();
+        return modelLoggingEnabled.value();
     }
 
     public boolean isThinkingOutputEnabled() {
-        return THINKING_OUTPUT_ENABLED.value();
+        return thinkingOutputEnabled.value();
     }
 
     public int getGeminiThinkingBudget() {
-        return GEMINI_THINKING_BUDGET.value();
+        return geminiThinkingBudget.value();
     }
 
     public int getMaxRetries() {
-        return MAX_RETRIES.value();
+        return maxRetries.value();
     }
 
     public String getGeminiThinkingLevel() {
-        return GEMINI_THINKING_LEVEL.value();
+        return geminiThinkingLevel.value();
     }
 
     // -----------------------------------------------------
     // Google API Config (Only relevant if model.provider is Google)
     public GoogleApiProvider getGoogleApiProvider() {
-        return GOOGLE_API_PROVIDER.value();
+        return googleApiProvider.value();
     }
 
     public String getGoogleApiToken() {
-        return GOOGLE_API_TOKEN.value();
+        return googleApiToken.value();
     }
 
     public String getGoogleProject() {
-        return GOOGLE_PROJECT.value();
+        return googleProject.value();
     }
 
     public String getGoogleLocation() {
-        return GOOGLE_LOCATION.value();
+        return googleLocation.value();
     }
 
     // -----------------------------------------------------
     // OpenAI API Config
     public String getOpenAiApiKey() {
-        return OPENAI_API_KEY.value();
+        return openaiApiKey.value();
     }
 
     public String getOpenAiEndpoint() {
-        return OPENAI_API_ENDPOINT.value();
+        return openaiApiEndpoint.value();
     }
 
     // -----------------------------------------------------
     // Groq API Config
     public String getGroqApiKey() {
-        return GROQ_API_KEY.value();
+        return groqApiKey.value();
     }
 
     public String getGroqEndpoint() {
-        return GROQ_API_ENDPOINT.value();
+        return groqApiEndpoint.value();
     }
 
     // -----------------------------------------------------
     // Anthropic API Config
     public AnthropicApiProvider getAnthropicApiProvider() {
-        return ANTHROPIC_API_PROVIDER.value();
+        return anthropicApiProvider.value();
     }
 
     public String getAnthropicApiKey() {
-        return ANTHROPIC_API_KEY.value();
+        return anthropicApiKey.value();
     }
 
     public String getAnthropicEndpoint() {
-        return ANTHROPIC_API_ENDPOINT.value();
+        return anthropicApiEndpoint.value();
     }
 
     // -----------------------------------------------------
     // Timeout and Retry Config
     public int getMaxActionExecutionDurationMillis() {
-        return MAX_ACTION_EXECUTION_DURATION_MILLIS.value();
+        return maxActionExecutionDurationMillis.value();
     }
 
     public RetryPolicy getActionRetryPolicy() {
         return new RetryPolicy(
-                MAX_RETRIES.value(),
-                TEST_STEP_EXECUTION_RETRY_INTERVAL_MILLIS.value(),
-                TEST_STEP_EXECUTION_RETRY_TIMEOUT_MILLIS.value());
+                maxRetries.value(),
+                testStepExecutionRetryIntervalMillis.value(),
+                testStepExecutionRetryTimeoutMillis.value());
     }
 
     public RetryPolicy getVerificationRetryPolicy() {
         return new RetryPolicy(
-                MAX_RETRIES.value(),
-                TEST_STEP_EXECUTION_RETRY_INTERVAL_MILLIS.value(),
-                VERIFICATION_RETRY_TIMEOUT_MILLIS.value());
+                maxRetries.value(),
+                testStepExecutionRetryIntervalMillis.value(),
+                verificationRetryTimeoutMillis.value());
     }
 
     public int getActionVerificationDelayMillis() {
-        return ACTION_VERIFICATION_DELAY_MILLIS.value();
+        return actionVerificationDelayMillis.value();
     }
 
     // -----------------------------------------------------
     // Agent Specific Configs - Budgets
     public int getAgentTokenBudget() {
-        return AGENT_TOKEN_BUDGET.value();
+        return agentTokenBudget.value();
     }
 
     public int getAgentToolCallsBudget() {
-        return AGENT_TOOL_CALLS_BUDGET.value();
+        return agentToolCallsBudget.value();
     }
 
     public int getAgentExecutionTimeBudgetSeconds() {
-        return AGENT_EXECUTION_TIME_BUDGET_SECONDS.value();
+        return agentExecutionTimeBudgetSeconds.value();
     }
 
     // Precondition Agent
     public String getPreconditionActionAgentModelName() {
-        return PRECONDITION_AGENT_MODEL_NAME.value();
+        return preconditionAgentModelName.value();
     }
 
     public ModelProvider getPreconditionActionAgentModelProvider() {
-        return PRECONDITION_AGENT_MODEL_PROVIDER.value();
+        return preconditionAgentModelProvider.value();
     }
 
     public String getPreconditionAgentPromptVersion() {
-        return PRECONDITION_AGENT_PROMPT_VERSION.value();
+        return preconditionAgentPromptVersion.value();
     }
 
     // Test Step Action Agent
     public String getTestStepActionAgentModelName() {
-        return TEST_STEP_ACTION_AGENT_MODEL_NAME.value();
+        return testStepActionAgentModelName.value();
     }
 
     public ModelProvider getTestStepActionAgentModelProvider() {
-        return TEST_STEP_ACTION_AGENT_MODEL_PROVIDER.value();
+        return testStepActionAgentModelProvider.value();
     }
 
     public String getTestStepActionAgentPromptVersion() {
-        return TEST_STEP_ACTION_AGENT_PROMPT_VERSION.value();
+        return testStepActionAgentPromptVersion.value();
     }
 
     // Test Case Extraction Agent
     public String getTestCaseExtractionAgentModelName() {
-        return TEST_CASE_EXTRACTION_AGENT_MODEL_NAME.value();
+        return testCaseExtractionAgentModelName.value();
     }
 
     public ModelProvider getTestCaseExtractionAgentModelProvider() {
-        return TEST_CASE_EXTRACTION_AGENT_MODEL_PROVIDER.value();
+        return testCaseExtractionAgentModelProvider.value();
     }
 
     public String getTestCaseExtractionAgentPromptVersion() {
-        return TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION.value();
+        return testCaseExtractionAgentPromptVersion.value();
     }
 
     // -----------------------------------------------------

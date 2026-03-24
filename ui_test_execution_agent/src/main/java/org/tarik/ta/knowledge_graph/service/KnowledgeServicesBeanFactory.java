@@ -2,7 +2,7 @@ package org.tarik.ta.knowledge_graph.service;
 
 import io.avaje.inject.Bean;
 import io.avaje.inject.Factory;
-import io.avaje.inject.Singleton;
+import jakarta.inject.Singleton;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;

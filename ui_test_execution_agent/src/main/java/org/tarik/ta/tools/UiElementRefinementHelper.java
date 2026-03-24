@@ -54,10 +54,10 @@ public class UiElementRefinementHelper {
         return findElementById(repository, elementId).flatMap(elementToUpdate -> {
             LOG.info("User chose to update screenshot for element: {}", elementToUpdate.name());
 
-            BoundingBoxCaptureNeededPopup.display(null);
+            BoundingBoxCaptureNeededPopup.display(null, uiTestAgentConfig);
             sleepMillis(USER_DIALOG_DISMISS_DELAY_MILLIS);
 
-            return UiElementScreenshotCaptureWindow.displayAndGetResult(null, Color.GREEN)
+            return UiElementScreenshotCaptureWindow.displayAndGetResult(null, Color.GREEN, uiTestAgentConfig)
                     .filter(UiElementCaptureResult::success)
                     .map(captureResult -> {
                         var newScreenshot = fromBufferedImage(captureResult.elementScreenshot(), "png");
@@ -77,7 +77,7 @@ public class UiElementRefinementHelper {
                 .flatMap(elementToUpdate -> {
                     var currentInfo = new UiElementInfo(elementToUpdate.name(), elementToUpdate.description(),
                             elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(), elementToUpdate.isDataDependent());
-                    return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, currentInfo)
+                    return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, currentInfo, uiTestAgentConfig)
                             .map(newInfo -> {
                                 var updatedElement = new UiElement(elementToUpdate.id(), newInfo.name(), newInfo.description(),
                                         newInfo.locationDetails(), newInfo.pageSummary(), elementToUpdate.screenshot(),

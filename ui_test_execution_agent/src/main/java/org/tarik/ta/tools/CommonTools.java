@@ -23,7 +23,7 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.avaje.inject.Singleton;
+import jakarta.inject.Singleton;
 
 import java.awt.*;
 import java.net.MalformedURLException;

@@ -22,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 
-import io.avaje.inject.Singleton;
+import jakarta.inject.Singleton;
 
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.KeyEvent;

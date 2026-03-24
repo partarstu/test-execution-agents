@@ -58,17 +58,20 @@ public class UiElementDbTools extends UiAbstractTools {
     private final UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
     private final DbUiElementSelectionAgent dbUiElementSelectionAgent;
     private final ImageUtils imageUtils;
+    private final UiElementRefinementHelper uiElementRefinementHelper;
 
     @Inject
     public UiElementDbTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
                              UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent,
                              DbUiElementSelectionAgent dbUiElementSelectionAgent,
-                             ImageUtils imageUtils) {
+                             ImageUtils imageUtils,
+                             UiElementRefinementHelper uiElementRefinementHelper) {
         super(uiStateCheckAgent);
         this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
         this.uiElementExtendedDescriptionAgent = requireNonNull(uiElementExtendedDescriptionAgent, "uiElementExtendedDescriptionAgent");
         this.dbUiElementSelectionAgent = requireNonNull(dbUiElementSelectionAgent, "dbUiElementSelectionAgent");
         this.imageUtils = requireNonNull(imageUtils, "imageUtils");
+        this.uiElementRefinementHelper = requireNonNull(uiElementRefinementHelper, "uiElementRefinementHelper");
     }
 
     @Tool("Searches for a UI element in the database using vector similarity and selects the best candidate.")
@@ -79,7 +82,7 @@ public class UiElementDbTools extends UiAbstractTools {
             throw new ToolExecutionException("Element description cannot be empty", TRANSIENT_TOOL_ERROR);
         }
         try {
-            var retrievedElements = UiElementRefinementHelper.retrieveUiElements(elementRepository, elementDescription);
+            var retrievedElements = uiElementRefinementHelper.retrieveUiElements(elementRepository, elementDescription);
             var candidates = retrievedElements.stream()
                     .map(UiElementRepository.UiElementMatch::element)
                     .toList();

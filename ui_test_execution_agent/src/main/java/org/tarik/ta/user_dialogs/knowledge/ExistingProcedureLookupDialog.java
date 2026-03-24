@@ -15,8 +15,10 @@
  */
 package org.tarik.ta.user_dialogs.knowledge;
 
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
 import org.tarik.ta.user_dialogs.AbstractDialog;
@@ -70,8 +72,9 @@ class ExistingProcedureLookupDialog extends AbstractDialog {
     private LookupResult result = new LookupResult.Cancelled();
 
     private ExistingProcedureLookupDialog(Window owner, String initialText, KnowledgeService knowledgeService,
-                                          boolean showCreateNew, Set<UUID> excludedIds, long procedureLookupDelayMs) {
-        super(owner, "Search Existing Procedures");
+                                          boolean showCreateNew, Set<UUID> excludedIds, long procedureLookupDelayMs,
+                                          UiTestAgentConfig config) {
+        super(owner, "Search Existing Procedures", config);
         this.knowledgeService = knowledgeService;
         this.showCreateNew = showCreateNew;
         this.excludedIds = excludedIds;
@@ -311,7 +314,8 @@ class ExistingProcedureLookupDialog extends AbstractDialog {
      * @return the lookup result
      */
     static LookupResult displayAndGetResult(Window owner, String initialText, KnowledgeService knowledgeService,
-                                            boolean showCreateNew, Set<UUID> excludedIds, long procedureLookupDelayMs) {
-        return new ExistingProcedureLookupDialog(owner, initialText, knowledgeService, showCreateNew, excludedIds, procedureLookupDelayMs).result;
+                                            boolean showCreateNew, Set<UUID> excludedIds, long procedureLookupDelayMs,
+                                            UiTestAgentConfig config) {
+        return new ExistingProcedureLookupDialog(owner, initialText, knowledgeService, showCreateNew, excludedIds, procedureLookupDelayMs, config).result;
     }
 }

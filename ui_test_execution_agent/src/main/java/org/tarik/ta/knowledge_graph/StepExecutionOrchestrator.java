@@ -15,7 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph;
 
-import io.avaje.inject.Singleton;
+import jakarta.inject.Singleton;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
@@ -57,6 +57,7 @@ import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.RetryLoopOu
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.*;
 import static org.tarik.ta.dto.ProcedureExecutionConfirmationResult.Decision.HALTED;
 import static org.tarik.ta.utils.ImageUtils.getInstance;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
@@ -167,7 +168,7 @@ class StepExecutionOrchestrator {
                 var decision = ProcedureExecutionConfirmationPopup.displayAndGetUserDecision(
                         atomicStep.description(),
                         parentProcedure != null ? parentProcedure.description() : null, itemContext,
-                        uiTestAgentConfig.getSupervisedCountdownSeconds(), true);
+                        uiTestAgentConfig.getSupervisedCountdownSeconds(), true, uiTestAgentConfig);
                 if (decision.decision() == HALTED) {
                     LOG.info("User halted execution before step — prompting for next action");
                     var haltResult = handleHaltDecision(
@@ -195,7 +196,7 @@ class StepExecutionOrchestrator {
                     var decision = ProcedureExecutionConfirmationPopup.displayAndGetUserDecision(
                             atomicStep.description(),
                             parentProcedure != null ? parentProcedure.description() : null, itemContext,
-                            uiTestAgentConfig.getSupervisedCountdownSeconds(), false);
+                            uiTestAgentConfig.getSupervisedCountdownSeconds(), false, uiTestAgentConfig);
                     if (decision.decision() == HALTED) {
                         LOG.info("User halted execution after success — prompting for next action");
                         var haltResult = handleHaltDecision(
@@ -235,7 +236,7 @@ class StepExecutionOrchestrator {
                     var errorScreenshot = captureScreen();
                     context.setVisualState(new VisualState(errorScreenshot));
                     InformationalPopup.display("Error During Execution", errorMessage, errorScreenshot,
-                            PopupType.ERROR);
+                            PopupType.ERROR, uiTestAgentConfig);
                     var outcome = promptUserAndDispatch(errorMessage, atomicStep, itemTestData, itemExpectedResults,
                             itemDescription, isPreconditionItem, context, executedAtomics);
                     if (outcome == TERMINATE_EXECUTION) {
@@ -262,7 +263,7 @@ class StepExecutionOrchestrator {
                                                    List<Procedure> executedAtomics) {
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPreconditionItem);
         while (true) {
-            var decision = NextActionPopup.displayAndGetUserDecision(null, message);
+            var decision = NextActionPopup.displayAndGetUserDecision(null, message, uiTestAgentConfig);
             switch (decision) {
                 case EDIT_CURRENT_PROCEDURE -> {
                     LOG.info("User chose to edit procedure '{}'", atomicStep.description());
@@ -275,10 +276,9 @@ class StepExecutionOrchestrator {
                         if (editResult.savedProcedureId().filter(id -> id.equals(atomicStep.id())).isPresent()) {
                             return RE_FETCH_AND_RETRY;
                         }
-                        // A parent was saved — the execution graph has changed, continuing is unsafe
                         InformationalPopup.display("Execution Terminated",
                                 "A parent procedure was modified. Execution cannot continue with the current execution graph.",
-                                null, PopupType.INFO);
+                                null, PopupType.INFO, uiTestAgentConfig);
                         return TERMINATE_EXECUTION;
                     }
                 }
@@ -318,7 +318,7 @@ class StepExecutionOrchestrator {
                 () -> {
                     String userMessage = getPreconditionExecutionUserMessage(context, precondition, testDataString, relevantData,
                             execContext.uiElementId(), execContext.failureHints());
-                    return preconditionActionAgent.execute(userMessage, getInstance().singleImageContent(actionScreenshot));
+                    return preconditionActionAgent.execute(userMessage, singleImageContent(actionScreenshot));
                 });
         budgetManager.resetToolCallUsage();
 
@@ -420,7 +420,7 @@ class StepExecutionOrchestrator {
             context.setVisualState(new VisualState(screenshot));
             var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) actionAgent.executeAndGetResult(() -> {
                 String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, execContext.uiElementId(), execContext.failureHints());
-                actionAgent.execute(userMessage, getInstance().singleImageContent(screenshot));
+                actionAgent.execute(userMessage, singleImageContent(screenshot));
                 return null;
             }));
             budgetManager.resetToolCallUsage();
@@ -534,7 +534,7 @@ class StepExecutionOrchestrator {
 
     private void notifyVerificationFailure(String description, String failureMessage, BufferedImage screenshot) {
         if (!uiTestAgentConfig.isFullyUnattended()) {
-            VerificationFailurePopup.display(description, failureMessage, screenshot);
+            VerificationFailurePopup.display(description, failureMessage, screenshot, uiTestAgentConfig);
         } else {
             LOG.warn("Verification failed: {} — {}", description, failureMessage);
         }

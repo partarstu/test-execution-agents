@@ -40,8 +40,9 @@ public class ProcedureExecutionConfirmationPopup
     private JButton proceedButton;
 
     private ProcedureExecutionConfirmationPopup(String atomicDescription, @Nullable String parentDescription,
-                                                @Nullable ExecutionItemContext itemContext, int timeoutSeconds, boolean isPreExecution) {
-        super(TITLE, proceed(), timeoutSeconds);
+                                                @Nullable ExecutionItemContext itemContext, int timeoutSeconds, boolean isPreExecution,
+                                                org.tarik.ta.UiTestAgentConfig config) {
+        super(TITLE, proceed(), timeoutSeconds, config);
 
         initializeComponents(atomicDescription, parentDescription, itemContext, isPreExecution);
         setFocusableWindowState(false);
@@ -146,8 +147,8 @@ public class ProcedureExecutionConfirmationPopup
      */
     public static ProcedureExecutionConfirmationResult displayAndGetUserDecision(
             String atomicDescription, @Nullable String parentDescription, @Nullable ExecutionItemContext itemContext,
-            int seconds, boolean isPreExecution) {
-        var popup = new ProcedureExecutionConfirmationPopup(atomicDescription, parentDescription, itemContext, seconds, isPreExecution);
+            int seconds, boolean isPreExecution, org.tarik.ta.UiTestAgentConfig config) {
+        var popup = new ProcedureExecutionConfirmationPopup(atomicDescription, parentDescription, itemContext, seconds, isPreExecution, config);
         return popup.getResult();
     }
 }
