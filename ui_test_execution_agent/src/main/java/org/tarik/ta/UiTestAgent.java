@@ -15,10 +15,13 @@
  */
 package org.tarik.ta;
 
+import jakarta.inject.Singleton;
 import io.avaje.inject.BeanScope;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.config.scopes.BaseAgentRequestScopeModule;
+import org.tarik.ta.config.scopes.UiAgentRequestScopeModule;
 import org.tarik.ta.agents.*;
 import org.tarik.ta.core.dto.*;
 import org.tarik.ta.core.manager.BudgetManager;
@@ -26,10 +29,11 @@ import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 import org.tarik.ta.dto.UiTestExecutionResult;
-import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
+import org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator;
+import org.tarik.ta.knowledge_graph.service.ExecutionStateTracker;
+import org.tarik.ta.knowledge_graph.service.KnowledgeService;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.model.VisualState;
-import org.tarik.ta.tools.CommonTools;
 import org.tarik.ta.user_dialogs.knowledge.TestStepSelectionPopup;
 import org.tarik.ta.utils.ScreenRecorder;
 
@@ -42,31 +46,43 @@ import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.*;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
-import static org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator.executeBasedOnKnowledge;
-import static org.tarik.ta.knowledge_graph.service.KnowledgeServiceFactory.createKnowledgeServices;
 import static org.tarik.ta.UiTestAgentConfig.*;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 import java.net.InetAddress;
 
+@Singleton
 public class UiTestAgent {
     private static final Logger LOG = LoggerFactory.getLogger(UiTestAgent.class);
 
-    private UiTestAgent() {
+    private final KnowledgeBasedExecutionOrchestrator knowledgeBasedExecutionOrchestrator;
+    private final KnowledgeService knowledgeService;
+    private final UiTestAgentConfig uiTestAgentConfig;
+    private final TestCaseExtractor testCaseExtractor;
+    private final BeanScope appScope;
+
+    public UiTestAgent(KnowledgeBasedExecutionOrchestrator knowledgeBasedExecutionOrchestrator,
+                       KnowledgeService knowledgeService,
+                       UiTestAgentConfig uiTestAgentConfig,
+                       TestCaseExtractor testCaseExtractor,
+                       BeanScope appScope) {
+        this.knowledgeBasedExecutionOrchestrator = knowledgeBasedExecutionOrchestrator;
+        this.knowledgeService = knowledgeService;
+        this.uiTestAgentConfig = uiTestAgentConfig;
+        this.testCaseExtractor = testCaseExtractor;
+        this.appScope = appScope;
     }
 
-    public static TestExecutionResult executeTestCase(String receivedMessage, BeanScope appScope) {
+    public TestExecutionResult executeTestCase(String receivedMessage) {
         var testExecutionStartTimestamp = now();
-        ScreenRecorder screenRecorder = new ScreenRecorder();
-        LogCapture logCapture = new LogCapture();
         SystemInfo systemInfo = null;
 
         try {
             BudgetManager.reset();
-            if (isFullyUnattended()) {
+            if (uiTestAgentConfig.isFullyUnattended()) {
                 BudgetManager.activateTimeBudget();
             }
-            var extractedTestCase = TestCaseExtractor.extractTestCase(receivedMessage);
+            var extractedTestCase = testCaseExtractor.extractTestCase(receivedMessage);
             if (extractedTestCase.isEmpty()) {
                 var errorMessage = "Failed to extract a valid test case from the provided message. " +
                         "Please ensure the message contains all required information (test case name, test steps with descriptions).";
@@ -78,15 +94,23 @@ public class UiTestAgent {
 
             TestCase testCase = extractedTestCase.get();
             LOG.info("Starting execution of the test case '{}'", testCase.name());
-            screenRecorder.beginScreenCapture();
-            logCapture.start();
             systemInfo = getSystemInfo();
 
+            try (BeanScope requestScope = BeanScope.builder()
+                    .parent(appScope)
+                    .modules(new BaseAgentRequestScopeModule(testCase), new UiAgentRequestScopeModule(new VisualState(captureScreen())))
+                    .build()) {
+                var screenRecorder = requestScope.get(ScreenRecorder.class);
+                var logCapture = requestScope.get(LogCapture.class);
+                var context = requestScope.get(UiTestExecutionContext.class);
+                var stateTracker = requestScope.get(ExecutionStateTracker.class);
+
+                screenRecorder.beginScreenCapture();
+                logCapture.start();
+
             try {
-                var context = new UiTestExecutionContext(testCase, new VisualState(captureScreen()));
-                var commonTools = new CommonTools();
                 int startingStepIndex = 0;
-                if (!isFullyUnattended()) {
+                if (!uiTestAgentConfig.isFullyUnattended()) {
                     startingStepIndex = TestStepSelectionPopup.displayAndGetSelection(testCase.testSteps());
                     if (startingStepIndex < 0) {
                         LOG.info("Operator selected to abort execution from the step selection dialog.");
@@ -100,9 +124,10 @@ public class UiTestAgent {
                 }
 
                 return executeWithKnowledgeFlow(context, testCase, startingStepIndex, testExecutionStartTimestamp,
-                        systemInfo, screenRecorder, logCapture, commonTools, appScope);
+                        systemInfo, screenRecorder, logCapture, stateTracker);
             } finally {
                 LOG.info("Finished execution of the test case '{}'", testCase.name());
+            }
             }
         } catch (Exception e) {
             LOG.error("Unexpected error during test case execution", e);
@@ -110,82 +135,57 @@ public class UiTestAgent {
                 systemInfo = getSystemInfo();
             }
             return new UiTestExecutionResult("Unknown Test Case", ERROR, List.of(), List.of(), captureScreen(),
-                    systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs(),
+                    systemInfo, null, List.of(),
                     testExecutionStartTimestamp, now(),
                     "Unexpected error during test case execution: " + e.getMessage());
-        } finally {
-            screenRecorder.endScreenCapture();
-            logCapture.stop();
         }
     }
 
     /**
-     * Creates a request-scoped child BeanScope containing fresh agent instances, then runs the
-     * knowledge-based execution flow. The child scope is closed when the request completes.
+     * Runs the knowledge-based execution flow. The request scope has already
+     * been created above.
      */
-    private static UiTestExecutionResult executeWithKnowledgeFlow(UiTestExecutionContext context, TestCase testCase,
+    private UiTestExecutionResult executeWithKnowledgeFlow(UiTestExecutionContext context, TestCase testCase,
             int startingStepIndex, Instant testExecutionStartTimestamp,
             SystemInfo systemInfo,
-            ScreenRecorder screenRecorder, LogCapture logCapture,
-            CommonTools commonTools, BeanScope appScope) {
-        var knowledgeServices = createKnowledgeServices();
-        ElementLocationHistoryLookup lookupBean = knowledgeServices.stabilityLookup()::apply;
-        var agentsBeanFactory = appScope.get(UiAgentsBeanFactory.class);
+            ScreenRecorder screenRecorder, LogCapture logCapture, ExecutionStateTracker stateTracker) {
+        try {
+            knowledgeBasedExecutionOrchestrator.executeBasedOnKnowledge(context, testCase, startingStepIndex, stateTracker);
 
-        try (BeanScope requestScope = BeanScope.builder()
-                .parent(appScope, false)
-                .bean(UiTestStepVerificationAgent.class, agentsBeanFactory.createTestStepVerificationAgent())
-                .bean(UiPreconditionVerificationAgent.class, agentsBeanFactory.createPreconditionVerificationAgent())
-                .bean(UiTestStepActionAgent.class, agentsBeanFactory.createTestStepActionAgent(
-                        commonTools, knowledgeServices.locationHistoryRecorder(), lookupBean))
-                .bean(UiPreconditionActionAgent.class, agentsBeanFactory.createPreconditionActionAgent(
-                        commonTools, knowledgeServices.locationHistoryRecorder(), lookupBean))
-                .bean(KnowledgeSuggestionAgent.class, agentsBeanFactory.createKnowledgeSuggestionAgent())
-                .build()) {
-
-            try {
-                executeBasedOnKnowledge(context, testCase, startingStepIndex, knowledgeServices, commonTools,
-                        requestScope.get(UiTestStepVerificationAgent.class),
-                        requestScope.get(UiPreconditionVerificationAgent.class),
-                        requestScope.get(UiTestStepActionAgent.class),
-                        requestScope.get(UiPreconditionActionAgent.class),
-                        requestScope.get(KnowledgeSuggestionAgent.class));
-
-                if (hasStepFailures(context) || hasPreconditionFailures(context)) {
-                    var lastStep = context.getTestStepExecutionHistory().isEmpty() ? null
-                            : context.getTestStepExecutionHistory().getLast();
-                    if (lastStep != null && lastStep.getExecutionStatus() == FAILURE) {
-                        return buildErrorResult(context, FAILED, testExecutionStartTimestamp, lastStep.getErrorMessage(),
-                                null, systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
-                    } else if (lastStep != null) {
-                        return buildErrorResult(context, ERROR, testExecutionStartTimestamp, lastStep.getErrorMessage(),
-                                captureScreen(), systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
-                    } else {
-                        var failedPrecondition = context.getPreconditionExecutionHistory().stream()
-                                .filter(p -> !p.isSuccess())
-                                .findFirst();
-                        String errorMessage = failedPrecondition.map(PreconditionResult::getErrorMessage)
-                                .orElse("Unknown error during knowledge-based execution");
-                        return buildErrorResult(context, ERROR, testExecutionStartTimestamp, errorMessage,
-                                context.getVisualState().screenshot(), systemInfo, screenRecorder.getCurrentRecordingPath(),
-                                logCapture.getLogs());
-                    }
+            if (hasStepFailures(context) || hasPreconditionFailures(context)) {
+                var lastStep = context.getTestStepExecutionHistory().isEmpty() ? null
+                        : context.getTestStepExecutionHistory().getLast();
+                if (lastStep != null && lastStep.getExecutionStatus() == FAILURE) {
+                    return buildErrorResult(context, FAILED, testExecutionStartTimestamp, lastStep.getErrorMessage(),
+                            null, systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
+                } else if (lastStep != null) {
+                    return buildErrorResult(context, ERROR, testExecutionStartTimestamp, lastStep.getErrorMessage(),
+                            captureScreen(), systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs());
                 } else {
-                    return new UiTestExecutionResult(testCase.name(), PASSED, context.getPreconditionExecutionHistory(),
-                            context.getTestStepExecutionHistory(), null, systemInfo,
-                            screenRecorder.getCurrentRecordingPath(),
-                            logCapture.getLogs(), testExecutionStartTimestamp, now(), null);
+                    var failedPrecondition = context.getPreconditionExecutionHistory().stream()
+                            .filter(p -> !p.isSuccess())
+                            .findFirst();
+                    String errorMessage = failedPrecondition.map(PreconditionResult::getErrorMessage)
+                            .orElse("Unknown error during knowledge-based execution");
+                    return buildErrorResult(context, ERROR, testExecutionStartTimestamp, errorMessage,
+                            context.getVisualState().screenshot(), systemInfo, screenRecorder.getCurrentRecordingPath(),
+                            logCapture.getLogs());
                 }
-            } catch (Exception e) {
-                LOG.error("Error during knowledge-based execution", e);
-                return new UiTestExecutionResult(testCase.name(), ERROR, context.getPreconditionExecutionHistory(),
-                        context.getTestStepExecutionHistory(), captureScreen(), systemInfo,
+            } else {
+                return new UiTestExecutionResult(testCase.name(), PASSED, context.getPreconditionExecutionHistory(),
+                        context.getTestStepExecutionHistory(), null, systemInfo,
                         screenRecorder.getCurrentRecordingPath(),
-                        logCapture.getLogs(), testExecutionStartTimestamp, now(),
-                        "Knowledge-based execution error: " + e.getMessage());
-            } finally {
-                knowledgeServices.mainKnowledgeService().onSessionEnd();
+                        logCapture.getLogs(), testExecutionStartTimestamp, now(), null);
             }
+        } catch (Exception e) {
+            LOG.error("Error during knowledge-based execution", e);
+            return new UiTestExecutionResult(testCase.name(), ERROR, context.getPreconditionExecutionHistory(),
+                    context.getTestStepExecutionHistory(), captureScreen(), systemInfo,
+                    screenRecorder.getCurrentRecordingPath(),
+                    logCapture.getLogs(), testExecutionStartTimestamp, now(),
+                    "Knowledge-based execution error: " + e.getMessage());
+        } finally {
+            knowledgeService.onSessionEnd();
         }
     }
 

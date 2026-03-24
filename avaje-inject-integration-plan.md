@@ -419,7 +419,7 @@ constraints remain manually created. Everything else is DI-managed (`@Singleton`
 
 ### Phase 14: Circular Dependency Resolution & Orchestrators
 
-- [ ] **Annotate NEW class `ProcedureKnowledgeCollectionService` with `@Singleton`**: move `triggerNewProcedureFlow()` and
+- [x] **Annotate NEW class `ProcedureKnowledgeCollectionService` with `@Singleton`**: move `triggerNewProcedureFlow()` and
   `triggerEditProcedureFlow()` out of `KnowledgeBasedExecutionOrchestrator`. Add **constructor**
   `ProcedureKnowledgeCollectionService(KnowledgeSuggestionAgent knowledgeSuggestionAgent, KnowledgeService knowledgeService, KnowledgeIngestionService knowledgeIngestionService)` —
   avaje auto-injects all three (`KnowledgeSuggestionAgent` is a `@Bean @Singleton` from `UiAgentsBeanFactory`). Store in `private final` fields.
@@ -428,14 +428,14 @@ constraints remain manually created. Everything else is DI-managed (`@Singleton`
   `knowledgeSuggestionAgent` field. Update all callers: `StepExecutionOrchestrator` and `KnowledgeBasedExecutionOrchestrator` add
   `ProcedureKnowledgeCollectionService` as a **constructor parameter** (avaje auto-injects) and stop passing `KnowledgeService`/
   `KnowledgeIngestionService` as method arguments
-- [ ] **Annotate `StepExecutionOrchestrator` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `StepExecutionOrchestrator` class with `@Singleton`**. Add **constructor**
   `StepExecutionOrchestrator(VerificationTools verificationTools, BudgetManager budgetManager, UiTestAgentConfig uiTestAgentConfig, ProcedureKnowledgeCollectionService procedureKnowledgeCollectionService, CommonTools commonTools, UiTestStepActionAgent actionAgent, UiPreconditionActionAgent preconditionActionAgent, UiTestStepVerificationAgent verificationAgent, UiPreconditionVerificationAgent preconditionVerificationAgent)` —
   avaje auto-injects all nine (the four agents are `@Bean @Singleton` from `UiAgentsBeanFactory`). Store in `private final` fields. Replace
   `Supplier<UiTestStepActionAgent>` and `Supplier<UiPreconditionActionAgent>` parameters in `executeAtomicStepWithRetryLoop()` with direct
   agent references from injected fields — agents are now singletons, no need for supplier-based recreation. Replace `resetToolCallUsage()` static import calls with `budgetManager.resetToolCallUsage()`. Convert the
   `ACTION_VERIFICATION_DELAY_MILLIS` static constant to a `private final long actionVerificationDelayMillis` instance field initialized in
   the constructor body from `uiTestAgentConfig.getActionVerificationDelayMillis()`
-- [ ] **Annotate `KnowledgeBasedExecutionOrchestrator` class with `@Singleton`**. Add **constructor**
+- [x] **Annotate `KnowledgeBasedExecutionOrchestrator` class with `@Singleton`**. Add **constructor**
   `KnowledgeBasedExecutionOrchestrator(KnowledgeService knowledgeService, KnowledgeIngestionService knowledgeIngestionService, StepExecutionOrchestrator stepExecutionOrchestrator, ProcedureKnowledgeCollectionService procedureKnowledgeCollectionService, SatisfiesEdgeService satisfiesEdgeService, CommonTools commonTools, LocationHistoryRecorder locationHistoryRecorder, ElementLocationHistoryLookup elementLocationHistoryLookup, UiTestStepActionAgent actionAgent, UiPreconditionActionAgent preconditionActionAgent, UiTestStepVerificationAgent verificationAgent, UiPreconditionVerificationAgent preconditionVerificationAgent)` —
   avaje auto-injects all twelve (agents are `@Bean @Singleton` from `UiAgentsBeanFactory`). Store in `private final` fields. Remove
   `KnowledgeServices` and `CommonTools` parameters from `executeBasedOnKnowledge()` method signature — use injected fields. Replace

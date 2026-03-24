@@ -22,6 +22,8 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.core.model.TestExecutionContext;
+import org.tarik.ta.core.config.scopes.BaseAgentRequestScope;
+import jakarta.inject.Inject;
 
 import java.io.File;
 import java.io.FileReader;
@@ -32,10 +34,12 @@ import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import java.nio.file.Files;
 
+@BaseAgentRequestScope
 public class TestContextDataTools extends AbstractTools {
     private final TestExecutionContext context;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Inject
     public TestContextDataTools(TestExecutionContext context) {
         this.context = context;
     }

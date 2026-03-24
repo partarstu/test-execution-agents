@@ -19,6 +19,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.config.scopes.UiAgentRequestScope;
+import jakarta.annotation.PreDestroy;
 
 import java.util.List;
 import java.util.Map;
@@ -47,6 +49,7 @@ import static org.tarik.ta.UiTestAgentConfig.getAncestryWindowSize;
  *
  * <p>Effect node IDs are stored from {@link PhraseEmbedding} objects for graph-based semantic checks.</p>
  */
+@UiAgentRequestScope
 public class ExecutionStateTracker {
     private static final Logger LOG = LoggerFactory.getLogger(ExecutionStateTracker.class);
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
@@ -124,6 +127,7 @@ public class ExecutionStateTracker {
     /**
      * Clears the current state (typically called at session start).
      */
+    @PreDestroy
     public void reset() {
         currentState.clear();
         effectNodeIds.clear();

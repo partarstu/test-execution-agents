@@ -18,6 +18,8 @@ package org.tarik.ta.core.model;
 import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.core.dto.TestCase;
+import org.tarik.ta.core.config.scopes.BaseAgentRequestScope;
+import jakarta.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -27,12 +29,14 @@ import java.util.Map;
 /**
  * Holds the context and state of the current test execution.
  */
+@BaseAgentRequestScope
 public class TestExecutionContext {
     private final TestCase testCase;
     private final List<TestStepResult> testStepExecutionHistory;
     private final List<PreconditionResult> preconditionExecutionHistory;
     private final Map<String, Object> sharedData;
 
+    @Inject
     public TestExecutionContext(TestCase testCase) {
         this.testCase = testCase;
         this.testStepExecutionHistory = new ArrayList<>();

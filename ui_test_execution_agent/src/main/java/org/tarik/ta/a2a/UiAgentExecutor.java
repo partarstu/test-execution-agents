@@ -15,10 +15,10 @@
  */
 package org.tarik.ta.a2a;
 
-import io.avaje.inject.BeanScope;
 import io.a2a.spec.FilePart;
 import io.a2a.spec.FileWithBytes;
 import io.a2a.spec.Part;
+import jakarta.inject.Singleton;
 import org.tarik.ta.UiTestAgent;
 import org.tarik.ta.core.a2a.AbstractAgentExecutor;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -31,18 +31,19 @@ import java.util.Optional;
 import static java.util.Optional.ofNullable;
 import static org.tarik.ta.utils.ImageUtils.getInstance;
 
+@Singleton
 public class UiAgentExecutor extends AbstractAgentExecutor {
     public static final String SCREENSHOT_FORMAT = "png";
 
-    private final BeanScope appScope;
+    private final UiTestAgent uiTestAgent;
 
-    public UiAgentExecutor(BeanScope appScope) {
-        this.appScope = appScope;
+    public UiAgentExecutor(UiTestAgent uiTestAgent) {
+        this.uiTestAgent = uiTestAgent;
     }
 
     @Override
     protected TestExecutionResult executeTestCase(String message) {
-        return UiTestAgent.executeTestCase(message, appScope);
+        return uiTestAgent.executeTestCase(message);
     }
 
     @Override
