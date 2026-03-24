@@ -29,7 +29,9 @@ It is implemented as a standalone Cloud Run-deployable service that communicates
 ## Key Classes
 
 The runtime bootstrap now uses Avaje Inject modules. `Server` creates the root `BeanScope`, resolves `AbstractServer` from `agent_core`,
-and `ApiAgentExecutor` opens a child request scope through `ApiAgentRequestScopeFactory` for each test case execution.
+and `ApiAgentExecutor` opens a child request scope through `ApiAgentRequestScopeFactory` for each test case execution. The request scope
+explicitly reuses app-scope singletons such as `ApiTestAgentConfig`, `ModelFactory`, `TestCaseExtractor`, and `BudgetManager` so manual
+or nested scope creation resolves all required dependencies consistently.
 
 | Class | Description |
 |-------|-------------|

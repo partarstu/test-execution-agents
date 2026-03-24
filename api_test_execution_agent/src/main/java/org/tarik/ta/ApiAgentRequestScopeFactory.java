@@ -18,6 +18,9 @@ package org.tarik.ta;
 import io.avaje.inject.BeanScope;
 import jakarta.inject.Singleton;
 import org.tarik.ta.core.BaseAgentRequestModule;
+import org.tarik.ta.core.manager.BudgetManager;
+import org.tarik.ta.core.model.ModelFactory;
+import org.tarik.ta.core.utils.TestCaseExtractor;
 
 @Singleton
 public class ApiAgentRequestScopeFactory {
@@ -30,7 +33,15 @@ public class ApiAgentRequestScopeFactory {
     public BeanScope create() {
         return BeanScope.builder()
                 .parent(appScope)
+                .bean(ApiTestAgentConfig.class, getAppConfig())
+                .bean(ModelFactory.class, appScope.get(ModelFactory.class))
+                .bean(TestCaseExtractor.class, appScope.get(TestCaseExtractor.class))
+                .bean(BudgetManager.class, appScope.get(BudgetManager.class))
                 .modules(new BaseAgentRequestModule(), new ApiAgentRequestModule())
                 .build();
+    }
+
+    private ApiTestAgentConfig getAppConfig() {
+        return appScope.get(ApiTestAgentConfig.class);
     }
 }

@@ -56,7 +56,6 @@ import static java.util.stream.Collectors.joining;
 import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.RetryLoopOutcome.*;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.*;
 import static org.tarik.ta.dto.ProcedureExecutionConfirmationResult.Decision.HALTED;
-import static org.tarik.ta.utils.ImageUtils.getInstance;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.core.utils.CommonUtils.*;
