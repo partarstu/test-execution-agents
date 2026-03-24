@@ -16,13 +16,17 @@
 package org.tarik.ta.tools;
 
 import dev.langchain4j.service.Result;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.BaseUiAgent;
 import org.tarik.ta.agents.UiPreconditionVerificationAgent;
 import org.tarik.ta.agents.UiTestStepVerificationAgent;
+import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.dto.UiOperationExecutionResult;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.model.VisualState;
@@ -31,20 +35,26 @@ import java.time.Instant;
 import java.util.function.Supplier;
 
 import static java.time.Instant.now;
-import static org.tarik.ta.core.AgentConfig.getVerificationRetryPolicy;
-import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.core.utils.CommonUtils.getDurationInMillis;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
+import static java.util.Objects.requireNonNull;
 
+@Singleton
 public class VerificationTools {
     private static final Logger LOG = LoggerFactory.getLogger(VerificationTools.class);
 
-    private VerificationTools() {
+    private final BudgetManager budgetManager;
+    private final AgentConfig agentConfig;
+
+    @Inject
+    public VerificationTools(BudgetManager budgetManager, AgentConfig agentConfig) {
+        this.budgetManager = requireNonNull(budgetManager, "budgetManager");
+        this.agentConfig = requireNonNull(agentConfig, "agentConfig");
     }
 
-    public static VerificationExecutionResult verifyTestStep(String verificationDescription, String actionDescription,
+    public VerificationExecutionResult verifyTestStep(String verificationDescription, String actionDescription,
                                                              String actionTestData, UiTestExecutionContext context,
                                                              UiTestStepVerificationAgent verificationAgent) {
 
@@ -58,7 +68,7 @@ public class VerificationTools {
         return executeVerificationWithRetry(verificationAgent, operation, "Verification");
     }
 
-    public static VerificationExecutionResult verifyPrecondition(
+    public VerificationExecutionResult verifyPrecondition(
             String preconditionDescription,
             UiTestExecutionContext context,
             UiPreconditionVerificationAgent preconditionVerificationAgent,
@@ -74,7 +84,7 @@ public class VerificationTools {
         return executeVerificationWithRetry(preconditionVerificationAgent, operation, "Precondition verification");
     }
 
-    private static String buildPreconditionVerificationMessage(String preconditionDescription, String sharedData, String relevantData) {
+    private String buildPreconditionVerificationMessage(String preconditionDescription, String sharedData, String relevantData) {
         var relevantDataSection = relevantData.isBlank() ? ""
                 : "\nRelevant data for this precondition: %s\n".formatted(relevantData);
         return """
@@ -84,12 +94,12 @@ public class VerificationTools {
                 """.formatted(preconditionDescription, relevantDataSection, sharedData);
     }
 
-    private static VerificationExecutionResult executeVerificationWithRetry(
+    private VerificationExecutionResult executeVerificationWithRetry(
             BaseUiAgent<VerificationExecutionResult> agent,
             Supplier<Result<?>> operation,
             String label) {
 
-        RetryPolicy retryPolicy = getVerificationRetryPolicy();
+        RetryPolicy retryPolicy = agentConfig.getVerificationRetryPolicy();
         int attempts = 0;
         Instant start = now();
 
@@ -100,7 +110,7 @@ public class VerificationTools {
                 lastResult = (UiOperationExecutionResult<VerificationExecutionResult>) agent
                         .executeAndGetResult(operation);
                 attempts++;
-                resetToolCallUsage();
+                budgetManager.resetToolCallUsage();
 
                 if (!lastResult.isSuccess()) {
                     return new VerificationExecutionResult(false, lastResult.getMessage());

@@ -17,6 +17,8 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.apache.commons.math3.ml.clustering.Cluster;
 import org.apache.commons.math3.ml.clustering.Clusterable;
 import org.apache.commons.math3.ml.clustering.DBSCANClusterer;
@@ -68,10 +70,8 @@ import static java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor;
 import static java.util.stream.Collectors.*;
 import static java.util.stream.IntStream.range;
 import static java.util.stream.Stream.concat;
-import static org.tarik.ta.UiTestAgentConfig.*;
+
 import static org.tarik.ta.core.error.ErrorCategory.*;
-import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
-import static org.tarik.ta.core.model.ModelFactory.getModel;
 import static org.tarik.ta.utils.BoundingBoxUtil.*;
 import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
@@ -79,49 +79,40 @@ import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithORB;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithTemplateMatching;
 import static org.tarik.ta.utils.ImageUtils.*;
 
+@Singleton
 public class ElementLocatorTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(ElementLocatorTools.class);
-    private static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
-    private static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
-    private static final boolean DEBUG_MODE = AgentConfig.isDebugMode();
 
     private final UiElementRepository elementRepository;
     private final UiElementBoundingBoxAgent uiElementBoundingBoxAgent;
     private final BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent;
     private final LocationHistoryRecorder locationHistoryRecorder;
     private final Function<UUID, Optional<ElementLocationHistory>> stabilityLookup;
+    private final UiTestAgentConfig uiTestAgentConfig;
+    private final AgentConfig agentConfig;
+    private final String boundingBoxColorName;
+    private final Color boundingBoxColor;
+    private final boolean debugMode;
 
-    public ElementLocatorTools() {
-        this(null, null);
-    }
-
-    public ElementLocatorTools(LocationHistoryRecorder locationHistoryRecorder, Function<UUID, Optional<ElementLocationHistory>> stabilityLookup) {
-        this(new UiElementRepository(), locationHistoryRecorder, stabilityLookup);
-    }
-
-    public ElementLocatorTools(UiElementBoundingBoxAgent boundingBoxAgent, BestUiElementMatchSelectionAgent selectionAgent,
-                                UiStateCheckAgent stateCheckAgent, LocationHistoryRecorder locationHistoryRecorder,
-                                Function<UUID, Optional<ElementLocationHistory>> stabilityLookup) {
-        super(stateCheckAgent);
-        this.elementRepository = new UiElementRepository();
-        this.uiElementBoundingBoxAgent = boundingBoxAgent;
-        this.bestUiElementMatchSelectionAgent = selectionAgent;
+    @Inject
+    public ElementLocatorTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
+                                LocationHistoryRecorder locationHistoryRecorder,
+                                Function<UUID, Optional<ElementLocationHistory>> elementLocationHistoryLookup,
+                                UiElementBoundingBoxAgent uiElementBoundingBoxAgent,
+                                BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent,
+                                UiTestAgentConfig uiTestAgentConfig, AgentConfig agentConfig) {
+        super(uiStateCheckAgent);
+        this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
+        this.uiElementBoundingBoxAgent = requireNonNull(uiElementBoundingBoxAgent, "uiElementBoundingBoxAgent");
+        this.bestUiElementMatchSelectionAgent = requireNonNull(bestUiElementMatchSelectionAgent, "bestUiElementMatchSelectionAgent");
         this.locationHistoryRecorder = locationHistoryRecorder != null ?
                 locationHistoryRecorder : (elementId, located, locationTimeMs, strategy) -> {};
-        this.stabilityLookup = stabilityLookup != null ? stabilityLookup : _ -> Optional.empty();
-    }
-
-    // package-private for testing
-    ElementLocatorTools(UiElementRepository elementRepository, LocationHistoryRecorder locationHistoryRecorder,
-                        Function<UUID, Optional<ElementLocationHistory>> stabilityLookup) {
-        super();
-        this.elementRepository = elementRepository;
-        this.uiElementBoundingBoxAgent = createElementBoundingBoxAgent();
-        this.bestUiElementMatchSelectionAgent = createElementSelectionAgent();
-        this.locationHistoryRecorder = locationHistoryRecorder != null ?
-                locationHistoryRecorder : (elementId, located, locationTimeMs, strategy) -> {
-        };
-        this.stabilityLookup = stabilityLookup != null ? stabilityLookup : _ -> Optional.empty();
+        this.stabilityLookup = elementLocationHistoryLookup != null ? elementLocationHistoryLookup : _ -> Optional.empty();
+        this.uiTestAgentConfig = requireNonNull(uiTestAgentConfig, "uiTestAgentConfig");
+        this.agentConfig = requireNonNull(agentConfig, "agentConfig");
+        this.boundingBoxColorName = uiTestAgentConfig.getElementBoundingBoxColorName();
+        this.boundingBoxColor = getColorByName(boundingBoxColorName);
+        this.debugMode = agentConfig.isDebugMode();
     }
 
     /**
@@ -170,27 +161,6 @@ public class ElementLocatorTools extends UiAbstractTools {
         return stabilityLookup.apply(elementId).orElse(null);
     }
 
-    private UiElementBoundingBoxAgent createElementBoundingBoxAgent() {
-        var model = getModel(getElementBoundingBoxAgentModelName(), getElementBoundingBoxAgentModelProvider());
-        var prompt = loadSystemPrompt("element_locator/bounding_box", getElementBoundingBoxAgentPromptVersion(),
-                "element_bounding_box_prompt.txt");
-        return builder(UiElementBoundingBoxAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .tools(new BoundingBoxes(List.of()))
-                .build();
-    }
-
-    private BestUiElementMatchSelectionAgent createElementSelectionAgent() {
-        var model = getModel(getUiElementVisualMatchAgentModelName(), getUiElementVisualMatchAgentModelProvider());
-        var prompt = loadSystemPrompt("element_locator/best_ui_match_selection", getElementSelectionAgentPromptVersion(),
-                "find_best_matching_ui_element_id.txt");
-        return builder(BestUiElementMatchSelectionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .tools(new BestUiElementVisualMatchResult(false, "", ""))
-                .build();
-    }
 
     private String getElementBoundingBoxUserMessage(UiElement uiElement, String elementTestData) {
         if (isNotBlank(elementTestData) && uiElement.isDataDependent()) {
@@ -290,7 +260,7 @@ public class ElementLocatorTools extends UiAbstractTools {
         } finally {
             previousState.restoreIfWasVisible();
         }
-        boolean useAlgorithmicSearch = UiTestAgentConfig.isAlgorithmicSearchEnabled()
+        boolean useAlgorithmicSearch = uiTestAgentConfig.isAlgorithmicSearchEnabled()
                 && !(elementRetrievedFromMemory.isDataDependent()) && elementScreenshot != null;
         return getUiElementLocationResult(elementRetrievedFromMemory, elementTestData, wholeScreenshot,
                 elementScreenshot,
@@ -352,7 +322,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                     templateMatchedBoundingBoxes);
         } else {
             if (featureMatchedBoundingBoxes.isEmpty() && templateMatchedBoundingBoxes.isEmpty()) {
-                if (UiTestAgentConfig.skipBestUiElementMatchSelection()) {
+                if (uiTestAgentConfig.skipBestUiElementMatchSelection()) {
                     LOG.info("Skipping selection of the best UI element visual match as per configuration. Returning the first " +
                             "identified element out of {} elements.", identifiedByVisionBoundingBoxes.size());
                     return new UiElementLocationInternalResult(false, true, identifiedByVisionBoundingBoxes.getFirst(),
@@ -457,7 +427,7 @@ public class ElementLocatorTools extends UiAbstractTools {
             var scalingRatio = getScalingRatio(wholeScreenshot);
             var imageToSend = scalingRatio < 1.0 ? scaleImage(wholeScreenshot, scalingRatio) : wholeScreenshot;
             var prompt = getElementBoundingBoxUserMessage(element, elementTestData);
-            int voteCount = UiTestAgentConfig.getElementLocatorVisualGroundingVoteCount();
+            int voteCount = uiTestAgentConfig.getElementLocatorVisualGroundingVoteCount();
             try (var executor = newVirtualThreadPerTaskExecutor()) {
                 List<Callable<List<BoundingBox>>> tasks = range(0, voteCount)
                         .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> Objects.requireNonNull(
@@ -476,9 +446,9 @@ public class ElementLocatorTools extends UiAbstractTools {
                         .filter(bb -> bb.width > 0 && bb.height > 0)
                         .toList();
 
-                if (DEBUG_MODE) {
+                if (debugMode) {
                     var imageWithAllBoxes = cloneImage(wholeScreenshot);
-                    allBoundingBoxes.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, BOUNDING_BOX_COLOR));
+                    allBoundingBoxes.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, boundingBoxColor));
                     saveImage(imageWithAllBoxes, "vision_identified_boxes_before_clustering");
                 }
 
@@ -488,7 +458,7 @@ public class ElementLocatorTools extends UiAbstractTools {
 
                 if (voteCount > 1) {
                     DBSCANClusterer<RectangleAdapter> clusterer =
-                            new DBSCANClusterer<>(UiTestAgentConfig.getBboxClusteringMinIntersectionRatio(), 0, new IoUDistance());
+                            new DBSCANClusterer<>(uiTestAgentConfig.getBboxClusteringMinIntersectionRatio(), 0, new IoUDistance());
                     List<RectangleAdapter> points = allBoundingBoxes.stream().map(RectangleAdapter::new).toList();
                     List<Cluster<RectangleAdapter>> clusters = clusterer.cluster(points);
                     var result = clusters.stream()
@@ -556,14 +526,14 @@ public class ElementLocatorTools extends UiAbstractTools {
             Map<String, Rectangle> boxesWithIds = getBoxesWithIds(matchedBoundingBoxes);
             var resultingScreenshot = cloneImage(screenshot);
             drawBoundingBoxes(resultingScreenshot, boxesWithIds);
-            if (DEBUG_MODE) {
+            if (debugMode) {
                 saveImage(resultingScreenshot, "model_selection_%s".formatted(matchAlgorithm));
             }
 
             var successfulIdentificationResults = getValidSuccessfulIdentificationResultsFromModelUsingQuorum(
                     uiElement, elementTestData, resultingScreenshot, new ArrayList<>(boxesWithIds.keySet()));
             LOG.info("Model provided {} successful identification results for the element '{}' with {} vote(s).",
-                    successfulIdentificationResults.size(), uiElement.name(), UiTestAgentConfig.getElementLocatorValidationVoteCount());
+                    successfulIdentificationResults.size(), uiElement.name(), uiTestAgentConfig.getElementLocatorValidationVoteCount());
             if (successfulIdentificationResults.isEmpty()) {
                 return new UiElementLocationInternalResult(algorithmicSearchDone, visualGroundingDone, null, uiElement, screenshot);
             }
@@ -598,9 +568,9 @@ public class ElementLocatorTools extends UiAbstractTools {
             @NotNull List<String> boxIds) {
         try (var executor = newVirtualThreadPerTaskExecutor()) {
             var prompt = getBestElementVisualMatchUserMessage(uiElement, elementTestData, boxIds);
-            var boundingBoxColorName = UiCommonUtils.getColorName(BOUNDING_BOX_COLOR).toLowerCase();
+            var boundingBoxColorName = UiCommonUtils.getColorName(boundingBoxColor).toLowerCase();
 
-            List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, UiTestAgentConfig.getElementLocatorValidationVoteCount())
+            List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, uiTestAgentConfig.getElementLocatorValidationVoteCount())
                     .mapToObj(_ -> (Callable<BestUiElementVisualMatchResult>) () -> bestUiElementMatchSelectionAgent.executeAndGetResult(
                             () -> bestUiElementMatchSelectionAgent.selectBestElement(prompt,
                                     singleImageContent(resultingScreenshot), boundingBoxColorName)
@@ -680,12 +650,12 @@ public class ElementLocatorTools extends UiAbstractTools {
         }
     }
 
-    private static double getScalingRatio(BufferedImage image) {
+    private double getScalingRatio(BufferedImage image) {
         int originalWidth = image.getWidth();
         int originalHeight = image.getHeight();
         int longestSide = Math.max(originalWidth, originalHeight);
-        int longestAllowed = UiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels();
-        double maxMegapixels = UiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels();
+        int longestAllowed = uiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels();
+        double maxMegapixels = uiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels();
         double downscaleRatio = 1.0;
         if (longestSide > longestAllowed) {
             downscaleRatio = ((double) longestAllowed) / longestSide;

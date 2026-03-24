@@ -17,6 +17,8 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,9 +28,7 @@ import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.dto.DbElementSearchResult;
 import org.tarik.ta.dto.ElementCreationResult;
-import org.tarik.ta.dto.UiElementDescription;
 import org.tarik.ta.dto.UiElementIdentificationResult;
-import org.tarik.ta.dto.DbUiElementSelectionResult;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.user_dialogs.SpinnerManager;
@@ -39,44 +39,33 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
-import static dev.langchain4j.service.AiServices.builder;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
-import static org.tarik.ta.UiTestAgentConfig.*;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
-import static org.tarik.ta.core.model.ModelFactory.getModel;
-import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static java.util.UUID.randomUUID;
+import static java.util.Objects.requireNonNull;
 
+@Singleton
 public class UiElementDbTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementDbTools.class);
     private final UiElementRepository elementRepository;
     private final UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
     private final DbUiElementSelectionAgent dbUiElementSelectionAgent;
 
-    public UiElementDbTools() {
-        this(new UiElementRepository());
-    }
-
-    public UiElementDbTools(UiElementExtendedDescriptionAgent descriptionAgent, DbUiElementSelectionAgent selectionAgent,
-                             UiStateCheckAgent stateCheckAgent) {
-        super(stateCheckAgent);
-        this.elementRepository = new UiElementRepository();
-        this.uiElementExtendedDescriptionAgent = descriptionAgent;
-        this.dbUiElementSelectionAgent = selectionAgent;
-    }
-
-    // package-private for testing
-    UiElementDbTools(UiElementRepository elementRepository) {
-        this.elementRepository = elementRepository;
-        this.uiElementExtendedDescriptionAgent = createUiElementDescriptionMatcherAgent();
-        this.dbUiElementSelectionAgent = createDbElementSelectionAgent();
+    @Inject
+    public UiElementDbTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
+                             UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent,
+                             DbUiElementSelectionAgent dbUiElementSelectionAgent) {
+        super(uiStateCheckAgent);
+        this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
+        this.uiElementExtendedDescriptionAgent = requireNonNull(uiElementExtendedDescriptionAgent, "uiElementExtendedDescriptionAgent");
+        this.dbUiElementSelectionAgent = requireNonNull(dbUiElementSelectionAgent, "dbUiElementSelectionAgent");
     }
 
     @Tool("Searches for a UI element in the database using vector similarity and selects the best candidate.")
@@ -148,31 +137,6 @@ public class UiElementDbTools extends UiAbstractTools {
                 .executeAndGetResult(() -> uiElementExtendedDescriptionAgent.describeUiElement(elementDescription,
                         relevantDataString, imageContent))
                 .getResultPayload();
-    }
-
-    private static UiElementExtendedDescriptionAgent createUiElementDescriptionMatcherAgent() {
-        var model = getModel(getUiElementDescriptionMatcherAgentModelName(),
-                getUiElementDescriptionMatcherAgentModelProvider());
-        var prompt = loadSystemPrompt("element_describer", getUiElementDescriptionMatcherAgentPromptVersion(),
-                "description_matcher_prompt.txt");
-        return builder(UiElementExtendedDescriptionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .tools(new UiElementIdentificationResult(false, false,
-                        new UiElementDescription("", "", "", "", false)))
-                .build();
-    }
-
-    private DbUiElementSelectionAgent createDbElementSelectionAgent() {
-        var model = getModel(getDbElementCandidateSelectionAgentModelName(),
-                getDbElementCandidateSelectionAgentModelProvider());
-        var prompt = loadSystemPrompt("db_element_selector", getDbElementCandidateSelectionAgentPromptVersion(),
-                "select_best_db_search_result_prompt.txt");
-        return builder(DbUiElementSelectionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .tools(new DbUiElementSelectionResult(false, false, "", ""))
-                .build();
     }
 
     private Optional<UiElement> selectBestMatchingDbElement(List<UiElement> candidates, String elementDescription,

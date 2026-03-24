@@ -18,8 +18,11 @@ package org.tarik.ta.tools;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.model.output.structured.Description;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
@@ -37,17 +40,8 @@ import static org.tarik.ta.core.utils.CommonUtils.isBlank;
  * Collecting knowledge-flow tools for the knowledge persistence feature.
  * Provides tools for creating atomic procedures and linking them to UI
  * elements.
- *
- * <p>
- * The agent orchestrates the collecting knowledge flow by first calling
- * {@link ElementLocatorTools#locateElementOnTheScreen} to find an existing
- * element.
- * If the element is not found, the agent triggers the element creation flow.
- * Once an element is available, the agent uses
- * {@link #defineAtomicStepWithElement}
- * to create atomic procedures linked to that element.
- * </p>
  */
+@Singleton
 class KnowledgeElementTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(KnowledgeElementTools.class);
 
@@ -55,10 +49,12 @@ class KnowledgeElementTools extends UiAbstractTools {
     private final EmbeddingService embeddingService;
     private final FailureContextService failureContextService;
 
-    KnowledgeElementTools(ProcedureRepository procedureRepository,
+    @Inject
+    KnowledgeElementTools(UiStateCheckAgent uiStateCheckAgent,
+                          ProcedureRepository procedureRepository,
                           EmbeddingService embeddingService,
                           FailureContextService failureContextService) {
-        super();
+        super(uiStateCheckAgent);
         this.procedureRepository = requireNonNull(procedureRepository, "procedureRepository");
         this.embeddingService = requireNonNull(embeddingService, "embeddingService");
         this.failureContextService = requireNonNull(failureContextService, "failureContextService");

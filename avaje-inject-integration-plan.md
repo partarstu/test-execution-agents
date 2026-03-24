@@ -336,35 +336,6 @@ constraints remain manually created. Everything else is DI-managed (`@Singleton`
 
 ### Phase 10: Knowledge Graph Services
 
-- [x] **Annotate `DecompositionService` class with `@Singleton`**. Add **constructor**
-  `DecompositionService(ProcedureRepository procedureRepository)` — avaje auto-injects. Store in `private final` field
-- [x] **Annotate `KnowledgeService` class with `@Singleton`**. Add **constructor**
-  `KnowledgeService(ProcedureRepository procedureRepository, EmbeddingService embeddingService, DecompositionService decompositionService, PhraseEmbeddingRepository phraseEmbeddingRepository)` —
-  avaje auto-injects all four. Store in `private final` fields
-- [x] **Annotate `KnowledgeIngestionService` class with `@Singleton`**. Add **constructor**
-  `KnowledgeIngestionService(ProcedureRepository procedureRepository, EmbeddingService embeddingService, DecompositionService decompositionService, SatisfiesEdgeRepository satisfiesEdgeRepository, FailureContextService failureContextService, PhraseEmbeddingRepository phraseEmbeddingRepository)` —
-  avaje auto-injects all six. Store in `private final` fields. No factory wrapper needed
-- [x] **Annotate `SatisfiesEdgeService` class with `@Singleton`**. Add **constructor**
-  `SatisfiesEdgeService(SatisfiesEdgeRepository satisfiesEdgeRepository, PhraseEmbeddingRepository phraseEmbeddingRepository)` — avaje
-  auto-injects both. Store in `private final` fields
-- [x] **Annotate `FailureContextService` class with `@Singleton`**. Add **constructor**
-  `FailureContextService(FailureContextRepository failureContextRepository)` — avaje auto-injects. Store in `private final` field
-- [x] **Annotate `ProcedureUsageByTestCaseTrackingService` class with `@Singleton`**. Add **constructor** with
-  `ProcedureUsageByTestCaseTrackingRepository` parameter — avaje auto-injects. Store in `private final` field
-- [x] **Annotate `GraphHealthService` class with `@Singleton`**. Add **constructor**
-  `GraphHealthService(GraphHealthRepository graphHealthRepository, GraphHealthHtmlReportGenerator reportGenerator)` — avaje auto-injects
-  both. Store in `private final` fields. Replace `new GraphHealthHtmlReportGenerator()` with the injected instance
-- [x] **Annotate `GraphHealthHtmlReportGenerator` class with `@Singleton`** (package-private). No constructor dependencies — avaje uses the
-  no-arg constructor. Annotated for DI consistency
-- [x] **Annotate `KnowledgeServicesBeanFactory` class with `@Factory`** (NEW class). Add **constructor**
-  `KnowledgeServicesBeanFactory(ProcedureRepository procedureRepository)` — avaje auto-injects. Store in `private final` field. Add two
-  `@Bean` methods:
-    - **Annotate method `locationHistoryRecorder()` with `@Bean @Singleton`** (returns `LocationHistoryRecorder`) — implementation:
-      `procedureRepository::updateElementStability`
-    - **Annotate method `elementStabilityLookup()` with `@Bean @Singleton`** (returns `ElementLocationHistoryLookup`) —
-      implementation: `procedureRepository::getElementStability`
-    - These replace the inline lambdas previously created in `KnowledgeServiceFactory.createKnowledgeServices()`
-
 ### Phase 11: Specialized Tool Singletons
 
 - [ ] **Annotate `KnowledgeElementTools` class with `@Singleton`**. Add **constructor**
