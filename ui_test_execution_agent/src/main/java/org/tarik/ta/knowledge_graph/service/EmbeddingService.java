@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Objects.requireNonNull;
-import static org.tarik.ta.UiTestAgentConfig.getKnowledgeEmbeddingBatchSize;
+import org.tarik.ta.UiTestAgentConfig;
 
 /**
  * Centralized embedding service for batch embedding during knowledge ingestion
@@ -44,6 +44,11 @@ public class EmbeddingService {
     private static final Logger LOG = LoggerFactory.getLogger(EmbeddingService.class);
 
     private final EmbeddingModel MODEL = new BgeSmallEnV15EmbeddingModel();
+    private final UiTestAgentConfig config;
+
+    public EmbeddingService(UiTestAgentConfig config) {
+        this.config = config;
+    }
 
     /**
      * Embeds a single text string and returns the resulting {@link Embedding}.
@@ -66,7 +71,7 @@ public class EmbeddingService {
             return List.of();
         }
 
-        var batchSize = getKnowledgeEmbeddingBatchSize();
+        var batchSize = config.getKnowledgeEmbeddingBatchSize();
         var segments = texts.stream().map(TextSegment::from).toList();
         var allEmbeddings = new ArrayList<Embedding>(segments.size());
 

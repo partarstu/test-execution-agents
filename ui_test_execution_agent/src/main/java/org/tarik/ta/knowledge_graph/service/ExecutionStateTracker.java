@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
 
 
 import static java.util.Objects.requireNonNull;
-import static org.tarik.ta.UiTestAgentConfig.getAncestryWindowSize;
+import org.tarik.ta.UiTestAgentConfig;
 
 /**
  * Current-state representation and precondition checking for PDDL-Lite planning.
@@ -58,7 +58,12 @@ public class ExecutionStateTracker {
     private final Map<String, UUID> effectNodeIds = new ConcurrentHashMap<>();
     private final List<Procedure> executedAtomicProcedures = new CopyOnWriteArrayList<>();
     private final Deque<UUID> recentParentIds = new ConcurrentLinkedDeque<>();
+    private final UiTestAgentConfig config;
     private final AtomicInteger recentParentIdsSize = new AtomicInteger(0);
+
+    public ExecutionStateTracker(UiTestAgentConfig config) {
+        this.config = config;
+    }
 
     /**
      * Adds all effect phrases to the current state after successful execution.
@@ -153,7 +158,7 @@ public class ExecutionStateTracker {
         if (parentId == null) return;
         recentParentIds.addLast(parentId);
         recentParentIdsSize.incrementAndGet();
-        while (recentParentIdsSize.get() > getAncestryWindowSize()) {
+        while (recentParentIdsSize.get() > config.getAncestryWindowSize()) {
             if (recentParentIds.pollFirst() != null) {
                 recentParentIdsSize.decrementAndGet();
             } else {

@@ -28,7 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Objects.requireNonNull;
-import static org.tarik.ta.UiTestAgentConfig.getKnowledgeMaxDepth;
+import org.tarik.ta.UiTestAgentConfig;
 
 /**
  * Hierarchical decomposition from composite procedures to atomic leaves.
@@ -42,10 +42,12 @@ public class DecompositionService {
     private static final Logger LOG = LoggerFactory.getLogger(DecompositionService.class);
 
     private final ProcedureRepository repository;
+    private final UiTestAgentConfig config;
     private final ConcurrentHashMap<UUID, List<Procedure>> cache = new ConcurrentHashMap<>();
 
-    public DecompositionService(ProcedureRepository repository) {
+    public DecompositionService(ProcedureRepository repository, UiTestAgentConfig config) {
         this.repository = requireNonNull(repository, "repository");
+        this.config = requireNonNull(config, "config");
     }
 
     /**
@@ -64,7 +66,7 @@ public class DecompositionService {
             var root = repository.findById(id).orElseThrow(() ->
                     new IllegalStateException("Procedure not found: %s".formatted(id)));
             var atomics = new ArrayList<Procedure>();
-            decomposeRecursive(root, atomics, 0, getKnowledgeMaxDepth());
+            decomposeRecursive(root, atomics, 0, config.getKnowledgeMaxDepth());
             LOG.info("Decomposed procedure '{}' ({}) into {} atomic step(s)", root.description(), id, atomics.size());
             return List.copyOf(atomics);
         });

@@ -37,10 +37,12 @@ public class SatisfiesEdgeService {
 
     private final SatisfiesEdgeRepository satisfiesEdgeRepository;
     private final PhraseEmbeddingRepository phraseEmbeddingRepository;
+    private final UiTestAgentConfig config;
 
-    public SatisfiesEdgeService(SatisfiesEdgeRepository satisfiesEdgeRepository, PhraseEmbeddingRepository phraseEmbeddingRepository) {
+    public SatisfiesEdgeService(SatisfiesEdgeRepository satisfiesEdgeRepository, PhraseEmbeddingRepository phraseEmbeddingRepository, UiTestAgentConfig config) {
         this.satisfiesEdgeRepository = satisfiesEdgeRepository;
         this.phraseEmbeddingRepository = phraseEmbeddingRepository;
+        this.config = config;
     }
 
     /**
@@ -51,7 +53,7 @@ public class SatisfiesEdgeService {
     public void persistSatisfiesEdgesAsync(UUID executedProcedureId) {
         Thread.ofVirtual().start(() -> {
             try {
-                double threshold = UiTestAgentConfig.getSatisfiesSimilarityThreshold();
+                double threshold = config.getSatisfiesSimilarityThreshold();
                 var matches = phraseEmbeddingRepository.findPrerequisitesSatisfiedByProducer(executedProcedureId, threshold, SATISFIES_TOP_N);
                 if (matches.isEmpty()) {
                     LOG.debug("No SATISFIES edges matched for procedure {} (threshold={})", executedProcedureId, threshold);

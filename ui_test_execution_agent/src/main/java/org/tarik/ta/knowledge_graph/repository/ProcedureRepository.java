@@ -58,8 +58,12 @@ import static org.tarik.ta.knowledge_graph.repository.ProcedureRepository.QueryP
  */
 @Singleton
 public class ProcedureRepository {
-    public ProcedureRepository(Neo4jRepositorySupport repositorySupport) {
+    private final Neo4jRepositorySupport repositorySupport;
+    private final UiTestAgentConfig config;
+
+    public ProcedureRepository(Neo4jRepositorySupport repositorySupport, UiTestAgentConfig config) {
         this.repositorySupport = repositorySupport;
+        this.config = config;
         this.FIND_BY_ID = repositorySupport.cypher("MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id}) RETURN n");
         this.FIND_BY_ID_WITH_PHRASES = buildFindByIdWithPhrases();
         this.FIND_CHILDREN_ORDERED = repositorySupport.cypher("""
@@ -198,8 +202,6 @@ public class ProcedureRepository {
             RETURN node AS n, score
             """);
     }
-
-    private final Neo4jRepositorySupport repositorySupport;
 
     private static final Logger LOG = LoggerFactory.getLogger(ProcedureRepository.class);
     private static final String VECTOR_INDEX_NAME = "procedure_embedding_index";
@@ -635,7 +637,7 @@ public class ProcedureRepository {
     public void updateElementStability(UUID elementId, boolean located, long locationTimeMs, LocationStrategy strategy) {
         repositorySupport.executeComplexWriteQuery(tx -> {
             var elOpt = getElementStability(elementId, tx);
-            double alpha = UiTestAgentConfig.getStabilityEwmaAlpha();
+            double alpha = config.getStabilityEwmaAlpha();
             double newScore;
             long newAvgTime;
             double failedCount;
@@ -680,7 +682,7 @@ public class ProcedureRepository {
     public void updateTimingProfile(UUID id, long actualExecutionMs, long actualVerificationDelayMs) {
         repositorySupport.executeComplexWriteQuery(tx -> {
             var profileOpt = getTimingProfile(id, tx);
-            double alpha = UiTestAgentConfig.getTimingEwmaAlpha();
+            double alpha = config.getTimingEwmaAlpha();
             long newAvgExec;
             long newAvgDelay;
             long newMaxDelay;

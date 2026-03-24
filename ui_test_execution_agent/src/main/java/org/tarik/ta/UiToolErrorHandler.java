@@ -26,16 +26,18 @@ import org.tarik.ta.exceptions.ElementLocationException;
 
 import java.util.List;
 
-import static org.tarik.ta.UiTestAgentConfig.isFullyUnattended;
-import static org.tarik.ta.UiTestAgentConfig.isSupervised;
+
 import static org.tarik.ta.core.error.ErrorCategory.*;
 
 class UiToolErrorHandler extends DefaultToolErrorHandler {
     private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT,
             TERMINATION_BY_USER);
 
-    UiToolErrorHandler(RetryPolicy retryPolicy) {
-        super(retryPolicy, isFullyUnattended());
+    private final UiTestAgentConfig config;
+
+    UiToolErrorHandler(RetryPolicy retryPolicy, UiTestAgentConfig config) {
+        super(retryPolicy, config.isFullyUnattended());
+        this.config = config;
     }
 
     @Override
@@ -49,7 +51,7 @@ class UiToolErrorHandler extends DefaultToolErrorHandler {
             case ElementLocationException locationException -> {
                 // In SUPERVISED mode, all element location failures are terminal — propagate
                 // to executeAtomicStep for HITL retry.
-                if (isSupervised()) {
+                if (config.isSupervised()) {
                     throw locationException;
                 }
                 // In UNATTENDED mode, only visual grounding failures are retryable (agent can

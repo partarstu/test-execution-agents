@@ -36,10 +36,7 @@ import java.util.UUID;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
-import static org.tarik.ta.UiTestAgentConfig.getKnowledgeMatchConfidenceHigh;
-import static org.tarik.ta.UiTestAgentConfig.getKnowledgeMatchConfidenceLow;
-import static org.tarik.ta.UiTestAgentConfig.getKnowledgeMatchTopN;
-import static org.tarik.ta.UiTestAgentConfig.getStabilityPenaltyThreshold;
+import org.tarik.ta.UiTestAgentConfig;
 
 /**
  * Main facade coordinating procedure retrieval and decomposition.
@@ -58,15 +55,18 @@ public class KnowledgeService {
     private final EmbeddingService embeddingService;
     private final DecompositionService decompositionService;
     private final PhraseEmbeddingRepository phraseEmbeddingRepository;
+    private final UiTestAgentConfig config;
 
     public KnowledgeService(ProcedureRepository procedureRepository,
                             EmbeddingService embeddingService,
                             DecompositionService decompositionService,
-                            PhraseEmbeddingRepository phraseEmbeddingRepository) {
+                            PhraseEmbeddingRepository phraseEmbeddingRepository,
+                            UiTestAgentConfig config) {
         this.procedureRepository = requireNonNull(procedureRepository, "procedureRepository");
         this.embeddingService = requireNonNull(embeddingService, "embeddingService");
         this.decompositionService = requireNonNull(decompositionService, "decompositionService");
         this.phraseEmbeddingRepository = requireNonNull(phraseEmbeddingRepository, "phraseEmbeddingRepository");
+        this.config = requireNonNull(config, "config");
     }
 
     /**
@@ -77,7 +77,7 @@ public class KnowledgeService {
         requireNonNull(queryEmbedding, "queryEmbedding");
         requireNonNull(effectNodeIds, "effectNodeIds");
         requireNonNull(recentParentIds, "recentParentIds");
-        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), getKnowledgeMatchTopN(), getKnowledgeMatchConfidenceLow());
+        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), config.getKnowledgeMatchTopN(), config.getKnowledgeMatchConfidenceLow());
         if (matches.isEmpty()) {
             return Optional.empty();
         }
@@ -85,7 +85,7 @@ public class KnowledgeService {
         var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
         var reRanked = reRankByStateCompatibility(procedures, effectNodeIds, recentParentIds);
         var bestMatch = reRanked.getFirst();
-        var confidence = scoreById.get(bestMatch.id()) >= getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
+        var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
         return Optional.of(new MatchResult(bestMatch, confidence, reRanked));
     }
 
@@ -105,7 +105,7 @@ public class KnowledgeService {
         requireNonNull(effectNodeIds, "effectNodeIds");
         requireNonNull(recentParentIds, "recentParentIds");
         var queryEmbedding = embeddingService.embed(description);
-        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), getKnowledgeMatchTopN(), getKnowledgeMatchConfidenceLow());
+        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), config.getKnowledgeMatchTopN(), config.getKnowledgeMatchConfidenceLow());
 
         if (matches.isEmpty()) {
             LOG.debug("No procedure match found for description: '{}'", description);
@@ -117,7 +117,7 @@ public class KnowledgeService {
         var reRanked = reRankByStateCompatibility(procedures, effectNodeIds, recentParentIds);
         var bestMatch = reRanked.getFirst();
 
-        var confidence = scoreById.get(bestMatch.id()) >= getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
+        var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
 
         LOG.info("Found {} confidence match for '{}': procedure '{}' ({}) | all candidates: {}",
                 confidence, description, bestMatch.description(), bestMatch.id(),
@@ -134,7 +134,7 @@ public class KnowledgeService {
     private List<Procedure> reRankByStateCompatibility(List<Procedure> candidates, Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
         record Scored(Procedure procedure, double proportion, int satisfied, int parentSharedCount, double stabilityPenalty) {}
 
-        double penaltyThreshold = getStabilityPenaltyThreshold();
+        double penaltyThreshold = config.getStabilityPenaltyThreshold();
         var candidateIds = candidates.stream().map(Procedure::id).toList();
         var contextById = procedureRepository.findCandidateContextBatch(candidateIds, recentParentIds)
                 .stream().collect(toMap(CandidateContext::candidateId, ctx -> ctx));
@@ -159,7 +159,7 @@ public class KnowledgeService {
                     double proportion = 1.0;
                     if (!prereqNodes.isEmpty()) {
                         if (!effectNodeIds.isEmpty()) {
-                            double threshold = getKnowledgeMatchConfidenceHigh();
+                            double threshold = config.getKnowledgeMatchConfidenceHigh();
                             satisfied = (int) prereqNodes.stream()
                                     .filter(pe -> phraseEmbeddingRepository.isPrerequisiteMetByEffects(pe.id(), effectNodeIds, threshold))
                                     .count();
@@ -182,7 +182,7 @@ public class KnowledgeService {
      */
     public Optional<Procedure> findTopSemanticMatch(Embedding queryEmbedding) {
         requireNonNull(queryEmbedding, "queryEmbedding");
-        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), 1, getKnowledgeMatchConfidenceLow());
+        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), 1, config.getKnowledgeMatchConfidenceLow());
         return matches.isEmpty() ? Optional.empty() : Optional.of(matches.getFirst().procedure());
     }
 
@@ -203,8 +203,8 @@ public class KnowledgeService {
         requireNonNull(description, "description");
         LOG.debug("findTopMatches query: '{}'", description);
         var queryEmbedding = embeddingService.embed(description);
-        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), getKnowledgeMatchTopN(),
-                getKnowledgeMatchConfidenceHigh());
+        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), config.getKnowledgeMatchTopN(),
+                config.getKnowledgeMatchConfidenceHigh());
         LOG.debug("findTopMatches found {} result(s) for '{}': {}", matches.size(), description,
                 matches.stream().map(m -> m.procedure().description()).toList());
         return matches.stream().map(ProcedureMatch::procedure).toList();

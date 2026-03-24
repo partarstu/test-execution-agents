@@ -64,7 +64,7 @@ class UiAgentsBeanFactory {
         var agentBuilder = builder(UiElementResolutionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(UiElementResolutionAgent.RETRY_POLICY))
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiElementResolutionAgent.RETRY_POLICY, uiTestAgentConfig))
                 .maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget());
         agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(
                 List.of(elementLocatorTools, uiElementDbTools, spinnerTools),
@@ -110,7 +110,7 @@ class UiAgentsBeanFactory {
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget())
-                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY));
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepVerificationAgent.RETRY_POLICY, uiTestAgentConfig));
         agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(List.of(), VerificationExecutionResult.class));
         return agentBuilder.build();
     }
@@ -127,7 +127,7 @@ class UiAgentsBeanFactory {
         return builder(UiPreconditionVerificationAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(UiPreconditionVerificationAgent.RETRY_POLICY))
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiPreconditionVerificationAgent.RETRY_POLICY, uiTestAgentConfig))
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(), VerificationExecutionResult.class))
                 .maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget())
                 .build();
@@ -148,7 +148,7 @@ class UiAgentsBeanFactory {
         var agentBuilder = builder(UiTestStepActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepActionAgent.RETRY_POLICY))
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiTestStepActionAgent.RETRY_POLICY, uiTestAgentConfig))
                 .maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget());
         agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(
                 List.of(mouseTools, keyboardTools, elementLocatorTools, commonTools),
@@ -171,7 +171,7 @@ class UiAgentsBeanFactory {
         var agentBuilder = builder(UiPreconditionActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
-                .toolExecutionErrorHandler(new UiToolErrorHandler(UiPreconditionActionAgent.RETRY_POLICY));
+                .toolExecutionErrorHandler(new UiToolErrorHandler(UiPreconditionActionAgent.RETRY_POLICY, uiTestAgentConfig));
         agentBuilder.toolProvider(new InheritanceAwareToolProvider<>(
                 List.of(mouseTools, keyboardTools, elementLocatorTools, commonTools),
                 EmptyExecutionResult.class));

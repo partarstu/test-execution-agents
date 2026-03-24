@@ -289,9 +289,9 @@ public class ElementLocatorTools extends UiAbstractTools {
         List<Rectangle> templateMatchedBoundingBoxes = new LinkedList<>();
         if (useAlgorithmicSearch && elementScreenshot != null) {
             var featureMatchedBoundingBoxesByElementFuture = supplyAsync(
-                    () -> findMatchingRegionsWithORB(wholeScreenshot, elementScreenshot));
+                    () -> findMatchingRegionsWithORB(wholeScreenshot, elementScreenshot, uiTestAgentConfig));
             var templateMatchedBoundingBoxesByElementFuture = supplyAsync(() -> mergeOverlappingRectangles(
-                    findMatchingRegionsWithTemplateMatching(wholeScreenshot, elementScreenshot)));
+                    findMatchingRegionsWithTemplateMatching(wholeScreenshot, elementScreenshot, uiTestAgentConfig)));
             featureMatchedBoundingBoxes = featureMatchedBoundingBoxesByElementFuture.join();
             templateMatchedBoundingBoxes = templateMatchedBoundingBoxesByElementFuture.join();
             if (this.debugMode) {
