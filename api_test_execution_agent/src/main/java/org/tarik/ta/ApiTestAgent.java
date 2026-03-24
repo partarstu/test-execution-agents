@@ -56,7 +56,8 @@ public class ApiTestAgent {
     private final BudgetManager budgetManager;
     private final BeanScope appScope;
 
-    public ApiTestAgent(ModelFactory modelFactory, ApiTestAgentConfig apiTestAgentConfig, TestCaseExtractor testCaseExtractor, BudgetManager budgetManager, BeanScope appScope) {
+    public ApiTestAgent(ModelFactory modelFactory, ApiTestAgentConfig apiTestAgentConfig, TestCaseExtractor testCaseExtractor,
+                        BudgetManager budgetManager, BeanScope appScope) {
         this.modelFactory = modelFactory;
         this.apiTestAgentConfig = apiTestAgentConfig;
         this.testCaseExtractor = testCaseExtractor;
@@ -79,10 +80,10 @@ public class ApiTestAgent {
                 .parent(appScope)
                 .modules(new BaseAgentRequestModule(testCase), new ApiAgentRequestModule())
                 .build()) {
-            
+
             var logCapture = requestScope.get(LogCapture.class);
             logCapture.start();
-            
+
             try {
                 var testExecutionStartTimestamp = now();
                 var executionContext = requestScope.get(TestExecutionContext.class);
@@ -102,9 +103,11 @@ public class ApiTestAgent {
                 if (hasStepFailures(executionContext)) {
                     var lastStep = executionContext.getTestStepExecutionHistory().getLast();
                     if (lastStep.getExecutionStatus() == FAILURE) {
-                        return getFailedTestExecutionResult(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage(), logCapture.getLogs());
+                        return getFailedTestExecutionResult(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage(),
+                                logCapture.getLogs());
                     } else {
-                        return getTestExecutionResultWithError(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage(), logCapture.getLogs());
+                        return getTestExecutionResultWithError(executionContext, testExecutionStartTimestamp, lastStep.getErrorMessage(),
+                                logCapture.getLogs());
                     }
                 } else {
                     return new TestExecutionResult(testCase.name(), PASSED, executionContext.getPreconditionExecutionHistory(),
@@ -220,7 +223,7 @@ public class ApiTestAgent {
 
     @NotNull
     private TestExecutionResult getFailedTestExecutionResult(TestExecutionContext context,
-                                                                    Instant testExecutionStartTimestamp, String errorMessage, List<String> logs) {
+                                                             Instant testExecutionStartTimestamp, String errorMessage, List<String> logs) {
         LOG.error(errorMessage);
         return new TestExecutionResult(context.getTestCase().name(), FAILED, context.getPreconditionExecutionHistory(),
                 context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), errorMessage, null, logs);
@@ -228,15 +231,16 @@ public class ApiTestAgent {
 
     @NotNull
     private TestExecutionResult getTestExecutionResultWithError(TestExecutionContext context,
-                                                                       Instant testExecutionStartTimestamp, String errorMessage, List<String> logs) {
+                                                                Instant testExecutionStartTimestamp, String errorMessage,
+                                                                List<String> logs) {
         LOG.error(errorMessage);
         return new TestExecutionResult(context.getTestCase().name(), ERROR, context.getPreconditionExecutionHistory(),
                 context.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), errorMessage, null, logs);
     }
 
     private void addFailedTestStep(TestExecutionContext context, TestStep testStep, String errorMessage,
-                                          String actualResult,
-                                          Instant executionStartTimestamp, Instant executionEndTimestamp, TestStepResultStatus status) {
+                                   String actualResult,
+                                   Instant executionStartTimestamp, Instant executionEndTimestamp, TestStepResultStatus status) {
         context.addStepResult(
                 new TestStepResult(testStep, status, errorMessage, actualResult, executionStartTimestamp, executionEndTimestamp));
     }

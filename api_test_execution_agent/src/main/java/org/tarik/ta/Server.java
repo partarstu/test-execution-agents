@@ -20,7 +20,7 @@ import org.tarik.ta.core.AbstractServer;
 
 public class Server {
 
-    public static void main(String[] args) {
+    public static void main() {
         try (BeanScope scope = BeanScope.builder().shutdownHook(true).build()) {
             scope.get(AbstractServer.class).start();
         }
