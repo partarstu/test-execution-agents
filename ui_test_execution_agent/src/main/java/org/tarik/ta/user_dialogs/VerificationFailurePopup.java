@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.user_dialogs;
 
+import org.tarik.ta.UiTestAgentConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,8 +37,8 @@ public class VerificationFailurePopup extends AbstractDialog {
     private static final Logger LOG = LoggerFactory.getLogger(VerificationFailurePopup.class);
 
     private VerificationFailurePopup(Window owner, String verificationDescription, String failureReason,
-                                     BufferedImage screenshot) {
-        super(owner, "Verification Failure");
+                                     BufferedImage screenshot, UiTestAgentConfig config) {
+        super(owner, "Verification Failure", config);
 
         JPanel mainPanel = getDefaultMainPanel();
 
@@ -70,7 +71,7 @@ public class VerificationFailurePopup extends AbstractDialog {
 
         // OK button
         JButton okButton = new JButton("OK");
-        okButton.setFont(new Font("Dialog", Font.BOLD, 12));
+        okButton.setFont(new Font(uiTestAgentConfig.getDialogDefaultFontType(), Font.BOLD, 12));
         okButton.addActionListener(_ -> dispose());
         setHoverAsClick(okButton);
 
@@ -113,11 +114,12 @@ public class VerificationFailurePopup extends AbstractDialog {
      * @param verificationDescription Description of the verification that failed
      * @param failureReason           The reason for the failure
      * @param screenshot              Screenshot at the moment of failure (can be null)
+     * @param config                  Agent configuration
      */
     public static void display(String verificationDescription, String failureReason,
-                                       BufferedImage screenshot) {
+                                       BufferedImage screenshot, UiTestAgentConfig config) {
         LOG.info("Displaying verification failure popup for: {}", verificationDescription);
-        new VerificationFailurePopup(null, verificationDescription, failureReason, screenshot);
+        new VerificationFailurePopup(null, verificationDescription, failureReason, screenshot, config);
     }
 }
 

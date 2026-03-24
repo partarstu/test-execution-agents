@@ -16,6 +16,7 @@
 package org.tarik.ta.user_dialogs;
 
 import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.UiTestAgentConfig;
 
 import javax.swing.*;
 import java.awt.*;
@@ -32,8 +33,8 @@ public class UiElementInfoPopup extends AbstractDialog {
     private final JCheckBox dataDependentCheckBox;
     private boolean windowClosedByUser = false;
 
-    private UiElementInfoPopup(Window owner, UiElementInfo originalElementInfo) {
-        super(owner, "UI Element Info");
+    private UiElementInfoPopup(Window owner, UiElementInfo originalElementInfo, UiTestAgentConfig config) {
+        super(owner, "UI Element Info", config);
 
         JPanel panel = getDefaultMainPanel();
         var userMessageArea = getUserMessageArea(
@@ -103,8 +104,8 @@ public class UiElementInfoPopup extends AbstractDialog {
     }
 
     public static Optional<UiElementInfo> displayAndGetUpdatedElementInfo(Window owner,
-            @NotNull UiElementInfo elementDraftFromModel) {
-        var popup = new UiElementInfoPopup(owner, elementDraftFromModel);
+            @NotNull UiElementInfo elementDraftFromModel, UiTestAgentConfig config) {
+        var popup = new UiElementInfoPopup(owner, elementDraftFromModel, config);
         return ofNullable(popup.getUpdatedUiElementInfo());
     }
 

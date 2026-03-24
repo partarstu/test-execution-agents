@@ -17,11 +17,9 @@ package org.tarik.ta.utils;
 
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.ImageContent;
-import jakarta.inject.Singleton;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.UiTestAgentConfig;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -46,24 +44,9 @@ import static java.time.LocalDateTime.now;
 import static java.time.format.DateTimeFormatter.ofPattern;
 import static javax.imageio.ImageIO.write;
 
-@Singleton
 public class ImageUtils {
     private static final Logger LOG = LoggerFactory.getLogger(ImageUtils.class);
     private static final String DEFAULT_IMAGE_FORMAT = "png";
-
-    private static volatile ImageUtils instance;
-
-    private final UiTestAgentConfig uiTestAgentConfig;
-
-    @Inject
-    public ImageUtils(UiTestAgentConfig uiTestAgentConfig) {
-        this.uiTestAgentConfig = uiTestAgentConfig;
-        instance = this;
-    }
-
-    public static ImageUtils getInstance() {
-        return instance;
-    }
 
     public Image getImage(@NotNull String base64Image, @NotNull String format) {
         return Image.builder()
@@ -142,24 +125,6 @@ public class ImageUtils {
         g.dispose();
 
         return paddedImage;
-    }
-
-    public boolean saveImage(BufferedImage resultingScreenshot, String postfix) {
-        LocalDateTime now = now();
-        DateTimeFormatter formatter = ofPattern("yyyy_MM_dd_HH_mm_ss_SSS");
-        String timestamp = now.format(formatter);
-        var filePath = Paths.get(uiTestAgentConfig.getScreenshotsSaveFolder())
-                .resolve("%s_%s.png".formatted(timestamp, postfix)).toAbsolutePath();
-        try {
-            createDirectories(filePath.getParent());
-            write(resultingScreenshot, "png", filePath.toFile());
-            LOG.info("Saved image {}", filePath.toAbsolutePath());
-            return true;
-        } catch (IOException e) {
-            String message = "Couldn't save screenshot %s.".formatted(filePath);
-            LOG.error(message, e);
-            return false;
-        }
     }
 
     public java.awt.Image scaleToFitBox(BufferedImage src, int maxW, int maxH) {

@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.user_dialogs;
 
+import org.tarik.ta.UiTestAgentConfig;
+
 import javax.swing.*;
 import java.awt.*;
 
@@ -24,8 +26,8 @@ import static javax.swing.JOptionPane.YES_OPTION;
 public class YesNoOptionDialog extends AbstractDialog {
     private int userChoice = NO_OPTION;
 
-    private YesNoOptionDialog(Window owner, String title, JPanel contentPanel) throws HeadlessException {
-        super(owner, title);
+    private YesNoOptionDialog(Window owner, String title, JPanel contentPanel, UiTestAgentConfig config) throws HeadlessException {
+        super(owner, title, config);
         initializeDialog(contentPanel);
     }
 
@@ -64,8 +66,8 @@ public class YesNoOptionDialog extends AbstractDialog {
         return userChoice;
     }
 
-    public static int display(Window owner, String title, JPanel contentPanel) {
-        var dialog = new YesNoOptionDialog(owner, title, contentPanel);
+    public static int display(Window owner, String title, JPanel contentPanel, UiTestAgentConfig config) {
+        var dialog = new YesNoOptionDialog(owner, title, contentPanel, config);
         return dialog.getUserChoice();
     }
 }
