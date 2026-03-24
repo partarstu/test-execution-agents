@@ -34,6 +34,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.stream;
 import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
+import static org.tarik.ta.core.utils.CommonUtils.parseStringAsInteger;
 
 @Singleton
 public class AgentConfig {
@@ -43,10 +44,10 @@ public class AgentConfig {
     private final Properties properties;
 
     // Main Config
-    private final ConfigProperty<Integer> START_PORT;
-    private final ConfigProperty<String> HOST;
-    private final ConfigProperty<String> EXTERNAL_URL;
-    private final ConfigProperty<Boolean> DEBUG_MODE;
+    private final ConfigProperty<Integer> startPort;
+    private final ConfigProperty<String> host;
+    private final ConfigProperty<String> externalUrl;
+    private final ConfigProperty<Boolean> debugMode;
 
     // RAG Config
     private final ConfigProperty<RagDbProvider> VECTOR_DB_PROVIDER;
@@ -132,11 +133,11 @@ public class AgentConfig {
         this.properties = loadConfigPropertiesFromFile();
 
         // START_PORT must be assigned before EXTERNAL_URL (used in its default value)
-        this.START_PORT = loadPropertyAsInteger("port", "PORT", "8005", false);
-        this.HOST = getRequiredProperty("host", "AGENT_HOST", false);
-        this.EXTERNAL_URL = loadProperty("external.url", "EXTERNAL_URL",
-                "http://localhost:%s".formatted(START_PORT.value()), s -> s, false);
-        this.DEBUG_MODE = loadProperty("debug.mode", "DEBUG_MODE", "false", Boolean::parseBoolean, false);
+        this.startPort = loadPropertyAsInteger("port", "PORT", "8005", false);
+        this.host = getRequiredProperty("host", "AGENT_HOST", false);
+        this.externalUrl = loadProperty("external.url", "EXTERNAL_URL",
+                "http://localhost:%s".formatted(startPort.value()), s -> s, false);
+        this.debugMode = loadProperty("debug.mode", "DEBUG_MODE", "false", Boolean::parseBoolean, false);
 
         // RAG Config
         this.VECTOR_DB_PROVIDER = getProperty("vector.db.provider", "VECTOR_DB_PROVIDER", "qdrant",
@@ -243,19 +244,19 @@ public class AgentConfig {
     // -----------------------------------------------------
     // Main Config
     public int getStartPort() {
-        return START_PORT.value();
+        return startPort.value();
     }
 
     public String getHost() {
-        return HOST.value();
+        return host.value();
     }
 
     public String getExternalUrl() {
-        return EXTERNAL_URL.value();
+        return externalUrl.value();
     }
 
     public boolean isDebugMode() {
-        return DEBUG_MODE.value();
+        return debugMode.value();
     }
 
     // -----------------------------------------------------
@@ -467,8 +468,8 @@ public class AgentConfig {
     }
 
     protected <T> ConfigProperty<T> loadProperty(String key, String envVar, String defaultValue,
-                                                  Function<String, T> converter,
-                                                  boolean isSecret) {
+                                                 Function<String, T> converter,
+                                                 boolean isSecret) {
         var value = getProperty(key, envVar, defaultValue, isSecret);
         return new ConfigProperty<>(converter.apply(value), isSecret);
     }
@@ -510,8 +511,8 @@ public class AgentConfig {
     }
 
     protected <T> ConfigProperty<T> getProperty(String key, String envVar, String defaultValue,
-                                                 Function<String, T> converter,
-                                                 boolean isSecret) {
+                                                Function<String, T> converter,
+                                                boolean isSecret) {
         String value = getProperty(key, envVar, defaultValue, isSecret);
         return new ConfigProperty<>(converter.apply(value), isSecret);
     }
@@ -523,18 +524,16 @@ public class AgentConfig {
         return new ConfigProperty<>(value, isSecret);
     }
 
-    protected ConfigProperty<Integer> loadPropertyAsInteger(String propertyKey, String envVar,
-                                                            String defaultValue, boolean isSecret) {
+    protected ConfigProperty<Integer> loadPropertyAsInteger(String propertyKey, String envVar, String defaultValue, boolean isSecret) {
         var configProperty = getProperty(propertyKey, envVar, defaultValue, s -> s, isSecret);
-        Integer value = CommonUtils.parseStringAsInteger(configProperty.value())
+        Integer value = parseStringAsInteger(configProperty.value())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "The value of property '%s' is not a correct integer value:%s".formatted(propertyKey,
                                 configProperty.value())));
         return new ConfigProperty<>(value, configProperty.isSecret());
     }
 
-    protected ConfigProperty<Double> loadPropertyAsDouble(String propertyKey, String envVar, String defaultValue,
-                                                          boolean isSecret) {
+    protected ConfigProperty<Double> loadPropertyAsDouble(String propertyKey, String envVar, String defaultValue, boolean isSecret) {
         var configProperty = getProperty(propertyKey, envVar, defaultValue, s -> s, isSecret);
         Double value = CommonUtils.parseStringAsDouble(configProperty.value())
                 .orElseThrow(() -> new IllegalArgumentException(

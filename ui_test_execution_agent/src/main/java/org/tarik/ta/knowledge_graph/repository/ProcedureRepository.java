@@ -15,7 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph.repository;
 
-import io.avaje.inject.Singleton;
+import jakarta.inject.Singleton;
 import org.jspecify.annotations.NonNull;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.TransactionContext;

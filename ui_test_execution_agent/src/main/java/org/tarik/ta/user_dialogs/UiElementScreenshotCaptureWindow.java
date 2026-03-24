@@ -29,8 +29,8 @@ import java.util.Optional;
 import static java.util.Optional.ofNullable;
 import static javax.swing.JOptionPane.YES_OPTION;
 import static org.tarik.ta.utils.BoundingBoxUtil.drawBoundingBox;
+import static org.tarik.ta.utils.ImageUtils.*;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
-import static org.tarik.ta.utils.ImageUtils.getInstance;
 
 public class UiElementScreenshotCaptureWindow extends AbstractDialog {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementScreenshotCaptureWindow.class);
@@ -77,7 +77,7 @@ public class UiElementScreenshotCaptureWindow extends AbstractDialog {
 
     private BufferedImage scaleImage(BufferedImage originalImage, int targetWidth, int targetHeight) {
         var scaledImage = originalImage.getScaledInstance(targetWidth, targetHeight, Image.SCALE_AREA_AVERAGING);
-        return getInstance().toBufferedImage(scaledImage, targetWidth, targetHeight);
+        return toBufferedImage(scaledImage, targetWidth, targetHeight);
     }
 
     private Rectangle scaleRectangle(Rectangle originalRectangle) {
@@ -112,7 +112,7 @@ public class UiElementScreenshotCaptureWindow extends AbstractDialog {
                 drawnScaledBoundingBox = scaleRectangle(new Rectangle(x, y, width, height));
                 elementScreenshot = originalScreenshot.getSubimage(drawnScaledBoundingBox.x, drawnScaledBoundingBox.y,
                         drawnScaledBoundingBox.width, drawnScaledBoundingBox.height);
-                wholeScreenshotWithBoundingBox = getInstance().cloneImage(originalScreenshot);
+                wholeScreenshotWithBoundingBox = cloneImage(originalScreenshot);
                 drawBoundingBox(wholeScreenshotWithBoundingBox, drawnScaledBoundingBox, boundingBoxColor);
 
                 JPanel panel = getElementScreenshotPanel();

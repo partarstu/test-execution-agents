@@ -18,8 +18,6 @@ package org.tarik.ta.utils;
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.ImageContent;
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -30,25 +28,18 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 
 import static dev.langchain4j.data.message.ImageContent.DetailLevel.ULTRA_HIGH;
 import static java.awt.Image.SCALE_AREA_AVERAGING;
 import static java.awt.Image.SCALE_SMOOTH;
 import static java.lang.Math.min;
-import static java.nio.file.Files.createDirectories;
-import static java.time.LocalDateTime.now;
-import static java.time.format.DateTimeFormatter.ofPattern;
 import static javax.imageio.ImageIO.write;
 
 public class ImageUtils {
-    private static final Logger LOG = LoggerFactory.getLogger(ImageUtils.class);
     private static final String DEFAULT_IMAGE_FORMAT = "png";
 
-    public Image getImage(@NotNull String base64Image, @NotNull String format) {
+    public static Image getImage(@NotNull String base64Image, @NotNull String format) {
         return Image.builder()
                 .mimeType("image/" + format)
                 .base64Data(base64Image)
@@ -56,7 +47,7 @@ public class ImageUtils {
     }
 
     @NotNull
-    public BufferedImage toBufferedImage(@NotNull java.awt.Image image, int targetWidth, int targetHeight) {
+    public static BufferedImage toBufferedImage(@NotNull java.awt.Image image, int targetWidth, int targetHeight) {
         if (image instanceof BufferedImage result) {
             return result;
         } else {
@@ -69,7 +60,7 @@ public class ImageUtils {
         }
     }
 
-    public byte[] imageToByteArray(@NotNull BufferedImage image, @NotNull String formatName) {
+    public static byte[] imageToByteArray(@NotNull BufferedImage image, @NotNull String formatName) {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             write(image, formatName, stream);
             return stream.toByteArray();
@@ -78,11 +69,11 @@ public class ImageUtils {
         }
     }
 
-    public Image getImage(@NotNull BufferedImage bufferedImage, @NotNull String format) {
+    public static Image getImage(@NotNull BufferedImage bufferedImage, @NotNull String format) {
         return getImage(convertImageToBase64(bufferedImage, format), format);
     }
 
-    public String convertImageToBase64(@NotNull BufferedImage image, @NotNull String format) {
+    public static String convertImageToBase64(@NotNull BufferedImage image, @NotNull String format) {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             write(image, format, stream);
             byte[] imageBytes = stream.toByteArray();
@@ -92,7 +83,7 @@ public class ImageUtils {
         }
     }
 
-    public BufferedImage convertBase64ToImage(@NotNull String encodedString) {
+    public static BufferedImage convertBase64ToImage(@NotNull String encodedString) {
         byte[] imageBytes = Base64.getDecoder().decode(encodedString);
         try (ByteArrayInputStream bis = new ByteArrayInputStream(imageBytes)) {
             return ImageIO.read(bis);
@@ -101,14 +92,14 @@ public class ImageUtils {
         }
     }
 
-    public BufferedImage cloneImage(BufferedImage image) {
+    public static BufferedImage cloneImage(BufferedImage image) {
         ColorModel cm = image.getColorModel();
         boolean isAlphaPremultiplied = cm.isAlphaPremultiplied();
         WritableRaster raster = image.copyData(image.getRaster().createCompatibleWritableRaster());
         return new BufferedImage(cm, raster, isAlphaPremultiplied, null);
     }
 
-    public BufferedImage padImage(BufferedImage source, int targetWidth, int targetHeight) {
+    public static BufferedImage padImage(BufferedImage source, int targetWidth, int targetHeight) {
         int width = source.getWidth();
         int height = source.getHeight();
         if (width >= targetWidth && height >= targetHeight) {
@@ -127,21 +118,21 @@ public class ImageUtils {
         return paddedImage;
     }
 
-    public java.awt.Image scaleToFitBox(BufferedImage src, int maxW, int maxH) {
+    public static java.awt.Image scaleToFitBox(@NotNull BufferedImage src, int maxW, int maxH) {
         double ratio = min((double) maxW / src.getWidth(), (double) maxH / src.getHeight());
         int w = Math.max(1, (int) (src.getWidth() * ratio));
         int h = Math.max(1, (int) (src.getHeight() * ratio));
         return src.getScaledInstance(w, h, SCALE_AREA_AVERAGING);
     }
 
-    public BufferedImage scaleImage(BufferedImage source, double ratio) {
+    public static BufferedImage scaleImage(BufferedImage source, double ratio) {
         int newWidth = (int) (source.getWidth() * ratio);
         int newHeight = (int) (source.getHeight() * ratio);
         var scaledImage = source.getScaledInstance(newWidth, newHeight, SCALE_SMOOTH);
         return toBufferedImage(scaledImage, newWidth, newHeight);
     }
 
-    public ImageContent singleImageContent(BufferedImage image) {
+    public static ImageContent singleImageContent(BufferedImage image) {
         return ImageContent.from(getImage(image, DEFAULT_IMAGE_FORMAT), ULTRA_HIGH);
     }
 }

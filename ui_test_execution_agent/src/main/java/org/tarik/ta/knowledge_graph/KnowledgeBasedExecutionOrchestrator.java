@@ -187,7 +187,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                         String procList = String.join("\n- ", affectedProcedures);
                         String message = "This Test Step contains test data. The saved data for the following atomic procedures will " +
                                 "be discarded:\n" + procList;
-                        InformationalPopup.display("Data Override Warning", message, null, WARNING);
+                        InformationalPopup.display("Data Override Warning", message, null, WARNING, uiTestAgentConfig);
                     }
                 }
 
@@ -330,7 +330,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                         .formatted(steps.get(consumerIndex).stepDescription(), steps.get(producerIndex).stepDescription());
             }).toList());
             InformationalPopup.display("Ordering Conflicts Detected",
-                    "The following test steps appear to be out of order:\n\n" + details, null, WARNING);
+                    "The following test steps appear to be out of order:\n\n" + details, null, WARNING, uiTestAgentConfig);
         }
     }
 
@@ -396,7 +396,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                                       UiTestExecutionContext executionContext) {
         while (true) {
             var selectionResult = org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup
-                    .displayAndGetSelection(null, itemDescription, match.allMatches());
+                    .displayAndGetSelection(null, itemDescription, match.allMatches(), uiTestAgentConfig);
             if (selectionResult.isEmpty()) {
                 LOG.warn("User cancelled selection for '{}', stopping execution", itemDescription);
                 throw new IllegalStateException("User cancelled knowledge workflow");
@@ -508,7 +508,7 @@ public class KnowledgeBasedExecutionOrchestrator {
 
         FailureContext failureContext = uiTestAgentConfig.isFullyUnattended()
                 ? new FailureContext(UUID.randomUUID(), preFilledSymptom, preSelectedCategory, "", 1, now(), FailureContext.Mode.UNATTENDED)
-                : FailureContextCaptureDialog.displayAndGetSelection(preSelectedCategory, preFilledSymptom);
+                : FailureContextCaptureDialog.displayAndGetSelection(preSelectedCategory, preFilledSymptom, uiTestAgentConfig);
 
         if (failureContext != null) {
             failureContextService.captureFailureContext(atomicStep.id(), failureContext);

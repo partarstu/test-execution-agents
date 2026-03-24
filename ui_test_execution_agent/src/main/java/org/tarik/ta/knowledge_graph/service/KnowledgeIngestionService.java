@@ -15,7 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
-import io.avaje.inject.Singleton;
+import jakarta.inject.Singleton;
 
 import dev.langchain4j.data.embedding.Embedding;
 import org.slf4j.Logger;
@@ -27,6 +27,7 @@ import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PhraseType;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
 import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository;
+import org.tarik.ta.knowledge_graph.repository.Neo4jRepositorySupport;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -34,7 +35,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
-import static org.tarik.ta.knowledge_graph.Neo4jConnectionManager.getSession;
 
 /**
  * Service for ingesting collected procedures into the knowledge graph.
@@ -60,19 +60,22 @@ public class KnowledgeIngestionService {
     private final SatisfiesEdgeRepository satisfiesEdgeRepository;
     private final FailureContextService failureContextService;
     private final PhraseEmbeddingRepository phraseEmbeddingRepository;
+    private final Neo4jRepositorySupport repositorySupport;
 
     public KnowledgeIngestionService(ProcedureRepository procedureRepository,
                                      EmbeddingService embeddingService,
                                      DecompositionService decompositionService,
                                      SatisfiesEdgeRepository satisfiesEdgeRepository,
                                      FailureContextService failureContextService,
-                                     PhraseEmbeddingRepository phraseEmbeddingRepository) {
+                                     PhraseEmbeddingRepository phraseEmbeddingRepository,
+                                     Neo4jRepositorySupport repositorySupport) {
         this.procedureRepository = requireNonNull(procedureRepository, "procedureRepository");
         this.embeddingService = requireNonNull(embeddingService, "embeddingService");
         this.decompositionService = requireNonNull(decompositionService, "decompositionService");
         this.satisfiesEdgeRepository = requireNonNull(satisfiesEdgeRepository, "satisfiesEdgeRepository");
         this.failureContextService = requireNonNull(failureContextService, "failureContextService");
         this.phraseEmbeddingRepository = requireNonNull(phraseEmbeddingRepository, "phraseEmbeddingRepository");
+        this.repositorySupport = requireNonNull(repositorySupport, "repositorySupport");
     }
 
     /**
@@ -105,12 +108,10 @@ public class KnowledgeIngestionService {
                     pendingNodes.stream().map(n -> n.embedding().vector()).toList()
             );
 
-            try (var session = getSession()) {
-                session.executeWriteWithoutResult(tx -> {
-                    pendingContains.forEach(r -> procedureRepository.linkToParent(r.childId(), r.parentId(), r.sequence(), tx));
-                    pendingTargets.forEach(r -> procedureRepository.linkToUiElement(r.spId(), r.elId(), tx));
-                });
-            }
+            repositorySupport.executeComplexWriteQuery(tx -> {
+                pendingContains.forEach(r -> procedureRepository.linkToParent(r.childId(), r.parentId(), r.sequence(), tx));
+                pendingTargets.forEach(r -> procedureRepository.linkToUiElement(r.spId(), r.elId(), tx));
+            });
 
             // Batch-embed all phrase texts across the whole tree in one call, then create nodes
             createPhraseNodesForTree(pendingPhraseTexts);
@@ -301,12 +302,10 @@ public class KnowledgeIngestionService {
                     var candidateUiElementIds = procedureRepository.findAllTargetedUiElementIds(currentId);
                     procedureRepository.deleteTargets(currentId);
                     final UUID idForTx = currentId;
-                    try (var session = getSession()) {
-                        session.executeWriteWithoutResult(tx -> {
-                            procedureRepository.deleteDescendants(idForTx, tx);
-                            satisfiesEdgeRepository.deleteSatisfiesEdges(idForTx, tx);
-                        });
-                    }
+                    repositorySupport.executeComplexWriteQuery(tx -> {
+                        procedureRepository.deleteDescendants(idForTx, tx);
+                        satisfiesEdgeRepository.deleteSatisfiesEdges(idForTx, tx);
+                    });
                     procedureRepository.update(procedure, embedding.vector());
                     procedureRepository.deleteUiElementsIfOrphaned(candidateUiElementIds);
                 } else {

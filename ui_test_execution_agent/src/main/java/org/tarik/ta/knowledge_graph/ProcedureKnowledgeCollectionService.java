@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.KnowledgeSuggestionAgent;
 import org.tarik.ta.dto.IngestionNode;
+import org.tarik.ta.dto.KnowledgeSuggestionResult;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.ExecutionGraphContextBuilder;
@@ -37,7 +38,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup.SelectionAction.EDIT;
-import static org.tarik.ta.utils.ImageUtils.getInstance;
+import org.tarik.ta.UiTestAgentConfig;
+import org.tarik.ta.utils.ImageUtils;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 /**
@@ -54,17 +56,23 @@ class ProcedureKnowledgeCollectionService {
     private final KnowledgeIngestionService knowledgeIngestionService;
     private final UiElementRepository uiElementRepository;
     private final UiElementDialogHelper uiElementDialogHelper;
+    private final UiTestAgentConfig uiTestAgentConfig;
+    private final ImageUtils imageUtils;
 
-    public ProcedureKnowledgeCollectionService(KnowledgeSuggestionAgent knowledgeSuggestionAgent,
-                                                 KnowledgeService knowledgeService,
-                                                 KnowledgeIngestionService knowledgeIngestionService,
-                                                 UiElementRepository uiElementRepository,
-                                                 UiElementDialogHelper uiElementDialogHelper) {
+    ProcedureKnowledgeCollectionService(KnowledgeSuggestionAgent knowledgeSuggestionAgent,
+                                        KnowledgeService knowledgeService,
+                                        KnowledgeIngestionService knowledgeIngestionService,
+                                        UiElementRepository uiElementRepository,
+                                        UiElementDialogHelper uiElementDialogHelper,
+                                        UiTestAgentConfig uiTestAgentConfig,
+                                        ImageUtils imageUtils) {
         this.knowledgeSuggestionAgent = knowledgeSuggestionAgent;
         this.knowledgeService = knowledgeService;
         this.knowledgeIngestionService = knowledgeIngestionService;
         this.uiElementRepository = uiElementRepository;
         this.uiElementDialogHelper = uiElementDialogHelper;
+        this.uiTestAgentConfig = uiTestAgentConfig;
+        this.imageUtils = imageUtils;
     }
 
     /**
@@ -97,7 +105,7 @@ class ProcedureKnowledgeCollectionService {
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPrecondition);
         return ProcedureKnowledgeCollectionDialog.displayAndGetResult(null, itemDescription, aiSuggestions,
                 !isPrecondition, itemContext, knowledgeService, knowledgeIngestionService, childLoaderFactory,
-                uiElementRepository, uiElementDialogHelper);
+                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper);
     }
 
     /**
@@ -138,7 +146,7 @@ class ProcedureKnowledgeCollectionService {
             var outcome = ProcedureKnowledgeCollectionDialog.displayForEditing(null, current, targetElementId,
                     showTestDataAndExpectedResults, hasParent, itemContext, knowledgeService, knowledgeIngestionService,
                     childLoaderFactory, preloadedChildren,
-                    uiElementRepository, uiElementDialogHelper);
+                    uiTestAgentConfig, uiElementRepository, uiElementDialogHelper);
             if (outcome.result() instanceof IngestionNode.NewProcedure np) {
                 LOG.info("Procedure '{}' edited by user", current.description());
                 return ProcedureEditResult.saved(current.id(), np);
@@ -166,7 +174,7 @@ class ProcedureKnowledgeCollectionService {
                                                                     String expectedResults, String agentContext) {
         var suggestionsRef = new AtomicReference<>(KnowledgeSuggestionResult.empty());
         // Capture screen before showing the spinner so no dialog/spinner overlays appear in the screenshot
-        var screenshot = getInstance().singleImageContent(captureScreen());
+        var screenshot = imageUtils.singleImageContent(captureScreen());
         UiElementDialogHelper.showSpinnerUntilDone(() -> {
             try {
                 var result = knowledgeSuggestionAgent.executeAndGetResult(

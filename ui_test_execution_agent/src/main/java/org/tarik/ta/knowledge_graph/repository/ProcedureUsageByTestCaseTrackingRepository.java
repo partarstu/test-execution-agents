@@ -15,7 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph.repository;
 
-import io.avaje.inject.Singleton;
+import jakarta.inject.Singleton;
 
 import java.util.List;
 import java.util.Map;

@@ -31,6 +31,7 @@ import java.util.Comparator;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment;
 import static java.util.Comparator.comparingInt;
+import static org.tarik.ta.utils.ImageUtils.toBufferedImage;
 
 public class UiCommonUtils {
     private static final Logger LOG = LoggerFactory.getLogger(UiCommonUtils.class);
@@ -87,7 +88,7 @@ public class UiCommonUtils {
         }
 
         return screenShots.getResolutionVariants().stream()
-                .map(i -> ImageUtils.getInstance().toBufferedImage(i, target.width, target.height))
+                .map(i -> toBufferedImage(i, target.width, target.height))
                 .min(comparator)
                 .orElseThrow();
     }

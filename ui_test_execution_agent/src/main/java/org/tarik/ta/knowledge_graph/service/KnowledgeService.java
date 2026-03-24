@@ -15,7 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
-import io.avaje.inject.Singleton;
+import jakarta.inject.Singleton;
 
 import dev.langchain4j.data.embedding.Embedding;
 import org.slf4j.Logger;

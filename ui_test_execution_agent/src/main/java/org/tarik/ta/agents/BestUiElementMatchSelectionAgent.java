@@ -20,12 +20,16 @@ import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.dto.BestUiElementVisualMatchResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
 public interface BestUiElementMatchSelectionAgent extends BaseUiAgent<BestUiElementVisualMatchResult> {
-    RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
+    @Override
+    default RetryPolicy getRetryPolicy() {
+        return UiTestAgentConfig.getInstance().getActionRetryPolicy();
+    }
 
     Result<String> selectBestElement(
             @UserMessage String prompt,
@@ -35,11 +39,6 @@ public interface BestUiElementMatchSelectionAgent extends BaseUiAgent<BestUiElem
     @Override
     default String getAgentTaskDescription() {
         return "Selecting the best matching to the description UI element based on the screenshot and found bounding boxes";
-    }
-
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
     }
 }
 

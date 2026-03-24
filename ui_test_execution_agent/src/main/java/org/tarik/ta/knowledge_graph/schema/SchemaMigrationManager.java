@@ -252,10 +252,10 @@ public class SchemaMigrationManager {
                             CREATE (p)-[:HAS_PREREQUISITE]->(pe)
                             """).withParameters(Map.of(
                             "procedureId", procedureId.toString(),
-                            "id", phraseNode.getId().toString(),
-                            "phrase", phraseNode.getPhrase(),
-                            "type", phraseNode.getType().name(),
-                            "embedding", phraseNode.getEmbedding()
+                            "id", phraseNode.id().toString(),
+                            "phrase", phraseNode.phrase(),
+                            "type", phraseNode.type().name(),
+                            "embedding", phraseNode.embedding()
                     )).execute();
                 }
                 for (var phraseNode : effectNodes) {
@@ -270,10 +270,10 @@ public class SchemaMigrationManager {
                             CREATE (p)-[:HAS_EFFECT]->(pe)
                             """).withParameters(Map.of(
                             "procedureId", procedureId.toString(),
-                            "id", phraseNode.getId().toString(),
-                            "phrase", phraseNode.getPhrase(),
-                            "type", phraseNode.getType().name(),
-                            "embedding", phraseNode.getEmbedding()
+                            "id", phraseNode.id().toString(),
+                            "phrase", phraseNode.phrase(),
+                            "type", phraseNode.type().name(),
+                            "embedding", phraseNode.embedding()
                     )).execute();
                 }
                 migrated++;

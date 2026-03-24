@@ -51,6 +51,7 @@ import static org.opencv.core.Core.perspectiveTransform;
 import static org.opencv.features2d.ORB.*;
 import static org.opencv.imgcodecs.Imgcodecs.imdecode;
 import static org.opencv.imgproc.Imgproc.*;
+import static org.tarik.ta.utils.ImageUtils.imageToByteArray;
 
 public class ImageMatchingUtil {
     private static final Logger LOG = LoggerFactory.getLogger(ImageMatchingUtil.class);
@@ -101,8 +102,8 @@ public class ImageMatchingUtil {
         if (!initialized) {
             return List.of();
         }
-        Mat source = imdecode(new MatOfByte(ImageUtils.getInstance().imageToByteArray(wholeScreenshot, "png")), Imgcodecs.IMREAD_COLOR);
-        Mat template = imdecode(new MatOfByte(ImageUtils.getInstance().imageToByteArray(elementScreenshot, "png")), Imgcodecs.IMREAD_COLOR);
+        Mat source = imdecode(new MatOfByte(imageToByteArray(wholeScreenshot, "png")), Imgcodecs.IMREAD_COLOR);
+        Mat template = imdecode(new MatOfByte(imageToByteArray(elementScreenshot, "png")), Imgcodecs.IMREAD_COLOR);
         Mat result = new Mat();
         matchTemplate(source, template, result, Imgproc.TM_CCOEFF_NORMED);
         List<MatchResult> matches = new ArrayList<>();
@@ -142,8 +143,8 @@ public class ImageMatchingUtil {
             return List.of();
         }
 
-        Mat wholeMat = imdecode(new MatOfByte(ImageUtils.getInstance().imageToByteArray(wholeScreenshot, "png")), Imgcodecs.IMREAD_GRAYSCALE);
-        Mat elementMat = imdecode(new MatOfByte(ImageUtils.getInstance().imageToByteArray(elementScreenshot, "png")),
+        Mat wholeMat = imdecode(new MatOfByte(imageToByteArray(wholeScreenshot, "png")), Imgcodecs.IMREAD_GRAYSCALE);
+        Mat elementMat = imdecode(new MatOfByte(imageToByteArray(elementScreenshot, "png")),
                 Imgcodecs.IMREAD_GRAYSCALE);
         if (elementMat.empty() || wholeMat.empty()) {
             LOG.error("Cannot read images, one or both are empty.");

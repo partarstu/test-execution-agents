@@ -107,7 +107,7 @@ public interface GenericAiAgent<T extends FinalResult> {
         long startTime = currentTimeMillis();
         String taskDescription = getAgentTaskDescription();
 
-        long elapsedTime = currentTimeMillis() - startTime;
+        long elapsedTime;
         OperationExecutionResult<T> operationResult;
         do {
             operationResult = executeAndGetResult(action);

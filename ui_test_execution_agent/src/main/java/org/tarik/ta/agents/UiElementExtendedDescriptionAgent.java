@@ -19,12 +19,16 @@ import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.dto.UiElementIdentificationResult;
 import org.tarik.ta.core.error.RetryPolicy;
 
 public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElementIdentificationResult> {
-    RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
+    @Override
+    default RetryPolicy getRetryPolicy() {
+        return UiTestAgentConfig.getInstance().getActionRetryPolicy();
+    }
 
     @UserMessage("""
             Target Element Description: {{target_element_description}}
@@ -41,10 +45,5 @@ public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElement
     @Override
     default String getAgentTaskDescription() {
         return "Describing the UI element based on description";
-    }
-
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
     }
 }

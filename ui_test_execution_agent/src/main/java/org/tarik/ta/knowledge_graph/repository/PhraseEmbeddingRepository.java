@@ -15,7 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph.repository;
 
-import io.avaje.inject.Singleton;
+import jakarta.inject.Singleton;
 import org.neo4j.driver.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
