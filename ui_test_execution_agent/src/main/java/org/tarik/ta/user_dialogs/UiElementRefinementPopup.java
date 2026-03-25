@@ -46,8 +46,8 @@ public class UiElementRefinementPopup extends AbstractDialog {
 
     private ElementRefinementOperation result;
 
-    private UiElementRefinementPopup(Window owner, String message, List<UiElement> itemsToRefine) {
-        super(owner, DIALOG_TITLE);
+    private UiElementRefinementPopup(Window owner, String message, List<UiElement> itemsToRefine, UiTestAgentConfig config) {
+        super(owner, DIALOG_TITLE, config);
 
         JPanel mainPanel = getDefaultMainPanel();
         var messageArea = getUserMessageArea(message);
@@ -87,7 +87,7 @@ public class UiElementRefinementPopup extends AbstractDialog {
 
     private void showElementActionDialog(UiElement element) {
         JDialog dialog = new JDialog(this, ELEMENT_ACTION_DIALOG_TITLE, true);
-        dialog.setLayout(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
+        dialog.setLayout(new BorderLayout(dialogDefaultHorizontalGap, dialogDefaultVerticalGap));
 
         JPanel messagePanel = new JPanel();
         messagePanel.add(new JLabel(ELEMENT_ACTION_DIALOG_MESSAGE));
@@ -138,7 +138,7 @@ public class UiElementRefinementPopup extends AbstractDialog {
         label.setHorizontalTextPosition(SwingConstants.RIGHT);
         label.setVerticalTextPosition(SwingConstants.CENTER);
         label.setVerticalAlignment(SwingConstants.CENTER);
-        label.setIconTextGap(DIALOG_DEFAULT_HORIZONTAL_GAP);
+        label.setIconTextGap(dialogDefaultHorizontalGap);
         label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return label;
     }
@@ -159,8 +159,8 @@ public class UiElementRefinementPopup extends AbstractDialog {
 
     public static Optional<ElementRefinementOperation> displayAndGetChoice(Window owner,
             @NotNull String message,
-            @NotNull List<UiElement> elementsToRefine) {
-        UiElementRefinementPopup popup = new UiElementRefinementPopup(owner, message, elementsToRefine);
+            @NotNull List<UiElement> elementsToRefine, UiTestAgentConfig config) {
+        UiElementRefinementPopup popup = new UiElementRefinementPopup(owner, message, elementsToRefine, config);
         return ofNullable(popup.result);
     }
 

@@ -66,8 +66,8 @@ public class InformationalPopup extends AbstractConfirmationDialog {
         displayPopup();
     }
 
-    private static JPanel createMessageWithIconPanel(JTextPane messageArea, Icon icon) {
-        JPanel panel = new JPanel(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, 0));
+    private JPanel createMessageWithIconPanel(JTextPane messageArea, Icon icon) {
+        JPanel panel = new JPanel(new BorderLayout(dialogDefaultHorizontalGap, 0));
         panel.setOpaque(false);
         panel.add(new JLabel(icon), BorderLayout.WEST);
         panel.add(messageArea, BorderLayout.CENTER);

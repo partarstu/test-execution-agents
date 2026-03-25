@@ -52,11 +52,11 @@ public class VerificationFailurePopup extends AbstractDialog {
                 escapeHtml(verificationDescription), escapeHtml(failureReason));
 
         JLabel messageLabel = new JLabel(message);
-        messageLabel.setBorder(BorderFactory.createEmptyBorder(DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP,
-                DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP));
+        messageLabel.setBorder(BorderFactory.createEmptyBorder(dialogDefaultVerticalGap, dialogDefaultHorizontalGap,
+                dialogDefaultVerticalGap, dialogDefaultHorizontalGap));
 
         // Center panel with message and optional screenshot
-        JPanel centerPanel = new JPanel(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
+        JPanel centerPanel = new JPanel(new BorderLayout(dialogDefaultHorizontalGap, dialogDefaultVerticalGap));
         centerPanel.add(messageLabel, BorderLayout.NORTH);
 
         if (screenshot != null) {

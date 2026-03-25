@@ -67,9 +67,6 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     static final int ELEMENT_SCREENSHOT_PREFERRED_WIDTH = 200;
     static final int ELEMENT_SCREENSHOT_PREFERRED_HEIGHT = 120;
 
-    private final int dialogDefaultFontSize;
-    private final String dialogDefaultFontType;
-    private final long procedureLookupDelayMs;
     private final UiElementRepository uiElementRepository;
     private final UiElementDialogHelper uiElementDialogHelper;
 
@@ -122,7 +119,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     JPanel childStepsCards;
 
     private ProcedureKnowledgeCollectionDialog(Window owner, DialogConfig cfg) {
-        super(owner, cfg.title());
+        super(owner, cfg.title(), cfg.uiTestAgentConfig());
         this.showTestDataAndExpectedResults = cfg.showTestDataAndExpectedResults();
         this.targetUiElementId = cfg.targetUiElementId();
         this.knowledgeService = cfg.knowledgeService();
@@ -130,9 +127,6 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         this.currentProcedureId = cfg.currentProcedureId();
         this.childLoaderFactory = cfg.childLoaderFactory();
         this.itemContext = cfg.itemContext();
-        this.dialogDefaultFontSize = cfg.dialogDefaultFontSize();
-        this.dialogDefaultFontType = cfg.dialogDefaultFontType();
-        this.procedureLookupDelayMs = cfg.procedureLookupDelayMs();
         this.uiElementRepository = cfg.uiElementRepository();
         this.uiElementDialogHelper = cfg.uiElementDialogHelper();
 

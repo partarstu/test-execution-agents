@@ -54,7 +54,7 @@ public class ProcedureExecutionConfirmationPopup
                                       @Nullable ExecutionItemContext itemContext, boolean isPreExecution) {
         JPanel mainPanel = getDefaultMainPanel();
         applyCommonPanelStyling(mainPanel);
-        mainPanel.setLayout(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
+        mainPanel.setLayout(new BorderLayout(dialogDefaultHorizontalGap, dialogDefaultVerticalGap));
 
         String contextHtml = buildContextHtml(itemContext);
         var parentDescriptionString = parentDescription==null? "N/A" : parentDescription;

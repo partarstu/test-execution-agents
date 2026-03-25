@@ -29,18 +29,16 @@ import static java.awt.BorderLayout.*;
 import static javax.swing.BorderFactory.createEmptyBorder;
 import static javax.swing.BorderFactory.createTitledBorder;
 import static javax.swing.border.TitledBorder.TOP;
-import static org.tarik.ta.user_dialogs.AbstractDialog.DIALOG_DEFAULT_HORIZONTAL_GAP;
-import static org.tarik.ta.user_dialogs.AbstractDialog.DIALOG_DEFAULT_VERTICAL_GAP;
 
 public class ProcedureDialogUIBuilder {
 
     public static JPanel createHeaderPanel(ProcedureKnowledgeCollectionDialog dialog, String initialDescription, String headerMessage,
                                      ExecutionItemContext itemContext) {
-        JPanel panel = new JPanel(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
-        panel.setBorder(createEmptyBorder(DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP,
-                DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP));
+        JPanel panel = new JPanel(new BorderLayout(dialog.dialogDefaultHorizontalGap, dialog.dialogDefaultVerticalGap));
+        panel.setBorder(createEmptyBorder(dialog.dialogDefaultVerticalGap, dialog.dialogDefaultHorizontalGap,
+                dialog.dialogDefaultVerticalGap, dialog.dialogDefaultHorizontalGap));
 
-        JPanel topSection = new JPanel(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
+        JPanel topSection = new JPanel(new BorderLayout(dialog.dialogDefaultHorizontalGap, dialog.dialogDefaultVerticalGap));
         if (itemContext != null) {
             topSection.add(createExecutionContextPanel(dialog, itemContext), NORTH);
         }

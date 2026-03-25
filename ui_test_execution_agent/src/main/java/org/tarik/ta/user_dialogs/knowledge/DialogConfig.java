@@ -17,10 +17,12 @@ package org.tarik.ta.user_dialogs.knowledge;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
+import org.tarik.ta.user_dialogs.UiElementDialogHelper;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
@@ -46,8 +48,6 @@ record DialogConfig(
         @Nullable UUID currentProcedureId,
         @Nullable SuggestionLoaderFactory childLoaderFactory,
         @Nullable BufferedImage preloadedElementScreenshot,
-        int dialogDefaultFontSize,
-        String dialogDefaultFontType,
-        long procedureLookupDelayMs,
+        @NotNull UiTestAgentConfig uiTestAgentConfig,
         @NotNull UiElementRepository uiElementRepository,
         @NotNull UiElementDialogHelper uiElementDialogHelper) {}

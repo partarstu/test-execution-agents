@@ -41,7 +41,8 @@ public abstract class AbstractCountdownPopup<T> extends AbstractDialog {
     protected void applyCommonPanelStyling(JPanel panel) {
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Color.GRAY, 1),
-                BorderFactory.createEmptyBorder(10, 15, 10, 15)));
+                BorderFactory.createEmptyBorder(dialogDefaultVerticalGap, dialogDefaultHorizontalGap,
+                        dialogDefaultVerticalGap, dialogDefaultHorizontalGap)));
         panel.setBackground(new Color(255, 255, 224)); // Light yellow background
     }
 
