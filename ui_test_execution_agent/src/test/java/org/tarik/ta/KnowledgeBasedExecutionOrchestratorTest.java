@@ -21,23 +21,24 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.agents.*;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator;
-import org.tarik.ta.knowledge_graph.KnowledgeServices;
+import org.tarik.ta.knowledge_graph.StepExecutionOrchestrator;
+import org.tarik.ta.knowledge_graph.ProcedureKnowledgeCollectionService;
+import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
+import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.model.UiTestExecutionContext;
-import org.tarik.ta.tools.CommonTools;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
@@ -46,8 +47,6 @@ class KnowledgeBasedExecutionOrchestratorTest {
 
     @Mock
     private UiTestExecutionContext mockContext;
-    @Mock
-    private CommonTools mockCommonTools;
     @Mock
     private KnowledgeService mockKnowledgeService;
     @Mock
@@ -59,36 +58,24 @@ class KnowledgeBasedExecutionOrchestratorTest {
     @Mock
     private ProcedureUsageByTestCaseTrackingService mockProcedureUsageByTestCaseTrackingService;
     @Mock
-    private UiTestStepVerificationAgent mockTestStepVerificationAgent;
+    private StepExecutionOrchestrator mockStepExecutionOrchestrator;
     @Mock
-    private UiPreconditionVerificationAgent mockPreconditionVerificationAgent;
+    private ProcedureKnowledgeCollectionService mockProcedureKnowledgeCollectionService;
     @Mock
-    private UiTestStepActionAgent mockTestStepActionAgent;
+    private LocationHistoryRecorder mockLocationHistoryRecorder;
     @Mock
-    private UiPreconditionActionAgent mockPreconditionActionAgent;
-    @Mock
-    private KnowledgeSuggestionAgent mockKnowledgeSuggestionAgent;
-
-    private KnowledgeServices mockKnowledgeServices;
+    private ElementLocationHistoryLookup mockElementLocationHistoryLookup;
 
     @Mock
     private UiTestAgentConfig configMock;
-    private MockedStatic<org.tarik.ta.knowledge_graph.service.KnowledgeService> knowledgeServiceFactoryMock;
 
     @BeforeEach
     void setUp() {
-        
-        knowledgeServiceFactoryMock = mockStatic(org.tarik.ta.knowledge_graph.service.KnowledgeService.class);
-
         lenient().when(configMock.isFullyUnattended()).thenReturn(true);
-        
-        mockKnowledgeServices = new KnowledgeServices(mockKnowledgeService, mockIngestionService, mockSatisfiesEdgeService,
-                mockProcedureUsageByTestCaseTrackingService, mockFailureContextService, (id, located, timeMs, strategy) -> {}, id -> Optional.empty());
     }
 
     @AfterEach
     void tearDown() {
-        knowledgeServiceFactoryMock.close();
     }
 
     @Test
@@ -101,9 +88,10 @@ class KnowledgeBasedExecutionOrchestratorTest {
         org.junit.jupiter.api.Assertions.assertThrows(org.tarik.ta.exceptions.MissingProcedureException.class, () -> {
             
         var orchestrator = new KnowledgeBasedExecutionOrchestrator(
-                mockTestStepVerificationAgent, mockPreconditionVerificationAgent,
-                mockTestStepActionAgent, mockPreconditionActionAgent, mockCommonTools, 
-                mockKnowledgeSuggestionAgent, mockKnowledgeServices, configMock);
+                mockKnowledgeService, mockIngestionService, mockStepExecutionOrchestrator,
+                mockProcedureKnowledgeCollectionService, mockSatisfiesEdgeService,
+                mockLocationHistoryRecorder, mockElementLocationHistoryLookup,
+                mockProcedureUsageByTestCaseTrackingService, mockFailureContextService, configMock);
         orchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, mock(ExecutionStateTracker.class));
     
         });

@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import org.mockito.MockedStatic;
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.tarik.ta.UiTestAgentConfig;
 
 import java.awt.Rectangle;
@@ -30,22 +31,24 @@ import java.awt.image.BufferedImage;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.*;
 
 class ImageMatchingUtilTest {
 
     @Mock
     private UiTestAgentConfig configMock;
+    private AutoCloseable closeable;
 
     @BeforeEach
     void setUp() {
-        
+        closeable = MockitoAnnotations.openMocks(this);
         lenient().when(configMock.getElementLocatorTopVisualMatches()).thenReturn(5);
         lenient().when(configMock.getElementLocatorVisualSimilarityThreshold()).thenReturn(0.8);
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws Exception {
+        closeable.close();
     }
 
     @Test

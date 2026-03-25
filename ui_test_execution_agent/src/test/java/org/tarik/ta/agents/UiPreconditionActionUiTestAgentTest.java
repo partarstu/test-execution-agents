@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.OperationExecutionResult;
@@ -40,22 +41,24 @@ class UiPreconditionActionUiTestAgentTest {
 
     private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
     @Mock
-    private UiTestAgentConfig configMockedStatic;
+    private UiTestAgentConfig configMock;
+    private AutoCloseable closeable;
 
     @BeforeEach
     void setUp() {
+        closeable = MockitoAnnotations.openMocks(this);
         commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS);
         commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
         commonUtilsMockedStatic.when(() -> UiCommonUtils.captureScreen(anyBoolean())).thenReturn(mock(BufferedImage.class));
 
         
-        lenient().when(configMockedStatic.isFullyUnattended()).thenReturn(false);
+        lenient().when(configMock.isFullyUnattended()).thenReturn(false);
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws Exception {
         commonUtilsMockedStatic.close();
-        configMockedStatic.close();
+        closeable.close();
     }
 
     @Test

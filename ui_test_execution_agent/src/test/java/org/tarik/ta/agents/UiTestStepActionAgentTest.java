@@ -17,6 +17,7 @@ package org.tarik.ta.agents;
 
 import dev.langchain4j.service.Result;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockitoAnnotations;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.OperationExecutionResult;
@@ -30,7 +31,6 @@ import org.tarik.ta.utils.UiCommonUtils;
 import java.awt.image.BufferedImage;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.lenient;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
@@ -41,21 +41,23 @@ class UiTestStepActionAgentTest {
 
     private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
     @Mock
-    private UiTestAgentConfig configMockedStatic;
+    private UiTestAgentConfig configMock;
+    private AutoCloseable closeable;
 
     @BeforeEach
     void setUp() {
+        closeable = MockitoAnnotations.openMocks(this);
         commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS);
         commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
 
         
-        lenient().when(configMockedStatic.isFullyUnattended()).thenReturn(false);
+        lenient().when(configMock.isFullyUnattended()).thenReturn(false);
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws Exception {
         commonUtilsMockedStatic.close();
-        configMockedStatic.close();
+        closeable.close();
     }
 
 
