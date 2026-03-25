@@ -37,7 +37,9 @@ class ExecutionStateTrackerTest {
 
     @BeforeEach
     void setUp() {
-        stateTracker = new ExecutionStateTracker(mock(UiTestAgentConfig.class));
+        UiTestAgentConfig config = mock(UiTestAgentConfig.class);
+        org.mockito.Mockito.when(config.getAncestryWindowSize()).thenReturn(5);
+        stateTracker = new ExecutionStateTracker(config);
     }
 
     private static PhraseEmbedding pe(String phrase) {

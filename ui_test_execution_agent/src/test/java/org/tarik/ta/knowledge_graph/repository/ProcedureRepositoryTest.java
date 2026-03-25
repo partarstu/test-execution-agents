@@ -59,9 +59,17 @@ class ProcedureRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        when(mockRepositorySupport.cypher(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(mockRepositorySupport.cypher(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        
+        lenient().doAnswer(invocation -> {
+            Consumer<TransactionContext> consumer = invocation.getArgument(0);
+            TransactionContext mockTx = mock(TransactionContext.class);
+            org.neo4j.driver.Result mockResult = mock(org.neo4j.driver.Result.class);
+            when(mockTx.run(anyString(), anyMap())).thenReturn(mockResult);
+            consumer.accept(mockTx);
+            return null;
+        }).when(mockRepositorySupport).executeComplexWriteQuery(any(Consumer.class));
+
         lenient().when(configMock.getNeo4jDatabase()).thenReturn("neo4j");
         lenient().when(configMock.getStabilityEwmaAlpha()).thenReturn(0.3);
         lenient().when(configMock.getTimingEwmaAlpha()).thenReturn(0.2);
@@ -100,7 +108,9 @@ class ProcedureRepositoryTest {
     void updateElementStability_shouldCallExecuteWrite() {
         UUID elementId = UUID.randomUUID();
 
-        verify(mockRepositorySupport).executeSingleWriteQuery(contains("SET el.stabilityScore"), anyMap());
+        procedureRepository.updateElementStability(elementId, true, 100, LocationStrategy.HYBRID);
+
+        verify(mockRepositorySupport).executeComplexWriteQuery(any(Consumer.class));
     }
 
     @Test
@@ -108,22 +118,36 @@ class ProcedureRepositoryTest {
     void updateTimingProfile_shouldComputeEwmaAndWriteValues() {
         UUID id = UUID.randomUUID();
 
+        TransactionContext mockTx = mock(TransactionContext.class);
+        org.neo4j.driver.Result mockResult = mock(org.neo4j.driver.Result.class);
         org.neo4j.driver.Record mockRecord = mock(org.neo4j.driver.Record.class);
-        when(mockRecord.get("avgExecMs")).thenReturn(org.neo4j.driver.Values.value(1000L));
-        when(mockRecord.get("avgDelayMs")).thenReturn(org.neo4j.driver.Values.value(500L));
-        when(mockRecord.get("maxDelayMs")).thenReturn(org.neo4j.driver.Values.value(2000L));
-        when(mockRecord.get("lastUpdate")).thenReturn(org.neo4j.driver.Values.value(Instant.now().toString()));
+        
+        lenient().when(mockTx.run(anyString(), anyMap())).thenReturn(mockResult);
+        lenient().when(mockResult.hasNext()).thenReturn(true);
+        lenient().when(mockResult.next()).thenReturn(mockRecord);
+        
+        lenient().when(mockRecord.get("avgExecMs")).thenReturn(org.neo4j.driver.Values.value(1000L));
+        lenient().when(mockRecord.get("avgDelayMs")).thenReturn(org.neo4j.driver.Values.value(500L));
+        lenient().when(mockRecord.get("maxDelayMs")).thenReturn(org.neo4j.driver.Values.value(2000L));
+        lenient().when(mockRecord.get("lastUpdate")).thenReturn(org.neo4j.driver.Values.value(Instant.now().toString()));
 
-        when(mockRepositorySupport.executeSingleReadQuery(anyString(), anyMap()))
-                .thenReturn(List.of(mockRecord));
+        doAnswer(invocation -> {
+            Consumer<TransactionContext> consumer = invocation.getArgument(0);
+            consumer.accept(mockTx);
+            return null;
+        }).when(mockRepositorySupport).executeComplexWriteQuery(any(Consumer.class));
 
         procedureRepository.updateTimingProfile(id, 2000, 1000);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(mockRepositorySupport).executeSingleWriteQuery(contains("SET n.avgExecutionMs"), paramsCaptor.capture());
+        verify(mockTx, atLeastOnce()).run(anyString(), paramsCaptor.capture());
 
-        var params = paramsCaptor.getValue();
+        var params = paramsCaptor.getAllValues().stream()
+                .filter(p -> p.containsKey("avgExecutionMs"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("UPDATE_TIMING_PROFILE not called with expected params"));
+
         // alpha=0.2, existing=1000, actual=2000 → 1000*(0.8) + 2000*(0.2) = 1200
         assertThat(params.get("avgExecutionMs")).isEqualTo(1200L);
     }
