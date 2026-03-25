@@ -42,8 +42,9 @@ public class ProcedureLowConfidenceSelectionPopup extends AbstractDialog {
 
     private ProcedureLowConfidenceSelectionPopup(Window owner,
                                                  String itemDescription,
-                                                 List<Procedure> matches) {
-        super(owner, "Procedure Selection");
+                                                 List<Procedure> matches,
+                                                 org.tarik.ta.UiTestAgentConfig config) {
+        super(owner, "Procedure Selection", config);
 
         JPanel mainPanel = getDefaultMainPanel();
 
@@ -141,14 +142,16 @@ public class ProcedureLowConfidenceSelectionPopup extends AbstractDialog {
      * @param owner           the parent window
      * @param itemDescription the description of the item being matched
      * @param matches         the list of low-confidence matches found
+     * @param config          Agent configuration
      * @return the user's selection decision, or empty if cancelled
      */
     public static Optional<UserSelectionResult> displayAndGetSelection(
             Window owner,
             String itemDescription,
-            List<Procedure> matches) {
+            List<Procedure> matches,
+            org.tarik.ta.UiTestAgentConfig config) {
 
-        var popup = new ProcedureLowConfidenceSelectionPopup(owner, itemDescription, matches);
+        var popup = new ProcedureLowConfidenceSelectionPopup(owner, itemDescription, matches, config);
 
         if (popup.action == SelectionAction.CANCEL) {
             LOG.info("User cancelled low-confidence selection for: '{}'", itemDescription);

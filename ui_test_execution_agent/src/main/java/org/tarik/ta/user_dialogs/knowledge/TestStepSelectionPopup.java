@@ -33,8 +33,8 @@ public class TestStepSelectionPopup extends AbstractDialog {
     private int selectedStepIndex = -1;
     private final JTable stepTable;
 
-    private TestStepSelectionPopup(Window owner, List<TestStep> testSteps) {
-        super(owner, "Select Starting Test Step");
+    private TestStepSelectionPopup(Window owner, List<TestStep> testSteps, org.tarik.ta.UiTestAgentConfig config) {
+        super(owner, "Select Starting Test Step", config);
 
         JPanel mainPanel = getDefaultMainPanel();
 
@@ -73,11 +73,11 @@ public class TestStepSelectionPopup extends AbstractDialog {
         stepTable.setRowHeight(25);
 
         JScrollPane scrollPane = new JScrollPane(stepTable);
-        scrollPane.setPreferredSize(new Dimension(750, Math.min(testSteps.size() * 25 + 30, 400)));
+        scrollPane.setPreferredSize(new Dimension(750, Math.min(testSteps.size() * 25 + 30, SCREENSHOT_DISPLAY_MAX_HEIGHT)));
 
         // Buttons
         JButton startButton = new JButton("Start from Selected Step");
-        startButton.setFont(new Font("Dialog", Font.BOLD, 12));
+        startButton.setFont(new Font(dialogDefaultFontType, Font.BOLD, 12));
         startButton.addActionListener(_ -> {
             selectedStepIndex = stepTable.getSelectedRow();
             if (selectedStepIndex < 0) {
@@ -114,14 +114,15 @@ public class TestStepSelectionPopup extends AbstractDialog {
      * Displays the test step selection dialog and returns the selected step index.
      *
      * @param testSteps List of test steps to display
+     * @param config    Agent configuration
      * @return The 0-based index of the selected step (defaults to -1 if closed
      *         unexpectedly)
      */
-    public static int displayAndGetSelection(List<TestStep> testSteps) {
+    public static int displayAndGetSelection(List<TestStep> testSteps, org.tarik.ta.UiTestAgentConfig config) {
         if (testSteps == null || testSteps.isEmpty()) {
             return 0;
         }
-        var popup = new TestStepSelectionPopup(null, testSteps);
+        var popup = new TestStepSelectionPopup(null, testSteps, config);
         return popup.selectedStepIndex;
     }
 

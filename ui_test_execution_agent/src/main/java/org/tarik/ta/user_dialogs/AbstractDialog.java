@@ -40,15 +40,23 @@ public abstract class AbstractDialog extends JDialog {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractDialog.class);
     public static final int SCREENSHOT_DISPLAY_MAX_WIDTH = 600;
     public static final int SCREENSHOT_DISPLAY_MAX_HEIGHT = 400;
+    public static final int DIALOG_DEFAULT_HORIZONTAL_GAP = 10;
+    public static final int DIALOG_DEFAULT_VERTICAL_GAP = 10;
     protected final UiTestAgentConfig uiTestAgentConfig;
     protected final int dialogDefaultVerticalGap;
     protected final int dialogDefaultHorizontalGap;
+    protected final String dialogDefaultFontType;
+    protected final int dialogDefaultFontSize;
+    protected final int procedureLookupDelayMs;
 
     public AbstractDialog(Window owner, String title, UiTestAgentConfig uiTestAgentConfig) throws HeadlessException {
         super(owner, title, ModalityType.APPLICATION_MODAL);
         this.uiTestAgentConfig = uiTestAgentConfig;
         this.dialogDefaultVerticalGap = uiTestAgentConfig.getDialogDefaultVerticalGap();
         this.dialogDefaultHorizontalGap = uiTestAgentConfig.getDialogDefaultHorizontalGap();
+        this.dialogDefaultFontType = uiTestAgentConfig.getDialogDefaultFontType();
+        this.dialogDefaultFontSize = uiTestAgentConfig.getDialogDefaultFontSize();
+        this.procedureLookupDelayMs = uiTestAgentConfig.getProcedureLookupDelayMs();
         setAlwaysOnTop(true);
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
@@ -71,6 +79,22 @@ public abstract class AbstractDialog extends JDialog {
             int newHeight = Math.min(dialogSize.height, (int) (screenSize.height * 0.95));
             setSize(newWidth, newHeight);
         }
+    }
+
+    public int getDialogDefaultVerticalGap() {
+        return dialogDefaultVerticalGap;
+    }
+
+    public int getDialogDefaultHorizontalGap() {
+        return dialogDefaultHorizontalGap;
+    }
+
+    public String getDialogDefaultFontType() {
+        return dialogDefaultFontType;
+    }
+
+    public int getDialogDefaultFontSize() {
+        return dialogDefaultFontSize;
     }
 
     protected abstract void onDialogClosing();

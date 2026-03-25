@@ -155,7 +155,7 @@ public class ProcedureKnowledgeCollectionService {
             } else if (outcome.editParentRequested() && hasParent) {
                 if (parents.size() > 1) {
                     var selection = org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup.displayAndGetSelection(null,
-                            "Select parent of %s".formatted(current.description()), parents);
+                            "Select parent of %s".formatted(current.description()), parents, uiTestAgentConfig);
                     if (selection.isPresent() && selection.get().action() == EDIT) {
                         current = knowledgeService.findById(selection.get().existingId())
                                 .orElseThrow(() -> new IllegalStateException("Selected parent with ID '%s' not found"

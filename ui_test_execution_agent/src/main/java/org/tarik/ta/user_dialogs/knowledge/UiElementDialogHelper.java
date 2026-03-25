@@ -202,7 +202,7 @@ public class UiElementDialogHelper {
                             "No Elements Found", JOptionPane.INFORMATION_MESSAGE);
                     return;
                 }
-                UiElementRefinementPopup.displayAndGetChoice(null, "Refine existing UI elements for: %s".formatted(itemDesc), elements)
+                UiElementRefinementPopup.displayAndGetChoice(null, "Refine existing UI elements for: %s".formatted(itemDesc), elements, uiTestAgentConfig)
                         .ifPresent(op -> processRefinementOperation(op, uiElementRepository));
             } finally {
                 LOG.info("Completed workflow: Refine Elements...");

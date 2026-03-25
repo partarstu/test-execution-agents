@@ -18,6 +18,7 @@ package org.tarik.ta.user_dialogs;
 import org.jetbrains.annotations.NotNull;
 import org.tarik.ta.dto.ElementRefinementOperation;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.UiTestAgentConfig;
 
 import java.awt.image.BufferedImage;
 import javax.swing.*;

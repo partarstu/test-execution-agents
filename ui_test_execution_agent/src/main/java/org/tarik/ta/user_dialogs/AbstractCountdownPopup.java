@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.user_dialogs;
 
+import org.tarik.ta.UiTestAgentConfig;
+
 import javax.swing.*;
 import java.awt.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -28,7 +30,7 @@ public abstract class AbstractCountdownPopup<T> extends AbstractDialog {
     protected int remainingSeconds;
     private Timer countdownTimer;
 
-    protected AbstractCountdownPopup(String title, T defaultResult, int seconds, org.tarik.ta.UiTestAgentConfig config) {
+    protected AbstractCountdownPopup(String title, T defaultResult, int seconds, UiTestAgentConfig config) {
         super(null, title, config);
         this.result = new AtomicReference<>(defaultResult);
         this.remainingSeconds = seconds;

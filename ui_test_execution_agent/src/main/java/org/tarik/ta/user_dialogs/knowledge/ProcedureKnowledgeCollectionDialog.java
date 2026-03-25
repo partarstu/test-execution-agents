@@ -134,7 +134,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         JPanel mainPanel = getDefaultMainPanel();
 
         JPanel headerPanel =
-                ProcedureDialogUIBuilder.createHeaderPanel(this, p != null ? p.description() : "", cfg.headerMessage(), cfg.itemContext());
+                ProcedureDialogBuilder.createHeaderPanel(this, p != null ? p.description() : "", cfg.headerMessage(), cfg.itemContext());
         mainPanel.add(headerPanel, NORTH);
 
         var elementIdRef = new AtomicReference<>(cfg.targetUiElementId());
@@ -144,8 +144,8 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                 elementIdRef);
 
         JPanel rightPanel = new JPanel(new BorderLayout());
-        rightPanel.add(ProcedureDialogUIBuilder.createTargetElementPanel(this), NORTH);
-        JPanel advancedPanel = ProcedureDialogUIBuilder.createAdvancedPanel(this,
+        rightPanel.add(ProcedureDialogBuilder.createTargetElementPanel(this), NORTH);
+        JPanel advancedPanel = ProcedureDialogBuilder.createAdvancedPanel(this,
                 p != null ? p.prerequisites() : List.of(),
                 p != null ? p.effects() : List.of(),
                 p != null ? p.testData() : List.of(),
@@ -155,13 +155,13 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         mainPanel.add(rightPanel, BorderLayout.EAST);
 
         JPanel centerPanel = new JPanel(new BorderLayout());
-        centerPanel.add(ProcedureDialogUIBuilder.createAtomicityPanel(this, p == null || p.isAtomic()), NORTH);
+        centerPanel.add(ProcedureDialogBuilder.createAtomicityPanel(this, p == null || p.isAtomic()), NORTH);
         rowBuilder = new ChildStepRowBuilder(() -> childStepsSelectedIndex, stepsWithSimilarItems, atomicCheckBox::isSelected,
                 knowledgeService, idx -> {
             childStepsSelectedIndex = idx;
             refreshChildStepsList();
         }, this::editChildStep, this::openLookupForStep, this::createButton);
-        centerPanel.add(ProcedureDialogUIBuilder.createChildStepsPanel(this, cfg.preloadedChildren()), CENTER);
+        centerPanel.add(ProcedureDialogBuilder.createChildStepsPanel(this, cfg.preloadedChildren()), CENTER);
         mainPanel.add(centerPanel, CENTER);
 
         JButton saveButton = createButton("Save", _ -> {
@@ -589,8 +589,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                 existing.targetUiElementId(), showTestDataAndExpectedResults, true, existing.needsSave(),
                 itemContext, knowledgeService, ingestionService, null,
                 buildChildLoaderFactory(index), existing.elementScreenshot(),
-                dialogDefaultFontSize, dialogDefaultFontType, procedureLookupDelayMs,
-                uiElementRepository, uiElementDialogHelper);
+                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper);
         var outcome = openDialog(this, cfg);
         if (!outcome.cancelled() && !outcome.editParentRequested() && outcome.result() instanceof IngestionNode.NewProcedure np) {
             UUID newId = ingestionService.ingest(np);
@@ -823,9 +822,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                 buildTransientProcedure(initialDescription, aiSuggestions, showTestDataAndExpectedResults),
                 preloadedChildren, null, showTestDataAndExpectedResults, false, false,
                 itemContext, knowledgeService, ingestionService, null, childLoaderFactory, null,
-                uiTestAgentConfig.getDialogDefaultFontSize(), uiTestAgentConfig.getDialogDefaultFontType(),
-                uiTestAgentConfig.getProcedureLookupDelayMs(),
-                uiElementRepository, uiElementDialogHelper);
+                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper);
         var outcome = openDialog(owner, cfg);
         return (outcome.cancelled() || outcome.editParentRequested()) ? empty() : ofNullable(outcome.result());
     }
@@ -871,8 +868,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         var cfg = new DialogConfig("Edit Procedure", "Modify the existing procedure definition.",
                 existingProcedure, childSteps, targetUiElementId, showTestDataAndExpectedResults,
                 hasParent, false, itemContext, knowledgeService, ingestionService, existingProcedure.id(),
-                childLoaderFactory, null, uiTestAgentConfig.getDialogDefaultFontSize(), uiTestAgentConfig.getDialogDefaultFontType(),
-                uiTestAgentConfig.getProcedureLookupDelayMs(),
+                childLoaderFactory, null, uiTestAgentConfig,
                 uiElementRepository, uiElementDialogHelper);
         return openDialog(owner, cfg);
     }

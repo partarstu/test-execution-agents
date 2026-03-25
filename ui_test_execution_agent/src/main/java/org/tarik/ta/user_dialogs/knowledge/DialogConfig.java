@@ -22,7 +22,6 @@ import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
-import org.tarik.ta.user_dialogs.UiElementDialogHelper;
 
 import java.awt.image.BufferedImage;
 import java.util.List;

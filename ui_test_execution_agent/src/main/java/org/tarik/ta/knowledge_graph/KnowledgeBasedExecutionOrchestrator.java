@@ -399,7 +399,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                                       UiTestExecutionContext executionContext) {
         while (true) {
             var selectionResult = org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup
-                    .displayAndGetSelection(null, itemDescription, match.allMatches());
+                    .displayAndGetSelection(null, itemDescription, match.allMatches(), uiTestAgentConfig);
             if (selectionResult.isEmpty()) {
                 LOG.warn("User cancelled selection for '{}', stopping execution", itemDescription);
                 throw new IllegalStateException("User cancelled knowledge workflow");

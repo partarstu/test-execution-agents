@@ -109,7 +109,7 @@ public class UiTestAgent {
             try {
                 int startingStepIndex = 0;
                 if (!uiTestAgentConfig.isFullyUnattended()) {
-                    startingStepIndex = TestStepSelectionPopup.displayAndGetSelection(testCase.testSteps());
+                    startingStepIndex = TestStepSelectionPopup.displayAndGetSelection(testCase.testSteps(), uiTestAgentConfig);
                     if (startingStepIndex < 0) {
                         LOG.info("Operator selected to abort execution from the step selection dialog.");
                         return new UiTestExecutionResult(testCase.name(), ERROR, List.of(), List.of(), captureScreen(),
