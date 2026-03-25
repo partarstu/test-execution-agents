@@ -61,7 +61,7 @@ import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
 @Singleton
-class StepExecutionOrchestrator {
+public class StepExecutionOrchestrator {
     private static final Logger LOG = LoggerFactory.getLogger(StepExecutionOrchestrator.class);
 
     private final VerificationTools verificationTools;
@@ -76,7 +76,7 @@ class StepExecutionOrchestrator {
     private final UiPreconditionVerificationAgent preconditionVerificationAgent;
     private final long actionVerificationDelayMillis;
 
-    StepExecutionOrchestrator(VerificationTools verificationTools,
+    public StepExecutionOrchestrator(VerificationTools verificationTools,
                                BudgetManager budgetManager,
                                UiTestAgentConfig uiTestAgentConfig,
                                ProcedureKnowledgeCollectionService procedureKnowledgeCollectionService,

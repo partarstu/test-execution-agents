@@ -17,6 +17,7 @@ package org.tarik.ta.knowledge_graph.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PhraseType;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
@@ -28,6 +29,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 class ExecutionStateTrackerTest {
 

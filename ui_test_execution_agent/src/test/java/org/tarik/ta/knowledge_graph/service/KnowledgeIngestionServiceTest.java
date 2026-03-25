@@ -85,7 +85,7 @@ class KnowledgeIngestionServiceTest {
             Consumer<TransactionContext> tx = invocation.getArgument(0);
             tx.accept(mock(TransactionContext.class));
             return null;
-        }).when(mockRepositorySupport).executeComplexWriteQuery(any());
+        }).when(mockRepositorySupport).executeComplexWriteQuery(any(Consumer.class));
 
         knowledgeIngestionService.ingest(node);
 

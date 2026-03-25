@@ -33,6 +33,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mockStatic;
 
+import static org.mockito.Mockito.lenient;
+
 @ExtendWith(MockitoExtension.class)
 class UiToolErrorHandlerTest {
 
@@ -46,10 +48,9 @@ class UiToolErrorHandlerTest {
 
     @BeforeEach
     void setUp() {
-        
         lenient().when(configMock.isFullyUnattended()).thenReturn(true);
         // Use a real RetryPolicy to avoid mocking issues
-        uiToolErrorHandler = new UiToolErrorHandler(new RetryPolicy(3, 100, 1000));
+        uiToolErrorHandler = new UiToolErrorHandler(new RetryPolicy(3, 100, 1000), configMock);
     }
 
     @AfterEach

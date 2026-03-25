@@ -108,14 +108,14 @@ class ProcedureRepositoryTest {
     void updateTimingProfile_shouldComputeEwmaAndWriteValues() {
         UUID id = UUID.randomUUID();
 
-        var mockMap = Map.<String, Object>of(
-            "avgExecMs", 1000L,
-            "avgDelayMs", 500L,
-            "maxDelayMs", 2000L,
-            "lastUpdate", Instant.now().toString()
-        );
+        org.neo4j.driver.Record mockRecord = mock(org.neo4j.driver.Record.class);
+        when(mockRecord.get("avgExecMs")).thenReturn(org.neo4j.driver.Values.value(1000L));
+        when(mockRecord.get("avgDelayMs")).thenReturn(org.neo4j.driver.Values.value(500L));
+        when(mockRecord.get("maxDelayMs")).thenReturn(org.neo4j.driver.Values.value(2000L));
+        when(mockRecord.get("lastUpdate")).thenReturn(org.neo4j.driver.Values.value(Instant.now().toString()));
+
         when(mockRepositorySupport.executeSingleReadQuery(anyString(), anyMap()))
-                .thenReturn(List.of(mockMap));
+                .thenReturn(List.of(mockRecord));
 
         procedureRepository.updateTimingProfile(id, 2000, 1000);
 

@@ -33,7 +33,7 @@ public class InformationalPopup extends AbstractConfirmationDialog {
     }
 
     private void initialize(String message, BufferedImage screenshot, PopupType popupType) {
-        var messagePanel = createMessageWithIconPanel(getUserMessageArea(message, uiTestAgentConfig), popupType.getIcon());
+        var messagePanel = createMessageWithIconPanel(getUserMessageArea(message), popupType.getIcon());
         var continueButton = createOkButton();
 
         JPanel mainPanel = getDefaultMainPanel();

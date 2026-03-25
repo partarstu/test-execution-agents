@@ -49,7 +49,7 @@ import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
  * between StepExecutionOrchestrator and KnowledgeBasedExecutionOrchestrator.
  */
 @Singleton
-class ProcedureKnowledgeCollectionService {
+public class ProcedureKnowledgeCollectionService {
     private static final Logger LOG = LoggerFactory.getLogger(ProcedureKnowledgeCollectionService.class);
 
     private final KnowledgeSuggestionAgent knowledgeSuggestionAgent;
@@ -59,7 +59,7 @@ class ProcedureKnowledgeCollectionService {
     private final UiElementDialogHelper uiElementDialogHelper;
     private final UiTestAgentConfig uiTestAgentConfig;
 
-    ProcedureKnowledgeCollectionService(KnowledgeSuggestionAgent knowledgeSuggestionAgent,
+    public ProcedureKnowledgeCollectionService(KnowledgeSuggestionAgent knowledgeSuggestionAgent,
                                         KnowledgeService knowledgeService,
                                         KnowledgeIngestionService knowledgeIngestionService,
                                         UiElementRepository uiElementRepository,

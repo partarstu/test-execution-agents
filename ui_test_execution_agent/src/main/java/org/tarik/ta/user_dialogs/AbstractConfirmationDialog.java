@@ -37,7 +37,7 @@ public abstract class AbstractConfirmationDialog extends AbstractDialog {
     }
 
     protected void initializeDialog(String userMessage) {
-        var userMessageArea = getUserMessageArea(userMessage, uiTestAgentConfig);
+        var userMessageArea = getUserMessageArea(userMessage);
         JPanel buttonsPanel = getButtonsPanel(createOkButton());
 
         JPanel mainPanel = getDefaultMainPanel();

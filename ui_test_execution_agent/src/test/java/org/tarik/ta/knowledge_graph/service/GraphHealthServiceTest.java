@@ -47,12 +47,14 @@ class GraphHealthServiceTest {
     private GraphHealthRepository repository;
 
     @Mock
+    private GraphHealthHtmlReportGenerator reportGenerator;
+
+    @Mock
     private UiTestAgentConfig configMock;
     private GraphHealthService service;
 
     @BeforeEach
     void setUp() {
-        
         lenient().when(configMock.getHealthWarningThreshold()).thenReturn(3);
         lenient().when(configMock.getHealthCriticalThreshold()).thenReturn(10);
         lenient().when(configMock.getSatisfiesStaleDays()).thenReturn(30);
@@ -67,7 +69,7 @@ class GraphHealthServiceTest {
         when(repository.findOrphanedFailureContexts()).thenReturn(List.of());
         when(repository.findOrphanedPhraseEmbeddings()).thenReturn(List.of());
 
-        service = new GraphHealthService(repository);
+        service = new GraphHealthService(repository, reportGenerator, configMock);
     }
 
     @AfterEach
@@ -119,6 +121,7 @@ class GraphHealthServiceTest {
     @DisplayName("generateHtmlReport writes a non-empty HTML file to the given path")
     void generateHtmlReport_writesFileToPath(@TempDir Path tempDir) throws IOException {
         var outputPath = tempDir.resolve("health-report.html");
+        when(reportGenerator.generateHtml(any())).thenReturn("<!DOCTYPE html><html><body>Knowledge Graph Health Report</body></html>");
 
         service.generateHtmlReport(outputPath);
 
@@ -132,6 +135,7 @@ class GraphHealthServiceTest {
     @DisplayName("generateHtmlReport creates parent directories if they don't exist")
     void generateHtmlReport_createsParentDirectories(@TempDir Path tempDir) throws IOException {
         var outputPath = tempDir.resolve("nested/sub/report.html");
+        when(reportGenerator.generateHtml(any())).thenReturn("<html></html>");
 
         service.generateHtmlReport(outputPath);
 

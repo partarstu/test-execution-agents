@@ -43,8 +43,8 @@ public class UiElementInfoPopup extends AbstractDialog {
 
         JPanel contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
-        contentPanel.setBorder(BorderFactory.createEmptyBorder(DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP,
-                DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP));
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(dialogDefaultVerticalGap, dialogDefaultHorizontalGap,
+                dialogDefaultVerticalGap, dialogDefaultHorizontalGap));
         nameField = addLabelWithValueField("Name", originalElementInfo.name(), contentPanel);
         descriptionArea = addLabelWithValueField("Description", originalElementInfo.description(), contentPanel);
         locationDetails = addLabelWithValueField("Location Details", originalElementInfo.locationDetails(),
