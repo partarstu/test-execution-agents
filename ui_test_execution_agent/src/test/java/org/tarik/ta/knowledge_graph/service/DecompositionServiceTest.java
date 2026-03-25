@@ -33,6 +33,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class DecompositionServiceTest {
@@ -42,18 +43,18 @@ class DecompositionServiceTest {
     @Mock
     private ProcedureRepository mockRepository;
 
-    private MockedStatic<UiTestAgentConfig> configMock;
+    @Mock
+    private UiTestAgentConfig configMock;
 
     @BeforeEach
     void setUp() {
-        configMock = mockStatic(UiTestAgentConfig.class);
-        configMock.when(UiTestAgentConfig::getKnowledgeMaxDepth).thenReturn(5);
-        decompositionService = new DecompositionService(mockRepository);
+        
+        lenient().when(configMock.getKnowledgeMaxDepth()).thenReturn(5);
+        decompositionService = new DecompositionService(mockRepository, configMock);
     }
 
     @AfterEach
     void tearDown() {
-        configMock.close();
     }
 
     @Test

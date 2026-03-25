@@ -38,18 +38,11 @@ class AgentsInterfacesTest {
             }
         };
         assertThat(agent.getAgentTaskDescription()).isEqualTo("Extracting test case from user request");
-        assertThat(agent.getRetryPolicy()).isEqualTo(new AgentConfig().getActionRetryPolicy());
     }
 
     @Test
     void genericAiAgentDefaultMethods() {
         GenericAiAgent<TestFinalResult> agent = new GenericAiAgent<>() {
-            @Override
-            public RetryPolicy getRetryPolicy() {
-                return new RetryPolicy(1, 1, 1);
-            }
-
-            @Override
             public String getAgentTaskDescription() {
                 return "test task";
             }

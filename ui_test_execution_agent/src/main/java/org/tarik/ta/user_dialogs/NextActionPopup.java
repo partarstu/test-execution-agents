@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.user_dialogs;
 
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.utils.CommonUtils;
 
 import javax.swing.*;
@@ -35,8 +36,8 @@ public class NextActionPopup extends AbstractDialog {
     private final AtomicReference<UserDecision> userDecision = new AtomicReference<>(
             UserDecision.EDIT_CURRENT_PROCEDURE);
 
-    private NextActionPopup(Window owner, String message) {
-        super(owner, TITLE);
+    private NextActionPopup(Window owner, String message, UiTestAgentConfig config) {
+        super(owner, TITLE, config);
         var userMessageArea = getUserMessageArea(message);
 
         JButton editCurrentProcedureButton = new JButton("Edit current procedure");
@@ -83,9 +84,9 @@ public class NextActionPopup extends AbstractDialog {
         userDecision.set(UserDecision.EDIT_CURRENT_PROCEDURE);
     }
 
-    public static UserDecision displayAndGetUserDecision(Window owner, String message) {
+    public static UserDecision displayAndGetUserDecision(Window owner, String message, UiTestAgentConfig config) {
         String actualMessage = CommonUtils.isNotBlank(message) ? message : DEFAULT_INPUT_MESSAGE;
-        var popup = new NextActionPopup(owner, actualMessage);
+        var popup = new NextActionPopup(owner, actualMessage, config);
         return popup.userDecision.get();
     }
 }

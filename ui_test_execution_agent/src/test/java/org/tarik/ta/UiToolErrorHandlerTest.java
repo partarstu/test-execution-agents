@@ -41,25 +41,25 @@ class UiToolErrorHandlerTest {
     @Mock
     private ToolErrorContext mockContext;
 
-    private MockedStatic<UiTestAgentConfig> configMock;
+    @Mock
+    private UiTestAgentConfig configMock;
 
     @BeforeEach
     void setUp() {
-        configMock = mockStatic(UiTestAgentConfig.class);
-        configMock.when(UiTestAgentConfig::isFullyUnattended).thenReturn(true);
+        
+        lenient().when(configMock.isFullyUnattended()).thenReturn(true);
         // Use a real RetryPolicy to avoid mocking issues
         uiToolErrorHandler = new UiToolErrorHandler(new RetryPolicy(3, 100, 1000));
     }
 
     @AfterEach
     void tearDown() {
-        configMock.close();
     }
 
     @Test
     @DisplayName("handle should return retry result for retryable ElementLocationException in unattended mode")
     void handle_shouldReturnRetry_whenRetryableExceptionAndUnattended() {
-        configMock.when(UiTestAgentConfig::isSupervised).thenReturn(false);
+        lenient().when(configMock.isSupervised()).thenReturn(false);
         ElementLocationException ex = new ElementLocationException(
                 "not found",
                 ElementLocationStatus.ELEMENT_NOT_FOUND_ON_SCREEN_VISUAL_AND_ALGORITHMIC_FAILED
@@ -73,7 +73,7 @@ class UiToolErrorHandlerTest {
     @Test
     @DisplayName("handle should throw exception for ElementLocationException in supervised mode")
     void handle_shouldThrow_whenSupervised() {
-        configMock.when(UiTestAgentConfig::isSupervised).thenReturn(true);
+        lenient().when(configMock.isSupervised()).thenReturn(true);
         ElementLocationException ex = new ElementLocationException(
                 "not found",
                 ElementLocationStatus.ELEMENT_NOT_FOUND_ON_SCREEN_VISUAL_AND_ALGORITHMIC_FAILED

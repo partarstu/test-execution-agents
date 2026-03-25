@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import org.mockito.MockedStatic;
+import org.mockito.Mock;
 import org.tarik.ta.UiTestAgentConfig;
 
 import java.awt.Rectangle;
@@ -33,18 +34,18 @@ import static org.mockito.Mockito.mockStatic;
 
 class ImageMatchingUtilTest {
 
-    private MockedStatic<UiTestAgentConfig> configMock;
+    @Mock
+    private UiTestAgentConfig configMock;
 
     @BeforeEach
     void setUp() {
-        configMock = mockStatic(UiTestAgentConfig.class);
-        configMock.when(UiTestAgentConfig::getElementLocatorTopVisualMatches).thenReturn(5);
-        configMock.when(UiTestAgentConfig::getElementLocatorVisualSimilarityThreshold).thenReturn(0.8);
+        
+        lenient().when(configMock.getElementLocatorTopVisualMatches()).thenReturn(5);
+        lenient().when(configMock.getElementLocatorVisualSimilarityThreshold()).thenReturn(0.8);
     }
 
     @AfterEach
     void tearDown() {
-        configMock.close();
     }
 
     @Test
@@ -64,7 +65,7 @@ class ImageMatchingUtilTest {
         // Clone the subimage to make sure it's not a view
         BufferedImage template = ImageUtils.cloneImage(image.getSubimage(10, 10, 20, 20));
         
-        List<Rectangle> matches = ImageMatchingUtil.findMatchingRegionsWithTemplateMatching(image, template);
+        List<Rectangle> matches = ImageMatchingUtil.findMatchingRegionsWithTemplateMatching(image, template, configMock);
         
         assertThat(matches).isNotEmpty();
         assertThat(matches.get(0).x).isEqualTo(10);

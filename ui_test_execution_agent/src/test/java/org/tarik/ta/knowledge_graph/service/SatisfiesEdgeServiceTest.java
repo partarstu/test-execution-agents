@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class SatisfiesEdgeServiceTest {
@@ -48,19 +49,19 @@ class SatisfiesEdgeServiceTest {
     @Mock
     private PhraseEmbeddingRepository mockPhraseEmbeddingRepository;
 
-    private MockedStatic<UiTestAgentConfig> configMock;
+    @Mock
+    private UiTestAgentConfig configMock;
 
     @BeforeEach
     void setUp() {
-        configMock = mockStatic(UiTestAgentConfig.class);
-        configMock.when(UiTestAgentConfig::getSatisfiesSimilarityThreshold).thenReturn(0.85);
+        
+        lenient().when(configMock.getSatisfiesSimilarityThreshold()).thenReturn(0.85);
 
-        satisfiesEdgeService = new SatisfiesEdgeService(mockSatisfiesEdgeRepository, mockPhraseEmbeddingRepository);
+        satisfiesEdgeService = new SatisfiesEdgeService(mockSatisfiesEdgeRepository, mockPhraseEmbeddingRepository, configMock);
     }
 
     @AfterEach
     void tearDown() {
-        configMock.close();
     }
 
     @Test

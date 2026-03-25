@@ -38,7 +38,6 @@ import org.tarik.ta.UiTestAgentConfig;
  * <p>Reuses the shared {@link BgeSmallEnV15EmbeddingModel} instance (384-dimension, ONNX-based,
  * thread-safe). Configurable batch size via {@code knowledge.embedding.batch.size} property.</p>
  */
-@Singleton
 @Factory
 public class EmbeddingService {
     private static final Logger LOG = LoggerFactory.getLogger(EmbeddingService.class);

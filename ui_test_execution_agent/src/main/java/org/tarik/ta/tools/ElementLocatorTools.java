@@ -27,7 +27,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.BestUiElementMatchSelectionAgent;
 import org.tarik.ta.agents.UiElementBoundingBoxAgent;
@@ -37,30 +36,35 @@ import org.tarik.ta.exceptions.ElementLocationException;
 import org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
+import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.user_dialogs.SpinnerManager;
 import org.tarik.ta.utils.UiCommonUtils;
-import org.tarik.ta.utils.ImageUtils;
 import org.tarik.ta.knowledge_graph.location_history.LocationStrategy;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static dev.langchain4j.service.AiServices.builder;
 import static java.lang.Math.min;
 import static java.lang.Thread.currentThread;
+import static java.nio.file.Files.createDirectories;
 import static java.time.Duration.between;
+import static java.time.LocalDateTime.now;
+import static java.time.format.DateTimeFormatter.ofPattern;
 import static java.util.Collections.max;
 import static java.util.Comparator.comparingDouble;
 import static java.util.Objects.requireNonNull;
@@ -72,8 +76,10 @@ import static java.util.stream.Collectors.*;
 import static java.util.stream.IntStream.range;
 import static java.util.stream.Stream.concat;
 
+import static javax.imageio.ImageIO.write;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.utils.BoundingBoxUtil.*;
+import static org.tarik.ta.utils.ImageUtils.*;
 import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithORB;
@@ -87,20 +93,18 @@ public class ElementLocatorTools extends UiAbstractTools {
     private final UiElementBoundingBoxAgent uiElementBoundingBoxAgent;
     private final BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent;
     private final LocationHistoryRecorder locationHistoryRecorder;
-    private final Function<UUID, Optional<ElementLocationHistory>> stabilityLookup;
+    private final ElementLocationHistoryLookup stabilityLookup;
     private final UiTestAgentConfig uiTestAgentConfig;
-    private final ImageUtils imageUtils;
     private final Color boundingBoxColor;
     private final boolean debugMode;
 
     @Inject
     public ElementLocatorTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
                                 LocationHistoryRecorder locationHistoryRecorder,
-                                Function<UUID, Optional<ElementLocationHistory>> elementLocationHistoryLookup,
+                                ElementLocationHistoryLookup elementLocationHistoryLookup,
                                 UiElementBoundingBoxAgent uiElementBoundingBoxAgent,
                                 BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent,
-                                UiTestAgentConfig uiTestAgentConfig,
-                                ImageUtils imageUtils) {
+                                UiTestAgentConfig uiTestAgentConfig) {
         super(uiStateCheckAgent);
         this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
         this.uiElementBoundingBoxAgent = requireNonNull(uiElementBoundingBoxAgent, "uiElementBoundingBoxAgent");
@@ -112,7 +116,6 @@ public class ElementLocatorTools extends UiAbstractTools {
         String boundingBoxColorName = uiTestAgentConfig.getElementBoundingBoxColorName();
         this.boundingBoxColor = getColorByName(boundingBoxColorName);
         this.debugMode = uiTestAgentConfig.isDebugMode();
-        this.imageUtils = requireNonNull(imageUtils, "imageUtils");
     }
 
     /**
@@ -158,7 +161,7 @@ public class ElementLocatorTools extends UiAbstractTools {
     @Tool("Returns the context (historical info about element location success stability, location duration etc.) for locating a UI " +
             "element. This information might be useful in order to identify the location approach.")
     public ElementLocationHistory getElementLocationContext(@P("ID of the UI element") UUID elementId) {
-        return stabilityLookup.apply(elementId).orElse(null);
+        return stabilityLookup.lookup(elementId).orElse(null);
     }
 
 
@@ -245,7 +248,7 @@ public class ElementLocatorTools extends UiAbstractTools {
     }
 
     private LocationStrategy resolveLocationStrategy(UiElement element) {
-        boolean algorithmic = isAlgorithmicSearchEnabled() && !element.isDataDependent() && element.screenshot() != null;
+        boolean algorithmic = uiTestAgentConfig.isAlgorithmicSearchEnabled() && !element.isDataDependent() && element.screenshot() != null;
         return algorithmic ? LocationStrategy.HYBRID : LocationStrategy.VISUAL_GROUNDING;
     }
 
@@ -450,7 +453,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                 if (debugMode) {
                     var imageWithAllBoxes = cloneImage(wholeScreenshot);
                     allBoundingBoxes.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, boundingBoxColor));
-                    imageUtils.saveImage(imageWithAllBoxes, "vision_identified_boxes_before_clustering");
+                    saveImage(imageWithAllBoxes, "vision_identified_boxes_before_clustering");
                 }
 
                 if (allBoundingBoxes.isEmpty()) {
@@ -474,7 +477,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                     if (this.debugMode) {
                         var imageWithAllBoxes = cloneImage(wholeScreenshot);
                         result.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, boundingBoxColor));
-                        imageUtils.saveImage(imageWithAllBoxes, "vision_identified_boxes_after_clustering");
+                        saveImage(imageWithAllBoxes, "vision_identified_boxes_after_clustering");
                     }
                     LOG.info("Model identified {} bounding boxes with {} votes, resulting in {} common regions", allBoundingBoxes.size(),
                             voteCount, result.size());
@@ -528,7 +531,7 @@ public class ElementLocatorTools extends UiAbstractTools {
             var resultingScreenshot = cloneImage(screenshot);
             drawBoundingBoxes(resultingScreenshot, boxesWithIds);
             if (debugMode) {
-                imageUtils.saveImage(resultingScreenshot, "model_selection_%s".formatted(matchAlgorithm));
+                saveImage(resultingScreenshot, "model_selection_%s".formatted(matchAlgorithm));
             }
 
             var successfulIdentificationResults = getValidSuccessfulIdentificationResultsFromModelUsingQuorum(
@@ -612,7 +615,7 @@ public class ElementLocatorTools extends UiAbstractTools {
         var elementBoundingBoxesByLabel = elementToPlot.boundingBoxesByIds();
         drawBoundingBoxes(resultingScreenshot, elementBoundingBoxesByLabel);
         if (debugMode) {
-            imageUtils.saveImage(resultingScreenshot, postfix);
+            saveImage(resultingScreenshot, postfix);
         }
     }
 
@@ -668,7 +671,22 @@ public class ElementLocatorTools extends UiAbstractTools {
         }
         return downscaleRatio;
     }
+
+    private boolean saveImage(BufferedImage resultingScreenshot, String postfix) {
+        LocalDateTime now = now();
+        DateTimeFormatter formatter = ofPattern("yyyy_MM_dd_HH_mm_ss_SSS");
+        String timestamp = now.format(formatter);
+        var folder = uiTestAgentConfig.getScreenshotsSaveFolder();
+        var filePath = Paths.get(folder).resolve("%s_%s.png".formatted(timestamp, postfix)).toAbsolutePath();
+        try {
+            createDirectories(filePath.getParent());
+            write(resultingScreenshot, "png", filePath.toFile());
+            LOG.info("Saved image {}", filePath.toAbsolutePath());
+            return true;
+        } catch (IOException e) {
+            String message = "Couldn't save screenshot %s.".formatted(filePath);
+            LOG.error(message, e);
+            return false;
+        }
+    }
 }
-
-
-

@@ -25,36 +25,37 @@ class UiTestAgentConfigTest {
     @Test
     @DisplayName("Verify various config getters")
     void verifyConfigGetters() {
+        var config = new UiTestAgentConfig();
         // Just call the getters to ensure they don't throw and to cover the code
-        assertThat(UiTestAgentConfig.getScreenshotsSaveFolder()).isNotNull();
-        assertThat(UiTestAgentConfig.getExecutionMode()).isNotNull();
-        assertThat(UiTestAgentConfig.getSupervisedCountdownSeconds()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getAgentToolCallsBudget()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getRecordingBitrate()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getRecordingFormat()).isNotNull();
-        assertThat(UiTestAgentConfig.getRecordingFrameRate()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getElementBoundingBoxColorName()).isNotNull();
-        assertThat(UiTestAgentConfig.getElementRetrievalMinTargetScore()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getElementRetrievalMinGeneralScore()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getElementLocatorVisualSimilarityThreshold()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getElementLocatorTopVisualMatches()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getFoundMatchesDimensionDeviationRatio()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getElementLocatorVisualGroundingVoteCount()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getElementLocatorValidationVoteCount()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getBboxClusteringMinIntersectionRatio()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getVerificationModelMaxRetries()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getDialogDefaultHorizontalGap()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getDialogDefaultVerticalGap()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getDialogDefaultFontType()).isNotNull();
-        assertThat(UiTestAgentConfig.getDialogDefaultFontSize()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getNeo4jUsername()).isNotNull();
-        assertThat(UiTestAgentConfig.getNeo4jDatabase()).isNotNull();
-        assertThat(UiTestAgentConfig.getKnowledgeMaxDepth()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getKnowledgeEmbeddingBatchSize()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getKnowledgeMatchConfidenceHigh()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getKnowledgeMatchConfidenceLow()).isGreaterThanOrEqualTo(0);
-        assertThat(UiTestAgentConfig.getKnowledgeMatchTopN()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getScreenshotsSaveFolder()).isNotNull();
+        assertThat(config.getExecutionMode()).isNotNull();
+        assertThat(config.getSupervisedCountdownSeconds()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getAgentToolCallsBudget()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getRecordingBitrate()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getRecordingFormat()).isNotNull();
+        assertThat(config.getRecordingFrameRate()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getElementBoundingBoxColorName()).isNotNull();
+        assertThat(config.getElementRetrievalMinTargetScore()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getElementRetrievalMinGeneralScore()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getElementLocatorVisualSimilarityThreshold()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getElementLocatorTopVisualMatches()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getFoundMatchesDimensionDeviationRatio()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getElementLocatorVisualGroundingVoteCount()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getElementLocatorValidationVoteCount()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getBboxClusteringMinIntersectionRatio()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getBboxScreenshotLongestAllowedDimensionPixels()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getBboxScreenshotMaxSizeMegapixels()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getVerificationModelMaxRetries()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getDialogDefaultHorizontalGap()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getDialogDefaultVerticalGap()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getDialogDefaultFontType()).isNotNull();
+        assertThat(config.getDialogDefaultFontSize()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getNeo4jUsername()).isNotNull();
+        assertThat(config.getNeo4jDatabase()).isNotNull();
+        assertThat(config.getKnowledgeMaxDepth()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getKnowledgeEmbeddingBatchSize()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getKnowledgeMatchConfidenceHigh()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getKnowledgeMatchConfidenceLow()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getKnowledgeMatchTopN()).isGreaterThanOrEqualTo(0);
     }
 }

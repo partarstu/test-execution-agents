@@ -52,6 +52,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,7 +75,8 @@ class ElementLocatorToolsTest {
     private MockedStatic<ModelFactory> modelFactoryMock;
     private MockedStatic<PromptUtils> promptUtilsMock;
     private MockedStatic<UiCommonUtils> uiCommonUtilsMock;
-    private MockedStatic<UiTestAgentConfig> configMock;
+    @Mock
+    private UiTestAgentConfig configMock;
     private MockedStatic<AiServices> aiServicesMock;
     private MockedStatic<org.tarik.ta.user_dialogs.SpinnerManager> spinnerManagerMock;
 
@@ -93,24 +95,24 @@ class ElementLocatorToolsTest {
         spinnerManagerMock = mockStatic(org.tarik.ta.user_dialogs.SpinnerManager.class);
         spinnerManagerMock.when(org.tarik.ta.user_dialogs.SpinnerManager::hideIfVisible).thenReturn(mock(org.tarik.ta.user_dialogs.SpinnerState.class));
         
-        configMock = mockStatic(UiTestAgentConfig.class);
-        configMock.when(UiTestAgentConfig::getElementBoundingBoxColorName).thenReturn("red");
-        configMock.when(UiTestAgentConfig::getElementBoundingBoxAgentModelName).thenReturn("model");
-        configMock.when(UiTestAgentConfig::getElementBoundingBoxAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-        configMock.when(UiTestAgentConfig::getElementBoundingBoxAgentPromptVersion).thenReturn("v1");
-        configMock.when(UiTestAgentConfig::getUiElementVisualMatchAgentModelName).thenReturn("model");
-        configMock.when(UiTestAgentConfig::getUiElementVisualMatchAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-        configMock.when(UiTestAgentConfig::getElementSelectionAgentPromptVersion).thenReturn("v1");
-        configMock.when(UiTestAgentConfig::getElementLocatorVisualGroundingVoteCount).thenReturn(1);
-        configMock.when(UiTestAgentConfig::getElementLocatorValidationVoteCount).thenReturn(1);
-        configMock.when(UiTestAgentConfig::getBboxClusteringMinIntersectionRatio).thenReturn(0.9);
-        configMock.when(UiTestAgentConfig::getBboxScreenshotLongestAllowedDimensionPixels).thenReturn(5000);
-        configMock.when(UiTestAgentConfig::getBboxScreenshotMaxSizeMegapixels).thenReturn(10.0);
-        configMock.when(UiTestAgentConfig::isBoundingBoxAlreadyNormalized).thenReturn(false);
-        configMock.when(UiTestAgentConfig::getUiStateCheckAgentModelName).thenReturn("model");
-        configMock.when(UiTestAgentConfig::getUiStateCheckAgentModelProvider).thenReturn(AgentConfig.ModelProvider.GOOGLE);
-        configMock.when(UiTestAgentConfig::getUiStateCheckAgentPromptVersion).thenReturn("v1");
-        configMock.when(UiTestAgentConfig::getAgentToolCallsBudget).thenReturn(10);
+        
+        lenient().when(configMock.getElementBoundingBoxColorName()).thenReturn("red");
+        lenient().when(configMock.getElementBoundingBoxAgentModelName()).thenReturn("model");
+        lenient().when(configMock.getElementBoundingBoxAgentModelProvider()).thenReturn(AgentConfig.ModelProvider.GOOGLE);
+        lenient().when(configMock.getElementBoundingBoxAgentPromptVersion()).thenReturn("v1");
+        lenient().when(configMock.getUiElementVisualMatchAgentModelName()).thenReturn("model");
+        lenient().when(configMock.getUiElementVisualMatchAgentModelProvider()).thenReturn(AgentConfig.ModelProvider.GOOGLE);
+        lenient().when(configMock.getElementSelectionAgentPromptVersion()).thenReturn("v1");
+        lenient().when(configMock.getElementLocatorVisualGroundingVoteCount()).thenReturn(1);
+        lenient().when(configMock.getElementLocatorValidationVoteCount()).thenReturn(1);
+        lenient().when(configMock.getBboxClusteringMinIntersectionRatio()).thenReturn(0.9);
+        lenient().when(configMock.getBboxScreenshotLongestAllowedDimensionPixels()).thenReturn(5000);
+        lenient().when(configMock.getBboxScreenshotMaxSizeMegapixels()).thenReturn(10.0);
+        lenient().when(configMock.isBoundingBoxAlreadyNormalized()).thenReturn(false);
+        lenient().when(configMock.getUiStateCheckAgentModelName()).thenReturn("model");
+        lenient().when(configMock.getUiStateCheckAgentModelProvider()).thenReturn(AgentConfig.ModelProvider.GOOGLE);
+        lenient().when(configMock.getUiStateCheckAgentPromptVersion()).thenReturn("v1");
+        lenient().when(configMock.getAgentToolCallsBudget()).thenReturn(10);
 
         aiServicesMock = mockStatic(AiServices.class);
         AiServices<UiElementBoundingBoxAgent> bboxBuilder = mock(AiServices.class);
@@ -145,7 +147,6 @@ class ElementLocatorToolsTest {
         promptUtilsMock.close();
         uiCommonUtilsMock.close();
         spinnerManagerMock.close();
-        configMock.close();
         aiServicesMock.close();
     }
 
@@ -167,7 +168,7 @@ class ElementLocatorToolsTest {
         UiOperationExecutionResult<BoundingBoxes> executionResult = new UiOperationExecutionResult<>(SUCCESS, "success", boundingBoxes, null);
         
         when(mockBBoxAgent.executeAndGetResult(any())).thenReturn(executionResult);
-        configMock.when(UiTestAgentConfig::skipBestUiElementMatchSelection).thenReturn(true);
+        lenient().when(configMock.skipBestUiElementMatchSelection()).thenReturn(true);
 
         LocatedElementInfo result = elementLocatorTools.locateKnownElementById(id, "some data");
 

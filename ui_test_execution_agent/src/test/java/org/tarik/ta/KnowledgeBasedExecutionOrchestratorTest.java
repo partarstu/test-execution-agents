@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class KnowledgeBasedExecutionOrchestratorTest {
@@ -70,23 +71,23 @@ class KnowledgeBasedExecutionOrchestratorTest {
 
     private KnowledgeServices mockKnowledgeServices;
 
-    private MockedStatic<UiTestAgentConfig> configMock;
-    private MockedStatic<KnowledgeServiceFactory> knowledgeServiceFactoryMock;
+    @Mock
+    private UiTestAgentConfig configMock;
+    private MockedStatic<org.tarik.ta.knowledge_graph.service.KnowledgeService> knowledgeServiceFactoryMock;
 
     @BeforeEach
     void setUp() {
-        configMock = mockStatic(UiTestAgentConfig.class);
-        knowledgeServiceFactoryMock = mockStatic(KnowledgeServiceFactory.class);
+        
+        knowledgeServiceFactoryMock = mockStatic(org.tarik.ta.knowledge_graph.service.KnowledgeService.class);
 
-        configMock.when(UiTestAgentConfig::isFullyUnattended).thenReturn(true);
-        knowledgeServiceFactoryMock.when(() -> KnowledgeServiceFactory.createKnowledgeIngestionService(any(), any(), any())).thenReturn(mockIngestionService);
+        lenient().when(configMock.isFullyUnattended()).thenReturn(true);
+        
         mockKnowledgeServices = new KnowledgeServices(mockKnowledgeService, mockIngestionService, mockSatisfiesEdgeService,
                 mockProcedureUsageByTestCaseTrackingService, mockFailureContextService, (id, located, timeMs, strategy) -> {}, id -> Optional.empty());
     }
 
     @AfterEach
     void tearDown() {
-        configMock.close();
         knowledgeServiceFactoryMock.close();
     }
 
@@ -98,9 +99,13 @@ class KnowledgeBasedExecutionOrchestratorTest {
 
         // This should throw MissingProcedureException
         org.junit.jupiter.api.Assertions.assertThrows(org.tarik.ta.exceptions.MissingProcedureException.class, () -> {
-            KnowledgeBasedExecutionOrchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, mockKnowledgeServices, mockCommonTools,
-                    mockTestStepVerificationAgent, mockPreconditionVerificationAgent, mockTestStepActionAgent,
-                    mockPreconditionActionAgent, mockKnowledgeSuggestionAgent);
+            
+        var orchestrator = new KnowledgeBasedExecutionOrchestrator(
+                mockTestStepVerificationAgent, mockPreconditionVerificationAgent,
+                mockTestStepActionAgent, mockPreconditionActionAgent, mockCommonTools, 
+                mockKnowledgeSuggestionAgent, mockKnowledgeServices, configMock);
+        orchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, mock(ExecutionStateTracker.class));
+    
         });
     }
 }

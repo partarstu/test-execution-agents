@@ -44,7 +44,7 @@ public class ProcedureDialogUIBuilder {
         if (itemContext != null) {
             topSection.add(createExecutionContextPanel(dialog, itemContext), NORTH);
         }
-        topSection.add(new JScrollPane(AbstractDialog.getUserMessageArea(headerMessage)), CENTER);
+        topSection.add(new JScrollPane(dialog.getUserMessageArea(headerMessage)), CENTER);
         panel.add(topSection, NORTH);
 
         JPanel descPanel = new JPanel(new BorderLayout(5, 0));
@@ -80,7 +80,7 @@ public class ProcedureDialogUIBuilder {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         dialog.atomicCheckBox = new JCheckBox("Atomic Step (single UI action)", initialIsAtomic);
         dialog.atomicCheckBox.addActionListener(_ -> dialog.handleAtomicityToggle());
-        AbstractDialog.setHoverAsClick(dialog.atomicCheckBox);
+        dialog.setHoverAsClick(dialog.atomicCheckBox);
         panel.add(dialog.atomicCheckBox);
 
         dialog.locateElementButton = dialog.createButton("Locate UI Element...", _ -> dialog.handleElementSelection(dialog.handlers.locate()));

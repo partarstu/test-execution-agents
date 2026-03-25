@@ -17,7 +17,6 @@ package org.tarik.ta;
 
 import io.avaje.inject.BeanScope;
 import jakarta.inject.Singleton;
-import org.tarik.ta.config.scopes.UiAgentRequestScopeModule;
 import org.tarik.ta.core.BaseAgentRequestModule;
 import org.tarik.ta.model.VisualState;
 
@@ -32,7 +31,8 @@ public class UiAgentRequestScopeFactory {
     public BeanScope create(VisualState visualState) {
         return BeanScope.builder()
                 .parent(appScope)
-                .modules(new BaseAgentRequestModule(), new UiAgentRequestScopeModule(visualState))
+                .bean(VisualState.class, visualState)
+                .modules(new BaseAgentRequestModule(), new UiAgentRequestModule())
                 .build();
     }
 }

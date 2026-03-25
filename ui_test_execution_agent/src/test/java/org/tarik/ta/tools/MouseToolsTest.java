@@ -39,12 +39,14 @@ class MouseToolsTest {
 
     @Mock
     private Robot mockRobot;
+    @Mock
+    private UiTestAgentConfig mockConfig;
 
     private MouseTools mouseTools;
 
     @BeforeEach
     void setUp() throws Exception {
-        mouseTools = new MouseTools(mock(UiStateCheckAgent.class));
+        mouseTools = new MouseTools(mock(UiStateCheckAgent.class), mockConfig);
         setMockRobot(mockRobot);
     }
 

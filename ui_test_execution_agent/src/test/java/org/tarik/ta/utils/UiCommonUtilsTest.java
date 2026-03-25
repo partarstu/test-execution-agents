@@ -43,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 import static org.tarik.ta.utils.UiCommonUtils.getColorByName;
 import static org.tarik.ta.utils.UiCommonUtils.getColorName;
 import static org.tarik.ta.utils.UiCommonUtils.getMouseLocation;

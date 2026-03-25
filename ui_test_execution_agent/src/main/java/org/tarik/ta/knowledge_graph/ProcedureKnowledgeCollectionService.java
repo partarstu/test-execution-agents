@@ -58,22 +58,19 @@ class ProcedureKnowledgeCollectionService {
     private final UiElementRepository uiElementRepository;
     private final UiElementDialogHelper uiElementDialogHelper;
     private final UiTestAgentConfig uiTestAgentConfig;
-    private final ImageUtils imageUtils;
 
     ProcedureKnowledgeCollectionService(KnowledgeSuggestionAgent knowledgeSuggestionAgent,
                                         KnowledgeService knowledgeService,
                                         KnowledgeIngestionService knowledgeIngestionService,
                                         UiElementRepository uiElementRepository,
                                         UiElementDialogHelper uiElementDialogHelper,
-                                        UiTestAgentConfig uiTestAgentConfig,
-                                        ImageUtils imageUtils) {
+                                        UiTestAgentConfig uiTestAgentConfig) {
         this.knowledgeSuggestionAgent = knowledgeSuggestionAgent;
         this.knowledgeService = knowledgeService;
         this.knowledgeIngestionService = knowledgeIngestionService;
         this.uiElementRepository = uiElementRepository;
         this.uiElementDialogHelper = uiElementDialogHelper;
         this.uiTestAgentConfig = uiTestAgentConfig;
-        this.imageUtils = imageUtils;
     }
 
     /**
@@ -179,7 +176,7 @@ class ProcedureKnowledgeCollectionService {
                                                                     String expectedResults, String agentContext) {
         var suggestionsRef = new AtomicReference<>(KnowledgeSuggestionResult.empty());
         // Capture screen before showing the spinner so no dialog/spinner overlays appear in the screenshot
-        var screenshot = imageUtils.singleImageContent(captureScreen());
+        var screenshot = ImageUtils.singleImageContent(captureScreen());
         UiElementDialogHelper.showSpinnerUntilDone(() -> {
             try {
                 var result = knowledgeSuggestionAgent.executeAndGetResult(

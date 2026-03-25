@@ -37,6 +37,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -45,16 +46,17 @@ class GraphHealthServiceTest {
     @Mock
     private GraphHealthRepository repository;
 
-    private MockedStatic<UiTestAgentConfig> configMock;
+    @Mock
+    private UiTestAgentConfig configMock;
     private GraphHealthService service;
 
     @BeforeEach
     void setUp() {
-        configMock = mockStatic(UiTestAgentConfig.class);
-        configMock.when(UiTestAgentConfig::getHealthWarningThreshold).thenReturn(3);
-        configMock.when(UiTestAgentConfig::getHealthCriticalThreshold).thenReturn(10);
-        configMock.when(UiTestAgentConfig::getSatisfiesStaleDays).thenReturn(30);
-        configMock.when(UiTestAgentConfig::getKnowledgeMaxDepth).thenReturn(3);
+        
+        lenient().when(configMock.getHealthWarningThreshold()).thenReturn(3);
+        lenient().when(configMock.getHealthCriticalThreshold()).thenReturn(10);
+        lenient().when(configMock.getSatisfiesStaleDays()).thenReturn(30);
+        lenient().when(configMock.getKnowledgeMaxDepth()).thenReturn(3);
 
         when(repository.findOrphanedUiElements()).thenReturn(List.of());
         when(repository.findLeafProceduresWithoutElement()).thenReturn(List.of());
@@ -70,7 +72,6 @@ class GraphHealthServiceTest {
 
     @AfterEach
     void tearDown() {
-        configMock.close();
     }
 
     @Test

@@ -26,6 +26,7 @@ import org.tarik.ta.dto.KnowledgeSuggestionResult.SuggestedStep;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
+import org.tarik.ta.utils.ImageUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -68,6 +69,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
 
     private final int dialogDefaultFontSize;
     private final String dialogDefaultFontType;
+    private final long procedureLookupDelayMs;
     private final UiElementRepository uiElementRepository;
     private final UiElementDialogHelper uiElementDialogHelper;
 
@@ -130,6 +132,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         this.itemContext = cfg.itemContext();
         this.dialogDefaultFontSize = cfg.dialogDefaultFontSize();
         this.dialogDefaultFontType = cfg.dialogDefaultFontType();
+        this.procedureLookupDelayMs = cfg.procedureLookupDelayMs();
         this.uiElementRepository = cfg.uiElementRepository();
         this.uiElementDialogHelper = cfg.uiElementDialogHelper();
 
@@ -232,7 +235,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
             return;
         }
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        Image scaled = getInstance().scaleToFitBox(currentElementScreenshot, screenSize.width / 2, screenSize.height / 2);
+        Image scaled = ImageUtils.scaleToFitBox(currentElementScreenshot, screenSize.width / 2, screenSize.height / 2);
         JDialog zoomDialog = new JDialog(this, "Element Screenshot", true);
         zoomDialog.add(new JLabel(new ImageIcon(scaled)));
         zoomDialog.pack();
@@ -247,7 +250,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
             double ratio = min(
                     (double) ELEMENT_SCREENSHOT_PREFERRED_WIDTH / screenshot.getWidth(),
                     (double) ELEMENT_SCREENSHOT_PREFERRED_HEIGHT / screenshot.getHeight());
-            elementScreenshotLabel.setIcon(new ImageIcon(ratio < 1.0 ? getInstance().scaleImage(screenshot, ratio) : screenshot));
+            elementScreenshotLabel.setIcon(new ImageIcon(ratio < 1.0 ? ImageUtils.scaleImage(screenshot, ratio) : screenshot));
             elementScreenshotLabel.setText(null);
         } else {
             elementScreenshotLabel.setIcon(null);
@@ -285,12 +288,11 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     void handleAddChildStep() {
         withDialogHidden(() -> {
             var lookupResult = ExistingProcedureLookupDialog.displayAndGetResult(
-                    this, "", knowledgeService, true, getExcludedIds(), config.procedureLookupDelayMs());
-            switch (lookupResult) {
-                case ExistingProcedureLookupDialog.LookupResult.Selected s ->
-                        childStepsModel.addElement(new ChildProcedureInDialog.Linked(s.procedure(), null));
-                case ExistingProcedureLookupDialog.LookupResult.CreateNew c -> addAndEditNewChildStep(c.searchText());
-                case ExistingProcedureLookupDialog.LookupResult.Cancelled _ -> { /* no-op */ }
+                    this, "", knowledgeService, true, getExcludedIds(), procedureLookupDelayMs, uiTestAgentConfig);
+            if (lookupResult instanceof ExistingProcedureLookupDialog.LookupResult.Selected(Procedure procedure)) {
+                childStepsModel.addElement(new ChildProcedureInDialog.Linked(procedure, null));
+            } else if (lookupResult instanceof ExistingProcedureLookupDialog.LookupResult.CreateNew(String searchText)) {
+                addAndEditNewChildStep(searchText);
             }
         });
     }
@@ -329,7 +331,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
             ChildProcedureInDialog step = childStepsModel.get(index);
             withDialogHidden(() -> {
                 var lookupResult = ExistingProcedureLookupDialog.displayAndGetResult(
-                        this, step.description(), knowledgeService, false, getExcludedIds(), config.procedureLookupDelayMs());
+                        this, step.description(), knowledgeService, false, getExcludedIds(), procedureLookupDelayMs, uiTestAgentConfig);
                 if (lookupResult instanceof ExistingProcedureLookupDialog.LookupResult.Selected(Procedure procedure)) {
                     childStepsModel.set(index, new ChildProcedureInDialog.Linked(procedure, null));
                     stepsWithSimilarItems.remove(index);
@@ -528,7 +530,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     }
 
     private void clearElementIfRefined() {
-        if (targetUiElementId != null && UI_ELEMENT_REPOSITORY.findById(targetUiElementId).isEmpty()) {
+        if (targetUiElementId != null && uiElementRepository.findById(targetUiElementId).isEmpty()) {
             targetUiElementId = null;
             currentElementScreenshot = null;
             updateTargetElementUi("No element located.", null);
@@ -574,7 +576,8 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         var children = knowledgeService.getChildren(procedure.id());
         var outcome = displayForEditing(this, procedure, targetElementId,
                 showTestDataAndExpectedResults, false, itemContext, knowledgeService, ingestionService,
-                buildChildLoaderFactory(index), children.isEmpty() ? null : children);
+                buildChildLoaderFactory(index), children.isEmpty() ? null : children,
+                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper);
         if (outcome.result() instanceof IngestionNode.NewProcedure np) {
             ingestionService.update(procedure.id(), np);
             knowledgeService.onKnowledgeIngested();
@@ -592,8 +595,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                 existing.targetUiElementId(), showTestDataAndExpectedResults, true, existing.needsSave(),
                 itemContext, knowledgeService, ingestionService, null,
                 buildChildLoaderFactory(index), existing.elementScreenshot(),
-                UiTestAgentConfig.getDialogDefaultFontSize(), UiTestAgentConfig.getDialogDefaultFontType(),
-                UiTestAgentConfig.getProcedureLookupDelayMs(),
+                dialogDefaultFontSize, dialogDefaultFontType, procedureLookupDelayMs,
                 uiElementRepository, uiElementDialogHelper);
         var outcome = openDialog(this, cfg);
         if (!outcome.cancelled() && !outcome.editParentRequested() && outcome.result() instanceof IngestionNode.NewProcedure np) {
@@ -886,12 +888,12 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
      * When a {@code preloadedScreenshot} is provided it is used directly;
      * otherwise the screenshot is loaded from the retriever by {@code elementId}.
      */
-    private void setupTargetElementUi(ProcedureKnowledgeCollectionDialog dialog, @Nullable UUID elementId,
+    private static void setupTargetElementUi(ProcedureKnowledgeCollectionDialog dialog, @Nullable UUID elementId,
                                              @Nullable BufferedImage preloadedScreenshot) {
         if (elementId != null) {
             dialog.editDetailsButton.setEnabled(true);
             dialog.replaceScreenshotButton.setEnabled(true);
-            var uiElementOpt = uiElementRepository.findById(elementId);
+            var uiElementOpt = dialog.uiElementRepository.findById(elementId);
             String name = uiElementOpt.map(UiElement::name).orElse("Element ID: " + elementId);
             BufferedImage screenshot = preloadedScreenshot != null
                     ? preloadedScreenshot

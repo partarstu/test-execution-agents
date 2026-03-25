@@ -21,18 +21,15 @@ import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 
-import static org.tarik.ta.UiTestAgentConfig.getNeo4jUsername;
-import static org.tarik.ta.UiTestAgentConfig.getVectorDbToken;
-import static org.tarik.ta.UiTestAgentConfig.getVectorDbUrl;
-
 public class CleanDbTest {
 
     @Test
     @Disabled("Integration test for cleaning remote Neo4j DB, requires manual trigger")
     public void testClean() {
-        String uri = getVectorDbUrl();
-        String user = getNeo4jUsername();
-        String pass = getVectorDbToken();
+        var config = new UiTestAgentConfig();
+        String uri = config.getVectorDbUrl();
+        String user = config.getNeo4jUsername();
+        String pass = config.getVectorDbToken();
 
         try (Driver driver = GraphDatabase.driver(uri, AuthTokens.basic(user, pass))) {
             System.out.println("Executing clean...");

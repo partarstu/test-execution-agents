@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class KnowledgeServiceTest {
@@ -49,22 +50,22 @@ class KnowledgeServiceTest {
     @Mock private DecompositionService mockDecompositionService;
     @Mock private PhraseEmbeddingRepository mockPhraseEmbeddingRepository;
 
-    private MockedStatic<UiTestAgentConfig> configMock;
+    @Mock
+    private UiTestAgentConfig configMock;
 
     @BeforeEach
     void setUp() {
-        configMock = mockStatic(UiTestAgentConfig.class);
-        configMock.when(UiTestAgentConfig::getKnowledgeMatchConfidenceLow).thenReturn(0.5);
-        configMock.when(UiTestAgentConfig::getKnowledgeMatchConfidenceHigh).thenReturn(0.85);
-        configMock.when(UiTestAgentConfig::getKnowledgeMatchTopN).thenReturn(5);
-        configMock.when(UiTestAgentConfig::getStabilityPenaltyThreshold).thenReturn(0.5);
+        
+        lenient().when(configMock.getKnowledgeMatchConfidenceLow()).thenReturn(0.5);
+        lenient().when(configMock.getKnowledgeMatchConfidenceHigh()).thenReturn(0.85);
+        lenient().when(configMock.getKnowledgeMatchTopN()).thenReturn(5);
+        lenient().when(configMock.getStabilityPenaltyThreshold()).thenReturn(0.5);
 
-        knowledgeService = new KnowledgeService(mockRepository, mockEmbeddingService, mockDecompositionService, mockPhraseEmbeddingRepository);
+        knowledgeService = new KnowledgeService(mockRepository, mockEmbeddingService, mockDecompositionService, mockPhraseEmbeddingRepository, configMock);
     }
 
     @AfterEach
     void tearDown() {
-        configMock.close();
     }
 
     @Test

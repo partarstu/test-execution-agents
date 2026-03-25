@@ -24,6 +24,6 @@ public class KnowledgeServicesBeanFactory {
     @Bean
     @Singleton
     public ElementLocationHistoryLookup elementStabilityLookup() {
-        return procedureRepository::getElementStability;
+        return procedureRepository::getElementLocationHistory;
     }
 }

@@ -30,7 +30,7 @@ import org.neo4j.driver.TransactionContext;
 import org.neo4j.driver.TransactionCallback;
 import org.tarik.ta.dto.IngestionNode;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
-import org.tarik.ta.knowledge_graph.Neo4jConnectionManager;
+import org.tarik.ta.knowledge_graph.repository.Neo4jRepositorySupport;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
 import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository;
@@ -59,23 +59,15 @@ class KnowledgeIngestionServiceTest {
     @Mock
     private PhraseEmbeddingRepository mockPhraseEmbeddingRepository;
     @Mock
-    private Driver mockDriver;
-    @Mock
-    private Session mockSession;
-
-    private MockedStatic<Neo4jConnectionManager> connectionManagerMock;
+    private Neo4jRepositorySupport mockRepositorySupport;
 
     @BeforeEach
     void setUp() {
-        connectionManagerMock = mockStatic(Neo4jConnectionManager.class);
-        connectionManagerMock.when(Neo4jConnectionManager::getSession).thenReturn(mockSession);
-
-        knowledgeIngestionService = new KnowledgeIngestionService(mockRepository, mockEmbeddingService, mockDecompositionService, mockSatisfiesEdgeRepository, mockFailureContextService, mockPhraseEmbeddingRepository);
+        knowledgeIngestionService = new KnowledgeIngestionService(mockRepository, mockEmbeddingService, mockDecompositionService, mockSatisfiesEdgeRepository, mockFailureContextService, mockPhraseEmbeddingRepository, mockRepositorySupport);
     }
 
     @AfterEach
     void tearDown() {
-        connectionManagerMock.close();
     }
 
     @Test
@@ -88,16 +80,12 @@ class KnowledgeIngestionServiceTest {
 
         when(mockEmbeddingService.embedBatch(anyList())).thenReturn(List.of(mockEmbedding));
 
-        // Mock session.executeWriteWithoutResult to call the callback
+        // Mock repositorySupport.executeComplexWriteQuery to call the callback
         doAnswer(invocation -> {
-            Object arg = invocation.getArgument(0);
-            if (arg instanceof Consumer) {
-                ((Consumer<TransactionContext>) arg).accept(mock(TransactionContext.class));
-            } else if (arg instanceof TransactionCallback) {
-                ((TransactionCallback<?>) arg).execute(mock(TransactionContext.class));
-            }
+            Consumer<TransactionContext> tx = invocation.getArgument(0);
+            tx.accept(mock(TransactionContext.class));
             return null;
-        }).when(mockSession).executeWriteWithoutResult(any());
+        }).when(mockRepositorySupport).executeComplexWriteQuery(any());
 
         knowledgeIngestionService.ingest(node);
 

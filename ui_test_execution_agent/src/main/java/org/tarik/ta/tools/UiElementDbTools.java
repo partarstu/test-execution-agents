@@ -57,20 +57,17 @@ public class UiElementDbTools extends UiAbstractTools {
     private final UiElementRepository elementRepository;
     private final UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
     private final DbUiElementSelectionAgent dbUiElementSelectionAgent;
-    private final ImageUtils imageUtils;
     private final UiElementRefinementHelper uiElementRefinementHelper;
 
     @Inject
     public UiElementDbTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
                              UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent,
                              DbUiElementSelectionAgent dbUiElementSelectionAgent,
-                             ImageUtils imageUtils,
                              UiElementRefinementHelper uiElementRefinementHelper) {
         super(uiStateCheckAgent);
         this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
         this.uiElementExtendedDescriptionAgent = requireNonNull(uiElementExtendedDescriptionAgent, "uiElementExtendedDescriptionAgent");
         this.dbUiElementSelectionAgent = requireNonNull(dbUiElementSelectionAgent, "dbUiElementSelectionAgent");
-        this.imageUtils = requireNonNull(imageUtils, "imageUtils");
         this.uiElementRefinementHelper = requireNonNull(uiElementRefinementHelper, "uiElementRefinementHelper");
     }
 
@@ -137,7 +134,7 @@ public class UiElementDbTools extends UiAbstractTools {
 
     private UiElementIdentificationResult getElementIdentification(String elementDescription, String relevantTestData,
                                                                    BufferedImage screenshot) {
-        var imageContent = imageUtils.singleImageContent(screenshot);
+        var imageContent = ImageUtils.singleImageContent(screenshot);
         var relevantDataString = relevantTestData == null ? "" : relevantTestData;
         return uiElementExtendedDescriptionAgent
                 .executeAndGetResult(() -> uiElementExtendedDescriptionAgent.describeUiElement(elementDescription,
@@ -161,7 +158,7 @@ public class UiElementDbTools extends UiAbstractTools {
         BufferedImage screenshot = getScreenshotTogglingSpinner();
         try {
             var result = dbUiElementSelectionAgent.executeAndGetResult(() ->
-                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, imageUtils.singleImageContent(screenshot)))
+                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, ImageUtils.singleImageContent(screenshot)))
                     .getResultPayload();
             if (result == null) {
                 LOG.warn("Model returned null result. Returning empty.");

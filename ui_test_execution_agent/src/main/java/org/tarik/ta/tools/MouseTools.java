@@ -19,10 +19,9 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
-import org.tarik.ta.utils.ImageUtils;
 
 import java.awt.*;
 import java.awt.event.InputEvent;
@@ -30,23 +29,21 @@ import java.awt.image.BufferedImage;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.System.currentTimeMillis;
-import static org.tarik.ta.core.AgentConfig.getMaxActionExecutionDurationMillis;
 import static org.tarik.ta.core.error.ErrorCategory.TIMEOUT;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
 @Singleton
 public class MouseTools extends UiAbstractTools {
     private static final int MOUSE_ACTION_DELAY_MILLIS = 100;
-    private static final long RETRIABLE_ACTION_DELAY_MILLIS = AgentConfig.getActionRetryPolicy().delayMillis() * 2;
-
-    private final ImageUtils imageUtils;
+    private final UiTestAgentConfig uiTestAgentConfig;
 
     @Inject
-    public MouseTools(UiStateCheckAgent uiStateCheckAgent, ImageUtils imageUtils) {
+    public MouseTools(UiStateCheckAgent uiStateCheckAgent, UiTestAgentConfig uiTestAgentConfig) {
         super(uiStateCheckAgent);
-        this.imageUtils = imageUtils;
+        this.uiTestAgentConfig = uiTestAgentConfig;
     }
 
     @Tool(value = "Performs a right click with a mouse at the specified coordinates. Use this tool when you need to right-click at a " +
@@ -131,7 +128,7 @@ public class MouseTools extends UiAbstractTools {
     public void clickElementUntilStateAchieved(
             @P("The x-coordinate of the screen location to click (must be >= 0)") int x,
             @P("The y-coordinate of the screen location to click (must be >= 0)") int y,
-            @P("Description of the expected state after the click") String expectedStateDescription           ) {
+            @P("Description of the expected state after the click") String expectedStateDescription) {
         validateCoordinates(x, y);
         if (expectedStateDescription == null || expectedStateDescription.isBlank()) {
             throw new ToolExecutionException("Expected state description cannot be empty.", TRANSIENT_TOOL_ERROR);
@@ -141,19 +138,20 @@ public class MouseTools extends UiAbstractTools {
             var actionDescription = "Clicked at location (%s, %s)".formatted(x, y);
             var checkResult = uiStateCheckAgent.executeAndGetResult(() ->
                     uiStateCheckAgent.verify(expectedStateDescription, actionDescription, "",
-                            imageUtils.singleImageContent(captureScreen()))).getResultPayload();
+                            singleImageContent(captureScreen()))).getResultPayload();
             if (checkResult == null || !checkResult.success()) {
-                var waitDuration = getMaxActionExecutionDurationMillis();
+                var waitDuration = uiTestAgentConfig.getMaxActionExecutionDurationMillis();
+                long retryDelayMillis = uiTestAgentConfig.getActionRetryPolicy().delayMillis() * 2;
                 long deadline = currentTimeMillis() + waitDuration;
                 AtomicReference<BufferedImage> latestScreenshot = new AtomicReference<>();
                 Point clickLocation = new Point(x, y);
                 do {
                     leftMouseClick(clickLocation);
-                    sleepMillis(RETRIABLE_ACTION_DELAY_MILLIS);
+                    sleepMillis(retryDelayMillis);
                     var screenshot = latestScreenshot.updateAndGet(_ -> captureScreen());
                     var result = uiStateCheckAgent.executeAndGetResult(() ->
                             uiStateCheckAgent.verify(expectedStateDescription, actionDescription, "",
-                                    imageUtils.singleImageContent(screenshot))).getResultPayload();
+                                    singleImageContent(screenshot))).getResultPayload();
                     if (result != null && result.success()) {
                         return;
                     }

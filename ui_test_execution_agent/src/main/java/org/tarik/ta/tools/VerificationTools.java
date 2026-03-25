@@ -30,7 +30,6 @@ import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.dto.UiOperationExecutionResult;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.model.VisualState;
-import org.tarik.ta.utils.ImageUtils;
 
 import java.time.Instant;
 import java.util.function.Supplier;
@@ -38,6 +37,7 @@ import java.util.function.Supplier;
 import static java.time.Instant.now;
 import static org.tarik.ta.core.utils.CommonUtils.getDurationInMillis;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
+import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static java.util.Objects.requireNonNull;
 
@@ -47,13 +47,11 @@ public class VerificationTools {
 
     private final BudgetManager budgetManager;
     private final AgentConfig agentConfig;
-    private final ImageUtils imageUtils;
 
     @Inject
-    public VerificationTools(BudgetManager budgetManager, AgentConfig agentConfig, ImageUtils imageUtils) {
+    public VerificationTools(BudgetManager budgetManager, AgentConfig agentConfig) {
         this.budgetManager = requireNonNull(budgetManager, "budgetManager");
         this.agentConfig = requireNonNull(agentConfig, "agentConfig");
-        this.imageUtils = requireNonNull(imageUtils, "imageUtils");
     }
 
     public VerificationExecutionResult verifyTestStep(String verificationDescription, String actionDescription,
@@ -65,7 +63,7 @@ public class VerificationTools {
             var screenshot = captureScreen();
             context.setVisualState(new VisualState(screenshot));
             return verificationAgent.verify(verificationDescription, actionDescription, actionTestData,
-                    context.getSharedData().toString(), imageUtils.singleImageContent(screenshot));
+                    context.getSharedData().toString(), singleImageContent(screenshot));
         };
         return executeVerificationWithRetry(verificationAgent, operation, "Verification");
     }

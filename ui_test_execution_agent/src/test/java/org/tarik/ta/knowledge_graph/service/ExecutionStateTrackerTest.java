@@ -35,7 +35,7 @@ class ExecutionStateTrackerTest {
 
     @BeforeEach
     void setUp() {
-        stateTracker = new ExecutionStateTracker();
+        stateTracker = new ExecutionStateTracker(mock(UiTestAgentConfig.class));
     }
 
     private static PhraseEmbedding pe(String phrase) {

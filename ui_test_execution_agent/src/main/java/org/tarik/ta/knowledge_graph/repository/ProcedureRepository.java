@@ -599,7 +599,7 @@ public class ProcedureRepository {
         return records.isEmpty() ? 0 : records.getFirst().get(ALIAS_SHARED_COUNT).asInt();
     }
 
-    public Optional<ElementLocationHistory> getElementStability(UUID elementId) {
+    public Optional<ElementLocationHistory> getElementLocationHistory(UUID elementId) {
         var records = repositorySupport.executeSingleReadQuery(GET_ELEMENT_STABILITY, Map.of(PARAM_ELEMENT_ID, elementId.toString()));
         if (records.isEmpty()) {
             return Optional.empty();
@@ -617,7 +617,7 @@ public class ProcedureRepository {
         ));
     }
 
-    private Optional<ElementLocationHistory> getElementStability(UUID elementId, TransactionContext tx) {
+    private Optional<ElementLocationHistory> getElementLocationHistory(UUID elementId, TransactionContext tx) {
         var result = tx.run(GET_ELEMENT_STABILITY, Map.of(PARAM_ELEMENT_ID, elementId.toString()));
         if (result.hasNext()) {
             var node = result.next().get(ALIAS_EL).asNode();
@@ -636,7 +636,7 @@ public class ProcedureRepository {
 
     public void updateElementStability(UUID elementId, boolean located, long locationTimeMs, LocationStrategy strategy) {
         repositorySupport.executeComplexWriteQuery(tx -> {
-            var elOpt = getElementStability(elementId, tx);
+            var elOpt = getElementLocationHistory(elementId, tx);
             double alpha = config.getStabilityEwmaAlpha();
             double newScore;
             long newAvgTime;

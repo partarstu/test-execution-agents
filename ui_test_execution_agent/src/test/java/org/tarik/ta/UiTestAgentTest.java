@@ -68,12 +68,13 @@ import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
 import org.tarik.ta.knowledge_graph.service.EmbeddingService;
 import org.tarik.ta.knowledge_graph.service.DecompositionService;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
-import org.tarik.ta.knowledge_graph.Neo4jConnectionManager;
+
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
@@ -147,11 +148,12 @@ class UiTestAgentTest {
     private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
     private MockedStatic<CommonUtils> coreUtilsMockedStatic;
     private MockedStatic<AgentConfig> agentConfigMockedStatic;
-    private MockedStatic<UiTestAgentConfig> uiAgentConfigMockedStatic;
+    @Mock
+    private UiTestAgentConfig uiAgentConfigMockedStatic;
     private MockedStatic<AiServices> aiServicesMockedStatic;
     private MockedConstruction<UiElementRepository> uiElementRepositoryMockedConstruction;
     private MockedStatic<PromptUtils> promptUtilsMockedStatic;
-    private MockedStatic<Neo4jConnectionManager> neo4jConnectionManagerMockedStatic;
+
     private MockedConstruction<ScreenRecorder> screenRecorderMockedConstruction;
     private MockedConstruction<KnowledgeService> knowledgeServiceMockedConstruction;
     private MockedConstruction<ProcedureRepository> procedureRepositoryMockedConstruction;
@@ -159,12 +161,7 @@ class UiTestAgentTest {
     private MockedConstruction<DecompositionService> decompositionServiceMockedConstruction;
     private MockedStatic<TestCaseExtractor> testCaseExtractorMockedStatic;
 
-    @Mock
-    private org.neo4j.driver.Driver mockNeo4jDriver;
-    @Mock
-    private org.neo4j.driver.ExecutableQuery mockExecutableQuery;
-    @Mock
-    private org.neo4j.driver.Session mockNeo4jSession;
+
 
     private static final int ACTION_VERIFICATION_DELAY_MILLIS = 5;
 
@@ -174,20 +171,12 @@ class UiTestAgentTest {
         commonUtilsMockedStatic = mockStatic(UiCommonUtils.class);
         coreUtilsMockedStatic = mockStatic(CommonUtils.class);
         agentConfigMockedStatic = mockStatic(AgentConfig.class);
-        uiAgentConfigMockedStatic = mockStatic(UiTestAgentConfig.class);
+        
         aiServicesMockedStatic = mockStatic(AiServices.class);
         uiElementRepositoryMockedConstruction = mockConstruction(UiElementRepository.class);
         screenRecorderMockedConstruction = mockConstruction(ScreenRecorder.class);
         promptUtilsMockedStatic = mockStatic(PromptUtils.class);
-        neo4jConnectionManagerMockedStatic = mockStatic(Neo4jConnectionManager.class);
 
-        neo4jConnectionManagerMockedStatic.when(Neo4jConnectionManager::getDriver).thenReturn(mockNeo4jDriver);
-        neo4jConnectionManagerMockedStatic.when(() -> Neo4jConnectionManager.executableQuery(anyString())).thenReturn(mockExecutableQuery);
-        neo4jConnectionManagerMockedStatic.when(Neo4jConnectionManager::getSession).thenReturn(mockNeo4jSession);
-        lenient().when(mockNeo4jDriver.executableQuery(anyString())).thenReturn(mockExecutableQuery);
-        lenient().when(mockExecutableQuery.withParameters(anyMap())).thenReturn(mockExecutableQuery);
-        lenient().when(mockExecutableQuery.withConfig(any())).thenReturn(mockExecutableQuery);
-        lenient().when(mockExecutableQuery.execute()).thenReturn(mock(org.neo4j.driver.EagerResult.class));
 
         procedureRepositoryMockedConstruction = mockConstruction(ProcedureRepository.class);
         embeddingServiceMockedConstruction = mockConstruction(EmbeddingService.class);
@@ -226,8 +215,8 @@ class UiTestAgentTest {
                 .thenReturn(new RetryPolicy(3, 100, 5000));
         agentConfigMockedStatic.when(AgentConfig::getVerificationRetryPolicy)
                 .thenReturn(new RetryPolicy(3, 100, 5000));
-        uiAgentConfigMockedStatic.when(UiTestAgentConfig::getNeo4jDatabase).thenReturn("neo4j");
-        uiAgentConfigMockedStatic.when(UiTestAgentConfig::isFullyUnattended).thenReturn(true);
+        lenient().when(uiAgentConfigMockedStatic.getNeo4jDatabase()).thenReturn("neo4j");
+        lenient().when(uiAgentConfigMockedStatic.isFullyUnattended()).thenReturn(true);
         uiAgentConfigMockedStatic.when(UiTestAgentConfig::getExecutionMode)
                 .thenReturn(ExecutionMode.UNATTENDED);
         agentConfigMockedStatic.when(AgentConfig::getTestCaseExtractionAgentModelProvider)
@@ -353,7 +342,7 @@ class UiTestAgentTest {
         screenRecorderMockedConstruction.close();
         promptUtilsMockedStatic.close();
         uiAgentConfigMockedStatic.close();
-        neo4jConnectionManagerMockedStatic.close();
+
 
         procedureRepositoryMockedConstruction.close();
         embeddingServiceMockedConstruction.close();

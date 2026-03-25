@@ -192,6 +192,9 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * The runtime request lifecycle now mirrors the API agent: [UiAgentExecutor](src/main/java/org/tarik/ta/a2a/UiAgentExecutor.java)
       opens a child request `BeanScope` through [UiAgentRequestScopeFactory](src/main/java/org/tarik/ta/UiAgentRequestScopeFactory.java)
       and resolves a request-scoped [UiTestAgent](src/main/java/org/tarik/ta/UiTestAgent.java) from that scope.
+    * The UI request scope now explicitly depends on the shared base request scope, so `LogCapture`, shared test-context tooling, and the
+      UI-only runtime `VisualState` are all assembled in the same child `BeanScope` without duplicate default `@InjectModule`
+      declarations.
 
 * **Knowledge Persistence (Neo4j):**
     * Optional knowledge persistence layer backed by Neo4j 5.x that enables the agent to learn and remember procedures (reusable
