@@ -35,6 +35,11 @@ import org.tarik.ta.knowledge_graph.model.node.SchemaVersion;
 import org.tarik.ta.knowledge_graph.model.node.TestCase;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 
+import org.neo4j.driver.exceptions.ConnectionPoolTimeoutException;
+import org.neo4j.driver.exceptions.ServiceUnavailableException;
+import org.neo4j.driver.exceptions.SessionExpiredException;
+import org.tarik.ta.exceptions.DatabaseConnectionException;
+
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -175,10 +180,14 @@ public class Neo4jRepositorySupport {
     }
 
     public List<Record> executeSingleReadQuery(String cypher, Map<String, Object> params) {
-        return driver.executableQuery(cypher)
-                .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.READ).build())
-                .withParameters(params)
-                .execute().records();
+        try {
+            return driver.executableQuery(cypher)
+                    .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.READ).build())
+                    .withParameters(params)
+                    .execute().records();
+        } catch (ServiceUnavailableException | SessionExpiredException | ConnectionPoolTimeoutException e) {
+            throw new DatabaseConnectionException("Neo4j connection failed during read query execution", e);
+        }
     }
 
     public List<Record> executeSingleReadQuery(String cypher) {
@@ -186,10 +195,14 @@ public class Neo4jRepositorySupport {
     }
 
     public List<Record> executeSingleWriteQuery(String cypher, Map<String, Object> params) {
-        return driver.executableQuery(cypher)
-                .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.WRITE).build())
-                .withParameters(params)
-                .execute().records();
+        try {
+            return driver.executableQuery(cypher)
+                    .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.WRITE).build())
+                    .withParameters(params)
+                    .execute().records();
+        } catch (ServiceUnavailableException | SessionExpiredException | ConnectionPoolTimeoutException e) {
+            throw new DatabaseConnectionException("Neo4j connection failed during write query execution", e);
+        }
     }
 
     public List<Record> executeSingleWriteQuery(String cypher) {
@@ -199,18 +212,24 @@ public class Neo4jRepositorySupport {
     public <T> T executeComplexReadQuery(TransactionCallback<T> action) {
         try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             return session.executeRead(action);
+        } catch (ServiceUnavailableException | SessionExpiredException | ConnectionPoolTimeoutException e) {
+            throw new DatabaseConnectionException("Neo4j connection failed during complex read query execution", e);
         }
     }
 
     public void executeComplexWriteQuery(Consumer<TransactionContext> action) {
         try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             session.executeWriteWithoutResult(action);
+        } catch (ServiceUnavailableException | SessionExpiredException | ConnectionPoolTimeoutException e) {
+            throw new DatabaseConnectionException("Neo4j connection failed during complex write query execution", e);
         }
     }
 
     public <T> T executeComplexWriteQuery(TransactionCallback<T> action) {
         try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             return session.executeWrite(action);
+        } catch (ServiceUnavailableException | SessionExpiredException | ConnectionPoolTimeoutException e) {
+            throw new DatabaseConnectionException("Neo4j connection failed during complex write query execution", e);
         }
     }
 }

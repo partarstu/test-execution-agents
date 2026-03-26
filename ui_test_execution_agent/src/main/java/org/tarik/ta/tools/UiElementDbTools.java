@@ -79,7 +79,7 @@ public class UiElementDbTools extends UiAbstractTools {
             throw new ToolExecutionException("Element description cannot be empty", TRANSIENT_TOOL_ERROR);
         }
         try {
-            var retrievedElements = uiElementRefinementHelper.retrieveUiElements(elementRepository, elementDescription);
+            var retrievedElements = uiElementRefinementHelper.retrieveUiElementsWithTargetSimilarity(elementRepository, elementDescription);
             var candidates = retrievedElements.stream()
                     .map(UiElementRepository.UiElementMatch::element)
                     .toList();

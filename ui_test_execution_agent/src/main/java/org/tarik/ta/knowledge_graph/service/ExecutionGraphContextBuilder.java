@@ -51,14 +51,14 @@ public class ExecutionGraphContextBuilder {
         }
 
         if (!executedAtomics.isEmpty()) {
-            sb.append("\nAlready executed atomic procedures (in execution order):\n");
+            sb.append("\nAlready executed atomic steps (scenarios) (in execution order):\n");
             for (int i = 0; i < executedAtomics.size(); i++) {
                 appendAtomicEntry(sb, i + 1, executedAtomics.get(i));
             }
         }
 
         if (!precedingAtomics.isEmpty()) {
-            sb.append("\nAtomic procedures that are planned to be executed (in execution order):\n");
+            sb.append("\nAtomic steps (scenarios) that are planned to be executed (in execution order):\n");
             int offset = executedAtomics.size();
             for (int i = 0; i < precedingAtomics.size(); i++) {
                 appendAtomicEntry(sb, offset + i + 1, precedingAtomics.get(i));

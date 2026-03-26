@@ -104,8 +104,13 @@ public class UiElementRefinementHelper {
         return repository.findById(elementId);
     }
 
-    public List<UiElementMatch> retrieveUiElements(UiElementRepository repository, String query) {
+    public List<UiElementMatch> retrieveUiElementsWithMinimumSimilarity(UiElementRepository repository, String query) {
         return repository.findBySemanticSearch(query, agentConfig.getRetrieverTopN(),
                 uiTestAgentConfig.getElementRetrievalMinGeneralScore());
+    }
+
+    public List<UiElementMatch> retrieveUiElementsWithTargetSimilarity(UiElementRepository repository, String query) {
+        return repository.findBySemanticSearch(query, agentConfig.getRetrieverTopN(),
+                uiTestAgentConfig.getElementRetrievalMinTargetScore());
     }
 }

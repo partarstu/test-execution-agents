@@ -194,7 +194,7 @@ public class UiElementDialogHelper {
             LOG.info("Starting workflow: Refine Elements...");
             try {
                 String itemDesc = itemDescriptionSupplier.get();
-                List<UiElement> elements = uiElementRefinementHelper.retrieveUiElements(uiElementRepository, itemDesc).stream()
+                List<UiElement> elements = uiElementRefinementHelper.retrieveUiElementsWithMinimumSimilarity(uiElementRepository, itemDesc).stream()
                         .map(UiElementRepository.UiElementMatch::element)
                         .toList();
                 if (elements.isEmpty()) {

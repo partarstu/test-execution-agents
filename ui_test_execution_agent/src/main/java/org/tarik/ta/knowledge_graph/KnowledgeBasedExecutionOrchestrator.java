@@ -22,6 +22,7 @@ import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.dto.*;
+import org.tarik.ta.exceptions.DatabaseConnectionException;
 import org.tarik.ta.exceptions.MissingProcedureException;
 import org.tarik.ta.knowledge_graph.execution.ExecutionQueue;
 import org.tarik.ta.core.error.ErrorCategory;
@@ -284,6 +285,13 @@ public class KnowledgeBasedExecutionOrchestrator {
                 usedProcedureIds.add(procedure.id());
                 procedureUsageByTestCaseTrackingService.mergeUsesProcedure(testCase.name(), procedure.id());
             }
+        } catch (DatabaseConnectionException e) {
+            LOG.error("DB connection error during execution of test case '{}'", testCase.name(), e);
+            if (!uiTestAgentConfig.isFullyUnattended()) {
+                InformationalPopup.display("Database Connection Error",
+                        "Lost connection to the knowledge graph DB: " + e.getMessage(), null, PopupType.ERROR, uiTestAgentConfig);
+            }
+            throw e;
         } finally {
             try {
                 procedureUsageByTestCaseTrackingService.cleanupStaleUsesProcedure(testCase.name(), usedProcedureIds);

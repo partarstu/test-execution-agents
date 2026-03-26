@@ -8,7 +8,8 @@
         LogCapture.class,
         TestCaseExtractor.class,
         AbstractServer.class,
-        AgentExecutionResource.class
+        AgentExecutionResource.class,
+        VisualState.class
 })
 package org.tarik.ta;
 
@@ -23,3 +24,4 @@ import org.tarik.ta.core.utils.TestCaseExtractor;
 import org.tarik.ta.core.AbstractServer;
 import org.tarik.ta.core.a2a.AgentExecutionResource;
 import org.tarik.ta.core.config.scopes.BaseAgentRequestScope;
+import org.tarik.ta.model.VisualState;
