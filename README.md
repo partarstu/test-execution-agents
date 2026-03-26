@@ -425,6 +425,36 @@ Knowledge persistence is automatically enabled when `vector.db.key` (or `VECTOR_
 `NEO4J_USERNAME` and `VECTOR_DB_KEY` are stored as secrets in Secret Manager for cloud deployments. Schema migrations run automatically on
 startup.
 
+### UiElementCache
+
+The UI Test Execution Agent uses a session-scoped `UiElementCache` singleton to avoid redundant Neo4j fetches for the same `UiElement`
+across tools, dialogs, and orchestrators.
+
+#### Cache Operations
+
+| Operation | Triggered By |
+|-----------|--------------|
+| **put** (populate) | `UiElementDbTools.searchElementInDb()`, `UiElementDbTools.createElementInDb()` |
+| **update** | `UiElementRefinementHelper.updateElementInfo()`, `UiElementRefinementHelper.updateElementScreenshot()`, `UiElementDialogHelper` inline screenshot update |
+| **remove** | `UiElementRefinementHelper.deleteElement()` |
+| **get** | `UiElementRefinementHelper.findElementById()` (also used by `UiElementDialogHelper`) |
+
+#### Element Details in Agent Messages
+
+When the execution orchestrator resolves a target UI element for an atomic step, it retrieves the full `UiElement` from the cache and
+passes its screenshot and description to the action/precondition agents alongside the current screen screenshot. The user message includes:
+
+```
+Target UI element details:
+  Name: {element.name}
+  Description: {element.description}
+  Location details: {element.locationDetails}
+  Parent element context: {element.parentElementSummary}
+The element screenshot is attached as the last image.
+```
+
+This allows the agent to see both the current screen and the reference screenshot of the target element for more accurate interaction.
+
 ### Collecting knowledge Workflow
 
 1. During test execution, the agent encounters an unknown action (no matching procedure in the knowledge graph).

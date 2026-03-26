@@ -25,6 +25,8 @@ working with agentic systems. Use skills located in @.agents folder if needed fo
 * Every time you use web search, always fetch ALL URLs which contain the most relevant to your request information after you get the web
   search results, use CURL Windows command for that.
 * If any skill requires using web search, always do it.
+* Always use org.jetbrains.annotations.NotNull annotation everywhere where the object is expected to be non-nullable, instead of explicitly
+  checking for null.
 * Before implementing anything, always let the user know what you plan to do and ask the user to confirm it.
 * You're working with a project which is always used in IntelliJ IDEA.
 * Always use imports instead of using fully qualified names!
