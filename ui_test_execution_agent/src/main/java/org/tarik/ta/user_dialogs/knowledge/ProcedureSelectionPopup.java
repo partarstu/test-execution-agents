@@ -29,27 +29,28 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Dialog for selecting, editing, or creating procedures when only low-confidence matches are found.
+ * Dialog for selecting, editing, or creating procedures when the system cannot automatically
+ * resolve which procedure to use — due to low confidence, unmet prerequisites, or ambiguous
+ * parent chains.
  *
  * <p>This dialog returns the user's decision to the caller, who is responsible for handling
  * the edit/create/cancel actions. This ensures loose coupling with UiTestAgent.</p>
  */
-public class ProcedureLowConfidenceSelectionPopup extends AbstractDialog {
-    private static final Logger LOG = LoggerFactory.getLogger(ProcedureLowConfidenceSelectionPopup.class);
+public class ProcedureSelectionPopup extends AbstractDialog {
+    private static final Logger LOG = LoggerFactory.getLogger(ProcedureSelectionPopup.class);
 
     private SelectionAction action = SelectionAction.CANCEL;
     private Procedure selectedProcedure;
 
-    private ProcedureLowConfidenceSelectionPopup(Window owner,
-                                                 String itemDescription,
-                                                 List<Procedure> matches,
-                                                 org.tarik.ta.UiTestAgentConfig config) {
+    private ProcedureSelectionPopup(Window owner,
+                                    String headerText,
+                                    String itemDescription,
+                                    List<Procedure> matches,
+                                    org.tarik.ta.UiTestAgentConfig config) {
         super(owner, "Procedure Selection", config);
 
         JPanel mainPanel = getDefaultMainPanel();
 
-        String headerText = "No high-confidence procedure match found in DB for the step: %s. The following are the nearest matches:"
-                .formatted(itemDescription) + itemDescription;
         JLabel headerLabel = new JLabel("<html><b>" + headerText + "</b></html>");
         headerLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
         mainPanel.add(headerLabel, BorderLayout.NORTH);
@@ -140,21 +141,23 @@ public class ProcedureLowConfidenceSelectionPopup extends AbstractDialog {
      * The caller is responsible for handling the edit/create/cancel actions.
      *
      * @param owner           the parent window
-     * @param itemDescription the description of the item being matched
-     * @param matches         the list of low-confidence matches found
+     * @param headerText      context-specific message explaining why the popup is shown
+     * @param itemDescription the description of the item being matched (used for logging)
+     * @param matches         the list of candidate procedures
      * @param config          Agent configuration
      * @return the user's selection decision, or empty if cancelled
      */
     public static Optional<UserSelectionResult> displayAndGetSelection(
             Window owner,
+            String headerText,
             String itemDescription,
             List<Procedure> matches,
             org.tarik.ta.UiTestAgentConfig config) {
 
-        var popup = new ProcedureLowConfidenceSelectionPopup(owner, itemDescription, matches, config);
+        var popup = new ProcedureSelectionPopup(owner, headerText, itemDescription, matches, config);
 
         if (popup.action == SelectionAction.CANCEL) {
-            LOG.info("User cancelled low-confidence selection for: '{}'", itemDescription);
+            LOG.info("User cancelled procedure selection for: '{}'", itemDescription);
             return Optional.empty();
         }
 

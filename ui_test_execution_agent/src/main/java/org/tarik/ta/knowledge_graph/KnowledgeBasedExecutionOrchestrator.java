@@ -53,7 +53,7 @@ import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
 import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.*;
 import static org.tarik.ta.user_dialogs.PopupType.WARNING;
-import static org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup.SelectionAction.*;
+import static org.tarik.ta.user_dialogs.knowledge.ProcedureSelectionPopup.SelectionAction.*;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 @Singleton
@@ -145,8 +145,8 @@ public class KnowledgeBasedExecutionOrchestrator {
                         recordFailure(context, item, itemDescription, reason);
                         return;
                     }
-                    var resolved = handleLowConfidenceProcedureMatchCase(item, itemDescription, itemTestData, itemExpectedResults, match,
-                            stateTracker, testCase, context);
+                    var resolved = resolveAmbiguousProcedureMatch(item, itemDescription, itemTestData, itemExpectedResults, match,
+                            stateTracker, testCase, context, reason);
                     if (resolved.isEmpty()) {
                         recordFailure(context, item, itemDescription, "User cancelled after no feasible procedure branch found");
                         return;
@@ -154,8 +154,10 @@ public class KnowledgeBasedExecutionOrchestrator {
                     feasible = resolved;
                 } else if (match.confidence() == KnowledgeService.MatchConfidence.LOW && !uiTestAgentConfig.isFullyUnattended()) {
                     LOG.info("Low confidence match for '{}' - prompting user for selection/editing", itemDescription);
-                    var resolved = handleLowConfidenceProcedureMatchCase(item, itemDescription, itemTestData, itemExpectedResults, match,
-                            stateTracker, testCase, context);
+                    var selectionReason = "No high-confidence match found for '%s'. Select an existing procedure to edit/retry, or create a new one."
+                            .formatted(itemDescription);
+                    var resolved = resolveAmbiguousProcedureMatch(item, itemDescription, itemTestData, itemExpectedResults, match,
+                            stateTracker, testCase, context, selectionReason);
                     if (resolved.isEmpty()) {
                         recordFailure(context, item, itemDescription, "User cancelled low-confidence selection");
                         return;
@@ -391,15 +393,17 @@ public class KnowledgeBasedExecutionOrchestrator {
                 .findFirst();
     }
 
-    private Optional<Procedure> handleLowConfidenceProcedureMatchCase(ExecutionItem item, String itemDescription,
+    private Optional<Procedure> resolveAmbiguousProcedureMatch(ExecutionItem item, String itemDescription,
                                                                       List<String> itemTestData, String itemExpectedResults,
                                                                       KnowledgeService.MatchResult match,
                                                                       ExecutionStateTracker stateTracker,
                                                                       TestCase testCase,
-                                                                      UiTestExecutionContext executionContext) {
+                                                                      UiTestExecutionContext executionContext,
+                                                                      String selectionReason) {
         while (true) {
-            var selectionResult = org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup
-                    .displayAndGetSelection(null, itemDescription, match.allMatches(), uiTestAgentConfig);
+            LOG.info("Showing procedure selection popup for '{}'. Reason: {}", itemDescription, selectionReason);
+            var selectionResult = org.tarik.ta.user_dialogs.knowledge.ProcedureSelectionPopup
+                    .displayAndGetSelection(null, selectionReason, itemDescription, match.allMatches(), uiTestAgentConfig);
             if (selectionResult.isEmpty()) {
                 LOG.warn("User cancelled selection for '{}', stopping execution", itemDescription);
                 throw new IllegalStateException("User cancelled knowledge workflow");
@@ -408,6 +412,7 @@ public class KnowledgeBasedExecutionOrchestrator {
             boolean isPreconditionItem = item instanceof PreconditionItem;
             switch (res.action()) {
                 case RETRY -> {
+                    LOG.info("User selected RETRY for '{}', refreshing matches", itemDescription);
                     knowledgeService.onKnowledgeIngested();
                     var refreshed = refreshBestMatch(itemDescription, stateTracker);
                     if (refreshed.isPresent()) match = refreshed.get();
@@ -439,17 +444,22 @@ public class KnowledgeBasedExecutionOrchestrator {
                     }
                 }
                 case CREATE -> {
+                    LOG.info("User selected CREATE for '{}', opening knowledge collection dialog", itemDescription);
                     var newProcedureResult = procedureKnowledgeCollectionService.triggerNewProcedureFlow(itemDescription,
                             itemTestData, itemExpectedResults, isPreconditionItem, testCase,
                             executionContext, stateTracker.getExecutedAtomicProcedures());
-                    newProcedureResult.ifPresent(r -> {
-                        knowledgeIngestionService.ingest(r);
-                        knowledgeService.onKnowledgeIngested();
-                    });
+                    if (newProcedureResult.isEmpty()) {
+                        LOG.info("User cancelled new procedure creation for '{}', returning to selection popup", itemDescription);
+                        continue;
+                    }
+                    LOG.info("New procedure created for '{}', ingesting into knowledge DB", itemDescription);
+                    knowledgeIngestionService.ingest(newProcedureResult.get());
+                    knowledgeService.onKnowledgeIngested();
                     var newMatchOpt = knowledgeService.findBestMatch(itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
                     if (newMatchOpt.isPresent()) {
                         return Optional.of(newMatchOpt.get().procedure());
                     }
+                    LOG.warn("No match found after creation for '{}', returning to selection popup", itemDescription);
                 }
                 case null, default -> {
                 }

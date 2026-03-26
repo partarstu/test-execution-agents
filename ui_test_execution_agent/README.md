@@ -211,9 +211,9 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * **Human-in-the-Loop Collecting knowledge:** In ATTENDED and SUPERVISED modes, the agent triggers a Swing dialog for operators to collect knowledge new
       procedures when an unknown action is encountered. The dialog is shown **immediately** without waiting for AI suggestions — AI
       suggestions are loaded concurrently on a background virtual thread and injected into the still-open dialog once ready.
-        * **Low-Confidence Match Selection:** If the agent finds existing procedures that match the action description with low
-          confidence, it presents a selection dialog (`ProcedureLowConfidenceSelectionPopup`) allowing the operator to choose an existing
-          procedure to edit, or proceed with creating a new one.
+        * **Ambiguous Match Resolution:** If the agent cannot automatically resolve the procedure — due to low confidence, unmet
+          prerequisites, or an ambiguous parent chain — it presents a selection dialog (`ProcedureSelectionPopup`) allowing the
+          operator to choose an existing procedure to edit, retry the search, or create a new one.
         * **Element Selection During Collecting knowledge:** When collecting knowledge an atomic procedure that targets a UI element, the operator is prompted
           to describe the target element. The system performs a semantic search against the vector DB to find a matching element. If found,
           its UUID is linked to the step being collected. If not found, the element will be created during knowledge ingestion.
