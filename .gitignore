@@ -42,10 +42,10 @@ ui_test_execution_agent/src/test/java/org/tarik/ta/MessengerBulkMessageTest.java
 ui_test_execution_agent/.classpath
 ui_test_execution_agent/.factorypath
 ui_test_execution_agent/.project
-agent_core/.classpath
-agent_core/.factorypath
-agent_core/.project
-agent_core/.settings/org.eclipse.core.resources.prefs
-agent_core/.settings/org.eclipse.jdt.apt.core.prefs
-agent_core/.settings/org.eclipse.jdt.core.prefs
-agent_core/.settings/org.eclipse.m2e.core.prefs
+.classpath
+.factorypath
+.project
+org.eclipse.core.resources.prefs
+org.eclipse.jdt.apt.core.prefs
+org.eclipse.jdt.core.prefs
+org.eclipse.m2e.core.prefs

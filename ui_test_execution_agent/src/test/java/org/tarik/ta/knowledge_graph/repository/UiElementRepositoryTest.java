@@ -27,6 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.service.UiElementCache;
 
 import java.util.List;
 import java.util.UUID;
@@ -44,6 +45,7 @@ class UiElementRepositoryTest {
 
     @Mock private EmbeddingModel mockEmbeddingModel;
     @Mock private Neo4jRepositorySupport mockRepositorySupport;
+    @Mock private UiElementCache mockUiElementCache;
     @SuppressWarnings("rawtypes")
     @Mock private Response mockEmbeddingResponse;
 
@@ -55,7 +57,7 @@ class UiElementRepositoryTest {
         when(mockEmbeddingModel.embed(anyString())).thenReturn(mockEmbeddingResponse);
         when(mockEmbeddingResponse.content()).thenReturn(new dev.langchain4j.data.embedding.Embedding(new float[384]));
 
-        repository = new UiElementRepository(mockRepositorySupport, mockEmbeddingModel);
+        repository = new UiElementRepository(mockRepositorySupport, mockEmbeddingModel, mockUiElementCache);
     }
 
     @AfterEach

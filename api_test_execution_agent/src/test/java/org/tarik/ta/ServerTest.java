@@ -25,7 +25,7 @@ class ServerTest {
 
     @Test
     void main_shouldExistAsStaticBootstrapEntryPoint() throws NoSuchMethodException {
-        var mainMethod = Server.class.getDeclaredMethod("main", String[].class);
+        var mainMethod = Server.class.getDeclaredMethod("main");
 
         assertThat(Modifier.isStatic(mainMethod.getModifiers())).isTrue();
         assertThat(mainMethod.getReturnType()).isEqualTo(void.class);

@@ -31,6 +31,7 @@ import org.tarik.ta.knowledge_graph.ProcedureKnowledgeCollectionService;
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.service.*;
+import org.tarik.ta.knowledge_graph.service.UiElementCache;
 import org.tarik.ta.model.UiTestExecutionContext;
 
 import java.util.List;
@@ -68,6 +69,8 @@ class KnowledgeBasedExecutionOrchestratorTest {
 
     @Mock
     private UiTestAgentConfig configMock;
+    @Mock
+    private UiElementCache mockUiElementCache;
 
     @BeforeEach
     void setUp() {
@@ -91,7 +94,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
                 mockKnowledgeService, mockIngestionService, mockStepExecutionOrchestrator,
                 mockProcedureKnowledgeCollectionService, mockSatisfiesEdgeService,
                 mockLocationHistoryRecorder, mockElementLocationHistoryLookup,
-                mockProcedureUsageByTestCaseTrackingService, mockFailureContextService, configMock);
+                mockProcedureUsageByTestCaseTrackingService, mockFailureContextService, configMock, mockUiElementCache);
         orchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, mock(ExecutionStateTracker.class));
     
         });
