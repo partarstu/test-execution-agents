@@ -125,7 +125,7 @@ public class UiElementDbTools extends UiAbstractTools {
             UiElement uiElementToStore = new UiElement(uuid, descriptionResult.name(), descriptionResult.ownDescription(),
                     descriptionResult.locationDescription(), descriptionResult.pageSummary(), null,
                     descriptionResult.elementIsDataDependent());
-            elementRepository.save(uiElementToStore);
+            elementRepository.create(uiElementToStore);
             return new ElementCreationResult(true, uuid, descriptionResult.name(), "Element created successfully");
         } catch (Exception e) {
             throw rethrowAsToolException(e, "creating a new UI element automatically");

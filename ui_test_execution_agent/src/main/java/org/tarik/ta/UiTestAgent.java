@@ -42,7 +42,6 @@ import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.*;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
-import static org.tarik.ta.UiTestAgentConfig.*;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 import java.net.InetAddress;

@@ -15,7 +15,6 @@
  */
 package org.tarik.ta.knowledge_graph.repository;
 
-import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import org.junit.jupiter.api.AfterEach;
@@ -24,13 +23,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.neo4j.driver.EagerResult;
-import org.neo4j.driver.ExecutableQuery;
-import org.tarik.ta.knowledge_graph.repository.Neo4jRepositorySupport;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 
 import java.util.List;
@@ -69,10 +64,10 @@ class UiElementRepositoryTest {
 
     @Test
     @DisplayName("save should compute embedding and execute Neo4j query")
-    void save_shouldComputeEmbeddingAndExecuteQuery() {
+    void create_shouldComputeEmbeddingAndExecuteQuery() {
         UiElement element = new UiElement(UUID.randomUUID(), "test-button", "a button", "near header", "main page", null, false);
 
-        repository.save(element);
+        repository.create(element);
 
         verify(mockEmbeddingModel).embed(element.name());
         verify(mockRepositorySupport).executeSingleWriteQuery(anyString(), anyMap());

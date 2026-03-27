@@ -19,7 +19,6 @@ import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
-import org.tarik.ta.core.error.RetryPolicy;
 
 /**
  * Agent responsible for executing UI actions (test step actions or precondition actions).

@@ -21,21 +21,17 @@ import org.neo4j.driver.Driver;
 import org.neo4j.driver.QueryConfig;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.RoutingControl;
-import org.neo4j.driver.Session;
 import org.neo4j.driver.SessionConfig;
 import org.neo4j.driver.TransactionCallback;
 import org.neo4j.driver.TransactionContext;
 import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.knowledge_graph.model.node.Embeddable;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
-import org.tarik.ta.knowledge_graph.model.node.IEntity;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.SchemaVersion;
 import org.tarik.ta.knowledge_graph.model.node.TestCase;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 
-import org.neo4j.driver.exceptions.ConnectionPoolTimeoutException;
 import org.neo4j.driver.exceptions.ServiceUnavailableException;
 import org.neo4j.driver.exceptions.SessionExpiredException;
 import org.tarik.ta.exceptions.DatabaseConnectionException;
@@ -102,8 +98,10 @@ import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_LAST_VE
 @Singleton
 public class Neo4jRepositorySupport {
 
-    /** Maps node/relationship constant names to their values for use in {@link #cypher(String)} templates. */
-    private static final Map<String, String> QUERY_TOKENS = Map.ofEntries(
+    /**
+     * Maps node/relationship constant names to their values for use in {@link #cypher(String)} templates.
+     */
+    private static final Map<String, String> QUERY_TOKENS = Map.<String, String>ofEntries(
             Map.entry("LABEL_PROCEDURE", Procedure.LABEL),
             Map.entry("LABEL_UI_ELEMENT", UiElement.LABEL),
             Map.entry("LABEL_SCHEMA_VERSION", SchemaVersion.LABEL),
@@ -127,7 +125,6 @@ public class Neo4jRepositorySupport {
             Map.entry("PROP_IS_PRECONDITION", PROP_IS_PRECONDITION),
             Map.entry("PROP_PREREQUISITES", PROP_PREREQUISITES),
             Map.entry("PROP_EFFECTS", PROP_EFFECTS),
-            // PROP_CREATED_AT = "createdAt" is shared by Procedure and SatisfiesEdge (same value)
             Map.entry("PROP_CREATED_AT", PROP_CREATED_AT),
             Map.entry("PROP_UPDATED_AT", PROP_UPDATED_AT),
             Map.entry("PROP_AVG_EXECUTION_MS", PROP_AVG_EXECUTION_MS),
@@ -185,7 +182,7 @@ public class Neo4jRepositorySupport {
                     .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.READ).build())
                     .withParameters(params)
                     .execute().records();
-        } catch (ServiceUnavailableException | SessionExpiredException | ConnectionPoolTimeoutException e) {
+        } catch (ServiceUnavailableException | SessionExpiredException e) {
             throw new DatabaseConnectionException("Neo4j connection failed during read query execution", e);
         }
     }
@@ -200,7 +197,7 @@ public class Neo4jRepositorySupport {
                     .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.WRITE).build())
                     .withParameters(params)
                     .execute().records();
-        } catch (ServiceUnavailableException | SessionExpiredException | ConnectionPoolTimeoutException e) {
+        } catch (ServiceUnavailableException | SessionExpiredException e) {
             throw new DatabaseConnectionException("Neo4j connection failed during write query execution", e);
         }
     }
@@ -212,7 +209,7 @@ public class Neo4jRepositorySupport {
     public <T> T executeComplexReadQuery(TransactionCallback<T> action) {
         try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             return session.executeRead(action);
-        } catch (ServiceUnavailableException | SessionExpiredException | ConnectionPoolTimeoutException e) {
+        } catch (ServiceUnavailableException | SessionExpiredException e) {
             throw new DatabaseConnectionException("Neo4j connection failed during complex read query execution", e);
         }
     }
@@ -220,7 +217,7 @@ public class Neo4jRepositorySupport {
     public void executeComplexWriteQuery(Consumer<TransactionContext> action) {
         try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             session.executeWriteWithoutResult(action);
-        } catch (ServiceUnavailableException | SessionExpiredException | ConnectionPoolTimeoutException e) {
+        } catch (ServiceUnavailableException | SessionExpiredException e) {
             throw new DatabaseConnectionException("Neo4j connection failed during complex write query execution", e);
         }
     }
@@ -228,7 +225,7 @@ public class Neo4jRepositorySupport {
     public <T> T executeComplexWriteQuery(TransactionCallback<T> action) {
         try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             return session.executeWrite(action);
-        } catch (ServiceUnavailableException | SessionExpiredException | ConnectionPoolTimeoutException e) {
+        } catch (ServiceUnavailableException | SessionExpiredException e) {
             throw new DatabaseConnectionException("Neo4j connection failed during complex write query execution", e);
         }
     }

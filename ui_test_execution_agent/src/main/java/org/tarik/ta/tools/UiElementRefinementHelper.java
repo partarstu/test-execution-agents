@@ -50,7 +50,7 @@ public class UiElementRefinementHelper {
         this.uiTestAgentConfig = uiTestAgentConfig;
     }
 
-    public Optional<UiElement> updateElementScreenshot(UiElementRepository repository, UUID elementId) {
+    public Optional<UiElement> promptUserToUpdateElementScreenshot(UiElementRepository repository, UUID elementId) {
         return findElementById(repository, elementId).flatMap(elementToUpdate -> {
             LOG.info("User chose to update screenshot for element: {}", elementToUpdate.name());
 
@@ -64,14 +64,14 @@ public class UiElementRefinementHelper {
                         var elementWithNewScreenshot = new UiElement(elementToUpdate.id(), elementToUpdate.name(),
                                 elementToUpdate.description(), elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(),
                                 newScreenshot, elementToUpdate.isDataDependent());
-                        repository.update(elementWithNewScreenshot);
+                        repository.update(elementWithNewScreenshot, false);
                         LOG.debug("Persisted updated screenshot for element: {}", elementToUpdate.name());
                         return elementWithNewScreenshot;
                     });
         });
     }
 
-    public Optional<UiElement> updateElementInfo(UiElementRepository repository, UUID elementId) {
+    public Optional<UiElement> promptUserToUpdateElementInfo(UiElementRepository repository, UUID elementId) {
         LOG.info("User chose to update info for element with ID {}", elementId);
         return findElementById(repository, elementId)
                 .flatMap(elementToUpdate -> {
@@ -89,21 +89,6 @@ public class UiElementRefinementHelper {
                 });
     }
 
-    public void deleteElement(UiElementRepository repository, UUID elementId) {
-        Optional<UiElement> elementOpt = findElementById(repository, elementId);
-        LOG.info("User chose to delete element with ID {}", elementId);
-        if (elementOpt.isPresent()) {
-            UiElement elementToDelete = elementOpt.get();
-            repository.remove(elementToDelete);
-        } else {
-            LOG.warn("Element with ID {} not found", elementId);
-        }
-    }
-
-    public Optional<UiElement> findElementById(UiElementRepository repository, UUID elementId) {
-        return repository.findById(elementId);
-    }
-
     public List<UiElementMatch> retrieveUiElementsWithMinimumSimilarity(UiElementRepository repository, String query) {
         return repository.findBySemanticSearch(query, agentConfig.getRetrieverTopN(),
                 uiTestAgentConfig.getElementRetrievalMinGeneralScore());
@@ -112,5 +97,9 @@ public class UiElementRefinementHelper {
     public List<UiElementMatch> retrieveUiElementsWithTargetSimilarity(UiElementRepository repository, String query) {
         return repository.findBySemanticSearch(query, agentConfig.getRetrieverTopN(),
                 uiTestAgentConfig.getElementRetrievalMinTargetScore());
+    }
+
+    private Optional<UiElement> findElementById(UiElementRepository repository, UUID elementId) {
+        return repository.findById(elementId);
     }
 }

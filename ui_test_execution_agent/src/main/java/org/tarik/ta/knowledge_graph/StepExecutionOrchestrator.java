@@ -35,6 +35,7 @@ import org.tarik.ta.knowledge_graph.execution.ExecutionItem.PreconditionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.TestStepItem;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.Procedure.TimingProfile;
+import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
 import org.tarik.ta.model.UiTestExecutionContext;
@@ -70,29 +71,29 @@ public class StepExecutionOrchestrator {
     private final ProcedureKnowledgeCollectionService procedureKnowledgeCollectionService;
     private final KnowledgeService knowledgeService;
     private final KnowledgeIngestionService knowledgeIngestionService;
-    private final UiTestStepActionAgent actionAgent;
+    private final UiTestStepActionAgent testStepActionAgent;
     private final UiPreconditionActionAgent preconditionActionAgent;
     private final UiTestStepVerificationAgent testStepVerificationAgent;
     private final UiPreconditionVerificationAgent preconditionVerificationAgent;
     private final long actionVerificationDelayMillis;
 
     public StepExecutionOrchestrator(VerificationTools verificationTools,
-                               BudgetManager budgetManager,
-                               UiTestAgentConfig uiTestAgentConfig,
-                               ProcedureKnowledgeCollectionService procedureKnowledgeCollectionService,
-                               KnowledgeService knowledgeService,
-                               KnowledgeIngestionService knowledgeIngestionService,
-                               UiTestStepActionAgent actionAgent,
-                               UiPreconditionActionAgent preconditionActionAgent,
-                               UiTestStepVerificationAgent testStepVerificationAgent,
-                               UiPreconditionVerificationAgent preconditionVerificationAgent) {
+                                     BudgetManager budgetManager,
+                                     UiTestAgentConfig uiTestAgentConfig,
+                                     ProcedureKnowledgeCollectionService procedureKnowledgeCollectionService,
+                                     KnowledgeService knowledgeService,
+                                     KnowledgeIngestionService knowledgeIngestionService,
+                                     UiTestStepActionAgent testStepActionAgent,
+                                     UiPreconditionActionAgent preconditionActionAgent,
+                                     UiTestStepVerificationAgent testStepVerificationAgent,
+                                     UiPreconditionVerificationAgent preconditionVerificationAgent) {
         this.verificationTools = verificationTools;
         this.budgetManager = budgetManager;
         this.uiTestAgentConfig = uiTestAgentConfig;
         this.procedureKnowledgeCollectionService = procedureKnowledgeCollectionService;
         this.knowledgeService = knowledgeService;
         this.knowledgeIngestionService = knowledgeIngestionService;
-        this.actionAgent = actionAgent;
+        this.testStepActionAgent = testStepActionAgent;
         this.preconditionActionAgent = preconditionActionAgent;
         this.testStepVerificationAgent = testStepVerificationAgent;
         this.preconditionVerificationAgent = preconditionVerificationAgent;
@@ -139,10 +140,10 @@ public class StepExecutionOrchestrator {
             var errorScreenshot = captureScreen();
             context.setVisualState(new VisualState(errorScreenshot));
             switch (item) {
-                case PreconditionItem ignored ->
-                        preconditionResults.add(new UiPreconditionResult(atomicStep.description(), false, e.getMessage(), errorScreenshot, now(), now()));
-                case TestStepItem(TestStep testStep) ->
-                        testStepResults.add(new UiTestStepResult(testStep, TestStepResultStatus.ERROR, e.getMessage(), null, errorScreenshot, now(), now()));
+                case PreconditionItem ignored -> preconditionResults.add(
+                        new UiPreconditionResult(atomicStep.description(), false, e.getMessage(), errorScreenshot, now(), now()));
+                case TestStepItem(TestStep testStep) -> testStepResults.add(
+                        new UiTestStepResult(testStep, TestStepResultStatus.ERROR, e.getMessage(), null, errorScreenshot, now(), now()));
             }
             return new AtomicStepResult.ExecutionError(e.getMessage(), e);
         }
@@ -176,7 +177,9 @@ public class StepExecutionOrchestrator {
                             atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem, testCase,
                             context, executedAtomics);
                     switch (haltResult) {
-                        case HaltHandlerResult.ShouldReturn(var outcome) -> { return outcome; }
+                        case HaltHandlerResult.ShouldReturn(var outcome) -> {
+                            return outcome;
+                        }
                         case HaltHandlerResult.ShouldRetry(var updated) -> {
                             atomicStep = updated;
                             context.setVisualState(new VisualState(captureScreen()));
@@ -204,7 +207,9 @@ public class StepExecutionOrchestrator {
                                 atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem, testCase,
                                 context, executedAtomics);
                         switch (haltResult) {
-                            case HaltHandlerResult.ShouldReturn(var outcome) -> { return outcome; }
+                            case HaltHandlerResult.ShouldReturn(var outcome) -> {
+                                return outcome;
+                            }
                             case HaltHandlerResult.ShouldRetry(var updated) -> {
                                 atomicStep = updated;
                                 context.setVisualState(new VisualState(captureScreen()));
@@ -225,7 +230,9 @@ public class StepExecutionOrchestrator {
                         return TERMINATE_EXECUTION;
                     }
                     var updated = processOutcomeAndRefresh(outcome, atomicStep, context);
-                    if (updated.isEmpty()) return RE_DECOMPOSE_AND_RETRY;
+                    if (updated.isEmpty()) {
+                        return RE_DECOMPOSE_AND_RETRY;
+                    }
                     atomicStep = updated.get();
                 }
                 case AtomicStepResult.ExecutionError error -> {
@@ -243,7 +250,9 @@ public class StepExecutionOrchestrator {
                         return TERMINATE_EXECUTION;
                     }
                     var updated = processOutcomeAndRefresh(outcome, atomicStep, context);
-                    if (updated.isEmpty()) return RE_DECOMPOSE_AND_RETRY;
+                    if (updated.isEmpty()) {
+                        return RE_DECOMPOSE_AND_RETRY;
+                    }
                     atomicStep = updated.get();
                 }
             }
@@ -252,9 +261,6 @@ public class StepExecutionOrchestrator {
 
     /**
      * Prompts the user for the next action (Edit/Retry/Terminate) and dispatches accordingly.
-     * Returns {@code TERMINATE_EXECUTION} if the user chose Terminate or edited a parent procedure,
-     * {@code RE_FETCH_AND_RETRY} if the current atomic step was edited (caller must re-fetch before retrying),
-     * or {@code CONTINUE_NEXT_STEP} for a plain retry.
      */
     private RetryLoopOutcome promptUserAndDispatch(String message, Procedure atomicStep, List<String> testData,
                                                    String expectedResults, String itemDescription,
@@ -271,16 +277,16 @@ public class StepExecutionOrchestrator {
                     var editResult = procedureKnowledgeCollectionService.triggerEditProcedureFlow(atomicStep, testData,
                             expectedResults, !isPreconditionItem, itemContext, testCase, executionContext, executedAtomics);
                     if (editResult.isSaved()) {
-                        knowledgeIngestionService
-                                .update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
+                        knowledgeIngestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
                         knowledgeService.onKnowledgeIngested();
                         if (editResult.savedProcedureId().filter(id -> id.equals(atomicStep.id())).isPresent()) {
                             return RE_FETCH_AND_RETRY;
+                        } else {
+                            InformationalPopup.display("Execution Terminated",
+                                    "A parent procedure was modified. Execution cannot continue with the current execution graph.",
+                                    null, PopupType.INFO, uiTestAgentConfig);
+                            return TERMINATE_EXECUTION;
                         }
-                        InformationalPopup.display("Execution Terminated",
-                                "A parent procedure was modified. Execution cannot continue with the current execution graph.",
-                                null, PopupType.INFO, uiTestAgentConfig);
-                        return TERMINATE_EXECUTION;
                     }
                 }
                 case CREATE_NEW_PROCEDURE -> {
@@ -296,7 +302,7 @@ public class StepExecutionOrchestrator {
                 }
                 case RETRY -> {
                     LOG.info("User chose to retry procedure '{}'", atomicStep.description());
-                    return CONTINUE_NEXT_STEP;
+                    return RE_FETCH_AND_RETRY;
                 }
                 case TERMINATE -> {
                     LOG.info("User chose to terminate execution");
@@ -313,13 +319,13 @@ public class StepExecutionOrchestrator {
                                                    AtomicStepExecutionContext execContext) {
         var executionStartTimestamp = now();
         LOG.info("Executing precondition: {}", precondition.description());
-        var actionScreenshot = captureScreen();
-        context.setVisualState(new VisualState(actionScreenshot));
+        var screenshot = captureScreen();
+        context.setVisualState(new VisualState(screenshot));
         var preconditionExecutionResult = preconditionActionAgent.executeAndGetResult(
                 () -> {
                     String userMessage = getPreconditionExecutionUserMessage(context, precondition, testDataString, relevantData,
-                            execContext.uiElementId(), execContext.failureHints());
-                    return preconditionActionAgent.execute(userMessage, singleImageContent(actionScreenshot));
+                            execContext.uiElementId(), execContext.failureHints(), execContext.targetElement());
+                    return preconditionActionAgent.execute(userMessage, singleImageContent(screenshot));
                 });
         budgetManager.resetToolCallUsage();
 
@@ -381,35 +387,54 @@ public class StepExecutionOrchestrator {
         }
     }
 
-    private static String formatHintsSection(List<String> failureHints) {
+    private static String knownExecutionIssues(List<String> failureHints) {
         return (failureHints != null && !failureHints.isEmpty())
-                ? "\nKnown issues with this procedure:\n- " + String.join("\n- ", failureHints) + "\n"
+                ? "Known issues with this procedure:\n- " + String.join("\n- ", failureHints)
                 : "";
     }
 
-    private static String buildExecutionContextSuffix(String elementId, List<String> failureHints) {
-        String elementHint = elementId != null
-                ? "\nTarget UI element ID: %s — locate this element on screen before interacting with it.\n".formatted(elementId)
-                : "";
-        return elementHint + formatHintsSection(failureHints);
+    private static String buildExecutionContextString(UiTestExecutionContext context, String elementId, List<String> failureHints,
+                                                      String uiElementDetails) {
+        String uiElementIdInfo = elementId != null ? "Target UI element ID: %s".formatted(elementId) : "";
+        var knownIssues = knownExecutionIssues(failureHints);
+        var contextString = "Test execution context data:\n%s\n".formatted(context.getSharedData().toString()).trim();
+        return "%s\n%s\n%s\n%s".formatted(contextString, uiElementIdInfo.trim(), uiElementDetails.trim(), knownIssues.trim());
+    }
+
+    private static String buildTargetElementDetailBlock(UiElement targetElement) {
+        if (targetElement == null) {
+            return "";
+        }
+        return """                
+                Target UI element details:
+                   - Name: %s
+                   - Description: %s
+                   - Location details: %s
+                   - Parent UI element info: %s
+                """.formatted(
+                targetElement.name(),
+                targetElement.description(),
+                targetElement.locationDetails(),
+                targetElement.parentElementSummary());
     }
 
     private static @NonNull String getPreconditionExecutionUserMessage(UiTestExecutionContext context, Procedure precondition,
                                                                        String testDataString, String relevantData,
-                                                                       String elementId, List<String> failureHints) {
+                                                                       String elementId, List<String> failureHints,
+                                                                       UiElement targetElement) {
+        String elementDetailBlock = buildTargetElementDetailBlock(targetElement);
         return """
                 The precondition you need to execute: %s.
-
+                
                 Relevant data for this precondition: %s
-
-                Test context data: %s.
-                %s
+                
+                %s.
+                
                 The screenshot follows.
                 """.formatted(
                 precondition.description(),
                 relevantData.isBlank() ? testDataString : relevantData,
-                context.getSharedData().toString(),
-                buildExecutionContextSuffix(elementId, failureHints));
+                buildExecutionContextString(context, elementId, failureHints, elementDetailBlock).trim());
     }
 
     UiTestStepResult executeSingleTestStep(UiTestExecutionContext context, TestStep testStep, Procedure atomic,
@@ -420,12 +445,13 @@ public class StepExecutionOrchestrator {
             LOG.info("Executing test step: {}", actionInstruction);
             var screenshot = captureScreen();
             context.setVisualState(new VisualState(screenshot));
-            var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) actionAgent.executeAndGetResult(() -> {
-                String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, execContext.uiElementId(), execContext.failureHints());
-                actionAgent.execute(userMessage, singleImageContent(screenshot));
-                return null;
+            var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) testStepActionAgent.executeAndGetResult(() -> {
+                String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, execContext.uiElementId(),
+                        execContext.failureHints(), execContext.targetElement());
+                return testStepActionAgent.execute(userMessage, singleImageContent(screenshot));
             }));
             budgetManager.resetToolCallUsage();
+
             if (!actionResult.isSuccess()) {
                 var message = "There was an error while executing test step action '%s'. Please see agent logs for details"
                         .formatted(actionInstruction);
@@ -436,7 +462,8 @@ public class StepExecutionOrchestrator {
             LOG.info("Action execution complete.");
             long actionDurationMs = java.time.Duration.between(executionStartTimestamp, now()).toMillis();
 
-            var verificationInstruction = execContext.effectiveExpectedResults() != null ? execContext.effectiveExpectedResults().trim() : "";
+            var verificationInstruction =
+                    execContext.effectiveExpectedResults() != null ? execContext.effectiveExpectedResults().trim() : "";
 
             boolean verificationNeeded = isNotBlank(verificationInstruction)
                     && !verificationInstruction.equalsIgnoreCase("null");
@@ -461,27 +488,29 @@ public class StepExecutionOrchestrator {
     }
 
     private static @NonNull String getTestStepActionUserMessage(UiTestExecutionContext context, Procedure atomic, String testDataString,
-                                                                String elementId, List<String> failureHints) {
+                                                                String elementId, List<String> failureHints,
+                                                                UiElement targetElement) {
+        String elementDetailBlock = buildTargetElementDetailBlock(targetElement);
         return """
                 Execute the following action: %s
-
+                
                 Data, related to the action: %s
-
-                Test context execution data: %s
+                
                 %s
+                
                 The screenshot follows.
                 """.formatted(
                 atomic.description(),
                 testDataString,
-                context.getSharedData().toString(),
-                buildExecutionContextSuffix(elementId, failureHints));
+                buildExecutionContextString(context, elementId, failureHints, elementDetailBlock).trim());
     }
 
     private UiTestStepResult verifyTestStep(UiTestExecutionContext context, TestStep testStep, Procedure atomic,
                                             String actionInstruction, String testDataString,
                                             Instant executionStartTimestamp, long actionDurationMs,
                                             AtomicStepExecutionContext execContext) {
-        String verificationInstruction = execContext.effectiveExpectedResults() != null ? execContext.effectiveExpectedResults().trim() : "";
+        String verificationInstruction =
+                execContext.effectiveExpectedResults() != null ? execContext.effectiveExpectedResults().trim() : "";
         LOG.info("Verifying that '{}'", verificationInstruction);
 
         long delayMs = TimingProfile.computeDelay(
@@ -591,8 +620,11 @@ public class StepExecutionOrchestrator {
     }
 
     private sealed interface HaltHandlerResult {
-        record ShouldReturn(RetryLoopOutcome outcome) implements HaltHandlerResult {}
-        record ShouldRetry(Procedure updatedAtomicStep) implements HaltHandlerResult {}
+        record ShouldReturn(RetryLoopOutcome outcome) implements HaltHandlerResult {
+        }
+
+        record ShouldRetry(Procedure updatedAtomicStep) implements HaltHandlerResult {
+        }
     }
 
     sealed interface AtomicStepResult {

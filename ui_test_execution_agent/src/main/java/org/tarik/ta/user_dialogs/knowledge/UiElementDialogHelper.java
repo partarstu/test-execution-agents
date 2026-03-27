@@ -143,7 +143,7 @@ public class UiElementDialogHelper {
                 () -> {
                     LOG.info("Starting workflow: Edit Element Details");
                     try {
-                        return uiElementRefinementHelper.updateElementInfo(uiElementRepository, elementIdRef.get());
+                        return uiElementRefinementHelper.promptUserToUpdateElementInfo(uiElementRepository, elementIdRef.get());
                     } finally {
                         LOG.info("Completed workflow: Edit Element Details");
                     }
@@ -151,7 +151,7 @@ public class UiElementDialogHelper {
                 () -> {
                     LOG.info("Starting workflow: Replace Screenshot");
                     try {
-                        return uiElementRefinementHelper.updateElementScreenshot(uiElementRepository, elementIdRef.get());
+                        return uiElementRefinementHelper.promptUserToUpdateElementScreenshot(uiElementRepository, elementIdRef.get());
                     } finally {
                         LOG.info("Completed workflow: Replace Screenshot");
                     }
@@ -216,9 +216,9 @@ public class UiElementDialogHelper {
      */
     public void processRefinementOperation(ElementRefinementOperation op, UiElementRepository repository) {
         switch (op.operation()) {
-            case DELETE_ELEMENT -> uiElementRefinementHelper.deleteElement(repository, op.elementId());
-            case UPDATE_ELEMENT -> uiElementRefinementHelper.updateElementInfo(repository, op.elementId());
-            case UPDATE_SCREENSHOT -> uiElementRefinementHelper.updateElementScreenshot(repository, op.elementId());
+            case DELETE_ELEMENT -> repository.findById(op.elementId()).ifPresent(repository::remove);
+            case UPDATE_ELEMENT -> uiElementRefinementHelper.promptUserToUpdateElementInfo(repository, op.elementId());
+            case UPDATE_SCREENSHOT -> uiElementRefinementHelper.promptUserToUpdateElementScreenshot(repository, op.elementId());
             case DONE -> {
                 /* no-op */
             }
@@ -247,14 +247,14 @@ public class UiElementDialogHelper {
      * {@link ElementSelectionResult} is delivered back via the callback on the EDT.
      */
     @FunctionalInterface
-    interface AutoLocateHandler {
+    public interface AutoLocateHandler {
         void locate(Consumer<ElementSelectionResult> resultCallback);
     }
 
     /**
      * Sealed result type for the element-selection step in the HITL collecting knowledge dialog.
      */
-    sealed interface ElementSelectionResult permits ElementSelectionResult.Selected, ElementSelectionResult.Failure {
+    public sealed interface ElementSelectionResult permits ElementSelectionResult.Selected, ElementSelectionResult.Failure {
         record Selected(UUID elementId, String elementName, @Nullable BufferedImage screenshot) implements ElementSelectionResult {
         }
 
@@ -265,7 +265,7 @@ public class UiElementDialogHelper {
     /**
      * Groups the element-action handlers for the collecting knowledge dialog.
      */
-    record ElementHandlers(
+    public record ElementHandlers(
             AutoLocateHandler locate,
             Supplier<Optional<UiElement>> editDetails,
             Supplier<Optional<UiElement>> replaceScreenshot,

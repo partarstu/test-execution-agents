@@ -24,8 +24,6 @@ import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.model.ModelFactory;
 import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 import org.tarik.ta.dto.*;
-import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
-import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
 import org.tarik.ta.tools.*;
 
 import java.util.List;
@@ -53,9 +51,7 @@ class UiAgentsBeanFactory {
     UiElementResolutionAgent getKnowledgeCollectionElementResolutionAgent(
             ElementLocatorTools elementLocatorTools,
             UiElementDbTools uiElementDbTools,
-            SpinnerTools spinnerTools,
-            LocationHistoryRecorder locationHistoryRecorder,
-            ElementLocationHistoryLookup elementLocationHistoryLookup) {
+            SpinnerTools spinnerTools) {
         var model = modelFactory.getModel(
                 uiTestAgentConfig.getKnowledgeCollectionElementResolutionAgentModelName(),
                 uiTestAgentConfig.getKnowledgeCollectionElementResolutionAgentModelProvider());

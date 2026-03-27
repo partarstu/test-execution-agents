@@ -35,6 +35,7 @@ import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLooku
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.timing.TimingRecorder;
 import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.model.UiTestExecutionContext;
@@ -71,6 +72,7 @@ public class KnowledgeBasedExecutionOrchestrator {
     private final ProcedureUsageByTestCaseTrackingService procedureUsageByTestCaseTrackingService;
     private final FailureContextService failureContextService;
     private final UiTestAgentConfig uiTestAgentConfig;
+    private final UiElementCache uiElementCache;
 
     public KnowledgeBasedExecutionOrchestrator(KnowledgeService knowledgeService,
                                                KnowledgeIngestionService knowledgeIngestionService,
@@ -81,7 +83,8 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                ElementLocationHistoryLookup elementLocationHistoryLookup,
                                                ProcedureUsageByTestCaseTrackingService procedureUsageByTestCaseTrackingService,
                                                FailureContextService failureContextService,
-                                               UiTestAgentConfig uiTestAgentConfig) {
+                                               UiTestAgentConfig uiTestAgentConfig,
+                                               UiElementCache uiElementCache) {
         this.knowledgeService = knowledgeService;
         this.knowledgeIngestionService = knowledgeIngestionService;
         this.stepExecutionOrchestrator = stepExecutionOrchestrator;
@@ -92,6 +95,7 @@ public class KnowledgeBasedExecutionOrchestrator {
         this.procedureUsageByTestCaseTrackingService = procedureUsageByTestCaseTrackingService;
         this.failureContextService = failureContextService;
         this.uiTestAgentConfig = uiTestAgentConfig;
+        this.uiElementCache = uiElementCache;
     }
 
     public void executeBasedOnKnowledge(UiTestExecutionContext context,
@@ -223,6 +227,10 @@ public class KnowledgeBasedExecutionOrchestrator {
                             .map(UUID::toString)
                             .orElse(null);
 
+                    UiElement targetElement = targetElementId != null
+                            ? uiElementCache.get(UUID.fromString(targetElementId)).orElse(null)
+                            : null;
+
                     if (targetElementId == null) {
                         LOG.debug("No target UI element linked to procedure '{}' — proceeding without element hint",
                                 atomicStep.description());
@@ -239,7 +247,8 @@ public class KnowledgeBasedExecutionOrchestrator {
                             timingRecorder,
                             failureHints,
                             targetElementId,
-                            effectiveExpectedResults
+                            effectiveExpectedResults,
+                            targetElement
                     );
 
                     var loopOutcome = stepExecutionOrchestrator.executeAtomicStepWithRetryLoop(item, atomicStep,

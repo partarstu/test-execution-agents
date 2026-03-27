@@ -33,6 +33,7 @@ import org.tarik.ta.dto.LocatedElementInfo;
 import org.tarik.ta.dto.UiOperationExecutionResult;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.service.UiElementCache;
 import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.*;
@@ -56,7 +57,11 @@ class ElementLocatorToolsTest {
     @Mock
     private UiElementRepository mockRepository;
     @Mock
+    private UiElementCache mockUiElementCache;
+    @Mock
     private UiElementBoundingBoxAgent mockBBoxAgent;
+    @Mock
+    private UiElementRefinementHelper mockHelper;
     @Mock
     private BestUiElementMatchSelectionAgent mockSelectionAgent;
     @Mock
@@ -86,8 +91,8 @@ class ElementLocatorToolsTest {
         lenient().when(configMock.getBboxScreenshotMaxSizeMegapixels()).thenReturn(10.0);
         lenient().when(configMock.isBoundingBoxAlreadyNormalized()).thenReturn(false);
 
-        elementLocatorTools = new ElementLocatorTools(mockRepository, mockUiStateCheckAgent, 
-                mockLocationHistoryRecorder, mockStabilityLookup, mockBBoxAgent, mockSelectionAgent, configMock);
+        elementLocatorTools = new ElementLocatorTools(mockUiElementCache, mockRepository, mockUiStateCheckAgent, 
+                mockLocationHistoryRecorder, mockStabilityLookup, mockBBoxAgent, mockSelectionAgent, configMock, mockHelper);
     }
 
     @AfterEach
@@ -103,7 +108,7 @@ class ElementLocatorToolsTest {
         UiElement uiElement = mock(UiElement.class);
         when(uiElement.name()).thenReturn("test-element");
         when(uiElement.id()).thenReturn(id);
-        when(mockRepository.findById(id)).thenReturn(Optional.of(uiElement));
+        when(mockUiElementCache.get(id)).thenReturn(Optional.of(uiElement));
 
         BufferedImage mockScreen = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
         uiCommonUtilsMock.when(UiCommonUtils::captureScreen).thenReturn(mockScreen);

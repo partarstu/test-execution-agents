@@ -35,7 +35,6 @@ public class BudgetManager {
     private static final Logger LOG = LoggerFactory.getLogger(BudgetManager.class);
 
     // Bridge accessor for non-injectable contexts (e.g. GenericAiAgent interface default methods).
-    // Falls back to a lazily created default in unit-test contexts that skip the DI container.
     private static volatile BudgetManager instance;
 
     public final int timeBudgetSeconds;
