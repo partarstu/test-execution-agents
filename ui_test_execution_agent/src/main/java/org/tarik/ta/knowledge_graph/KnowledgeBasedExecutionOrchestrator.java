@@ -142,7 +142,8 @@ public class KnowledgeBasedExecutionOrchestrator {
                 if (feasible.isEmpty()) {
                     var missingPrerequisites = match.allMatches().stream()
                             .flatMap(p -> stateTracker.findMissingPrerequisites(p.prerequisites()).stream())
-                            .distinct().toList();
+                            .distinct()
+                            .toList();
                     var reason = "Procedures found for '%s' but none have satisfied prerequisites. Missing: %s"
                             .formatted(itemDescription, missingPrerequisites);
                     LOG.warn(reason);

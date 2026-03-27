@@ -19,7 +19,6 @@ import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.core.agents.GenericAiAgent;
-import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.dto.UiElementLocationResult;
 
 /**
@@ -31,16 +30,16 @@ import org.tarik.ta.dto.UiElementLocationResult;
  */
 public interface UiElementResolutionAgent extends GenericAiAgent<UiElementLocationResult> {
     @UserMessage("""
-            Action description: {{description}}
+            Action actionDescription: {{actionDescription}}
             
-            Data related to the element: {{elementData}}
+            Data related to the element: {{relatedData}}
             """)
-    Result<String> resolve(
-            @V("description") String description,
-            @V("elementData") String elementData);
+    Result<String> resolveForAction(
+            @V("actionDescription") String actionDescription,
+            @V("relatedData") String relatedData);
 
     @Override
     default String getAgentTaskDescription() {
-        return "Resolving UI element for atomic procedure";
+        return "Resolves UI element for specific test action";
     }
 }

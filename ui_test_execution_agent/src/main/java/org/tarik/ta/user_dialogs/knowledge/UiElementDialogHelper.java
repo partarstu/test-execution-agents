@@ -54,7 +54,7 @@ public class UiElementDialogHelper {
     private final UiElementRefinementHelper uiElementRefinementHelper;
 
     public UiElementDialogHelper(UiElementResolutionAgent uiElementResolutionAgent, UiTestAgentConfig uiTestAgentConfig,
-                                  UiElementRepository uiElementRepository, UiElementRefinementHelper uiElementRefinementHelper) {
+                                 UiElementRepository uiElementRepository, UiElementRefinementHelper uiElementRefinementHelper) {
         this.uiElementResolutionAgent = uiElementResolutionAgent;
         this.uiTestAgentConfig = uiTestAgentConfig;
         this.uiElementRepository = uiElementRepository;
@@ -62,32 +62,33 @@ public class UiElementDialogHelper {
     }
 
     /**
-     * Builds an {@link AutoLocateHandler} that runs {@link UiElementResolutionAgent#resolve} on a virtual thread with the configured
+     * Builds an {@link AutoLocateHandler} that runs {@link UiElementResolutionAgent#resolveForAction} on a virtual thread with the configured
      * timeout and dispatches the {@link ElementSelectionResult} back to the dialog on the EDT. On success, also
      * populates {@code elementIdRef} so that edit-details and replace-screenshot handlers can read the located element's ID.
      */
-    public AutoLocateHandler buildAutoLocateHandler(Supplier<String> itemDescriptionSupplier,
-                                                     Supplier<String> elementDataSupplier,
-                                                     AtomicReference<UUID> elementIdRef) {
+    public AutoLocateHandler buildAutoLocateHandler(Supplier<String> actionDescriptionSupplier,
+                                                    Supplier<String> relatedDataSupplier,
+                                                    AtomicReference<UUID> elementIdRef) {
         return resultCallback -> Thread.ofVirtual().start(() -> {
             LOG.info("Starting workflow: Automatic Resolution of UI Element...");
-            String itemDesc = itemDescriptionSupplier.get();
-            String elementData = elementDataSupplier.get();
-            var future = CompletableFuture.supplyAsync(() -> uiElementResolutionAgent.executeAndGetResult(() -> uiElementResolutionAgent.resolve(itemDesc, elementData)))
+            String actionDescription = actionDescriptionSupplier.get();
+            String relatedData = relatedDataSupplier.get();
+            var future = CompletableFuture.supplyAsync(() -> uiElementResolutionAgent.executeAndGetResult(
+                            () -> uiElementResolutionAgent.resolveForAction(actionDescription, relatedData)))
                     .orTimeout(uiTestAgentConfig.getMaxActionExecutionDurationMillis(), MILLISECONDS);
             try {
                 var payload = future.join().getResultPayload();
                 if (payload == null || !payload.success()) {
                     String reason = payload != null && payload.message() != null ? payload.message() :
                             "The element could not be located on the screen or in the database.";
-                    LOG.warn("KnowledgeCollectionElementResolutionAgent returned failure result for '{}': {}", itemDesc, reason);
+                    LOG.warn("KnowledgeCollectionElementResolutionAgent returned failure result for '{}': {}", actionDescription, reason);
                     dispatchFailure(resultCallback, reason);
                     return;
                 }
 
                 String elementIdStr = payload.elementId();
                 if (elementIdStr == null || elementIdStr.isBlank()) {
-                    LOG.error("KnowledgeCollectionElementResolutionAgent reported success but returned empty elementId for '{}'",                            itemDesc);
+                    LOG.error("KnowledgeCollectionElementResolutionAgent reported success but returned empty elementId for '{}'", actionDescription);
                     dispatchFailure(resultCallback, "Agent reported success but failed to provide an element ID.");
                     return;
                 }
@@ -117,14 +118,14 @@ public class UiElementDialogHelper {
                 var cause = e.getCause();
                 if (cause instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
-                    LOG.error("KnowledgeCollectionElementResolutionAgent was interrupted for '%s'".formatted(itemDesc), e);
+                    LOG.error("KnowledgeCollectionElementResolutionAgent was interrupted for '%s'".formatted(actionDescription), e);
                     dispatchFailure(resultCallback, "Element location was interrupted.");
                 } else {
-                    LOG.error("KnowledgeCollectionElementResolutionAgent timed out or failed for '%s'".formatted(itemDesc), e);
+                    LOG.error("KnowledgeCollectionElementResolutionAgent timed out or failed for '%s'".formatted(actionDescription), e);
                     dispatchFailure(resultCallback, "Element location failed: " + (cause != null ? cause.getMessage() : e.getMessage()));
                 }
             } catch (Exception e) {
-                LOG.error("KnowledgeCollectionElementResolutionAgent failed for '%s'.".formatted(itemDesc), e);
+                LOG.error("KnowledgeCollectionElementResolutionAgent failed for '%s'.".formatted(actionDescription), e);
                 dispatchFailure(resultCallback, "An unexpected error occurred while locating the element: " + e.getMessage());
             } finally {
                 LOG.info("Completed workflow: Automatic Resolution of UI Element...");
@@ -194,15 +195,17 @@ public class UiElementDialogHelper {
             LOG.info("Starting workflow: Refine Elements...");
             try {
                 String itemDesc = itemDescriptionSupplier.get();
-                List<UiElement> elements = uiElementRefinementHelper.retrieveUiElementsWithMinimumSimilarity(uiElementRepository, itemDesc).stream()
-                        .map(UiElementRepository.UiElementMatch::element)
-                        .toList();
+                List<UiElement> elements =
+                        uiElementRefinementHelper.retrieveUiElementsWithMinimumSimilarity(uiElementRepository, itemDesc).stream()
+                                .map(UiElementRepository.UiElementMatch::element)
+                                .toList();
                 if (elements.isEmpty()) {
                     JOptionPane.showMessageDialog(null, "No UI elements found matching: %s".formatted(itemDesc),
                             "No Elements Found", JOptionPane.INFORMATION_MESSAGE);
                     return;
                 }
-                UiElementRefinementPopup.displayAndGetChoice(null, "Refine existing UI elements for: %s".formatted(itemDesc), elements, uiTestAgentConfig)
+                UiElementRefinementPopup.displayAndGetChoice(null, "Refine existing UI elements for: %s".formatted(itemDesc), elements,
+                                uiTestAgentConfig)
                         .ifPresent(op -> processRefinementOperation(op, uiElementRepository));
             } finally {
                 LOG.info("Completed workflow: Refine Elements...");

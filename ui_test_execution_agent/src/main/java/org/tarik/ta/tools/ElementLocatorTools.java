@@ -92,7 +92,6 @@ public class ElementLocatorTools extends UiAbstractTools {
 
     private final UiElementCache uiElementCache;
     private final UiElementRepository elementRepository;
-    private final UiElementRefinementHelper uiElementRefinementHelper;
     private final UiElementBoundingBoxAgent uiElementBoundingBoxAgent;
     private final BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent;
     private final LocationHistoryRecorder locationHistoryRecorder;
@@ -107,12 +106,10 @@ public class ElementLocatorTools extends UiAbstractTools {
                                 ElementLocationHistoryLookup elementLocationHistoryLookup,
                                 UiElementBoundingBoxAgent uiElementBoundingBoxAgent,
                                 BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent,
-                                UiTestAgentConfig uiTestAgentConfig,
-                                UiElementRefinementHelper uiElementRefinementHelper) {
+                                UiTestAgentConfig uiTestAgentConfig) {
         super(uiStateCheckAgent);
         this.uiElementCache = requireNonNull(uiElementCache, "uiElementCache");
         this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
-        this.uiElementRefinementHelper = requireNonNull(uiElementRefinementHelper, "uiElementRefinementHelper");
         this.uiElementBoundingBoxAgent = requireNonNull(uiElementBoundingBoxAgent, "uiElementBoundingBoxAgent");
         this.bestUiElementMatchSelectionAgent = requireNonNull(bestUiElementMatchSelectionAgent, "bestUiElementMatchSelectionAgent");
         this.locationHistoryRecorder = locationHistoryRecorder != null ?
@@ -139,10 +136,10 @@ public class ElementLocatorTools extends UiAbstractTools {
             @P(value = "Any element-specific data", required = false) String elementSpecificData) {
         requireNonNull(elementId, "elementId");
         try {
-            var cachedElement = uiElementCache.get(elementId);
-            var uiElement = cachedElement.orElseGet(() -> elementRepository.findById(elementId)
+            var uiElement = uiElementCache.get(elementId)
+                    .or(() -> elementRepository.findById(elementId))
                     .orElseThrow(() -> new ToolExecutionException("UI element with id %s not found in the database".formatted(elementId),
-                            TRANSIENT_TOOL_ERROR)));
+                            TRANSIENT_TOOL_ERROR));
             LOG.info("Retrieved UiElement '{}' by UUID {}, proceeding with on-screen location", uiElement.name(), elementId);
             long startMs = System.currentTimeMillis();
             try {

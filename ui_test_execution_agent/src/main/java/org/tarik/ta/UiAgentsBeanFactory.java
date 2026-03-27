@@ -210,8 +210,7 @@ class UiAgentsBeanFactory {
         var model = modelFactory.getModel(
                 uiTestAgentConfig.getUiElementDescriptionMatcherAgentModelName(),
                 uiTestAgentConfig.getUiElementDescriptionMatcherAgentModelProvider());
-        var prompt = loadSystemPrompt("element_describer", uiTestAgentConfig.getUiElementDescriptionMatcherAgentPromptVersion(),
-                "description_matcher_prompt.txt");
+        var prompt = loadSystemPrompt("element_describer", uiTestAgentConfig.getUiElementDescriptionMatcherAgentPromptVersion(),              "description_matcher_prompt.txt");
         return builder(UiElementExtendedDescriptionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
