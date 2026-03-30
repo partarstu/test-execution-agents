@@ -270,10 +270,15 @@ public class KnowledgeBasedExecutionOrchestrator {
                         break;
                     }
 
-                    stateTracker.addEffects(knowledgeService.findEffectsForProcedure(atomicStep.id()));
+                    var graphEffects = knowledgeService.findEffectsForProcedure(atomicStep.id());
+                    stateTracker.addEffects(graphEffects);
+                    if (graphEffects.isEmpty() && !atomicStep.effects().isEmpty()) {
+                        LOG.debug("No HAS_EFFECT phrase nodes found for '{}' — falling back to procedure's effect strings",
+                                atomicStep.description());
+                        stateTracker.addEffectPhrases(atomicStep.effects());
+                    }
                     satisfiesEdgeService.persistSatisfiesEdgesAsync(atomicStep.id());
                     stateTracker.addExecutedAtomicProcedure(atomicStep);
-                    LOG.debug("Added {} effect(s) to state tracker", atomicStep.effects().size());
                 }
 
                 if (reDecomposeNeeded) {

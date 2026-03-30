@@ -19,18 +19,18 @@ import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
-import org.jetbrains.annotations.Nullable;
+import org.tarik.ta.agents.UiElementDescriptionExtractionAgent;
 import org.tarik.ta.agents.UiElementResolutionAgent;
-import org.tarik.ta.dto.ElementRefinementOperation;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.tools.UiElementRefinementHelper;
 import org.tarik.ta.user_dialogs.SpinnerManager;
-import org.tarik.ta.user_dialogs.UiElementRefinementPopup;
+import org.tarik.ta.user_dialogs.UiElementLookupDialog;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,9 +39,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.tarik.ta.agents.UiElementResolutionAgent.CREATE_WORKFLOW;
+import static org.tarik.ta.agents.UiElementResolutionAgent.RESOLVE_WORKFLOW;
 import static org.tarik.ta.utils.UiCommonUtils.captureElementScreenshot;
 
 @Singleton
@@ -49,102 +52,162 @@ public class UiElementDialogHelper {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementDialogHelper.class);
 
     private final UiElementResolutionAgent uiElementResolutionAgent;
+    private final UiElementDescriptionExtractionAgent uiElementDescriptionExtractionAgent;
     private final UiTestAgentConfig uiTestAgentConfig;
     private final UiElementRepository uiElementRepository;
     private final UiElementRefinementHelper uiElementRefinementHelper;
 
-    public UiElementDialogHelper(UiElementResolutionAgent uiElementResolutionAgent, UiTestAgentConfig uiTestAgentConfig,
+    public UiElementDialogHelper(UiElementResolutionAgent uiElementResolutionAgent,
+                                 UiElementDescriptionExtractionAgent uiElementDescriptionExtractionAgent,
+                                 UiTestAgentConfig uiTestAgentConfig,
                                  UiElementRepository uiElementRepository, UiElementRefinementHelper uiElementRefinementHelper) {
         this.uiElementResolutionAgent = uiElementResolutionAgent;
+        this.uiElementDescriptionExtractionAgent = uiElementDescriptionExtractionAgent;
         this.uiTestAgentConfig = uiTestAgentConfig;
         this.uiElementRepository = uiElementRepository;
         this.uiElementRefinementHelper = uiElementRefinementHelper;
     }
 
     /**
-     * Builds an {@link AutoLocateHandler} that runs {@link UiElementResolutionAgent#resolveForAction} on a virtual thread with the configured
-     * timeout and dispatches the {@link ElementSelectionResult} back to the dialog on the EDT. On success, also
-     * populates {@code elementIdRef} so that edit-details and replace-screenshot handlers can read the located element's ID.
+     * Builds an {@link AutoLocateHandler} that runs {@link UiElementResolutionAgent#resolveForAction} with the configured timeout.
+     * The handler is blocking — callers must invoke it from a virtual thread. On success returns the located {@link UiElement};
+     * on any failure (agent, timeout, or element not found in DB) logs the error, shows an error dialog on the EDT, and returns empty.
      */
-    public AutoLocateHandler buildAutoLocateHandler(Supplier<String> actionDescriptionSupplier,
-                                                    Supplier<String> relatedDataSupplier,
-                                                    AtomicReference<UUID> elementIdRef) {
-        return resultCallback -> Thread.ofVirtual().start(() -> {
+    public AutoLocateHandler buildAutoLocateHandler(Supplier<String> actionDescriptionSupplier, Supplier<String> relatedDataSupplier) {
+        return () -> {
             LOG.info("Starting workflow: Automatic Resolution of UI Element...");
             String actionDescription = actionDescriptionSupplier.get();
             String relatedData = relatedDataSupplier.get();
             var future = CompletableFuture.supplyAsync(() -> uiElementResolutionAgent.executeAndGetResult(
-                            () -> uiElementResolutionAgent.resolveForAction(actionDescription, relatedData)))
+                            () -> uiElementResolutionAgent.resolveForAction(actionDescription, relatedData, RESOLVE_WORKFLOW)))
                     .orTimeout(uiTestAgentConfig.getMaxActionExecutionDurationMillis(), MILLISECONDS);
             try {
-                var payload = future.join().getResultPayload();
-                if (payload == null || !payload.success()) {
-                    String reason = payload != null && payload.message() != null ? payload.message() :
-                            "The element could not be located on the screen or in the database.";
-                    LOG.warn("KnowledgeCollectionElementResolutionAgent returned failure result for '{}': {}", actionDescription, reason);
-                    dispatchFailure(resultCallback, reason);
-                    return;
-                }
-
-                String elementIdStr = payload.elementId();
-                if (elementIdStr == null || elementIdStr.isBlank()) {
-                    LOG.error("KnowledgeCollectionElementResolutionAgent reported success but returned empty elementId for '{}'", actionDescription);
-                    dispatchFailure(resultCallback, "Agent reported success but failed to provide an element ID.");
-                    return;
-                }
-
-                UUID uuid = UUID.fromString(elementIdStr);
-                elementIdRef.set(uuid);
-                var elementName = payload.elementName() != null ? payload.elementName() : "(unknown)";
-                var existingElement = uiElementRepository.findById(uuid).orElse(null);
-                BufferedImage screenshot;
-                if (existingElement != null && existingElement.screenshot() != null) {
-                    screenshot = existingElement.screenshot().toBufferedImage();
-                    LOG.debug("Element '{}' ({}) already has a screenshot, reusing it", elementName, uuid);
-                } else {
-                    screenshot = payload.elementScreenRegion() != null ? captureElementScreenshot(payload.elementScreenRegion()) : null;
-                    if (screenshot != null && existingElement != null) {
-                        var updatedElement = new UiElement(existingElement.id(), existingElement.name(),
-                                existingElement.description(), existingElement.locationDetails(), existingElement.parentElementSummary(),
-                                UiElement.Screenshot.fromBufferedImage(screenshot, "png"),
-                                existingElement.isDataDependent());
-                        uiElementRepository.update(updatedElement);
-                        LOG.debug("Updated screenshot for element '{}' ({}) in DB during auto-locate", elementName, uuid);
-                    }
-                }
-
-                SwingUtilities.invokeLater(() -> resultCallback.accept(new ElementSelectionResult.Selected(uuid, elementName, screenshot)));
+                return processAgentResult(future.join().getResultPayload(), actionDescription);
             } catch (CancellationException | CompletionException e) {
-                var cause = e.getCause();
-                if (cause instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                    LOG.error("KnowledgeCollectionElementResolutionAgent was interrupted for '%s'".formatted(actionDescription), e);
-                    dispatchFailure(resultCallback, "Element location was interrupted.");
-                } else {
-                    LOG.error("KnowledgeCollectionElementResolutionAgent timed out or failed for '%s'".formatted(actionDescription), e);
-                    dispatchFailure(resultCallback, "Element location failed: " + (cause != null ? cause.getMessage() : e.getMessage()));
-                }
+                handleAgentException(e, actionDescription);
+                return Optional.empty();
             } catch (Exception e) {
-                LOG.error("KnowledgeCollectionElementResolutionAgent failed for '%s'.".formatted(actionDescription), e);
-                dispatchFailure(resultCallback, "An unexpected error occurred while locating the element: " + e.getMessage());
+                String msg = "KnowledgeCollectionElementResolutionAgent failed for '%s'.".formatted(actionDescription);
+                LOG.error(msg, e);
+                dispatchFailure("An unexpected error occurred while locating the element: " + e.getMessage());
+                return Optional.empty();
             } finally {
                 LOG.info("Completed workflow: Automatic Resolution of UI Element...");
             }
-        });
+        };
+    }
+
+    /**
+     * Builds an {@link AutoLocateHandler} that creates a new UI element (skipping DB search) and then locates it on screen.
+     * Must be invoked from a virtual thread.
+     */
+    public AutoLocateHandler buildCreateAndLocateHandler(String actionDescription, Supplier<String> elementDataSupplier) {
+        return () -> {
+            LOG.info("Starting workflow: Create and Locate UI Element...");
+            String relatedData = elementDataSupplier.get();
+            var future = CompletableFuture.supplyAsync(() -> uiElementResolutionAgent.executeAndGetResult(
+                            () -> uiElementResolutionAgent.resolveForAction(actionDescription, relatedData, CREATE_WORKFLOW)))
+                    .orTimeout(uiTestAgentConfig.getMaxActionExecutionDurationMillis(), MILLISECONDS);
+            try {
+                return processAgentResult(future.join().getResultPayload(), actionDescription);
+            } catch (CancellationException | CompletionException e) {
+                handleAgentException(e, actionDescription);
+                return Optional.empty();
+            } catch (Exception e) {
+                String msg = "Create and Locate UI Element agent failed for '%s'.".formatted(actionDescription);
+                LOG.error(msg, e);
+                dispatchFailure("An unexpected error occurred while creating the element: " + e.getMessage());
+                return Optional.empty();
+            } finally {
+                LOG.info("Completed workflow: Create and Locate UI Element...");
+            }
+        };
+    }
+
+    /**
+     * Builds an {@link AutoLocateHandler} that opens {@link UiElementLookupDialog}, allowing the user to select an
+     * existing element or create a new one. Must be invoked from a virtual thread.
+     *
+     * <p>Before opening the dialog, uses {@link UiElementDescriptionExtractionAgent} to derive a UI-element-focused
+     * search query from the procedure description. The result is cached per handler instance and invalidated whenever
+     * the procedure description changes.</p>
+     */
+    public AutoLocateHandler buildSelectElementHandler(Supplier<String> actionDescriptionSupplier,
+                                                       Supplier<String> elementDataSupplier) {
+        var lastProcedureDesc = new AtomicReference<String>();
+        var cachedElementDesc = new AtomicReference<String>();
+
+        return () -> {
+            LOG.info("Starting workflow: Select UI Element...");
+            try {
+                String procedureDescription = actionDescriptionSupplier.get();
+                String elementDescription = resolveElementDescription(procedureDescription, lastProcedureDesc, cachedElementDesc);
+                Function<String, List<UiElement>> searchFn = query ->
+                        uiElementRefinementHelper.retrieveUiElementsWithMinimumSimilarity(uiElementRepository, query)
+                                .stream().map(UiElementRepository.UiElementMatch::element).toList();
+                Consumer<UiElement> deleteHandler = uiElementRepository::remove;
+                UiElementLookupDialog.LookupResult[] holder = {null};
+                SwingUtilities.invokeAndWait(() -> holder[0] =
+                        UiElementLookupDialog.displayAndGetChoice(null, elementDescription, searchFn, deleteHandler, uiTestAgentConfig));
+
+                return switch (holder[0]) {
+                    case UiElementLookupDialog.LookupResult.Selected(UiElement element) -> Optional.of(element);
+                    case UiElementLookupDialog.LookupResult.CreateNew(String desc) ->
+                            buildCreateAndLocateHandler(desc, elementDataSupplier).locate();
+                    case UiElementLookupDialog.LookupResult.Cancelled() -> Optional.empty();
+                };
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOG.error("Select UI Element workflow was interrupted", e);
+                return Optional.empty();
+            } catch (InvocationTargetException e) {
+                LOG.error("Select UI Element workflow failed", e);
+                return Optional.empty();
+            } finally {
+                LOG.info("Completed workflow: Select UI Element...");
+            }
+        };
+    }
+
+    /**
+     * Returns the cached element description if the procedure description hasn't changed; otherwise calls the
+     * extraction agent, caches the result, and returns it. Falls back to the raw procedure description on failure.
+     */
+    private String resolveElementDescription(String procedureDescription,
+                                              AtomicReference<String> lastProcedureDesc,
+                                              AtomicReference<String> cachedElementDesc) {
+        if (procedureDescription.equals(lastProcedureDesc.get())) {
+            LOG.debug("Reusing cached element description for procedure: '{}'", procedureDescription);
+            return cachedElementDesc.get();
+        }
+        LOG.info("Extracting UI element description for procedure: '{}'", procedureDescription);
+        try {
+            var result = uiElementDescriptionExtractionAgent.executeAndGetResult(
+                    () -> uiElementDescriptionExtractionAgent.extract(procedureDescription));
+            var payload = result.getResultPayload();
+            String extracted = payload != null && !payload.elementDescription().isBlank()
+                    ? payload.elementDescription() : procedureDescription;
+            lastProcedureDesc.set(procedureDescription);
+            cachedElementDesc.set(extracted);
+            return extracted;
+        } catch (Exception e) {
+            LOG.warn("Element description extraction failed for '{}', using procedure description as fallback",
+                    procedureDescription, e);
+            return procedureDescription;
+        }
     }
 
     /**
      * Builds an {@link ElementHandlers} instance, wiring all element dialog handlers for the given item description.
      */
-    public ElementHandlers buildElementHandlers(Supplier<String> itemDescriptionSupplier,
-                                                Supplier<String> elementDataSupplier,
-                                                AtomicReference<UUID> elementIdRef) {
+    public ElementHandlers buildElementHandlers(Supplier<String> itemDescriptionSupplier, Supplier<String> elementDataSupplier,
+                                                Supplier<UUID> elementIdSupplier) {
         return new ElementHandlers(
-                buildAutoLocateHandler(itemDescriptionSupplier, elementDataSupplier, elementIdRef),
+                buildAutoLocateHandler(itemDescriptionSupplier, elementDataSupplier),
                 () -> {
                     LOG.info("Starting workflow: Edit Element Details");
                     try {
-                        return uiElementRefinementHelper.promptUserToUpdateElementInfo(uiElementRepository, elementIdRef.get());
+                        return uiElementRefinementHelper.promptUserToUpdateElementInfo(uiElementRepository, elementIdSupplier.get());
                     } finally {
                         LOG.info("Completed workflow: Edit Element Details");
                     }
@@ -152,19 +215,19 @@ public class UiElementDialogHelper {
                 () -> {
                     LOG.info("Starting workflow: Replace Screenshot");
                     try {
-                        return uiElementRefinementHelper.promptUserToUpdateElementScreenshot(uiElementRepository, elementIdRef.get());
+                        return uiElementRefinementHelper.promptUserToUpdateElementScreenshot(uiElementRepository, elementIdSupplier.get());
                     } finally {
                         LOG.info("Completed workflow: Replace Screenshot");
                     }
                 },
-                buildElementRefinementHandler(itemDescriptionSupplier));
+                buildSelectElementHandler(itemDescriptionSupplier, elementDataSupplier));
     }
 
     /**
      * Shows a modal spinner while loading AI suggestions on a virtual thread.
      * Blocks until suggestions are loaded (or the agent fails), then returns.
      */
-    public static void showSpinnerUntilDone(Runnable task, String itemDescription) {
+    public static void showSpinnerUntilDone(Runnable task, String actionDescription) {
         var spinner = createSpinnerDialog();
         Thread.ofVirtual().name("knowledge-collection-suggestion-loader").start(() -> {
             try {
@@ -180,51 +243,66 @@ public class UiElementDialogHelper {
                 SwingUtilities.invokeAndWait(() -> spinner.setVisible(true));
             }
         } catch (Exception e) {
-            LOG.warn("Spinner display interrupted for '{}': {}", itemDescription, e.getMessage());
+            LOG.warn("Spinner display interrupted for '{}': {}", actionDescription, e.getMessage());
         }
     }
 
-    /**
-     * Builds a {@link Runnable} handler that opens {@link UiElementRefinementPopup}
-     * for elements semantically
-     * similar to {@code itemDescription}, allowing the user to update or delete
-     * them.
-     */
-    public Runnable buildElementRefinementHandler(Supplier<String> itemDescriptionSupplier) {
-        return () -> {
-            LOG.info("Starting workflow: Refine Elements...");
-            try {
-                String itemDesc = itemDescriptionSupplier.get();
-                List<UiElement> elements =
-                        uiElementRefinementHelper.retrieveUiElementsWithMinimumSimilarity(uiElementRepository, itemDesc).stream()
-                                .map(UiElementRepository.UiElementMatch::element)
-                                .toList();
-                if (elements.isEmpty()) {
-                    JOptionPane.showMessageDialog(null, "No UI elements found matching: %s".formatted(itemDesc),
-                            "No Elements Found", JOptionPane.INFORMATION_MESSAGE);
-                    return;
-                }
-                UiElementRefinementPopup.displayAndGetChoice(null, "Refine existing UI elements for: %s".formatted(itemDesc), elements,
-                                uiTestAgentConfig)
-                        .ifPresent(op -> processRefinementOperation(op, uiElementRepository));
-            } finally {
-                LOG.info("Completed workflow: Refine Elements...");
-            }
-        };
+    private Optional<UiElement> processAgentResult(
+            org.tarik.ta.dto.UiElementLocationResult payload, String contextDescription) {
+        if (payload == null || !payload.success()) {
+            String reason = payload != null && payload.message() != null ? payload.message() :
+                    "The element could not be located on the screen or in the database.";
+            LOG.warn("Element resolution agent returned failure for '{}': {}", contextDescription, reason);
+            dispatchFailure(reason);
+            return Optional.empty();
+        }
+
+        String elementIdStr = payload.elementId();
+        if (elementIdStr == null || elementIdStr.isBlank()) {
+            LOG.error("Element resolution agent reported success but returned empty elementId for '{}'", contextDescription);
+            dispatchFailure("Agent reported success but failed to provide an element ID.");
+            return Optional.empty();
+        }
+
+        UUID uuid = UUID.fromString(elementIdStr);
+        var existingElement = uiElementRepository.findById(uuid).orElse(null);
+        if (existingElement == null) {
+            String msg = "Agent resolved element ID '%s' but no matching element was found in the database.".formatted(uuid);
+            LOG.error("{} Context: '{}'", msg, contextDescription);
+            dispatchFailure(msg);
+            return Optional.empty();
+        }
+
+        if (existingElement.screenshot() != null) {
+            LOG.debug("Element '{}' ({}) already has a screenshot, reusing it", existingElement.name(), uuid);
+            return Optional.of(existingElement);
+        }
+
+        BufferedImage screenshot = payload.elementScreenRegion() != null
+                ? captureElementScreenshot(payload.elementScreenRegion()) : null;
+        if (screenshot != null) {
+            var updatedElement = new UiElement(existingElement.id(), existingElement.name(),
+                    existingElement.description(), existingElement.locationDetails(), existingElement.parentElementSummary(),
+                    UiElement.Screenshot.fromBufferedImage(screenshot, "png"),
+                    existingElement.isDataDependent());
+            uiElementRepository.update(updatedElement);
+            LOG.debug("Updated screenshot for element '{}' ({}) in DB", existingElement.name(), uuid);
+            return Optional.of(updatedElement);
+        }
+        return Optional.of(existingElement);
     }
 
-    /**
-     * Processes a {@link ElementRefinementOperation} chosen by the user in
-     * {@link UiElementRefinementPopup}.
-     */
-    public void processRefinementOperation(ElementRefinementOperation op, UiElementRepository repository) {
-        switch (op.operation()) {
-            case DELETE_ELEMENT -> repository.findById(op.elementId()).ifPresent(repository::remove);
-            case UPDATE_ELEMENT -> uiElementRefinementHelper.promptUserToUpdateElementInfo(repository, op.elementId());
-            case UPDATE_SCREENSHOT -> uiElementRefinementHelper.promptUserToUpdateElementScreenshot(repository, op.elementId());
-            case DONE -> {
-                /* no-op */
-            }
+    private void handleAgentException(RuntimeException e, String contextDescription) {
+        var cause = e.getCause();
+        if (cause instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+            String msg = "Element resolution agent was interrupted for '%s'".formatted(contextDescription);
+            LOG.error(msg, e);
+            dispatchFailure("Element location was interrupted.");
+        } else {
+            String msg = "Element resolution agent timed out or failed for '%s'".formatted(contextDescription);
+            LOG.error(msg, e);
+            dispatchFailure("Element location failed: " + (cause != null ? cause.getMessage() : e.getMessage()));
         }
     }
 
@@ -240,29 +318,18 @@ public class UiElementDialogHelper {
         return dialog;
     }
 
-    private static void dispatchFailure(Consumer<ElementSelectionResult> resultCallback, String message) {
-        SwingUtilities.invokeLater(() -> resultCallback.accept(new ElementSelectionResult.Failure(message)));
+    private static void dispatchFailure(String message) {
+        SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(null, message, "Locate Element Failed", JOptionPane.ERROR_MESSAGE));
     }
 
     /**
      * Handler that triggers the auto-locate flow via the collecting knowledge agent.
-     * Accepts a result callback and fires the agent asynchronously; the
-     * {@link ElementSelectionResult} is delivered back via the callback on the EDT.
+     * Blocks until the agent completes; must be invoked from a virtual thread.
+     * Returns the located {@link UiElement}, or empty if location failed (error already reported to the user).
      */
     @FunctionalInterface
     public interface AutoLocateHandler {
-        void locate(Consumer<ElementSelectionResult> resultCallback);
-    }
-
-    /**
-     * Sealed result type for the element-selection step in the HITL collecting knowledge dialog.
-     */
-    public sealed interface ElementSelectionResult permits ElementSelectionResult.Selected, ElementSelectionResult.Failure {
-        record Selected(UUID elementId, String elementName, @Nullable BufferedImage screenshot) implements ElementSelectionResult {
-        }
-
-        record Failure(String message) implements ElementSelectionResult {
-        }
+        Optional<UiElement> locate();
     }
 
     /**
@@ -272,6 +339,6 @@ public class UiElementDialogHelper {
             AutoLocateHandler locate,
             Supplier<Optional<UiElement>> editDetails,
             Supplier<Optional<UiElement>> replaceScreenshot,
-            Runnable refine) {
+            AutoLocateHandler selectElement) {
     }
 }

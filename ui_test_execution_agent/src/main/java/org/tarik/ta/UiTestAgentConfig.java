@@ -115,6 +115,15 @@ public class UiTestAgentConfig extends AgentConfig {
         this.uiElementDescriptionMatcherAgentPromptVersion = loadProperty(
                 "ui.element.description.matcher.agent.prompt.version", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_PROMPT_VERSION", "v1.0.0",
                 s -> s, false);
+        this.uiElementDescriptionExtractionAgentModelName = loadProperty(
+                "ui.element.description.extraction.agent.model.name", "UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_MODEL_NAME",
+                "gemini-3-flash-preview", s -> s, false);
+        this.uiElementDescriptionExtractionAgentModelProvider = getProperty(
+                "ui.element.description.extraction.agent.model.provider", "UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_MODEL_PROVIDER",
+                "google", this::getModelProvider, false);
+        this.uiElementDescriptionExtractionAgentPromptVersion = loadProperty(
+                "ui.element.description.extraction.agent.prompt.version", "UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_PROMPT_VERSION",
+                "v1.0.0", s -> s, false);
         this.uiStateCheckAgentModelName = loadProperty(
                 "ui.state.check.agent.model.name", "UI_STATE_CHECK_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
         this.uiStateCheckAgentModelProvider = getProperty(
@@ -456,6 +465,25 @@ public class UiTestAgentConfig extends AgentConfig {
      */
     public boolean isNeo4jAuthConfigured() {
         return !getNeo4jUsername().isBlank() && !getVectorDbToken().isBlank();
+    }
+
+    // UI Element Description Extraction Agent
+    private final ConfigProperty<String> uiElementDescriptionExtractionAgentModelName;
+
+    public String getUiElementDescriptionExtractionAgentModelName() {
+        return uiElementDescriptionExtractionAgentModelName.value();
+    }
+
+    private final ConfigProperty<ModelProvider> uiElementDescriptionExtractionAgentModelProvider;
+
+    public ModelProvider getUiElementDescriptionExtractionAgentModelProvider() {
+        return uiElementDescriptionExtractionAgentModelProvider.value();
+    }
+
+    private final ConfigProperty<String> uiElementDescriptionExtractionAgentPromptVersion;
+
+    public String getUiElementDescriptionExtractionAgentPromptVersion() {
+        return uiElementDescriptionExtractionAgentPromptVersion.value();
     }
 
     // UI Element Description Matcher Agent

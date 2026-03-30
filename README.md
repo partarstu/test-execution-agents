@@ -422,8 +422,14 @@ gcloud secrets versions access latest --secret=VECTOR_DB_KEY
 | `knowledge.query.timeout.seconds` | `KNOWLEDGE_QUERY_TIMEOUT_SECONDS` | `60`                    | Neo4j query timeout in seconds                                    |
 
 Knowledge persistence is automatically enabled when `vector.db.key` (or `VECTOR_DB_KEY`) is set to a non-blank value. Both
-`NEO4J_USERNAME` and `VECTOR_DB_KEY` are stored as secrets in Secret Manager for cloud deployments. Schema migrations run automatically on
-startup.
+`NEO4J_USERNAME` and `VECTOR_DB_KEY` are stored as secrets in Secret Manager for cloud deployments.
+
+**Resilient DB connection:** The Neo4j driver does not verify connectivity on startup. Schema migration runs in a background virtual thread
+at startup (the server waits for it to finish but is not blocked from starting if the DB is unreachable). If migration fails due to
+connection issues, the error is logged and the server starts normally. Migration is automatically retried on the first incoming DB
+operation. If migration still fails during request processing, the entire request fails with a `DatabaseConnectionException`. The driver
+is configured with `withMaxTransactionRetryTime(120s)` so managed-transaction retries (~10 × 10s connection-timeout cycles) are handled
+transparently by the driver without any custom retry loop.
 
 ### UiElementCache
 
@@ -460,7 +466,7 @@ This allows the agent to see both the current screen and the reference screensho
 1. During test execution, the agent encounters an unknown action (no matching procedure in the knowledge graph).
 2. The AI suggestion agent analyzes the action and proposes preconditions, effects, and child steps.
 3. A Swing collecting knowledge dialog (`ProcedureKnowledgeCollectionDialog`) presents the suggestions for the operator to review, modify, or accept. Child steps are listed with screenshot thumbnails; double-clicking or clicking the ✏ affordance on any row opens a recursive `ProcedureKnowledgeCollectionDialog` for that child (bidirectional navigation with "Edit Parent" button). The dialog tracks unsaved changes and warns before discarding them.
-4. For atomic steps, the operator can: (a) run the agent-driven element search ("Select Target Element..."), (b) manually define a new element via `UiElementInfoPopup` ("Create Element..."), or (c) refine existing elements via `UiElementRefinementPopup` ("Refine Elements...") — all from within the dialog.
+4. For atomic steps, the operator can: (a) run the agent-driven element search ("Locate UI Element..."), or (b) open `UiElementLookupDialog` ("Select UI element") to search for an existing element by description and link it, or create a new one directly (agent skips DB search and creates the element, then captures its screenshot).
 5. The completed procedure tree is persisted to Neo4j with all relationships and embeddings.
 6. On subsequent executions, the agent recognizes the action and executes the learned procedure automatically.
 

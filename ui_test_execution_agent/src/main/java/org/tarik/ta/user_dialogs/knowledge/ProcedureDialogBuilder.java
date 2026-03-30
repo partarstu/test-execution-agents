@@ -85,9 +85,8 @@ public class ProcedureDialogBuilder {
                 dialog.createButton("Locate UI Element...", _ -> dialog.handleElementSelection(dialog.handlers.locate()));
         panel.add(dialog.locateElementButton);
 
-        dialog.refineElementsButton = dialog.createButton("Refine UI Elements...", _ -> dialog.handleElementRefinement());
-        dialog.refineElementsButton.setVisible(dialog.handlers.refine() != null);
-        panel.add(dialog.refineElementsButton);
+        dialog.selectUiElementButton = dialog.createButton("Select UI element", _ -> dialog.handleSelectUiElement());
+        panel.add(dialog.selectUiElementButton);
 
         return panel;
     }

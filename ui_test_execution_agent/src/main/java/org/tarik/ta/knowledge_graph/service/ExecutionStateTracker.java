@@ -87,6 +87,25 @@ public class ExecutionStateTracker {
     }
 
     /**
+     * Adds raw effect phrases to the current state, bypassing the graph.
+     * Used as a fallback when no {@link PhraseEmbedding} nodes are linked in the graph for a procedure.
+     *
+     * @param phrases the effect phrase strings to add
+     */
+    public void addEffectPhrases(List<String> phrases) {
+        requireNonNull(phrases, "phrases");
+        for (var phrase : phrases) {
+            if (phrase != null && !phrase.isBlank()) {
+                String normalized = normalize(phrase);
+                if (currentState.add(normalized)) {
+                    LOG.debug("Added effect phrase to state (fallback): '{}'", normalized);
+                }
+            }
+        }
+        LOG.debug("Current state now contains {} effect(s)", currentState.size());
+    }
+
+    /**
      * Returns precondition phrases that are not satisfied by the current state.
      * Comparison is case-insensitive and whitespace-normalized.
      *

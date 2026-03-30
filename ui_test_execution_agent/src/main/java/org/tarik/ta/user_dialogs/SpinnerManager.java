@@ -86,16 +86,6 @@ public class SpinnerManager {
         isVisible = true;
     }
 
-    public static void updateMessage(String message) {
-        SwingUtilities.invokeLater(() -> {
-            if (isVisible && messageLabel != null) {
-                currentMessage = message;
-                messageLabel.setText(message);
-                dialog.pack();
-            }
-        });
-    }
-
     public static void hide() {
         try {
             if (SwingUtilities.isEventDispatchThread()) {

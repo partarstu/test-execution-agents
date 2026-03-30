@@ -206,6 +206,22 @@ class UiAgentsBeanFactory {
 
     @Bean
     @Singleton
+    UiElementDescriptionExtractionAgent getUiElementDescriptionExtractionAgent() {
+        var model = modelFactory.getModel(
+                uiTestAgentConfig.getUiElementDescriptionExtractionAgentModelName(),
+                uiTestAgentConfig.getUiElementDescriptionExtractionAgentModelProvider());
+        var prompt = loadSystemPrompt("element_describer",
+                uiTestAgentConfig.getUiElementDescriptionExtractionAgentPromptVersion(),
+                "ui_element_description_extraction_prompt.txt");
+        return builder(UiElementDescriptionExtractionAgent.class)
+                .chatModel(model.chatModel())
+                .systemMessageProvider(_ -> prompt)
+                .tools(UiElementDescriptionResult.empty())
+                .build();
+    }
+
+    @Bean
+    @Singleton
     UiElementExtendedDescriptionAgent getUiElementExtendedDescriptionAgent() {
         var model = modelFactory.getModel(
                 uiTestAgentConfig.getUiElementDescriptionMatcherAgentModelName(),

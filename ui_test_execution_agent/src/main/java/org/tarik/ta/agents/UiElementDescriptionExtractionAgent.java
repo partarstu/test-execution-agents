@@ -15,27 +15,20 @@
  */
 package org.tarik.ta.agents;
 
-import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.dto.UiElementIdentificationResult;
+import org.tarik.ta.dto.UiElementDescriptionResult;
 
-public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElementIdentificationResult> {
-    @UserMessage("""
-            Target Element Description: {{target_element_description}}
-            
-            Relevant Data Context: {{relevant_data}}
-            
-            The screenshot is attached.
-            """)
-    Result<String> describeUiElement(
-            @V("target_element_description") String targetElementDescription,
-            @V("relevant_data") String relevantData,
-            @UserMessage ImageContent screenshot);
+/**
+ * AI agent that extracts the UI element description from a test action description.
+ */
+public interface UiElementDescriptionExtractionAgent extends BaseUiAgent<UiElementDescriptionResult> {
+    @UserMessage("Procedure description: {{testActionDescription}}")
+    Result<String> extract(@V("testActionDescription") String testActionDescription);
 
     @Override
     default String getAgentTaskDescription() {
-        return "Describing the UI element based on description";
+        return "Extracting UI element description from procedure description";
     }
 }

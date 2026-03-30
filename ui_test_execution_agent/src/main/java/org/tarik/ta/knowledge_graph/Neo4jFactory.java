@@ -9,7 +9,6 @@ import org.neo4j.driver.Config;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
 import org.neo4j.driver.exceptions.AuthenticationException;
-import org.neo4j.driver.exceptions.ServiceUnavailableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
@@ -24,6 +23,7 @@ public class Neo4jFactory implements AutoCloseable {
     private final String databaseName;
     private final UiTestAgentConfig uiTestAgentConfig;
     private Driver driver;
+    private Neo4jMigrationState migrationState;
 
     public Neo4jFactory(UiTestAgentConfig uiTestAgentConfig) {
         this.uiTestAgentConfig = uiTestAgentConfig;
@@ -47,26 +47,45 @@ public class Neo4jFactory implements AutoCloseable {
                 .withMaxConnectionPoolSize(50)
                 .withConnectionAcquisitionTimeout(30, TimeUnit.SECONDS)
                 .withConnectionTimeout(10, TimeUnit.SECONDS)
+                // Allow the driver to retry failed managed transactions for up to 120s (~10 connection-timeout cycles)
+                .withMaxTransactionRetryTime(120, TimeUnit.SECONDS)
                 .build();
 
         try {
             this.driver = GraphDatabase.driver(uri, AuthTokens.basic(username, password), config);
-            this.driver.verifyConnectivity();
-            LOG.info("Neo4j driver authenticated and connected successfully to '{}' as user '{}' with pool size 50", uri, username);
+            LOG.info("Neo4j driver created for '{}' as user '{}' — connectivity will be verified during schema migration", uri, username);
             return this.driver;
         } catch (AuthenticationException e) {
             throw new IllegalStateException(
                     "Neo4j authentication failed for user '%s' at '%s'. Verify VECTOR_DB_KEY matches the server's configured password"
                             .formatted(username, uri), e);
-        } catch (ServiceUnavailableException e) {
-            throw new IllegalStateException(
-                    "Neo4j server is unreachable at '%s'. Verify the VECTOR_DB_URL and that the Neo4j VM is running".formatted(uri), e);
         }
+    }
+
+    @Bean
+    @Singleton
+    public Neo4jMigrationState migrationState() {
+        this.migrationState = new Neo4jMigrationState();
+        return this.migrationState;
     }
 
     @PostConstruct
     public void initSchema() {
-        SchemaMigrationManager.migrateOnStartup(this.driver, this.databaseName);
+        var migrationThread = Thread.ofVirtual().start(() -> {
+            try {
+                SchemaMigrationManager.migrateOnStartup(this.driver, this.databaseName);
+                migrationState.markSucceeded();
+                LOG.info("Schema migration completed successfully on startup");
+            } catch (Exception e) {
+                LOG.error("Schema migration failed at startup — will be retried on first DB operation: {}", e.getMessage());
+            }
+        });
+        try {
+            migrationThread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.error("Interrupted while waiting for schema migration thread to complete", e);
+        }
     }
 
     @Override

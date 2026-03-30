@@ -44,7 +44,6 @@ import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.user_dialogs.*;
 
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.awt.BorderLayout.*;
 import static java.awt.Font.PLAIN;
@@ -74,7 +73,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     JButton editDetailsButton;
     JButton replaceScreenshotButton;
     JButton removeElementButton;
-    JButton refineElementsButton;
+    JButton selectUiElementButton;
     JLabel elementNameLabel;
     JLabel elementScreenshotLabel;
     JButton addChildStepButton;
@@ -137,11 +136,10 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                 ProcedureDialogBuilder.createHeaderPanel(this, p != null ? p.description() : "", cfg.headerMessage(), cfg.itemContext());
         mainPanel.add(headerPanel, NORTH);
 
-        var elementIdRef = new AtomicReference<>(cfg.targetUiElementId());
         this.handlers = uiElementDialogHelper.buildElementHandlers(
                 () -> descriptionArea.getText().trim(),
                 () -> getEffectiveTestData().toString(),
-                elementIdRef);
+                () -> targetUiElementId);
 
         JPanel rightPanel = new JPanel(new BorderLayout());
         rightPanel.add(ProcedureDialogBuilder.createTargetElementPanel(this), NORTH);
@@ -451,7 +449,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         boolean isAtomic = atomicCheckBox.isSelected();
         boolean hasElement = isAtomic && targetUiElementId != null;
 
-        List.of(locateElementButton, refineElementsButton).forEach(b -> b.setEnabled(isAtomic));
+        List.of(locateElementButton, selectUiElementButton).forEach(b -> b.setEnabled(isAtomic));
         List.of(editDetailsButton, replaceScreenshotButton, removeElementButton).forEach(b -> b.setEnabled(hasElement));
         List.of(childStepsContainer, addChildStepButton, removeChildStepButton).forEach(b -> b.setEnabled(!isAtomic));
         updateMoveButtonStates();
@@ -478,25 +476,36 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         locateElementButton.setEnabled(false);
         locateElementButton.setText("Locating...");
         hideTemporarily();
-        handler.locate(result -> {
-            switch (result) {
-                case UiElementDialogHelper.ElementSelectionResult.Selected s -> {
-                    targetUiElementId = s.elementId();
-                    currentElementScreenshot = s.screenshot();
-                    LOG.info("Target UI element located: name='{}', id={}", s.elementName(), s.elementId());
-                    updateTargetElementUi(s.elementName(), s.screenshot());
-                    editDetailsButton.setEnabled(true);
-                    replaceScreenshotButton.setEnabled(true);
-                    removeElementButton.setEnabled(true);
-                    restoreDialogAfterElementSelection();
-                }
-                case UiElementDialogHelper.ElementSelectionResult.Failure f -> {
-                    LOG.warn("Element location failed: {}", f.message());
-                    restoreDialogAfterElementSelection();
-                    showMessageDialog(this, f.message(), "Locate Element Failed", ERROR_MESSAGE);
-                }
-            }
+        Thread.ofVirtual().start(() -> {
+            var elementOpt = handler.locate();
+            SwingUtilities.invokeLater(() -> {
+                elementOpt.ifPresent(this::linkElement);
+                restoreDialogAfterElementSelection();
+            });
         });
+    }
+
+    void handleSelectUiElement() {
+        selectUiElementButton.setEnabled(false);
+        selectUiElementButton.setText("Selecting...");
+        hideTemporarily();
+        Thread.ofVirtual().start(() -> {
+            var elementOpt = handlers.selectElement().locate();
+            SwingUtilities.invokeLater(() -> {
+                elementOpt.ifPresent(this::linkElement);
+                restoreAfterSelectUiElement();
+            });
+        });
+    }
+
+    private void linkElement(@NotNull UiElement element) {
+        targetUiElementId = element.id();
+        currentElementScreenshot = element.screenshot() != null ? element.screenshot().toBufferedImage() : null;
+        LOG.info("Target UI element linked: name='{}', id={}", element.name(), element.id());
+        updateTargetElementUi(element.name(), currentElementScreenshot);
+        editDetailsButton.setEnabled(true);
+        replaceScreenshotButton.setEnabled(true);
+        removeElementButton.setEnabled(true);
     }
 
     void handleRemoveElement() {
@@ -511,33 +520,21 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         }
     }
 
-    void handleElementRefinement() {
-        if (handlers.refine() != null) {
-            hideTemporarily();
-            try {
-                handlers.refine().run();
-            } finally {
-                clearElementIfRefined();
-                restoreDialogVisibility();
-            }
-        }
-    }
-
-    private void clearElementIfRefined() {
-        if (targetUiElementId != null && uiElementRepository.findById(targetUiElementId).isEmpty()) {
-            targetUiElementId = null;
-            currentElementScreenshot = null;
-            updateTargetElementUi("No element located.", null);
-            updateAtomicityState();
-        }
-    }
-
     private void restoreDialogAfterElementSelection() {
         if (!isDisplayable()) {
             return;
         }
         locateElementButton.setText("Locate UI Element...");
         locateElementButton.setEnabled(true);
+        restoreDialogVisibility();
+    }
+
+    private void restoreAfterSelectUiElement() {
+        if (!isDisplayable()) {
+            return;
+        }
+        selectUiElementButton.setText("Select UI element");
+        selectUiElementButton.setEnabled(atomicCheckBox.isSelected());
         restoreDialogVisibility();
     }
 

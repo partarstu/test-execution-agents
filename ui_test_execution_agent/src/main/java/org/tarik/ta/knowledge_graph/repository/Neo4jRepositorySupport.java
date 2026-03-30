@@ -35,9 +35,12 @@ import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.neo4j.driver.exceptions.ServiceUnavailableException;
 import org.neo4j.driver.exceptions.SessionExpiredException;
 import org.tarik.ta.exceptions.DatabaseConnectionException;
+import org.tarik.ta.knowledge_graph.Neo4jMigrationState;
+import org.tarik.ta.knowledge_graph.schema.SchemaMigrationManager;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 import static org.tarik.ta.knowledge_graph.model.GraphRelationships.*;
@@ -161,10 +164,13 @@ public class Neo4jRepositorySupport {
 
     private final Driver driver;
     private final String databaseName;
+    private final Neo4jMigrationState migrationState;
+    private final ReentrantLock migrationRetryLock = new ReentrantLock();
 
-    public Neo4jRepositorySupport(Driver driver, UiTestAgentConfig uiTestAgentConfig) {
+    public Neo4jRepositorySupport(Driver driver, UiTestAgentConfig uiTestAgentConfig, Neo4jMigrationState migrationState) {
         this.driver = driver;
         this.databaseName = uiTestAgentConfig.getNeo4jDatabase();
+        this.migrationState = migrationState;
     }
 
     /**
@@ -177,6 +183,7 @@ public class Neo4jRepositorySupport {
     }
 
     public List<Record> executeSingleReadQuery(String cypher, Map<String, Object> params) {
+        ensureMigrationCompleted();
         try {
             return driver.executableQuery(cypher)
                     .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.READ).build())
@@ -192,6 +199,7 @@ public class Neo4jRepositorySupport {
     }
 
     public List<Record> executeSingleWriteQuery(String cypher, Map<String, Object> params) {
+        ensureMigrationCompleted();
         try {
             return driver.executableQuery(cypher)
                     .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.WRITE).build())
@@ -207,6 +215,7 @@ public class Neo4jRepositorySupport {
     }
 
     public <T> T executeComplexReadQuery(TransactionCallback<T> action) {
+        ensureMigrationCompleted();
         try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             return session.executeRead(action);
         } catch (ServiceUnavailableException | SessionExpiredException e) {
@@ -215,6 +224,7 @@ public class Neo4jRepositorySupport {
     }
 
     public void executeComplexWriteQuery(Consumer<TransactionContext> action) {
+        ensureMigrationCompleted();
         try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             session.executeWriteWithoutResult(action);
         } catch (ServiceUnavailableException | SessionExpiredException e) {
@@ -223,10 +233,36 @@ public class Neo4jRepositorySupport {
     }
 
     public <T> T executeComplexWriteQuery(TransactionCallback<T> action) {
+        ensureMigrationCompleted();
         try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
             return session.executeWrite(action);
         } catch (ServiceUnavailableException | SessionExpiredException e) {
             throw new DatabaseConnectionException("Neo4j connection failed during complex write query execution", e);
+        }
+    }
+
+    /**
+     * Ensures schema migration has completed before any DB operation is executed.
+     * If migration failed at startup, retries it now — failure here aborts the current request thread.
+     */
+    private void ensureMigrationCompleted() {
+        if (migrationState.isSucceeded()) {
+            return;
+        }
+        migrationRetryLock.lock();
+        try {
+            // Double-check after acquiring the lock to avoid duplicate migration attempts
+            if (migrationState.isSucceeded()) {
+                return;
+            }
+            try {
+                SchemaMigrationManager.migrateOnStartup(driver, databaseName);
+                migrationState.markSucceeded();
+            } catch (Exception e) {
+                throw new DatabaseConnectionException("Schema migration failed during request — cannot proceed without DB", e);
+            }
+        } finally {
+            migrationRetryLock.unlock();
         }
     }
 }

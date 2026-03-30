@@ -35,7 +35,9 @@ working with agentic systems. Use skills located in @.agents folder if needed fo
   always reuse it. If reusing it directly can't be done, always extract it so that it's accessible (inheritance or composition) and then
   reuse it.
 * Never commit changes you've made into git unless explicitly asked by the user.
-* Never concatenate strings because of parameters, always use String.formatted() for that (except logging).
+* Never concatenate strings because of parameters, always use String.formatted() for that.
+* If logging errors with cause being provided as the second param and the log message uses string formatting, always extract such message
+  into a variable.
 * Prefer static imports everywhere, if possible.
 * Don't commit or push any changes into Git, unless explicitly asked for.
 * Every time any functionality is changed (modified, removed, extended) or a new one is added, update the README.MD so that the
