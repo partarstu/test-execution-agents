@@ -60,8 +60,7 @@ class ElementLocatorToolsTest {
     private UiElementCache mockUiElementCache;
     @Mock
     private UiElementBoundingBoxAgent mockBBoxAgent;
-    @Mock
-    private UiElementRefinementHelper mockHelper;
+
     @Mock
     private BestUiElementMatchSelectionAgent mockSelectionAgent;
     @Mock
@@ -92,7 +91,7 @@ class ElementLocatorToolsTest {
         lenient().when(configMock.isBoundingBoxAlreadyNormalized()).thenReturn(false);
 
         elementLocatorTools = new ElementLocatorTools(mockUiElementCache, mockRepository, mockUiStateCheckAgent, 
-                mockLocationHistoryRecorder, mockStabilityLookup, mockBBoxAgent, mockSelectionAgent, configMock, mockHelper);
+                mockLocationHistoryRecorder, mockStabilityLookup, mockBBoxAgent, mockSelectionAgent, configMock);
     }
 
     @AfterEach
