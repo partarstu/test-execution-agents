@@ -130,7 +130,7 @@ The core module provides shared abstractions that both UI and API agents extend:
 - **Visual Grounding**: AI-powered element location using screenshots and descriptions.
 - **Screen Recording**: Captures video of test execution for debugging.
 - **Knowledge Graph**: Neo4j-backed persistent storage for UI elements and reusable procedures with vector search.
-- **Attended/Supervised/Unattended Modes**: Interactive, semi-interactive, or fully automated execution.
+- **Supervised/Unattended Modes**: Interactive or fully automated execution.
 
 ### API Test Agent Specific
 
@@ -336,8 +336,8 @@ remember procedures (reusable test action sequences) across sessions.
 - **PDDL-Lite Planning**: Prerequisite/effect state tracking enables automatic prerequisite resolution during test execution.
 - **Queue-Based Execution**: Replaces the sequential for-loop with a dynamic execution queue that injects prerequisite steps when
   prerequisites are unmet.
-- **Human-in-the-Loop Collecting knowledge**: In ATTENDED and SUPERVISED modes, the agent triggers a Swing dialog for operators to collect knowledge new
-  procedures when an unknown action is encountered. AI suggests prerequisites, effects, and decomposition.
+- **Human-in-the-Loop Collecting knowledge**: In SUPERVISED mode, the agent triggers a Swing dialog for operators to collect new
+  procedures when an unknown action is encountered. AI suggests all info which a new procedure must contain.
 - **Unified Vector Store**: UI element storage migrated from Chroma/Qdrant to Neo4j using `langchain4j-community-neo4j`, providing both
   graph relationships and vector search in a single database.
 

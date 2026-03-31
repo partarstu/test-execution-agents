@@ -74,7 +74,8 @@ class UiAgentsBeanFactory {
         var model = modelFactory.getModel(
                 uiTestAgentConfig.getKnowledgeSuggestionAgentModelName(),
                 uiTestAgentConfig.getKnowledgeSuggestionAgentModelProvider());
-        var prompt = loadSystemPrompt("knowledge/suggestion", uiTestAgentConfig.getKnowledgeSuggestionAgentPromptVersion(), "knowledge_suggestion_prompt.txt");
+        var prompt = loadSystemPrompt("knowledge/suggestion", uiTestAgentConfig.getKnowledgeSuggestionAgentPromptVersion(),
+                "knowledge_suggestion_prompt.txt");
         return builder(KnowledgeSuggestionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
@@ -85,9 +86,11 @@ class UiAgentsBeanFactory {
     @Bean
     @Singleton
     UiStateCheckAgent getUiStateCheckAgent() {
-        var prompt = loadSystemPrompt("common/ui_state_checker", uiTestAgentConfig.getUiStateCheckAgentPromptVersion(), "ui_state_checker_prompt.txt");
+        var prompt = loadSystemPrompt("common/ui_state_checker", uiTestAgentConfig.getUiStateCheckAgentPromptVersion(),
+                "ui_state_checker_prompt.txt");
         return builder(UiStateCheckAgent.class)
-                .chatModel(modelFactory.getModel(uiTestAgentConfig.getUiStateCheckAgentModelName(), uiTestAgentConfig.getUiStateCheckAgentModelProvider()).chatModel())
+                .chatModel(modelFactory.getModel(uiTestAgentConfig.getUiStateCheckAgentModelName(),
+                        uiTestAgentConfig.getUiStateCheckAgentModelProvider()).chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .maxSequentialToolsInvocations(uiTestAgentConfig.getAgentToolCallsBudget())
                 .tools(new UiStateCheckResult(false, ""))
@@ -101,7 +104,8 @@ class UiAgentsBeanFactory {
                 uiTestAgentConfig.getTestStepVerificationAgentModelName(),
                 uiTestAgentConfig.getTestStepVerificationAgentModelProvider(),
                 uiTestAgentConfig.getVerificationModelMaxRetries());
-        var prompt = loadSystemPrompt("test_step/verifier", uiTestAgentConfig.getTestStepVerificationAgentPromptVersion(), "main_verification_prompt.txt");
+        var prompt = loadSystemPrompt("test_step/verifier", uiTestAgentConfig.getTestStepVerificationAgentPromptVersion(),
+                "main_verification_prompt.txt");
         var agentBuilder = builder(UiTestStepVerificationAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
@@ -226,7 +230,8 @@ class UiAgentsBeanFactory {
         var model = modelFactory.getModel(
                 uiTestAgentConfig.getUiElementDescriptionMatcherAgentModelName(),
                 uiTestAgentConfig.getUiElementDescriptionMatcherAgentModelProvider());
-        var prompt = loadSystemPrompt("element_describer", uiTestAgentConfig.getUiElementDescriptionMatcherAgentPromptVersion(),              "description_matcher_prompt.txt");
+        var prompt = loadSystemPrompt("element_describer", uiTestAgentConfig.getUiElementDescriptionMatcherAgentPromptVersion(),
+                "description_matcher_prompt.txt");
         return builder(UiElementExtendedDescriptionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)

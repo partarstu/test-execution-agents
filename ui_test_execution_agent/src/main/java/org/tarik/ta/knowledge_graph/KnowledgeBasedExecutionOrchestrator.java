@@ -31,8 +31,6 @@ import org.tarik.ta.knowledge_graph.execution.AtomicStepExecutionContext;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.PreconditionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.TestStepItem;
-import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
-import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
@@ -55,7 +53,6 @@ import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
 import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.*;
 import static org.tarik.ta.user_dialogs.PopupType.WARNING;
-import static org.tarik.ta.user_dialogs.knowledge.ProcedureSelectionPopup.SelectionAction.*;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 @Singleton
@@ -67,8 +64,6 @@ public class KnowledgeBasedExecutionOrchestrator {
     private final StepExecutionOrchestrator stepExecutionOrchestrator;
     private final ProcedureKnowledgeCollectionService procedureKnowledgeCollectionService;
     private final SatisfiesEdgeService satisfiesEdgeService;
-    private final LocationHistoryRecorder locationHistoryRecorder;
-    private final ElementLocationHistoryLookup elementLocationHistoryLookup;
     private final ProcedureUsageByTestCaseTrackingService procedureUsageByTestCaseTrackingService;
     private final FailureContextService failureContextService;
     private final UiTestAgentConfig uiTestAgentConfig;
@@ -79,8 +74,6 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                StepExecutionOrchestrator stepExecutionOrchestrator,
                                                ProcedureKnowledgeCollectionService procedureKnowledgeCollectionService,
                                                SatisfiesEdgeService satisfiesEdgeService,
-                                               LocationHistoryRecorder locationHistoryRecorder,
-                                               ElementLocationHistoryLookup elementLocationHistoryLookup,
                                                ProcedureUsageByTestCaseTrackingService procedureUsageByTestCaseTrackingService,
                                                FailureContextService failureContextService,
                                                UiTestAgentConfig uiTestAgentConfig,
@@ -90,8 +83,6 @@ public class KnowledgeBasedExecutionOrchestrator {
         this.stepExecutionOrchestrator = stepExecutionOrchestrator;
         this.procedureKnowledgeCollectionService = procedureKnowledgeCollectionService;
         this.satisfiesEdgeService = satisfiesEdgeService;
-        this.locationHistoryRecorder = locationHistoryRecorder;
-        this.elementLocationHistoryLookup = elementLocationHistoryLookup;
         this.procedureUsageByTestCaseTrackingService = procedureUsageByTestCaseTrackingService;
         this.failureContextService = failureContextService;
         this.uiTestAgentConfig = uiTestAgentConfig;
@@ -203,7 +194,6 @@ public class KnowledgeBasedExecutionOrchestrator {
 
                 List<UiTestStepResult> testStepResults = new ArrayList<>();
                 List<UiPreconditionResult> preconditionResults = new ArrayList<>();
-                boolean allAtomicsSuccess = true;
                 boolean reDecomposeNeeded = false;
                 int totalAtomics = atomicSteps.size();
                 for (int i = 0; i < totalAtomics; i++) {
@@ -215,7 +205,6 @@ public class KnowledgeBasedExecutionOrchestrator {
                         LOG.warn(reason);
                         if (uiTestAgentConfig.isFullyUnattended()) {
                             recordFailure(context, item, itemDescription, reason);
-                            allAtomicsSuccess = false;
                             break;
                         } else {
                             InformationalPopup.display("Prerequisites Not Satisfied", reason, null, WARNING, uiTestAgentConfig);
@@ -257,13 +246,13 @@ public class KnowledgeBasedExecutionOrchestrator {
                             testStepResults, preconditionResults,
                             stateTracker.getExecutedAtomicProcedures(), execContext);
 
-                    if (loopOutcome == StepExecutionOrchestrator.RetryLoopOutcome.TERMINATE_EXECUTION) {
+                    if (loopOutcome == UserDecisionOutcome.TERMINATE_EXECUTION) {
                         LOG.error("Terminating execution after failure of atomic procedure '{}'", atomicStep.description());
                         captureFailureContext(atomicStep, testStepResults, preconditionResults);
                         allAtomicsSuccess = false;
                         break;
                     }
-                    if (loopOutcome == StepExecutionOrchestrator.RetryLoopOutcome.RE_DECOMPOSE_AND_RETRY) {
+                    if (loopOutcome == UserDecisionOutcome.RE_DECOMPOSE_AND_RETRY) {
                         LOG.info("Atomic step '{}' was edited to composite — re-injecting item for re-decomposition", atomicStep.description());
                         queue.injectAtFront(List.of(item));
                         reDecomposeNeeded = true;
@@ -291,7 +280,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                         return;
                     }
                 } else {
-                    UiPreconditionResult mergedResult = mergePreconditionResults(itemDescription, preconditionResults, allAtomicsSuccess);
+                    UiPreconditionResult mergedResult = mergePreconditionResults(itemDescription, preconditionResults);
                     context.addPreconditionResult(mergedResult);
                     if (!mergedResult.isSuccess()) {
                         return;
@@ -399,10 +388,10 @@ public class KnowledgeBasedExecutionOrchestrator {
 
     private static void recordFailure(UiTestExecutionContext context, ExecutionItem item, String itemDescription, String errorMessage) {
         switch (item) {
-            case PreconditionItem ignored ->
-                    context.addPreconditionResult(new UiPreconditionResult(itemDescription, false, errorMessage, captureScreen(), now(), now()));
-            case TestStepItem(TestStep testStep) ->
-                    context.addStepResult(new UiTestStepResult(testStep, FAILURE, errorMessage, null, captureScreen(), now(), now()));
+            case PreconditionItem _ -> context.addPreconditionResult(new UiPreconditionResult(itemDescription, false, errorMessage,
+                    captureScreen(), now(), now()));
+            case TestStepItem(TestStep testStep) -> context.addStepResult(new UiTestStepResult(testStep, FAILURE, errorMessage, null,
+                    captureScreen(), now(), now()));
         }
     }
 

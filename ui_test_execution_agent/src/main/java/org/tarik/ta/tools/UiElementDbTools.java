@@ -123,7 +123,7 @@ public class UiElementDbTools extends UiAbstractTools {
             LOG.info("Automatically identified element '{}'. Proceeding with creation.", elementDescription);
             var uuid = randomUUID();
             UiElement uiElementToStore = new UiElement(uuid, descriptionResult.name(), descriptionResult.ownDescription(),
-                    descriptionResult.locationDescription(), descriptionResult.pageSummary(), null,
+                    descriptionResult.locationDescription(), descriptionResult.parentSummary(), null,
                     descriptionResult.elementIsDataDependent());
             elementRepository.create(uiElementToStore);
             return new ElementCreationResult(true, uuid, descriptionResult.name(), "Element created successfully");
