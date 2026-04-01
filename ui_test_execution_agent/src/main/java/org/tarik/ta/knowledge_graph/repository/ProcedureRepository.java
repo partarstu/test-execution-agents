@@ -193,6 +193,12 @@ public class ProcedureRepository {
                    n.${PROP_LAST_TIMING_UPDATE} AS lastUpdate
             """);
         this.FIND_ALL = repositorySupport.cypher("MATCH (n:${LABEL_PROCEDURE}) RETURN n");
+        this.FIND_WITH_MISSING_PHRASE_NODES = repositorySupport.cypher("""
+            MATCH (p:${LABEL_PROCEDURE})
+            WHERE (size(p.${PROP_EFFECTS}) > 0 AND NOT (p)-[:${REL_HAS_EFFECT}]->(:${LABEL_PHRASE_EMBEDDING}))
+               OR (size(p.${PROP_PREREQUISITES}) > 0 AND NOT (p)-[:${REL_HAS_PREREQUISITE}]->(:${LABEL_PHRASE_EMBEDDING}))
+            RETURN p AS n
+            """);
         this.FIND_CANDIDATE_CONTEXT_BATCH = buildFindCandidateContextBatch();
         this.GET_ELEMENT_STABILITY = repositorySupport.cypher("MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elementId}) RETURN el");
         this.FIND_BY_SEMANTIC_SEARCH = repositorySupport.cypher("""
@@ -296,6 +302,8 @@ public class ProcedureRepository {
     private final String GET_TIMING_PROFILE;
 
     private final String FIND_ALL;
+
+    private final String FIND_WITH_MISSING_PHRASE_NODES;
 
     private final String FIND_CANDIDATE_CONTEXT_BATCH;
 
@@ -455,6 +463,15 @@ public class ProcedureRepository {
      */
     public List<Procedure> findAllWithPrerequisites() {
         return findAll().stream().filter(p -> !p.prerequisites().isEmpty()).toList();
+    }
+
+    /**
+     * Returns procedures that have non-empty {@code effects} or {@code prerequisites} node properties
+     * but are missing the corresponding {@code HAS_EFFECT} or {@code HAS_PREREQUISITE} phrase nodes.
+     * Used by the startup phrase-node migration to backfill legacy procedures ingested without phrase edges.
+     */
+    public List<Procedure> findWithMissingPhraseNodes() {
+        return queryProcedures(FIND_WITH_MISSING_PHRASE_NODES, Map.of());
     }
 
     /**

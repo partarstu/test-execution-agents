@@ -29,11 +29,13 @@ import org.tarik.ta.knowledge_graph.repository.ProcedureRepository.CandidateCont
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.partitioningBy;
 import static java.util.stream.Collectors.toMap;
 
 import org.tarik.ta.UiTestAgentConfig;
@@ -83,7 +85,7 @@ public class KnowledgeService {
         }
         var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
         var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
-        var reRanked = reRankByStateCompatibility(procedures, effectNodeIds, recentParentIds);
+        var reRanked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
         var bestMatch = reRanked.getFirst();
         var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
         return Optional.of(new MatchResult(bestMatch, confidence, reRanked));
@@ -114,7 +116,7 @@ public class KnowledgeService {
 
         var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
         var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
-        var reRanked = reRankByStateCompatibility(procedures, effectNodeIds, recentParentIds);
+        var reRanked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
         var bestMatch = reRanked.getFirst();
 
         var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
@@ -130,16 +132,19 @@ public class KnowledgeService {
      * Procedures with no preconditions always score {@code 1.0}. Within equal scores, higher satisfied count ranks first;
      * within equal counts, original semantic order is preserved (stable sort).
      * Uses Neo4j vector index queries via {@link PhraseEmbeddingRepository} instead of in-memory cosine similarity.
+     * Logs a DEBUG message when the top semantic match is demoted by re-ranking, including which prerequisites were unmet.
      */
-    private List<Procedure> reRankByStateCompatibility(List<Procedure> candidates, Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
-        record Scored(Procedure procedure, double proportion, int satisfied, int parentSharedCount, double stabilityPenalty) {}
+    private List<Procedure> reRankByStateCompatibility(List<Procedure> candidates, Map<UUID, Double> scoreById,
+                                                        Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
+        record Scored(Procedure procedure, double proportion, int satisfied, int totalPrereqs,
+                      int parentSharedCount, double stabilityPenalty, List<String> unmetPrereqs) {}
 
         double penaltyThreshold = config.getStabilityPenaltyThreshold();
         var candidateIds = candidates.stream().map(Procedure::id).toList();
         var contextById = procedureRepository.findCandidateContextBatch(candidateIds, recentParentIds)
                 .stream().collect(toMap(CandidateContext::candidateId, ctx -> ctx));
 
-        return candidates.stream()
+        var scored = candidates.stream()
                 .map(p -> {
                     var ctx = contextById.get(p.id());
                     double stabilityPenalty = 0.0;
@@ -156,24 +161,48 @@ public class KnowledgeService {
 
                     var prereqNodes = phraseEmbeddingRepository.findPrerequisitesForProcedure(p.id());
                     int satisfied = 0;
+                    List<String> unmetPrereqs = List.of();
                     double proportion = 1.0;
                     if (!prereqNodes.isEmpty()) {
                         if (!effectNodeIds.isEmpty()) {
                             double threshold = config.getKnowledgeMatchConfidenceHigh();
-                            satisfied = (int) prereqNodes.stream()
-                                    .filter(pe -> phraseEmbeddingRepository.isPrerequisiteMetByEffects(pe.id(), effectNodeIds, threshold))
-                                    .count();
+                            var partitioned = prereqNodes.stream()
+                                    .collect(partitioningBy(pe -> phraseEmbeddingRepository.isPrerequisiteMetByEffects(pe.id(), effectNodeIds, threshold)));
+                            satisfied = partitioned.get(true).size();
+                            unmetPrereqs = partitioned.get(false).stream().map(PhraseEmbedding::phrase).toList();
+                        } else {
+                            unmetPrereqs = prereqNodes.stream().map(PhraseEmbedding::phrase).toList();
                         }
                         proportion = (double) satisfied / prereqNodes.size();
                     }
-                    return new Scored(p, proportion, satisfied, parentSharedCount, stabilityPenalty);
+                    return new Scored(p, proportion, satisfied, prereqNodes.size(), parentSharedCount, stabilityPenalty, unmetPrereqs);
                 })
+                .toList();
+
+        var reRanked = scored.stream()
                 .sorted(Comparator.comparingDouble(Scored::proportion).reversed()
                         .thenComparing(Comparator.comparingInt(Scored::satisfied).reversed())
                         .thenComparing(Comparator.comparingInt(Scored::parentSharedCount).reversed())
                         .thenComparingDouble(Scored::stabilityPenalty))
                 .map(Scored::procedure)
                 .toList();
+
+        if (!candidates.isEmpty() && !reRanked.getFirst().id().equals(candidates.getFirst().id())) {
+            var topSemantic = candidates.getFirst();
+            var scoredById = scored.stream().collect(toMap(s -> s.procedure().id(), s -> s));
+            var topSemanticScored = scoredById.get(topSemantic.id());
+            var selected = reRanked.getFirst();
+            LOG.debug(
+                "Top semantic match '{}' (score={}) was demoted by re-ranking: {}/{} prerequisites met, " +
+                "unmet={}, effectNodeIds empty={}. Selected '{}' (score={}) instead with proportion={}",
+                topSemantic.description(), scoreById.get(topSemantic.id()),
+                topSemanticScored.satisfied(), topSemanticScored.totalPrereqs(),
+                topSemanticScored.unmetPrereqs(), effectNodeIds.isEmpty(),
+                selected.description(), scoreById.get(selected.id()),
+                scoredById.get(selected.id()).proportion());
+        }
+
+        return reRanked;
     }
 
     /**

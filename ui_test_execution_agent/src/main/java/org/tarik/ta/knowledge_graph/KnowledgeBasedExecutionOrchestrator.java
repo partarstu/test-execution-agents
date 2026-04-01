@@ -262,8 +262,9 @@ public class KnowledgeBasedExecutionOrchestrator {
                     var graphEffects = knowledgeService.findEffectsForProcedure(atomicStep.id());
                     stateTracker.addEffects(graphEffects);
                     if (graphEffects.isEmpty() && !atomicStep.effects().isEmpty()) {
-                        LOG.debug("No HAS_EFFECT phrase nodes found for '{}' — falling back to procedure's effect strings",
-                                atomicStep.description());
+                        LOG.warn("No HAS_EFFECT phrase nodes found for '{}' (id={}) — falling back to string-only state " +
+                                "tracking; prerequisite semantic matching will be degraded for subsequent steps",
+                                atomicStep.description(), atomicStep.id());
                         stateTracker.addEffectPhrases(atomicStep.effects());
                     }
                     satisfiesEdgeService.persistSatisfiesEdgesAsync(atomicStep.id());

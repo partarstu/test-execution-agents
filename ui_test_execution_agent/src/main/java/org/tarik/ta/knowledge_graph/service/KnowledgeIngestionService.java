@@ -332,7 +332,7 @@ public class KnowledgeIngestionService {
         }
     }
 
-    private void createAndSavePhraseNodes(Procedure procedure) {
+    void createAndSavePhraseNodes(Procedure procedure) {
         var allPhrases = new ArrayList<String>(procedure.prerequisites().size() + procedure.effects().size());
         allPhrases.addAll(procedure.prerequisites());
         allPhrases.addAll(procedure.effects());
