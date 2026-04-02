@@ -32,7 +32,7 @@ import static javax.swing.border.TitledBorder.TOP;
 
 public class ProcedureDialogBuilder {
 
-    public static JPanel createHeaderPanel(ProcedureKnowledgeCollectionDialog dialog, String initialDescription, String headerMessage,
+    public static JPanel createHeaderPanel(ProcedureDialog dialog, String initialDescription, String headerMessage,
                                            ExecutionItemContext itemContext) {
         JPanel panel = new JPanel(new BorderLayout(dialog.getDialogDefaultHorizontalGap(), dialog.getDialogDefaultVerticalGap()));
         panel.setBorder(createEmptyBorder(dialog.getDialogDefaultVerticalGap(), dialog.getDialogDefaultHorizontalGap(),
@@ -53,7 +53,7 @@ public class ProcedureDialogBuilder {
         return panel;
     }
 
-    private static JPanel createExecutionContextPanel(ProcedureKnowledgeCollectionDialog dialog, ExecutionItemContext itemContext) {
+    private static JPanel createExecutionContextPanel(ProcedureDialog dialog, ExecutionItemContext itemContext) {
         String borderTitle = itemContext.isPrecondition() ? "Current Precondition" : "Current Test Step";
         JPanel panel = new JPanel(new BorderLayout(5, 4));
         panel.setBorder(createTitledBorder(borderTitle));
@@ -74,7 +74,7 @@ public class ProcedureDialogBuilder {
         return panel;
     }
 
-    public static JPanel createAtomicityPanel(ProcedureKnowledgeCollectionDialog dialog, boolean initialIsAtomic) {
+    public static JPanel createAtomicityPanel(ProcedureDialog dialog, boolean initialIsAtomic) {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         dialog.atomicCheckBox = new JCheckBox("Atomic Step (single UI action)", initialIsAtomic);
         dialog.atomicCheckBox.addActionListener(_ -> dialog.handleAtomicityToggle());
@@ -91,14 +91,14 @@ public class ProcedureDialogBuilder {
         return panel;
     }
 
-    public static JPanel createTargetElementPanel(ProcedureKnowledgeCollectionDialog dialog) {
+    public static JPanel createTargetElementPanel(ProcedureDialog dialog) {
         JPanel panel = new JPanel(new BorderLayout(0, 10));
         panel.setBorder(
                 createTitledBorder(BorderFactory.createEtchedBorder(), "Target UI Element", TitledBorder.LEFT, TOP));
         dialog.elementScreenshotLabel = new JLabel();
         dialog.elementScreenshotLabel.setPreferredSize(
-                new Dimension(ProcedureKnowledgeCollectionDialog.ELEMENT_SCREENSHOT_PREFERRED_WIDTH,
-                        ProcedureKnowledgeCollectionDialog.ELEMENT_SCREENSHOT_PREFERRED_HEIGHT));
+                new Dimension(ProcedureDialog.ELEMENT_SCREENSHOT_PREFERRED_WIDTH,
+                        ProcedureDialog.ELEMENT_SCREENSHOT_PREFERRED_HEIGHT));
         dialog.elementScreenshotLabel.setHorizontalAlignment(SwingConstants.CENTER);
         dialog.elementScreenshotLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         dialog.elementScreenshotLabel.addMouseListener(new MouseAdapter() {
@@ -135,7 +135,7 @@ public class ProcedureDialogBuilder {
         return panel;
     }
 
-    public static JPanel createChildStepsPanel(ProcedureKnowledgeCollectionDialog dialog, List<ChildProcedureInDialog> preloadedChildren) {
+    public static JPanel createChildStepsPanel(ProcedureDialog dialog, List<ChildProcedureInDialog> preloadedChildren) {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(createTitledBorder(BorderFactory.createEtchedBorder(), "Child Steps (for Composite)",
                 TitledBorder.LEFT, TOP));
@@ -148,8 +148,8 @@ public class ProcedureDialogBuilder {
 
         dialog.childStepsCardLayout = new CardLayout();
         dialog.childStepsCards = new JPanel(dialog.childStepsCardLayout);
-        dialog.childStepsCards.add(scrollPane, ProcedureKnowledgeCollectionDialog.CARD_LIST);
-        dialog.childStepsCards.add(buildSpinnerCard(), ProcedureKnowledgeCollectionDialog.CARD_SPINNER);
+        dialog.childStepsCards.add(scrollPane, ProcedureDialog.CARD_LIST);
+        dialog.childStepsCards.add(buildSpinnerCard(), ProcedureDialog.CARD_SPINNER);
         panel.add(dialog.childStepsCards, CENTER);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -198,7 +198,7 @@ public class ProcedureDialogBuilder {
         return panel;
     }
 
-    public static JPanel createAdvancedPanel(ProcedureKnowledgeCollectionDialog dialog, List<String> initialPrerequisites,
+    public static JPanel createAdvancedPanel(ProcedureDialog dialog, List<String> initialPrerequisites,
                                              List<String> initialEffects,
                                              List<String> initialTestData, String initialExpectedResults,
                                              boolean showTestDataAndExpectedResults) {
@@ -256,7 +256,7 @@ public class ProcedureDialogBuilder {
         return panel;
     }
 
-    private static <T> JPanel createListPanel(ProcedureKnowledgeCollectionDialog dialog, String title, JList<T> list,
+    private static <T> JPanel createListPanel(ProcedureDialog dialog, String title, JList<T> list,
                                               ActionListener addAction,
                                               ActionListener editAction, ActionListener removeAction,
                                               String extraButtonLabel, ActionListener extraAction) {

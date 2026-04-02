@@ -180,6 +180,10 @@ public class StepExecutionOrchestrator {
                 }
             }
 
+            // Track result list sizes before execution so a retry can discard the failed attempt's result
+            int testResultsSizeBefore = testStepResults.size();
+            int preconditionResultsSizeBefore = preconditionResults.size();
+
             // Execution
             var result = executeAtomicStep(item, atomicStep, context, testStepResults, preconditionResults, execContext);
 
@@ -195,6 +199,9 @@ public class StepExecutionOrchestrator {
                         return CONTINUE_NEXT_STEP;
                     }
                     case PostExecutionCheckResult.RetryStep r -> {
+                        // Discard this attempt's result so only the last retry is recorded
+                        testStepResults.subList(testResultsSizeBefore, testStepResults.size()).clear();
+                        preconditionResults.subList(preconditionResultsSizeBefore, preconditionResults.size()).clear();
                         atomicStep = r.procedure();
                         context.setVisualState(new VisualState(captureScreen()));
                     }

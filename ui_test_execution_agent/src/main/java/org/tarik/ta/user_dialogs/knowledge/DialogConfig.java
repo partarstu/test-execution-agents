@@ -29,7 +29,7 @@ import java.util.UUID;
 
 
 /**
- * Immutable configuration record for {@link ProcedureKnowledgeCollectionDialog}.
+ * Immutable configuration record for {@link ProcedureDialog}.
  * Use {@code existingProcedure} to pre-fill all procedure fields at once; pass {@code null} to start with an empty form.
  */
 record DialogConfig(

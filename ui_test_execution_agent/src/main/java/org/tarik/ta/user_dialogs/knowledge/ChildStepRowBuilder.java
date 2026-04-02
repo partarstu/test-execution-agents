@@ -38,7 +38,7 @@ import static org.tarik.ta.utils.HtmlUtils.escapeHtml;
 import static org.tarik.ta.utils.ImageUtils.scaleToFitBox;
 
 /**
- * Builds Swing row panels for the child-steps list in {@link ProcedureKnowledgeCollectionDialog}.
+ * Builds Swing row panels for the child-steps list in {@link ProcedureDialog}.
  * Encapsulates all rendering logic (thumbnail, badges, action buttons) so the main dialog stays lean.
  */
 class ChildStepRowBuilder {

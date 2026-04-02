@@ -142,9 +142,10 @@ public class UiTestAgent {
      * been created above.
      */
     private UiTestExecutionResult executeWithKnowledgeFlow(UiTestExecutionContext context, TestCase testCase,
-            int startingStepIndex, Instant testExecutionStartTimestamp,
-            SystemInfo systemInfo,
-            ScreenRecorder screenRecorder, LogCapture logCapture, ExecutionStateTracker stateTracker) {
+                                                           int startingStepIndex, Instant testExecutionStartTimestamp,
+                                                           SystemInfo systemInfo,
+                                                           ScreenRecorder screenRecorder, LogCapture logCapture,
+                                                           ExecutionStateTracker stateTracker) {
         try {
             knowledgeBasedExecutionOrchestrator.executeBasedOnKnowledge(context, testCase, startingStepIndex, stateTracker);
 
@@ -169,17 +170,14 @@ public class UiTestAgent {
                 }
             } else {
                 return new UiTestExecutionResult(testCase.name(), PASSED, context.getPreconditionExecutionHistory(),
-                        context.getTestStepExecutionHistory(), null, systemInfo,
-                        screenRecorder.getCurrentRecordingPath(),
+                        context.getTestStepExecutionHistory(), null, systemInfo, screenRecorder.getCurrentRecordingPath(),
                         logCapture.getLogs(), testExecutionStartTimestamp, now(), null);
             }
         } catch (Exception e) {
             LOG.error("Error during knowledge-based execution", e);
             return new UiTestExecutionResult(testCase.name(), ERROR, context.getPreconditionExecutionHistory(),
-                    context.getTestStepExecutionHistory(), captureScreen(), systemInfo,
-                    screenRecorder.getCurrentRecordingPath(),
-                    logCapture.getLogs(), testExecutionStartTimestamp, now(),
-                    "Knowledge-based execution error: " + e.getMessage());
+                    context.getTestStepExecutionHistory(), captureScreen(), systemInfo, screenRecorder.getCurrentRecordingPath(),
+                    logCapture.getLogs(), testExecutionStartTimestamp, now(), "Knowledge-based execution error: " + e.getMessage());
         } finally {
             knowledgeService.onSessionEnd();
         }

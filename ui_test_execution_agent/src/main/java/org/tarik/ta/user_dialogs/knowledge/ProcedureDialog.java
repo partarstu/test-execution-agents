@@ -61,8 +61,8 @@ import java.awt.event.ActionListener;
  * Supports atomic (single UI action) and composite (multi-step) procedures with prerequisites,
  * effects, and bidirectional parent-child navigation.
  */
-public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
-    private static final Logger LOG = LoggerFactory.getLogger(ProcedureKnowledgeCollectionDialog.class);
+public class ProcedureDialog extends AbstractDialog {
+    private static final Logger LOG = LoggerFactory.getLogger(ProcedureDialog.class);
     static final int ELEMENT_SCREENSHOT_PREFERRED_WIDTH = 200;
     static final int ELEMENT_SCREENSHOT_PREFERRED_HEIGHT = 120;
 
@@ -117,7 +117,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     CardLayout childStepsCardLayout;
     JPanel childStepsCards;
 
-    private ProcedureKnowledgeCollectionDialog(Window owner, DialogConfig cfg) {
+    private ProcedureDialog(Window owner, DialogConfig cfg) {
         super(owner, cfg.title(), cfg.uiTestAgentConfig());
         this.showTestDataAndExpectedResults = cfg.showTestDataAndExpectedResults();
         this.targetUiElementId = cfg.targetUiElementId();
@@ -539,7 +539,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     }
 
     /**
-     * Opens a recursive {@link ProcedureKnowledgeCollectionDialog} for the given child step index.
+     * Opens a recursive {@link ProcedureDialog} for the given child step index.
      * Dispatches on the sealed {@link ChildProcedureInDialog} type: linked steps are edited via the
      * {@link KnowledgeIngestionService}; new steps are edited inline.
      */
@@ -783,7 +783,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
      * schedules auto-suggestion loading if configured, then displays and returns the outcome.
      */
     private static ProcedureDialogOutcome openDialog(Window owner, DialogConfig cfg) {
-        var dialog = new ProcedureKnowledgeCollectionDialog(owner, cfg);
+        var dialog = new ProcedureDialog(owner, cfg);
         if (cfg.targetUiElementId() != null) {
             setupTargetElementUi(dialog, cfg.targetUiElementId(), cfg.preloadedElementScreenshot());
         }
@@ -875,7 +875,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
      * When a {@code preloadedScreenshot} is provided it is used directly;
      * otherwise the screenshot is loaded from the retriever by {@code elementId}.
      */
-    private static void setupTargetElementUi(ProcedureKnowledgeCollectionDialog dialog, @Nullable UUID elementId,
+    private static void setupTargetElementUi(ProcedureDialog dialog, @Nullable UUID elementId,
                                              @Nullable BufferedImage preloadedScreenshot) {
         if (elementId != null) {
             dialog.editDetailsButton.setEnabled(true);

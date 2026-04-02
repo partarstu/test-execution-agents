@@ -29,7 +29,7 @@ import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.user_dialogs.knowledge.ExecutionItemContext;
-import org.tarik.ta.user_dialogs.knowledge.ProcedureKnowledgeCollectionDialog;
+import org.tarik.ta.user_dialogs.knowledge.ProcedureDialog;
 import org.tarik.ta.user_dialogs.knowledge.SuggestionLoaderFactory;
 import org.tarik.ta.user_dialogs.knowledge.UiElementDialogHelper;
 
@@ -103,7 +103,7 @@ public class ProcedureKnowledgeCollectionService {
         var aiSuggestions = loadSuggestionsWithSpinner(itemDescription, testData, expectedResults,
                 ExecutionGraphContextBuilder.buildExecutionGraphContext(testCase, executionContext, executedAtomics, List.of()));
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPrecondition);
-        return ProcedureKnowledgeCollectionDialog.displayAndGetResult(null, itemDescription, aiSuggestions,
+        return ProcedureDialog.displayAndGetResult(null, itemDescription, aiSuggestions,
                 !isPrecondition, itemContext, knowledgeService, knowledgeIngestionService, childLoaderFactory,
                 uiTestAgentConfig, uiElementRepository, uiElementDialogHelper);
     }
@@ -145,7 +145,7 @@ public class ProcedureKnowledgeCollectionService {
                 targetElementId = knowledgeService.findTargetedUiElementId(current.id()).orElse(null);
             }
             var preloadedChildren = children.isEmpty() ? null : children;
-            var outcome = ProcedureKnowledgeCollectionDialog.displayForEditing(null, current, targetElementId,
+            var outcome = ProcedureDialog.displayForEditing(null, current, targetElementId,
                     showTestDataAndExpectedResults, hasParent, itemContext, knowledgeService, knowledgeIngestionService,
                     childLoaderFactory, preloadedChildren,
                     uiTestAgentConfig, uiElementRepository, uiElementDialogHelper);

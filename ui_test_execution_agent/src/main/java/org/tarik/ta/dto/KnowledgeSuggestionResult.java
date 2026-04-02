@@ -19,7 +19,7 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.model.output.structured.Description;
 import org.tarik.ta.core.dto.FinalResult;
-import org.tarik.ta.user_dialogs.knowledge.ProcedureKnowledgeCollectionDialog;
+import org.tarik.ta.user_dialogs.knowledge.ProcedureDialog;
 
 import java.util.List;
 
@@ -29,7 +29,7 @@ import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
  * Result from the Knowledge Suggestion Agent containing AI-suggested preconditions,
  * effects, expected results, and child steps for a new procedure whose knowledge is being collected.
  *
- * <p>This result is used by the {@link ProcedureKnowledgeCollectionDialog}
+ * <p>This result is used by the {@link ProcedureDialog}
  * to pre-populate fields with AI suggestions, which the user can accept, modify, or ignore.</p>
  *
  * <p>Test data is intentionally excluded — it is runtime-specific and comes from the test step at execution time.</p>
