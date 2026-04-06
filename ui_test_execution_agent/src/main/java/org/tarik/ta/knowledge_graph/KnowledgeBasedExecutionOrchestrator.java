@@ -16,6 +16,7 @@
 package org.tarik.ta.knowledge_graph;
 
 import jakarta.inject.Singleton;
+import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +41,7 @@ import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.user_dialogs.*;
 import org.tarik.ta.user_dialogs.knowledge.ExecutionItemContext;
-import org.tarik.ta.user_dialogs.knowledge.ProcedureSelectionPopup;
+import org.tarik.ta.user_dialogs.knowledge.UserChoiceDialog;
 
 import javax.swing.*;
 import java.util.ArrayList;
@@ -48,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static java.time.Instant.now;
@@ -109,36 +111,14 @@ public class KnowledgeBasedExecutionOrchestrator {
                         LOG.info("Direct high-confidence match found for '{}'", item.getDescription());
                         yield processFoundProcedure(procedure, item, testCase, context, stateTracker, usedProcedureIds, queue);
                     }
-                    case ProcedureLookup.LowConfidenceMatch(var match, var _) -> {
+                    case ProcedureLookup.NeedsUserResolution res -> {
                         if (uiTestAgentConfig.isFullyUnattended()) {
-                            throw new MissingProcedureException("Only low-confidence procedure search results found for '%s': %s"
-                                    .formatted(item.getDescription(), match));
-                        } else {
-                            LOG.info("Low confidence match for '{}' — prompting user for selection/editing", item.getDescription());
-                            var userDecision = promptUserToHandleLowConfidenceMatch(item, match, stateTracker, testCase, context);
-                            yield processUserFeedback(userDecision, item, testCase, context, stateTracker, usedProcedureIds, queue);
+                            throw new MissingProcedureException(buildSelectionReason(item.getDescription(), res));
                         }
-                    }
-                    case ProcedureLookup.NoProcedureWithFulfilledPrerequisites(var match, var missingPrereqs) -> {
-                        var reason = "Procedures found for '%s' but none have satisfied prerequisites. Missing: %s"
-                                .formatted(item.getDescription(), missingPrereqs);
-                        if (uiTestAgentConfig.isFullyUnattended()) {
-                            throw new MissingProcedureException(reason);
-                        } else {
-                            LOG.warn(reason);
-                            var userDecision = promptUserToHandleMissingPrerequisites(item, match, reason, stateTracker, testCase, context);
-                            yield processUserFeedback(userDecision, item, testCase, context, stateTracker, usedProcedureIds, queue);
-                        }
-                    }
-                    case ProcedureLookup.NoMatchFound() -> {
-                        if (uiTestAgentConfig.isFullyUnattended()) {
-                            throw new MissingProcedureException(("No matching procedure found for '%s' and knowledge collection is not " +
-                                    "available in UNATTENDED mode").formatted(item.getDescription()));
-                        } else {
-                            LOG.info("No matching procedure found for '{}' — prompting user to create one", item.getDescription());
-                            var userDecision = promptUserToCreateNewProcedure(item, stateTracker, testCase, context);
-                            yield processUserFeedback(userDecision, item, testCase, context, stateTracker, usedProcedureIds, queue);
-                        }
+                        var reason = buildSelectionReason(item.getDescription(), res);
+                        LOG.info("No direct match for '{}' — prompting user. Reason: {}", item.getDescription(), reason);
+                        var userDecision = resolveWithUserInput(item, res.match(), reason, stateTracker, testCase, context);
+                        yield processUserFeedback(userDecision, item, testCase, context, stateTracker, usedProcedureIds, queue);
                     }
                 };
                 if (nextStep instanceof ExecutionFlow.Stop) {
@@ -206,92 +186,31 @@ public class KnowledgeBasedExecutionOrchestrator {
                 recordFailure(context, item, item.getDescription(), reason);
                 yield new ExecutionFlow.Stop();
             }
-            case UserFeedback.NewProcedureCreated() -> {
-                LOG.info("New procedure created for '{}', re-queuing for re-processing", item.getDescription());
-                queue.injectAtFront(List.of(item));
-                yield new ExecutionFlow.Rerun();
-            }
             case UserFeedback.Found(var procedure) ->
                     processFoundProcedure(procedure, item, testCase, context, stateTracker, usedProcedureIds, queue);
-            case UserFeedback.AutomaticTermination(var reason) -> {
-                LOG.warn("Execution needs to be terminated for item '{}': {}", item.getDescription(), reason);
-                recordFailure(context, item, item.getDescription(), reason);
-                yield new ExecutionFlow.Stop();
-            }
         };
     }
 
-    /**
-     * Performs a pure knowledge lookup for the given item — no dialogs, no queue operations.
-     * Returns a typed result describing what was found so the caller can decide how to proceed.
-     */
     private ProcedureLookup findProcedureInDb(ExecutionItem item, ExecutionStateTracker stateTracker) {
         var matchResult = knowledgeService.findBestMatch(item.getDescription(), stateTracker.getEffectNodeIds(),
                 stateTracker.getRecentParentIds());
         if (matchResult.isEmpty()) {
-            return new ProcedureLookup.NoMatchFound();
+            return new ProcedureLookup.NeedsUserResolution(null, List.of());
         }
         var match = matchResult.get();
         var feasible = selectFeasibleProcedure(match.allMatches(), stateTracker);
-        if (feasible.isEmpty()) {
+        if (feasible.isPresent() && match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
+            return new ProcedureLookup.DirectMatch(feasible.get());
+        }
+        if (match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
+            // High semantic score but no feasible procedure — prerequisites are the blocker
             var missing = match.allMatches().stream()
                     .flatMap(p -> stateTracker.findMissingPrerequisites(p.prerequisites()).stream())
-                    .distinct()
-                    .toList();
-            return new ProcedureLookup.NoProcedureWithFulfilledPrerequisites(match, missing);
+                    .distinct().toList();
+            return new ProcedureLookup.NeedsUserResolution(match, missing);
         }
-        if (match.confidence() == KnowledgeService.MatchConfidence.LOW) {
-            return new ProcedureLookup.LowConfidenceMatch(match, feasible.get());
-        }
-        return new ProcedureLookup.DirectMatch(feasible.get());
-    }
-
-    /**
-     * Handles the case where no procedure was found at all — triggers the new-procedure creation flow.
-     */
-    private UserFeedback promptUserToCreateNewProcedure(ExecutionItem item, ExecutionStateTracker stateTracker,
-                                                        TestCase testCase, UiTestExecutionContext context) {
-        String itemDescription = item.getDescription();
-        boolean isPreconditionItem = item instanceof PreconditionItem;
-        var result = procedureKnowledgeService.triggerNewProcedureFlow(itemDescription, item.getTestData(),
-                item.getExpectedResults(), isPreconditionItem, testCase, context, stateTracker.getExecutedAtomicProcedures());
-        if (result.isEmpty()) {
-            LOG.warn("User cancelled collecting knowledge for a new procedure for '{}', stopping execution", itemDescription);
-            return new UserFeedback.ManualTermination("No matching procedure found and knowledge collection was cancelled");
-        }
-        LOG.info("User completed collecting knowledge for a new procedure for '{}', ingesting into knowledge DB", itemDescription);
-        knowledgeIngestionService.ingest(result.get());
-        knowledgeService.onKnowledgeIngested();
-        var newMatch = knowledgeService.findBestMatch(itemDescription, stateTracker.getEffectNodeIds(),
-                stateTracker.getRecentParentIds());
-        if (newMatch.isPresent()) {
-            LOG.info("Successfully matched newly ingested procedure for '{}'", itemDescription);
-            return new UserFeedback.NewProcedureCreated();
-        }
-        {
-            return new UserFeedback.AutomaticTermination(
-                    "Newly created procedure has a description which doesn't match '%s'".formatted(itemDescription));
-        }
-    }
-
-    /**
-     * Handles a low-confidence match by prompting the user to select, edit, or create a procedure.
-     */
-    private UserFeedback promptUserToHandleLowConfidenceMatch(ExecutionItem item, KnowledgeService.MatchResult match,
-                                                              ExecutionStateTracker stateTracker, TestCase testCase,
-                                                              UiTestExecutionContext context) {
-        var reason = "No high-confidence match found for '%s'. Select an existing procedure to edit/retry, or create a new one."
-                .formatted(item.getDescription());
-        return resolveWithUserInput(item, match, reason, stateTracker, testCase, context);
-    }
-
-    /**
-     * Handles the case where procedures exist but none have satisfied prerequisites — prompts the user to resolve it.
-     */
-    private UserFeedback promptUserToHandleMissingPrerequisites(ExecutionItem item, KnowledgeService.MatchResult match,
-                                                                String selectionReason, ExecutionStateTracker stateTracker,
-                                                                TestCase testCase, UiTestExecutionContext context) {
-        return resolveWithUserInput(item, match, selectionReason, stateTracker, testCase, context);
+        // LOW confidence — semantic score too low; prerequisites are irrelevant
+        return new ProcedureLookup.NeedsUserResolution(match, List.of());
     }
 
     private List<Procedure> resolveToAtomicSteps(Procedure procedure) {
@@ -510,20 +429,26 @@ public class KnowledgeBasedExecutionOrchestrator {
     }
 
     /**
-     * Shows the procedure selection popup in a loop, handling RETRY, EDIT, and CREATE actions until
+     * Shows the procedure selection popup in a loop, handling RETRY, EDIT, BROWSE, and CREATE actions until
      * a procedure is resolved or the user terminates.
      */
-    private UserFeedback resolveWithUserInput(ExecutionItem item, KnowledgeService.MatchResult match,
+    private UserFeedback resolveWithUserInput(ExecutionItem item, @Nullable KnowledgeService.MatchResult match,
                                               String selectionReason, ExecutionStateTracker stateTracker,
                                               TestCase testCase, UiTestExecutionContext executionContext) {
         String itemDescription = item.getDescription();
         List<String> itemTestData = item.getTestData();
         String itemExpectedResults = item.getExpectedResults();
         boolean isPreconditionItem = item instanceof PreconditionItem;
+        List<KnowledgeService.ScoredProcedure> allScoredMatches = knowledgeService.findTopRankedWithScores(
+                itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
         while (true) {
             LOG.info("Showing procedure selection popup for '{}'. Reason: {}", itemDescription, selectionReason);
-            var selectionResult = ProcedureSelectionPopup
-                    .displayAndGetSelection(null, selectionReason, itemDescription, match.allMatches(), uiTestAgentConfig);
+            var selectionResult = UserChoiceDialog.displayAndGetSelection(
+                    null, selectionReason, itemDescription,
+                    match != null ? match.allMatches() : List.of(),
+                    allScoredMatches, knowledgeService,
+                    stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds(),
+                    uiTestAgentConfig);
             if (selectionResult.isEmpty()) {
                 LOG.warn("User cancelled selection for '{}', stopping execution", itemDescription);
                 return new UserFeedback.ManualTermination("User cancelled procedure selection for '%s'".formatted(itemDescription));
@@ -537,35 +462,17 @@ public class KnowledgeBasedExecutionOrchestrator {
                     if (refreshed.isPresent()) {
                         match = refreshed.get();
                     }
+                    allScoredMatches = knowledgeService.findTopRankedWithScores(
+                            itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
                 }
-                case EDIT -> {
-                    var existing = knowledgeService.findById(res.existingId())
-                            .orElseThrow(() -> new IllegalStateException(
-                                    "Selected procedure with ID '%s' not found".formatted(res.existingId())));
-                    var testCasesUsingIt = procedureUsageByTestCaseTrackingService.findTestCasesUsingProcedure(existing.id());
-                    if (!testCasesUsingIt.isEmpty()) {
-                        String tcList = String.join("\n- ", testCasesUsingIt);
-                        String msg = "This procedure is used by %d test case(s):\n- %s\n\nEditing it may affect all of them."
-                                .formatted(testCasesUsingIt.size(), tcList);
-                        InformationalPopup.display("Shared Procedure Warning", msg, null, WARNING, uiTestAgentConfig);
+                case EDIT, BROWSE -> {
+                    var refreshed = handleProcedureEdit(res.existingId(), itemDescription, itemTestData,
+                            itemExpectedResults, isPreconditionItem, testCase, executionContext, stateTracker);
+                    if (refreshed.isPresent()) {
+                        match = refreshed.get();
                     }
-                    var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
-                    var editResult = procedureKnowledgeService.triggerEditProcedureFlow(existing, itemTestData,
-                            itemExpectedResults, !isPreconditionItem, itemContext, testCase, executionContext,
-                            stateTracker.getExecutedAtomicProcedures());
-                    if (editResult.isSaved()) {
-                        knowledgeIngestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
-                        knowledgeService.onKnowledgeIngested();
-                        LOG.info("Procedure edited, re-fetching matches for '{}'", itemDescription);
-                        var refreshed = refreshBestMatch(itemDescription, stateTracker);
-                        if (refreshed.isEmpty()) {
-                            LOG.warn("No matches found after edit for '{}'", itemDescription);
-                        } else {
-                            match = refreshed.get();
-                        }
-                    } else {
-                        LOG.info("User cancelled the procedure edit flow for '{}'", itemDescription);
-                    }
+                    allScoredMatches = knowledgeService.findTopRankedWithScores(
+                            itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
                 }
                 case CREATE -> {
                     LOG.info("User selected CREATE for '{}', opening knowledge collection dialog", itemDescription);
@@ -585,18 +492,65 @@ public class KnowledgeBasedExecutionOrchestrator {
                         return new UserFeedback.Found(newMatchOpt.get().procedure());
                     }
                     LOG.warn("No match found after creation for '{}', returning to selection popup", itemDescription);
+                    allScoredMatches = knowledgeService.findTopRankedWithScores(
+                            itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
                 }
                 case null, default -> {
                 }
             }
-            // After RETRY or EDIT, return Found if there's now a feasible high-confidence match
-            if (match.confidence() != KnowledgeService.MatchConfidence.LOW) {
+            // After RETRY, EDIT, or BROWSE, return Found if there's now a feasible high-confidence match
+            if (match != null && match.confidence() != KnowledgeService.MatchConfidence.LOW) {
                 var feasible = selectFeasibleProcedure(match.allMatches(), stateTracker);
                 if (feasible.isPresent()) {
                     return new UserFeedback.Found(feasible.get());
                 }
             }
         }
+    }
+
+    private Optional<KnowledgeService.MatchResult> handleProcedureEdit(UUID procedureId, String itemDescription,
+                                                                        List<String> itemTestData, String itemExpectedResults,
+                                                                        boolean isPreconditionItem, TestCase testCase,
+                                                                        UiTestExecutionContext executionContext,
+                                                                        ExecutionStateTracker stateTracker) {
+        var existing = knowledgeService.findById(procedureId)
+                .orElseThrow(() -> new IllegalStateException("Selected procedure with ID '%s' not found".formatted(procedureId)));
+        var testCasesUsingIt = procedureUsageByTestCaseTrackingService.findTestCasesUsingProcedure(existing.id());
+        if (!testCasesUsingIt.isEmpty()) {
+            String tcList = String.join("\n- ", testCasesUsingIt);
+            String msg = "This procedure is used by %d test case(s):\n- %s\n\nEditing it may affect all of them."
+                    .formatted(testCasesUsingIt.size(), tcList);
+            InformationalPopup.display("Shared Procedure Warning", msg, null, WARNING, uiTestAgentConfig);
+        }
+        var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
+        var editResult = procedureKnowledgeService.triggerEditProcedureFlow(existing, itemTestData,
+                itemExpectedResults, !isPreconditionItem, itemContext, testCase, executionContext,
+                stateTracker.getExecutedAtomicProcedures());
+        if (editResult.isSaved()) {
+            knowledgeIngestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
+            knowledgeService.onKnowledgeIngested();
+            LOG.info("Procedure edited, re-fetching matches for '{}'", itemDescription);
+            var refreshed = refreshBestMatch(itemDescription, stateTracker);
+            if (refreshed.isEmpty()) {
+                LOG.warn("No matches found after edit for '{}'", itemDescription);
+            }
+            return refreshed;
+        }
+        LOG.info("User cancelled the procedure edit flow for '{}'", itemDescription);
+        return Optional.empty();
+    }
+
+    private static String buildSelectionReason(String description, ProcedureLookup.NeedsUserResolution res) {
+        if (res.match() == null) {
+            return "No matching procedure found for '%s'. Please create a new one.".formatted(description);
+        }
+        if (res.match().confidence() == KnowledgeService.MatchConfidence.LOW) {
+            return ("No high-confidence match found for '%s'. " +
+                    "Select an existing procedure to edit, browse all matches, or create a new one.")
+                    .formatted(description);
+        }
+        return ("Matching procedure found for '%s' but its prerequisites are not satisfied. Missing: %s")
+                .formatted(description, res.missingPrerequisites());
     }
 
     /**
@@ -646,31 +600,17 @@ public class KnowledgeBasedExecutionOrchestrator {
     }
 
     private sealed interface ProcedureLookup {
-        record DirectMatch(Procedure procedure) implements ProcedureLookup {
-        }
+        record DirectMatch(Procedure procedure) implements ProcedureLookup {}
 
-        record LowConfidenceMatch(KnowledgeService.MatchResult match, Procedure feasibleProcedure) implements ProcedureLookup {
-        }
-
-        record NoProcedureWithFulfilledPrerequisites(KnowledgeService.MatchResult match, List<String> missingPrerequisites)
-                implements ProcedureLookup {
-        }
-
-        record NoMatchFound() implements ProcedureLookup {
-        }
+        record NeedsUserResolution(@Nullable KnowledgeService.MatchResult match, List<String> missingPrerequisites)
+                implements ProcedureLookup {}
     }
 
     private sealed interface UserFeedback {
         record Found(Procedure procedure) implements UserFeedback {
         }
 
-        record NewProcedureCreated() implements UserFeedback {
-        }
-
         record ManualTermination(String reason) implements UserFeedback {
-        }
-
-        record AutomaticTermination(String reason) implements UserFeedback {
         }
     }
 
@@ -678,9 +618,6 @@ public class KnowledgeBasedExecutionOrchestrator {
 
     private sealed interface ExecutionFlow {
         record Continue() implements ExecutionFlow {
-        }
-
-        record Rerun() implements ExecutionFlow {
         }
 
         record Stop() implements ExecutionFlow {

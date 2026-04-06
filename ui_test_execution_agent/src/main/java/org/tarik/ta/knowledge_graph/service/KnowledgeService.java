@@ -86,9 +86,9 @@ public class KnowledgeService {
         var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
         var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
         var reRanked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
-        var bestMatch = reRanked.getFirst();
+        var bestMatch = reRanked.getFirst().procedure();
         var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
-        return Optional.of(new MatchResult(bestMatch, confidence, reRanked));
+        return Optional.of(new MatchResult(bestMatch, confidence, reRanked.stream().map(ScoredProcedure::procedure).toList()));
     }
 
     /**
@@ -117,14 +117,14 @@ public class KnowledgeService {
         var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
         var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
         var reRanked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
-        var bestMatch = reRanked.getFirst();
+        var bestMatch = reRanked.getFirst().procedure();
 
         var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
 
         LOG.info("Found {} confidence match for '{}': procedure '{}' ({}) | all candidates: {}",
                 confidence, description, bestMatch.description(), bestMatch.id(),
-                reRanked.stream().map(p -> "'%s' [score=%.3f]".formatted(p.description(), scoreById.get(p.id()))).toList());
-        return Optional.of(new MatchResult(bestMatch, confidence, reRanked));
+                reRanked.stream().map(sp -> "'%s' [score=%.3f]".formatted(sp.procedure().description(), scoreById.get(sp.procedure().id()))).toList());
+        return Optional.of(new MatchResult(bestMatch, confidence, reRanked.stream().map(ScoredProcedure::procedure).toList()));
     }
 
     /**
@@ -134,8 +134,8 @@ public class KnowledgeService {
      * Uses Neo4j vector index queries via {@link PhraseEmbeddingRepository} instead of in-memory cosine similarity.
      * Logs a DEBUG message when the top semantic match is demoted by re-ranking, including which prerequisites were unmet.
      */
-    private List<Procedure> reRankByStateCompatibility(List<Procedure> candidates, Map<UUID, Double> scoreById,
-                                                        Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
+    private List<ScoredProcedure> reRankByStateCompatibility(List<Procedure> candidates, Map<UUID, Double> scoreById,
+                                                             Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
         record Scored(Procedure procedure, double proportion, int satisfied, int totalPrereqs,
                       int parentSharedCount, double stabilityPenalty, List<String> unmetPrereqs) {}
 
@@ -184,14 +184,14 @@ public class KnowledgeService {
                         .thenComparing(Comparator.comparingInt(Scored::satisfied).reversed())
                         .thenComparing(Comparator.comparingInt(Scored::parentSharedCount).reversed())
                         .thenComparingDouble(Scored::stabilityPenalty))
-                .map(Scored::procedure)
+                .map(s -> new ScoredProcedure(s.procedure(), s.satisfied(), s.totalPrereqs()))
                 .toList();
 
-        if (!candidates.isEmpty() && !reRanked.getFirst().id().equals(candidates.getFirst().id())) {
+        if (!candidates.isEmpty() && !reRanked.getFirst().procedure().id().equals(candidates.getFirst().id())) {
             var topSemantic = candidates.getFirst();
             var scoredById = scored.stream().collect(toMap(s -> s.procedure().id(), s -> s));
             var topSemanticScored = scoredById.get(topSemantic.id());
-            var selected = reRanked.getFirst();
+            var selected = reRanked.getFirst().procedure();
             LOG.debug(
                 "Top semantic match '{}' (score={}) was demoted by re-ranking: {}/{} prerequisites met, " +
                 "unmet={}, effectNodeIds empty={}. Selected '{}' (score={}) instead with proportion={}",
@@ -291,6 +291,24 @@ public class KnowledgeService {
     }
 
     /**
+     * Returns all semantically matching procedures scored by prerequisite satisfaction.
+     * Uses the LOW confidence threshold as the search floor, then re-ranks by state compatibility.
+     * Intended for lookup dialogs that display matches to the user.
+     */
+    public List<ScoredProcedure> findTopRankedWithScores(String description, Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
+        requireNonNull(description, "description");
+        requireNonNull(effectNodeIds, "effectNodeIds");
+        requireNonNull(recentParentIds, "recentParentIds");
+        var queryEmbedding = embeddingService.embed(description);
+        var matches = procedureRepository.findBySemanticSearch(
+                queryEmbedding.vector(), config.getKnowledgeMatchTopN(), config.getKnowledgeMatchConfidenceLow());
+        if (matches.isEmpty()) return List.of();
+        var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
+        var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
+        return reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
+    }
+
+    /**
      * Returns the effects (as PhraseEmbeddingNodes) of the given procedure from the graph.
      */
     public List<PhraseEmbedding> findEffectsForProcedure(UUID procedureId) {
@@ -334,6 +352,11 @@ public class KnowledgeService {
         requireNonNull(childId, "childId");
         return procedureRepository.findParents(childId);
     }
+
+    /**
+     * A procedure with its prerequisite-satisfaction scores from re-ranking.
+     */
+    public record ScoredProcedure(Procedure procedure, int satisfied, int totalPrereqs) {}
 
     /**
      * Confidence level of a semantic match.

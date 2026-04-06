@@ -203,8 +203,15 @@ a part of this framework for executing a sample test case inside Google Cloud.
       procedures when an unknown action is encountered. The dialog is shown **immediately** without waiting for AI suggestions — AI
       suggestions are loaded concurrently on a background virtual thread and injected into the still-open dialog once ready.
         * **Ambiguous Match Resolution:** If the agent cannot automatically resolve the procedure — due to low confidence, unmet
-          prerequisites, or an ambiguous parent chain — it presents a selection dialog (`ProcedureSelectionPopup`) allowing the
-          operator to choose an existing procedure to edit, retry the search, or create a new one.
+          prerequisites, or no match at all — it presents a `UserChoiceDialog` allowing the operator to choose an existing
+          procedure to edit, retry the search, create a new one, or **Browse All...** to open a scored lookup of all semantically
+          matching procedures. The browse lookup (`MatchingProcedureBrowseDialog`) and the existing-procedure lookup
+          (`ExistingProcedureLookupDialog`) share a common abstract base (`ProcedureLookupDialog`) that handles the search field,
+          debounced search, scored results list (showing prerequisite satisfaction as `satisfied/total` badges colored green/orange/red),
+          and spinner overlay. Selecting a procedure from the browse dialog opens it for editing; cancelling returns to `UserChoiceDialog`.
+          The three previous `ProcedureLookup` variants (`LowConfidenceMatch`, `NoProcedureWithFulfilledPrerequisites`, `NoMatchFound`)
+          are collapsed into a single `NeedsUserResolution` record carrying an optional `MatchResult` and missing-prerequisite list,
+          from which a precise reason message is derived.
         * **Element Selection During Collecting knowledge:** When collecting knowledge an atomic procedure that targets a UI element, the operator is prompted
           to describe the target element. The system performs a semantic search against the vector DB to find a matching element. If found,
           its UUID is linked to the step being collected. If not found, the element will be created during knowledge ingestion.        

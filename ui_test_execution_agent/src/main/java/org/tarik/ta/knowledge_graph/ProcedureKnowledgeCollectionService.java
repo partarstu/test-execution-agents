@@ -32,13 +32,15 @@ import org.tarik.ta.user_dialogs.knowledge.ExecutionItemContext;
 import org.tarik.ta.user_dialogs.knowledge.ProcedureDialog;
 import org.tarik.ta.user_dialogs.knowledge.SuggestionLoaderFactory;
 import org.tarik.ta.user_dialogs.knowledge.UiElementDialogHelper;
+import org.tarik.ta.user_dialogs.knowledge.UserChoiceDialog;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.tarik.ta.user_dialogs.knowledge.ProcedureSelectionPopup.SelectionAction.EDIT;
+import static org.tarik.ta.user_dialogs.knowledge.UserChoiceDialog.SelectionAction.EDIT;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.utils.ImageUtils;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
@@ -154,9 +156,9 @@ public class ProcedureKnowledgeCollectionService {
                 return ProcedureEditResult.saved(current.id(), np);
             } else if (outcome.editParentRequested() && hasParent) {
                 if (parents.size() > 1) {
-                    var selection = org.tarik.ta.user_dialogs.knowledge.ProcedureSelectionPopup.displayAndGetSelection(null,
+                    var selection = UserChoiceDialog.displayAndGetSelection(null,
                             "Multiple parent procedures found. Select the parent to edit:",
-                            current.description(), parents, uiTestAgentConfig);
+                            current.description(), parents, List.of(), knowledgeService, Set.of(), Set.of(), uiTestAgentConfig);
                     if (selection.isPresent() && selection.get().action() == EDIT) {
                         current = knowledgeService.findById(selection.get().existingId())
                                 .orElseThrow(() -> new IllegalStateException("Selected parent with ID '%s' not found"

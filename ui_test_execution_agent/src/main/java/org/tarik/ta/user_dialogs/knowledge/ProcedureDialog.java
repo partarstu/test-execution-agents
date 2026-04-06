@@ -280,7 +280,8 @@ public class ProcedureDialog extends AbstractDialog {
     void handleAddChildStep() {
         withDialogHidden(() -> {
             var lookupResult = ExistingProcedureLookupDialog.displayAndGetResult(
-                    this, "", knowledgeService, true, getExcludedIds(), procedureLookupDelayMs, uiTestAgentConfig);
+                    this, "", knowledgeService, true, getExcludedIds(), getChildEffectNodeIds(),
+                    currentProcedureId != null ? Set.of(currentProcedureId) : Set.of(), uiTestAgentConfig);
             if (lookupResult instanceof ExistingProcedureLookupDialog.LookupResult.Selected(Procedure procedure)) {
                 childStepsModel.addElement(new ChildProcedureInDialog.Linked(procedure, null));
             } else if (lookupResult instanceof ExistingProcedureLookupDialog.LookupResult.CreateNew(String searchText)) {
@@ -323,7 +324,8 @@ public class ProcedureDialog extends AbstractDialog {
             ChildProcedureInDialog step = childStepsModel.get(index);
             withDialogHidden(() -> {
                 var lookupResult = ExistingProcedureLookupDialog.displayAndGetResult(
-                        this, step.description(), knowledgeService, false, getExcludedIds(), procedureLookupDelayMs, uiTestAgentConfig);
+                        this, step.description(), knowledgeService, false, getExcludedIds(), getChildEffectNodeIds(),
+                        currentProcedureId != null ? Set.of(currentProcedureId) : Set.of(), uiTestAgentConfig);
                 if (lookupResult instanceof ExistingProcedureLookupDialog.LookupResult.Selected(Procedure procedure)) {
                     childStepsModel.set(index, new ChildProcedureInDialog.Linked(procedure, null));
                     stepsWithSimilarItems.remove(index);
@@ -414,6 +416,17 @@ public class ProcedureDialog extends AbstractDialog {
         for (int i = 0; i < childStepsModel.size(); i++) {
             if (childStepsModel.get(i) instanceof ChildProcedureInDialog.Linked linked) {
                 ids.add(linked.procedure().id());
+            }
+        }
+        return ids;
+    }
+
+    private Set<UUID> getChildEffectNodeIds() {
+        Set<UUID> ids = new HashSet<>();
+        for (int i = 0; i < childStepsModel.size(); i++) {
+            if (childStepsModel.get(i) instanceof ChildProcedureInDialog.Linked linked) {
+                knowledgeService.findEffectsForProcedure(linked.procedure().id())
+                        .forEach(pe -> ids.add(pe.id()));
             }
         }
         return ids;
