@@ -165,7 +165,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * **Element Selection Confirmation:** Displays a popup with a countdown when an element is automatically selected. The operator can
           see the selected element, intended action, and the agent's assessment of whether the located element matches the description, and
           choose to "Proceed" (default), "Create new element", or take "Other action" (prompting the agent).
-        * **Operator Intervention:** On halt or error, the operator can choose the next action (Retry, Refine, Terminate, etc.).
+        * **Operator Intervention:** On halt or failure, the system reuses `UserChoiceDialog` — the same dialog used for ambiguous match resolution — giving the operator the full set of actions: Retry the step, Edit or Browse the current atomic procedure, Create a new procedure, or Cancel (terminates execution).
         * Suitable for monitoring execution without constant clicking, while retaining control to fix issues on the fly.
     * **Unattended Mode (`execution.mode=UNATTENDED`):** The agent executes the test case without any human assistance. It relies entirely
       on the information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored

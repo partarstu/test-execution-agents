@@ -43,14 +43,16 @@ import org.tarik.ta.model.VisualState;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem;
 import org.tarik.ta.tools.VerificationTools;
 import org.tarik.ta.user_dialogs.*;
-import org.tarik.ta.user_dialogs.knowledge.ProcedureExecutionConfirmationPopup;
 import org.tarik.ta.user_dialogs.knowledge.ExecutionItemContext;
+import org.tarik.ta.user_dialogs.knowledge.ProcedureExecutionConfirmationPopup;
+import org.tarik.ta.user_dialogs.knowledge.UserChoiceDialog;
 
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static java.time.Instant.now;
 import static java.util.stream.Collectors.joining;
@@ -283,8 +285,12 @@ public class StepExecutionOrchestrator {
                                                                    String itemDescription, boolean isPreconditionItem,
                                                                    TestCase testCase, UiTestExecutionContext context,
                                                                    List<Procedure> executedAtomics) {
-        var outcome = promptUserAndDispatch(message, atomicStep, itemTestData, itemExpectedResults,
-                itemDescription, isPreconditionItem, testCase, context, executedAtomics);
+        UserDecisionOutcome outcome;
+        // loop until the user commits to an action (null means they cancelled an edit/create flow mid-way)
+        do {
+            outcome = promptUserAndDispatch(message, atomicStep, itemTestData, itemExpectedResults,
+                    itemDescription, isPreconditionItem, testCase, context, executedAtomics);
+        } while (outcome == null);
         if (outcome == TERMINATE_EXECUTION || outcome == RE_DECOMPOSE_AND_RETRY) {
             return new PostExecutionCheckResult.TerminalOutcome(outcome);
         }
@@ -294,8 +300,11 @@ public class StepExecutionOrchestrator {
     }
 
     /**
-     * Prompts the user for the next action (Edit/Retry/Terminate) and dispatches accordingly.
+     * Single-shot: shows {@link UserChoiceDialog} and maps the selection to a {@link UserDecisionOutcome}.
+     * Returns {@code null} when the user cancels an edit or create flow mid-way — the caller is
+     * responsible for re-showing the dialog in that case.
      */
+    @Nullable
     private UserDecisionOutcome promptUserAndDispatch(String message, Procedure atomicStep, List<String> testData,
                                                       String expectedResults, String itemDescription,
                                                       boolean isPreconditionItem,
@@ -303,47 +312,54 @@ public class StepExecutionOrchestrator {
                                                       UiTestExecutionContext executionContext,
                                                       List<Procedure> executedAtomics) {
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPreconditionItem);
-        while (true) {
-            var decision = NextActionPopup.displayAndGetUserDecision(null, message, uiTestAgentConfig);
-            switch (decision) {
-                case EDIT_CURRENT_PROCEDURE -> {
-                    LOG.info("User chose to edit procedure '{}'", atomicStep.description());
-                    var editResult = procedureKnowledgeCollectionService.triggerEditProcedureFlow(atomicStep, testData,
-                            expectedResults, !isPreconditionItem, itemContext, testCase, executionContext, executedAtomics);
-                    if (editResult.isSaved()) {
-                        knowledgeIngestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
-                        knowledgeService.onKnowledgeIngested();
-                        if (editResult.savedProcedureId().filter(id -> id.equals(atomicStep.id())).isPresent()) {
-                            return RE_FETCH_AND_RETRY;
-                        } else {
-                            InformationalPopup.display("Execution Terminated",
-                                    "A parent procedure was modified. Execution cannot continue with the current execution graph.",
-                                    null, PopupType.INFO, uiTestAgentConfig);
-                            return TERMINATE_EXECUTION;
-                        }
-                    }
-                }
-                case CREATE_NEW_PROCEDURE -> {
-                    LOG.info("User chose to create a new procedure for '{}'", atomicStep.description());
-                    var creationResult = procedureKnowledgeCollectionService.triggerNewProcedureFlow(itemDescription,
-                            testData, expectedResults, isPreconditionItem, testCase, executionContext, executedAtomics);
-                    if (creationResult.isPresent()) {
-                        knowledgeIngestionService.ingest(creationResult.get());
-                        knowledgeService.onKnowledgeIngested();
-                        LOG.info("New procedure created and ingested for '{}'", atomicStep.description());
-                        return RE_DECOMPOSE_AND_RETRY;
-                    }
-                }
-                case RETRY -> {
-                    LOG.info("User chose to retry procedure '{}'", atomicStep.description());
-                    return RE_FETCH_AND_RETRY;
-                }
-                case TERMINATE -> {
-                    LOG.info("User chose to terminate execution");
-                    return TERMINATE_EXECUTION;
-                }
-            }
+        var allScoredMatches = knowledgeService.findTopRankedWithScores(atomicStep.description(), Set.of(), Set.of());
+        var selectionOpt = UserChoiceDialog.displayAndGetSelection(null, message, atomicStep.description(),
+                List.of(atomicStep), allScoredMatches, knowledgeService, Set.of(), Set.of(), uiTestAgentConfig);
+
+        if (selectionOpt.isEmpty()) {
+            LOG.info("User cancelled the dialog — terminating execution");
+            return TERMINATE_EXECUTION;
         }
+
+        var selection = selectionOpt.get();
+        return switch (selection.action()) {
+            case RETRY -> {
+                LOG.info("User chose to retry procedure '{}'", atomicStep.description());
+                yield RE_FETCH_AND_RETRY;
+            }
+            case EDIT, BROWSE -> {
+                LOG.info("User chose to edit procedure '{}'", atomicStep.description());
+                var editResult = procedureKnowledgeCollectionService.triggerEditProcedureFlow(
+                        selection.selectedProcedure(), testData, expectedResults, !isPreconditionItem,
+                        itemContext, testCase, executionContext, executedAtomics);
+                if (editResult.isSaved()) {
+                    knowledgeIngestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
+                    knowledgeService.onKnowledgeIngested();
+                    if (editResult.savedProcedureId().filter(id -> id.equals(atomicStep.id())).isPresent()) {
+                        yield RE_FETCH_AND_RETRY;
+                    } else {
+                        InformationalPopup.display("Execution Terminated",
+                                "A parent procedure was modified. Execution cannot continue with the current execution graph.",
+                                null, PopupType.INFO, uiTestAgentConfig);
+                        yield TERMINATE_EXECUTION;
+                    }
+                }
+                yield null; // user cancelled the edit flow — caller re-shows dialog
+            }
+            case CREATE -> {
+                LOG.info("User chose to create a new procedure for '{}'", atomicStep.description());
+                var creationResult = procedureKnowledgeCollectionService.triggerNewProcedureFlow(itemDescription,
+                        testData, expectedResults, isPreconditionItem, testCase, executionContext, executedAtomics);
+                if (creationResult.isPresent()) {
+                    knowledgeIngestionService.ingest(creationResult.get());
+                    knowledgeService.onKnowledgeIngested();
+                    LOG.info("New procedure created and ingested for '{}'", atomicStep.description());
+                    yield RE_DECOMPOSE_AND_RETRY;
+                }
+                yield null; // user cancelled creation — caller re-shows dialog
+            }
+            case CANCEL -> TERMINATE_EXECUTION;
+        };
     }
 
     UiPreconditionResult executeSinglePrecondition(UiTestExecutionContext context,
@@ -407,6 +423,9 @@ public class StepExecutionOrchestrator {
         while (true) {
             var outcome = promptUserAndDispatch(message, current, itemTestData, itemExpectedResults, itemDescription,
                     isPreconditionItem, testCase, context, executedAtomics);
+            if (outcome == null) {
+                continue; // user cancelled an edit/create action — re-show dialog
+            }
             if (outcome == TERMINATE_EXECUTION) {
                 return new HaltHandlerResult.ShouldProceed(TERMINATE_EXECUTION);
             }
