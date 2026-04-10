@@ -153,6 +153,11 @@ public class KnowledgeBasedExecutionOrchestrator {
         var loopOutcome =
                 executeAtomicStepsLoop(item, procedure, atomicSteps, testCase, context, stateTracker, testStepResults, preconditionResults);
         if (loopOutcome == AtomicLoopOutcome.TERMINATE) {
+            if (item instanceof TestStepItem(TestStep testStep)) {
+                context.addStepResult(mergeAtomicResults(testStep, testStepResults));
+            } else {
+                context.addPreconditionResult(mergePreconditionResults(item.getDescription(), preconditionResults));
+            }
             return new ExecutionFlow.Stop();
         }
         if (loopOutcome == AtomicLoopOutcome.RE_DECOMPOSE) {
@@ -429,7 +434,7 @@ public class KnowledgeBasedExecutionOrchestrator {
     }
 
     /**
-     * Shows the procedure selection popup in a loop, handling RETRY, EDIT, BROWSE, and CREATE actions until
+     * Shows the procedure selection popup in a loop, handling RETRY, BROWSE, and CREATE actions until
      * a procedure is resolved or the user terminates.
      */
     private UserFeedback resolveWithUserInput(ExecutionItem item, @Nullable KnowledgeService.MatchResult match,
@@ -445,7 +450,6 @@ public class KnowledgeBasedExecutionOrchestrator {
             LOG.info("Showing procedure selection popup for '{}'. Reason: {}", itemDescription, selectionReason);
             var selectionResult = UserChoiceDialog.displayAndGetSelection(
                     null, selectionReason, itemDescription,
-                    match != null ? match.allMatches() : List.of(),
                     allScoredMatches, knowledgeService,
                     stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds(),
                     uiTestAgentConfig);
@@ -465,7 +469,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                     allScoredMatches = knowledgeService.findTopRankedWithScores(
                             itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
                 }
-                case EDIT, BROWSE -> {
+                case BROWSE -> {
                     var refreshed = handleProcedureEdit(res.existingId(), itemDescription, itemTestData,
                             itemExpectedResults, isPreconditionItem, testCase, executionContext, stateTracker);
                     if (refreshed.isPresent()) {
@@ -498,7 +502,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                 case null, default -> {
                 }
             }
-            // After RETRY, EDIT, or BROWSE, return Found if there's now a feasible high-confidence match
+            // After RETRY or BROWSE, return Found if there's now a feasible high-confidence match
             if (match != null && match.confidence() != KnowledgeService.MatchConfidence.LOW) {
                 var feasible = selectFeasibleProcedure(match.allMatches(), stateTracker);
                 if (feasible.isPresent()) {
@@ -545,8 +549,10 @@ public class KnowledgeBasedExecutionOrchestrator {
             return "No matching procedure found for '%s'. Please create a new one.".formatted(description);
         }
         if (res.match().confidence() == KnowledgeService.MatchConfidence.LOW) {
-            return ("No high-confidence match found for '%s'. " +
-                    "Select an existing procedure to edit, browse all matches, or create a new one.")
+            var base = res.match().wasDemoted()
+                    ? "A high-confidence match was found for '%s' but was demoted because its prerequisites are not satisfied."
+                    : "No high-confidence match found for '%s'.";
+            return (base + " Select an existing procedure to edit, browse all matches, or create a new one.")
                     .formatted(description);
         }
         return ("Matching procedure found for '%s' but its prerequisites are not satisfied. Missing: %s")

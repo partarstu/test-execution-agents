@@ -1,5 +1,5 @@
 {
-  "permissions": {	  
+  "permissions": {
     "allow": [
       "WebSearch",
       "WebFetch(domain:neo4j.com)",
@@ -45,8 +45,11 @@
       "Bash(for f:*)",
       "Bash(do echo:*)",
       "Read(//d/Projects/test-execution-agents/**)",
-      "Bash(done)",      
-      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(x[''''name''''], x[''''type'''']\\) for x in data if isinstance\\(data, list\\)]\")"
+      "Bash(done)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(x[''''name''''], x[''''type'''']\\) for x in data if isinstance\\(data, list\\)]\")",
+      "Bash(./mvnw compile:*)",
+      "Bash(cmd.exe /c \"cd /d D:\\\\\\\\Projects\\\\\\\\test-execution-agents && mvn test-compile -pl ui_test_execution_agent -am 2>&1\")",
+      "Bash(cmd.exe:*)"
     ]
   },
   "defaultMode": "bypassPermissions"

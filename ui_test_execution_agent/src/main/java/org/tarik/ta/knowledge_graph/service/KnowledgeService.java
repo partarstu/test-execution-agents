@@ -85,10 +85,10 @@ public class KnowledgeService {
         }
         var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
         var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
-        var reRanked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
-        var bestMatch = reRanked.getFirst().procedure();
+        var reranked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
+        var bestMatch = reranked.procedures().getFirst().procedure();
         var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
-        return Optional.of(new MatchResult(bestMatch, confidence, reRanked.stream().map(ScoredProcedure::procedure).toList()));
+        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures().stream().map(ScoredProcedure::procedure).toList(), reranked.wasDemoted()));
     }
 
     /**
@@ -116,15 +116,15 @@ public class KnowledgeService {
 
         var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
         var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
-        var reRanked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
-        var bestMatch = reRanked.getFirst().procedure();
+        var reranked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
+        var bestMatch = reranked.procedures().getFirst().procedure();
 
         var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
 
         LOG.info("Found {} confidence match for '{}': procedure '{}' ({}) | all candidates: {}",
                 confidence, description, bestMatch.description(), bestMatch.id(),
-                reRanked.stream().map(sp -> "'%s' [score=%.3f]".formatted(sp.procedure().description(), scoreById.get(sp.procedure().id()))).toList());
-        return Optional.of(new MatchResult(bestMatch, confidence, reRanked.stream().map(ScoredProcedure::procedure).toList()));
+                reranked.procedures().stream().map(sp -> "'%s' [score=%.3f]".formatted(sp.procedure().description(), scoreById.get(sp.procedure().id()))).toList());
+        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures().stream().map(ScoredProcedure::procedure).toList(), reranked.wasDemoted()));
     }
 
     /**
@@ -134,8 +134,10 @@ public class KnowledgeService {
      * Uses Neo4j vector index queries via {@link PhraseEmbeddingRepository} instead of in-memory cosine similarity.
      * Logs a DEBUG message when the top semantic match is demoted by re-ranking, including which prerequisites were unmet.
      */
-    private List<ScoredProcedure> reRankByStateCompatibility(List<Procedure> candidates, Map<UUID, Double> scoreById,
-                                                             Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
+    private record RerankResult(List<ScoredProcedure> procedures, boolean wasDemoted) {}
+
+    private RerankResult reRankByStateCompatibility(List<Procedure> candidates, Map<UUID, Double> scoreById,
+                                                    Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
         record Scored(Procedure procedure, double proportion, int satisfied, int totalPrereqs,
                       int parentSharedCount, double stabilityPenalty, List<String> unmetPrereqs) {}
 
@@ -187,7 +189,9 @@ public class KnowledgeService {
                 .map(s -> new ScoredProcedure(s.procedure(), s.satisfied(), s.totalPrereqs()))
                 .toList();
 
+        boolean wasDemoted = false;
         if (!candidates.isEmpty() && !reRanked.getFirst().procedure().id().equals(candidates.getFirst().id())) {
+            wasDemoted = true;
             var topSemantic = candidates.getFirst();
             var scoredById = scored.stream().collect(toMap(s -> s.procedure().id(), s -> s));
             var topSemanticScored = scoredById.get(topSemantic.id());
@@ -202,7 +206,7 @@ public class KnowledgeService {
                 scoredById.get(selected.id()).proportion());
         }
 
-        return reRanked;
+        return new RerankResult(reRanked, wasDemoted);
     }
 
     /**
@@ -376,7 +380,7 @@ public class KnowledgeService {
     /**
      * A matched procedure with its confidence level.
      */
-    public record MatchResult(Procedure procedure, MatchConfidence confidence, List<Procedure> allMatches) {
+    public record MatchResult(Procedure procedure, MatchConfidence confidence, List<Procedure> allMatches, boolean wasDemoted) {
         public MatchResult {
             requireNonNull(procedure, "procedure");
             requireNonNull(confidence, "confidence");

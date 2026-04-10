@@ -24,8 +24,6 @@ import org.tarik.ta.user_dialogs.AbstractDialog;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -48,56 +46,15 @@ public class UserChoiceDialog extends AbstractDialog {
     private UserChoiceDialog(Window owner,
                              String headerText,
                              String itemDescription,
-                             List<Procedure> matches,
                              List<KnowledgeService.ScoredProcedure> allScoredMatches,
                              KnowledgeService knowledgeService,
                              Set<UUID> effectNodeIds,
                              Set<UUID> recentParentIds,
                              UiTestAgentConfig config) {
-        super(owner, "Procedure Selection", config);
+        super(owner, "Next Action", config);
 
         JPanel mainPanel = getDefaultMainPanel();
-
-        JLabel headerLabel = new JLabel("<html><b>" + headerText + "</b></html>");
-        headerLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
-        mainPanel.add(headerLabel, BorderLayout.NORTH);
-
-        DefaultListModel<Procedure> listModel = new DefaultListModel<>();
-        matches.forEach(listModel::addElement);
-        JList<Procedure> procedureList = new JList<>(listModel);
-        procedureList.setCellRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
-                                                          boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof Procedure sp) {
-                    int width = list.getWidth();
-                    int textWidth = width > 0 ? width - 30 : 450;
-                    setText(String.format("<html><body style='width: %dpx; margin: 0; padding: 0;'>%d. %s%s</body></html>",
-                            textWidth, index + 1, sp.description().replace("<", "&lt;").replace(">", "&gt;"),
-                            sp.isAtomic() ? " [Atomic]" : " [Composite]"));
-                }
-                return this;
-            }
-        });
-        procedureList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        procedureList.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                int index = procedureList.locationToIndex(e.getPoint());
-                if (index >= 0 && procedureList.getCellBounds(index, index).contains(e.getPoint())) {
-                    procedureList.setEnabled(false);
-                    procedureList.removeMouseListener(this);
-                    Procedure selected = listModel.get(index);
-                    handleEdit(selected);
-                }
-            }
-        });
-
-        JScrollPane scrollPane = new JScrollPane(procedureList);
-        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        scrollPane.setPreferredSize(new Dimension(500, 200));
-        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        mainPanel.add(new JScrollPane(getUserMessageArea(headerText)), BorderLayout.CENTER);
 
         JButton retryButton = new JButton("Retry");
         retryButton.addActionListener(_ -> handleRetry(itemDescription));
@@ -140,13 +97,6 @@ public class UserChoiceDialog extends AbstractDialog {
         dispose();
     }
 
-    private void handleEdit(Procedure sp) {
-        LOG.info("User selected to edit existing procedure: '{}' (id={})", sp.description(), sp.id());
-        this.action = SelectionAction.EDIT;
-        this.selectedProcedure = sp;
-        dispose();
-    }
-
     private void handleCreateNew(String itemDescription) {
         LOG.info("User selected to create new procedure for: '{}'", itemDescription);
         this.action = SelectionAction.CREATE;
@@ -164,7 +114,6 @@ public class UserChoiceDialog extends AbstractDialog {
      * @param owner            the parent window
      * @param headerText       context-specific message explaining why the popup is shown
      * @param itemDescription  the description of the item being matched
-     * @param matches          candidate procedures shown for direct editing
      * @param allScoredMatches all scored matches — when non-empty, a "Browse All..." button is shown
      * @param knowledgeService service used by the browse dialog for semantic search
      * @param effectNodeIds    current execution effect node IDs for prerequisite scoring in browse
@@ -176,14 +125,13 @@ public class UserChoiceDialog extends AbstractDialog {
             Window owner,
             String headerText,
             String itemDescription,
-            List<Procedure> matches,
             List<KnowledgeService.ScoredProcedure> allScoredMatches,
             KnowledgeService knowledgeService,
             Set<UUID> effectNodeIds,
             Set<UUID> recentParentIds,
             UiTestAgentConfig config) {
 
-        var dialog = new UserChoiceDialog(owner, headerText, itemDescription, matches,
+        var dialog = new UserChoiceDialog(owner, headerText, itemDescription,
                 allScoredMatches, knowledgeService, effectNodeIds, recentParentIds, config);
 
         if (dialog.action == SelectionAction.CANCEL) {
@@ -191,7 +139,7 @@ public class UserChoiceDialog extends AbstractDialog {
             return Optional.empty();
         }
 
-        if (dialog.action == SelectionAction.EDIT || dialog.action == SelectionAction.BROWSE) {
+        if (dialog.action == SelectionAction.BROWSE) {
             return Optional.of(new UserSelectionResult(dialog.action, dialog.selectedProcedure.id(), dialog.selectedProcedure));
         } else {
             return Optional.of(new UserSelectionResult(dialog.action, null, null));
@@ -202,7 +150,6 @@ public class UserChoiceDialog extends AbstractDialog {
      * Represents the user's selection action from the popup.
      */
     public enum SelectionAction {
-        EDIT,
         CREATE,
         RETRY,
         BROWSE,
@@ -213,8 +160,8 @@ public class UserChoiceDialog extends AbstractDialog {
      * Result record containing the user's selection.
      *
      * @param action            the selected action
-     * @param existingId        the ID of the selected procedure (EDIT/BROWSE), or null otherwise
-     * @param selectedProcedure the selected procedure (EDIT/BROWSE), or null otherwise
+     * @param existingId        the ID of the selected procedure (BROWSE), or null otherwise
+     * @param selectedProcedure the selected procedure (BROWSE), or null otherwise
      */
     public record UserSelectionResult(SelectionAction action, UUID existingId, Procedure selectedProcedure) {}
 }
