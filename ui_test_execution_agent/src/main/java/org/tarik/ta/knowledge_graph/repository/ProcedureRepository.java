@@ -207,6 +207,10 @@ public class ProcedureRepository {
             WHERE score >= $minScore
             RETURN node AS n, score
             """);
+        this.DELETE_PROCEDURE = repositorySupport.cypher("""
+            MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
+            DETACH DELETE n
+            """);
     }
 
     private static final Logger LOG = LoggerFactory.getLogger(ProcedureRepository.class);
@@ -311,6 +315,8 @@ public class ProcedureRepository {
 
     // No-arg vector search — index name and params supplied at call time
     private final String FIND_BY_SEMANTIC_SEARCH;
+
+    private final String DELETE_PROCEDURE;
 
     /**
      * Persists a {@link Procedure} as a Neo4j node with all its fields as flat properties.
@@ -576,6 +582,12 @@ public class ProcedureRepository {
 
     public void deleteTargets(UUID procedureId) {
         repositorySupport.executeSingleWriteQuery(DELETE_TARGETS, Map.of(PARAM_SP_ID, procedureId.toString()));
+    }
+
+    public void deleteProcedure(UUID id) {
+        requireNonNull(id, "id");
+        repositorySupport.executeSingleWriteQuery(DELETE_PROCEDURE, Map.of(PROP_ID, id.toString()));
+        LOG.info("Deleted Procedure with id={}", id);
     }
 
     /**

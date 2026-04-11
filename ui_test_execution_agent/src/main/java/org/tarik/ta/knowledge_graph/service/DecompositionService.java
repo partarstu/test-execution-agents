@@ -57,7 +57,7 @@ public class DecompositionService {
      *
      * @param rootId the UUID of the root procedure to decompose
      * @return flat ordered list of atomic procedures (depth-first, sequence-ordered)
-     * @throws IllegalStateException if the max depth is exceeded
+     * @throws IllegalStateException if the max depth is exceeded, or if a composite procedure has no children
      */
     public List<Procedure> decompose(UUID rootId) {
         requireNonNull(rootId, "rootId");
@@ -94,9 +94,9 @@ public class DecompositionService {
 
         var children = repository.findChildrenOrdered(current.id());
         if (children.isEmpty()) {
-            LOG.warn("Composite procedure '{}' ({}) has no children — treating as atomic", current.description(), current.id());
-            atomics.add(current);
-            return;
+            throw new IllegalStateException(
+                    "Composite procedure '%s' (%s) has no children. Add its sub-steps in the knowledge base editor."
+                            .formatted(current.description(), current.id()));
         }
 
         for (var child : children) {

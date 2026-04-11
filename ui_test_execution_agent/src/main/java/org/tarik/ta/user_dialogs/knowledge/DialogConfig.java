@@ -22,6 +22,7 @@ import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
+import org.tarik.ta.knowledge_graph.service.ProcedureUsageByTestCaseTrackingService;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
@@ -49,4 +50,5 @@ record DialogConfig(
         @Nullable BufferedImage preloadedElementScreenshot,
         @NotNull UiTestAgentConfig uiTestAgentConfig,
         @NotNull UiElementRepository uiElementRepository,
-        @NotNull UiElementDialogHelper uiElementDialogHelper) {}
+        @NotNull UiElementDialogHelper uiElementDialogHelper,
+        @Nullable ProcedureUsageByTestCaseTrackingService usageTrackingService) {}

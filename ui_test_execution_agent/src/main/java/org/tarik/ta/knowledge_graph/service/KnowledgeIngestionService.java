@@ -155,6 +155,21 @@ public class KnowledgeIngestionService {
     }
 
     /**
+     * Deletes a single procedure node and cleans up its phrase embeddings and any orphaned UI elements.
+     * Child procedures linked via {@code CONTAINS} are preserved; only the node itself and its edges are removed.
+     */
+    public void deleteProcedure(UUID procedureId) {
+        requireNonNull(procedureId, "procedureId");
+        LOG.info("Deleting procedure with id={}", procedureId);
+        var candidateUiElementIds = procedureRepository.findAllTargetedUiElementIds(procedureId);
+        phraseEmbeddingRepository.deleteForProcedure(procedureId);
+        procedureRepository.deleteProcedure(procedureId);
+        procedureRepository.deleteUiElementsIfOrphaned(candidateUiElementIds);
+        decompositionService.invalidateCache();
+        LOG.info("Procedure deleted successfully: id={}", procedureId);
+    }
+
+    /**
      * Ingests multiple procedure trees in sequence.
      */
     public void ingestAll(List<IngestionNode> nodes) {

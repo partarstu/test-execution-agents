@@ -27,6 +27,7 @@ import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.ExecutionGraphContextBuilder;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
+import org.tarik.ta.knowledge_graph.service.ProcedureUsageByTestCaseTrackingService;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.user_dialogs.knowledge.ExecutionItemContext;
 import org.tarik.ta.user_dialogs.knowledge.ProcedureDialog;
@@ -59,19 +60,22 @@ public class ProcedureKnowledgeCollectionService {
     private final UiElementRepository uiElementRepository;
     private final UiElementDialogHelper uiElementDialogHelper;
     private final UiTestAgentConfig uiTestAgentConfig;
+    private final ProcedureUsageByTestCaseTrackingService usageTrackingService;
 
     public ProcedureKnowledgeCollectionService(KnowledgeSuggestionAgent knowledgeSuggestionAgent,
                                         KnowledgeService knowledgeService,
                                         KnowledgeIngestionService knowledgeIngestionService,
                                         UiElementRepository uiElementRepository,
                                         UiElementDialogHelper uiElementDialogHelper,
-                                        UiTestAgentConfig uiTestAgentConfig) {
+                                        UiTestAgentConfig uiTestAgentConfig,
+                                        ProcedureUsageByTestCaseTrackingService usageTrackingService) {
         this.knowledgeSuggestionAgent = knowledgeSuggestionAgent;
         this.knowledgeService = knowledgeService;
         this.knowledgeIngestionService = knowledgeIngestionService;
         this.uiElementRepository = uiElementRepository;
         this.uiElementDialogHelper = uiElementDialogHelper;
         this.uiTestAgentConfig = uiTestAgentConfig;
+        this.usageTrackingService = usageTrackingService;
     }
 
     /**
@@ -149,8 +153,11 @@ public class ProcedureKnowledgeCollectionService {
             var outcome = ProcedureDialog.displayForEditing(null, current, targetElementId,
                     showTestDataAndExpectedResults, hasParent, itemContext, knowledgeService, knowledgeIngestionService,
                     childLoaderFactory, preloadedChildren,
-                    uiTestAgentConfig, uiElementRepository, uiElementDialogHelper);
-            if (outcome.result() instanceof IngestionNode.NewProcedure np) {
+                    uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, usageTrackingService);
+            if (outcome.deleted()) {
+                LOG.info("Procedure '{}' deleted by user", current.description());
+                return ProcedureEditResult.cancelled();
+            } else if (outcome.result() instanceof IngestionNode.NewProcedure np) {
                 LOG.info("Procedure '{}' edited by user", current.description());
                 return ProcedureEditResult.saved(current.id(), np);
             } else if (outcome.editParentRequested() && hasParent) {

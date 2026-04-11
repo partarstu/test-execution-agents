@@ -13,13 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.user_dialogs.knowledge;
+package org.tarik.ta.knowledge_graph;
 
-import org.jetbrains.annotations.Nullable;
-import org.tarik.ta.dto.IngestionNode;
-
-import java.awt.image.BufferedImage;
-
-public record ProcedureDialogOutcome(@Nullable IngestionNode result, boolean editParentRequested, boolean cancelled,
-                                     boolean deleted, @Nullable BufferedImage elementScreenshot) {
+enum UserDecisionOutcome {
+    CONTINUE_NEXT_STEP, TERMINATE_EXECUTION, RE_FETCH_AND_RETRY, RE_DECOMPOSE_AND_RETRY
 }

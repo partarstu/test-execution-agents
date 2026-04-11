@@ -55,7 +55,9 @@ import java.util.UUID;
 import static java.time.Instant.now;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
-import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.*;
+import static org.tarik.ta.knowledge_graph.ExecutionResultHelper.*;
+import static org.tarik.ta.knowledge_graph.UserDecisionOutcome.*;
+import static org.tarik.ta.user_dialogs.PopupType.ERROR;
 import static org.tarik.ta.user_dialogs.PopupType.WARNING;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
@@ -129,7 +131,7 @@ public class KnowledgeBasedExecutionOrchestrator {
             LOG.error("DB connection error during execution of test case '{}'", testCase.name(), e);
             if (!uiTestAgentConfig.isFullyUnattended()) {
                 InformationalPopup.display("Database Connection Error",
-                        "Lost connection to the knowledge graph DB: " + e.getMessage(), null, PopupType.ERROR, uiTestAgentConfig);
+                        "Lost connection to the knowledge graph DB: " + e.getMessage(), null, ERROR, uiTestAgentConfig);
             }
             throw e;
         } finally {
@@ -146,7 +148,30 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                 List<UUID> usedProcedureIds, ExecutionQueue queue) {
         stateTracker.addRecentParent(procedure.id());
         LOG.info("Found matching procedure '{}' ({}) for '{}'", procedure.description(), procedure.id(), item.getDescription());
-        var atomicSteps = resolveToAtomicSteps(procedure);
+        List<Procedure> atomicSteps;
+        try {
+            atomicSteps = resolveToAtomicSteps(procedure);
+        } catch (IllegalStateException e) {
+            var errorMessage = e.getMessage();
+            LOG.error("Decomposition failure for procedure '{}' ({}): {}", procedure.description(), procedure.id(), errorMessage);
+            if (uiTestAgentConfig.isFullyUnattended()) {
+                throw e;
+            }
+            InformationalPopup.display("Invalid Procedure Configuration", errorMessage, null, ERROR, uiTestAgentConfig);
+            var outcome = stepExecutionOrchestrator.handleDecompositionFailureInSupervisedMode(
+                    errorMessage, procedure, item, testCase, context);
+            return switch (outcome) {
+                case TERMINATE_EXECUTION -> {
+                    recordFailure(context, item, item.getDescription(), errorMessage);
+                    yield new ExecutionFlow.Stop();
+                }
+                case RE_DECOMPOSE_AND_RETRY, RE_FETCH_AND_RETRY -> {
+                    queue.injectAtFront(List.of(item));
+                    yield new ExecutionFlow.Continue();
+                }
+                case CONTINUE_NEXT_STEP -> new ExecutionFlow.Continue();
+            };
+        }
         showTestDataOverrideWarningIfNeeded(item, item.getTestData(), atomicSteps);
         var testStepResults = new ArrayList<UiTestStepResult>();
         var preconditionResults = new ArrayList<UiPreconditionResult>();

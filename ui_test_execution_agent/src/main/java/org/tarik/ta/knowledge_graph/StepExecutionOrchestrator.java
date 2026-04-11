@@ -50,13 +50,12 @@ import org.tarik.ta.user_dialogs.knowledge.UserChoiceDialog;
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
 import static java.time.Instant.now;
 import static java.util.stream.Collectors.joining;
-import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.UserDecisionOutcome.*;
+import static org.tarik.ta.knowledge_graph.UserDecisionOutcome.*;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.*;
 import static org.tarik.ta.dto.ProcedureExecutionConfirmationResult.Decision.HALTED;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
@@ -619,59 +618,30 @@ public class StepExecutionOrchestrator {
         return Optional.of(updated);
     }
 
+    /**
+     * Surfaces the standard supervised-mode failure dialog for a decomposition error (composite procedure with no children).
+     * Maps the user's choice to a {@link UserDecisionOutcome} so the caller can decide the next {@code ExecutionFlow}.
+     */
+    UserDecisionOutcome handleDecompositionFailureInSupervisedMode(String message, Procedure procedure,
+                                                                   ExecutionItem item, TestCase testCase,
+                                                                   UiTestExecutionContext context) {
+        var result = handleFailureInSupervisedMode(message, procedure,
+                item.getTestData(), item.getExpectedResults(), item.getDescription(),
+                item instanceof PreconditionItem, testCase, context, List.of());
+        return switch (result) {
+            case PostExecutionCheckResult.ProceedToNext _ -> CONTINUE_NEXT_STEP;
+            // User edited the procedure — always re-decompose, regardless of whether it became atomic
+            case PostExecutionCheckResult.RetryStep _ -> RE_DECOMPOSE_AND_RETRY;
+            case PostExecutionCheckResult.TerminalOutcome(var outcome) -> outcome;
+        };
+    }
+
     private void notifyVerificationFailure(String description, String failureMessage, BufferedImage screenshot) {
         if (!uiTestAgentConfig.isFullyUnattended()) {
             VerificationFailurePopup.display(description, failureMessage, screenshot, uiTestAgentConfig);
         } else {
             LOG.warn("Verification failed: {} — {}", description, failureMessage);
         }
-    }
-
-    static UiTestStepResult mergeAtomicResults(TestStep testStep, List<UiTestStepResult> results) {
-        if (results.isEmpty()) {
-            var errorMessage = "Execution of test step '%s' was aborted.".formatted(testStep.stepDescription());
-            LOG.error(errorMessage);
-            return new UiTestStepResult(testStep, TestStepResultStatus.FAILURE, errorMessage, "No atomic steps executed", null, now(),
-                    now());
-        }
-
-        boolean allSuccess = results.stream().allMatch(r -> r.getExecutionStatus() == SUCCESS);
-        var finalStatus = allSuccess ? TestStepResultStatus.SUCCESS : results.getLast().getExecutionStatus();
-        var finalError = results.stream()
-                .map(TestStepResult::getErrorMessage)
-                .filter(CommonUtils::isNotBlank)
-                .collect(joining("\n"))
-                .trim();
-        if (isBlank(finalError)) {
-            finalError = "Execution of test step '%s' was aborted.".formatted(testStep.stepDescription());
-        }
-        var finalActualResult = results.stream()
-                .map(TestStepResult::getActualResult)
-                .filter(Objects::nonNull)
-                .collect(joining("\n"));
-        Instant start = results.getFirst().getExecutionStartTimestamp();
-        Instant end = results.getLast().getExecutionEndTimestamp();
-        BufferedImage screenshot = results.getLast().getScreenshot();
-        return new UiTestStepResult(testStep, finalStatus, finalError, finalActualResult, screenshot, start, end);
-    }
-
-    static UiPreconditionResult mergePreconditionResults(String preconditionDescription,
-                                                         List<UiPreconditionResult> results) {
-        if (results.isEmpty()) {
-            var errorMessage = "Execution of precondition '%s' was aborted.".formatted(preconditionDescription);
-            LOG.error(errorMessage);
-            return new UiPreconditionResult(preconditionDescription, false, errorMessage, captureScreen(), now(), now());
-        }
-        var start = results.getFirst().getExecutionStartTimestamp();
-        var end = results.getLast().getExecutionEndTimestamp();
-        var failedResult = results.stream().filter(r -> !r.isSuccess()).findFirst();
-        return failedResult.map(r ->
-                        new UiPreconditionResult(preconditionDescription, false, r.getErrorMessage(), r.getScreenshot(), start, end))
-                .orElseGet(() -> new UiPreconditionResult(preconditionDescription, true, null, null, start, end));
-    }
-
-    enum UserDecisionOutcome {
-        CONTINUE_NEXT_STEP, TERMINATE_EXECUTION, RE_FETCH_AND_RETRY, RE_DECOMPOSE_AND_RETRY
     }
 
     // Result of pre-execution confirmation popup: either proceed to execute the step, or a terminal outcome from the halt dialog.
