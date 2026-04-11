@@ -309,7 +309,7 @@ public class KnowledgeService {
         if (matches.isEmpty()) return List.of();
         var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
         var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
-        return reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
+        return reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds).procedures();
     }
 
     /**

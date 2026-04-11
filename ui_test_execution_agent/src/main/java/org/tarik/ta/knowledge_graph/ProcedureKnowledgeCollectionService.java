@@ -40,7 +40,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.tarik.ta.user_dialogs.knowledge.UserChoiceDialog.SelectionAction.EDIT;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.utils.ImageUtils;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
@@ -158,8 +157,8 @@ public class ProcedureKnowledgeCollectionService {
                 if (parents.size() > 1) {
                     var selection = UserChoiceDialog.displayAndGetSelection(null,
                             "Multiple parent procedures found. Select the parent to edit:",
-                            current.description(), parents, List.of(), knowledgeService, Set.of(), Set.of(), uiTestAgentConfig);
-                    if (selection.isPresent() && selection.get().action() == EDIT) {
+                            current.description(), List.of(), knowledgeService, Set.of(), Set.of(), uiTestAgentConfig);
+                    if (selection.isPresent() && selection.get().action() == UserChoiceDialog.SelectionAction.BROWSE) {
                         current = knowledgeService.findById(selection.get().existingId())
                                 .orElseThrow(() -> new IllegalStateException("Selected parent with ID '%s' not found"
                                         .formatted(selection.get().existingId())));

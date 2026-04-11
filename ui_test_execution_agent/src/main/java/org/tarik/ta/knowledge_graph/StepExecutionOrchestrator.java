@@ -132,7 +132,7 @@ public class StepExecutionOrchestrator {
                     yield switch (stepResult.getExecutionStatus()) {
                         case SUCCESS -> new AtomicStepResult.Success();
                         case FAILURE -> new AtomicStepResult.VerificationFailure(testStep.stepDescription(),
-                                stepResult.getErrorMessage(), stepResult.getScreenshot());
+                                stepResult.getActualResult(), stepResult.getScreenshot());
                         case ERROR -> new AtomicStepResult.ExecutionError(stepResult.getErrorMessage(), null);
                     };
                 }
@@ -314,7 +314,7 @@ public class StepExecutionOrchestrator {
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPreconditionItem);
         var allScoredMatches = knowledgeService.findTopRankedWithScores(atomicStep.description(), Set.of(), Set.of());
         var selectionOpt = UserChoiceDialog.displayAndGetSelection(null, message, atomicStep.description(),
-                List.of(atomicStep), allScoredMatches, knowledgeService, Set.of(), Set.of(), uiTestAgentConfig);
+                allScoredMatches, knowledgeService, Set.of(), Set.of(), uiTestAgentConfig);
 
         if (selectionOpt.isEmpty()) {
             LOG.info("User cancelled the dialog — terminating execution");
@@ -327,7 +327,7 @@ public class StepExecutionOrchestrator {
                 LOG.info("User chose to retry procedure '{}'", atomicStep.description());
                 yield RE_FETCH_AND_RETRY;
             }
-            case EDIT, BROWSE -> {
+            case BROWSE -> {
                 LOG.info("User chose to edit procedure '{}'", atomicStep.description());
                 var editResult = procedureKnowledgeCollectionService.triggerEditProcedureFlow(
                         selection.selectedProcedure(), testData, expectedResults, !isPreconditionItem,
