@@ -91,7 +91,7 @@ public class PhraseEmbeddingRepository {
             MATCH (consumer:${LABEL_PROCEDURE})-[:${REL_HAS_PREREQUISITE}]->(prereqNode)
             WHERE consumer.${PROP_ID} <> $producerId
             RETURN consumer.${PROP_ID} AS consumerId, eff.${PROP_PHRASE} AS effectPhrase,
-                   prereqNode.${PROP_PHRASE} AS prerequisitePhrase, score
+                   prereqNode.${PROP_PHRASE} AS prerequisitePhrase, prereqNode.${PROP_ID} AS prereqNodeId, score
             ORDER BY score DESC
             """);
         this.IS_PREREQUISITE_MET_BY_EFFECTS = repositorySupport.cypher("""
@@ -116,6 +116,7 @@ public class PhraseEmbeddingRepository {
         static final String ALIAS_CONSUMER_ID = "consumerId";
         static final String ALIAS_EFFECT_PHRASE = "effectPhrase";
         static final String ALIAS_PREREQUISITE_PHRASE = "prerequisitePhrase";
+        static final String ALIAS_PREREQ_NODE_ID = "prereqNodeId";
         static final String ALIAS_IS_MET = "isMet";
 
         private QueryAliases() {}
@@ -295,6 +296,7 @@ public class PhraseEmbeddingRepository {
                         UUID.fromString(r.get(ALIAS_CONSUMER_ID).asString()),
                         r.get(ALIAS_EFFECT_PHRASE).asString(),
                         r.get(ALIAS_PREREQUISITE_PHRASE).asString(),
+                        UUID.fromString(r.get(ALIAS_PREREQ_NODE_ID).asString()),
                         r.get(ALIAS_SCORE).asDouble()))
                 .toList();
     }
@@ -327,7 +329,7 @@ public class PhraseEmbeddingRepository {
     }
 
     /** Result of a SATISFIES edge candidate match from the vector index. */
-    public record SatisfiesMatch(UUID consumerId, String effectPhrase, String prerequisitePhrase, double score) {}
+    public record SatisfiesMatch(UUID consumerId, String effectPhrase, String prerequisitePhrase, UUID prereqNodeId, double score) {}
 
     private List<PhraseEmbedding> queryNodes(String cypher, Map<String, Object> params) {
         return repositorySupport.executeSingleReadQuery(cypher, params).stream()

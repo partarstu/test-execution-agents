@@ -64,7 +64,7 @@ public class UserChoiceDialog extends AbstractDialog {
         createNewButton.addActionListener(_ -> handleCreateNew(itemDescription));
         setHoverAsClick(createNewButton);
 
-        JButton cancelButton = new JButton("Cancel");
+        JButton cancelButton = new JButton("Terminate");
         cancelButton.addActionListener(_ -> dispose());
         setHoverAsClick(cancelButton);
 

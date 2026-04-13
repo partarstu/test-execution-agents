@@ -23,6 +23,7 @@ import org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
@@ -36,9 +37,13 @@ public class SatisfiesEdgeRepository {
             UNWIND $edges AS edge
             MATCH (producer:${LABEL_PROCEDURE} {${PROP_ID}: edge.producerId})
             MATCH (consumer:${LABEL_PROCEDURE} {${PROP_ID}: edge.consumerId})
-            MERGE (producer)-[r:${REL_SATISFIES} {${PROP_EFFECT_PHRASE}: edge.effectPhrase, ${PROP_PREREQUISITE_PHRASE}: edge.prerequisitePhrase}]->(consumer)
-            ON CREATE SET r.${PROP_SCORE} = edge.score, r.${PROP_CREATED_AT} = timestamp(), r.${PROP_LAST_VERIFIED_AT} = timestamp()
-            ON MATCH SET r.${PROP_SCORE} = edge.score, r.${PROP_LAST_VERIFIED_AT} = timestamp()
+            MERGE (producer)-[r:${REL_SATISFIES} {${PROP_PREREQUISITE_NODE_ID}: edge.prerequisiteNodeId}]->(consumer)
+            ON CREATE SET r.${PROP_SCORE} = edge.score, r.${PROP_EFFECT_PHRASE} = edge.effectPhrase,
+                          r.${PROP_PREREQUISITE_PHRASE} = edge.prerequisitePhrase,
+                          r.${PROP_CREATED_AT} = timestamp(), r.${PROP_LAST_VERIFIED_AT} = timestamp()
+            ON MATCH SET r.${PROP_SCORE} = edge.score, r.${PROP_EFFECT_PHRASE} = edge.effectPhrase,
+                         r.${PROP_PREREQUISITE_PHRASE} = edge.prerequisitePhrase,
+                         r.${PROP_LAST_VERIFIED_AT} = timestamp()
             """);
         this.DELETE_EDGES = repositorySupport.cypher("""
             MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $id})-[r:${REL_SATISFIES}]-()
@@ -53,7 +58,8 @@ public class SatisfiesEdgeRepository {
             WHERE r.${PROP_LAST_VERIFIED_AT} < timestamp() - ($staleDays * 86400000)
             RETURN producer.${PROP_ID} AS producerId, consumer.${PROP_ID} AS consumerId,
                    r.${PROP_SCORE} AS score, r.${PROP_EFFECT_PHRASE} AS effectPhrase,
-                   r.${PROP_PREREQUISITE_PHRASE} AS prerequisitePhrase
+                   r.${PROP_PREREQUISITE_PHRASE} AS prerequisitePhrase,
+                   r.${PROP_PREREQUISITE_NODE_ID} AS prerequisiteNodeId
             """);
         this.HAS_EDGES = repositorySupport.cypher("""
             MATCH ()-[r:${REL_SATISFIES}]->()
@@ -65,6 +71,22 @@ public class SatisfiesEdgeRepository {
             MATCH (producer:${LABEL_PROCEDURE})-[r:${REL_SATISFIES}]->(consumer)
             WHERE producer.${PROP_ID} IN $ids
             RETURN producer.${PROP_ID} AS producerId, consumer.${PROP_ID} AS consumerId
+            """);
+        this.FIND_UNSATISFIED_PREREQUISITES = repositorySupport.cypher("""
+            MATCH (consumer:${LABEL_PROCEDURE} {${PROP_ID}: $consumerId})-[:${REL_HAS_PREREQUISITE}]->(prereq:${LABEL_PHRASE_EMBEDDING})
+            WHERE NOT EXISTS {
+                MATCH (prod:${LABEL_PROCEDURE})-[:${REL_SATISFIES} {${PROP_PREREQUISITE_NODE_ID}: prereq.${PROP_ID}}]->(consumer)
+                WHERE prod.${PROP_ID} IN $producerIds
+            }
+            CALL {
+                WITH prereq
+                CALL db.index.vector.queryNodes($indexName, $topN, prereq.${PROP_EMBEDDING})
+                YIELD node AS effNode, score
+                WHERE score >= $threshold AND effNode.${PROP_ID} IN $effectNodeIds
+                RETURN count(effNode) > 0 AS metByVector
+            }
+            WHERE NOT metByVector
+            RETURN prereq.${PROP_PHRASE} AS phrase
             """);
     }
 
@@ -84,6 +106,12 @@ public class SatisfiesEdgeRepository {
 
     private final String FIND_ORDERING_CONFLICTS;
 
+    private final String FIND_UNSATISFIED_PREREQUISITES;
+
+    private static final String VECTOR_INDEX_NAME = "phrase_embedding_vector_index";
+
+    private static final int UNSATISFIED_TOP_N = 50;
+
     public void persistSatisfiesEdges(List<SatisfiesEdge> edges) {
         if (edges.isEmpty()) {
             return;
@@ -93,7 +121,8 @@ public class SatisfiesEdgeRepository {
                 "consumerId", e.consumerId().toString(),
                 PROP_SCORE, e.score(),
                 PROP_EFFECT_PHRASE, e.effectPhrase(),
-                PROP_PREREQUISITE_PHRASE, e.prerequisitePhrase()
+                PROP_PREREQUISITE_PHRASE, e.prerequisitePhrase(),
+                PROP_PREREQUISITE_NODE_ID, e.prerequisiteNodeId().toString()
         )).toList();
 
         repositorySupport.executeSingleWriteQuery(PERSIST_EDGES, Map.of("edges", mappedEdges));
@@ -118,13 +147,41 @@ public class SatisfiesEdgeRepository {
     public List<SatisfiesEdge> findStaleSatisfiesEdges(int staleDays) {
         return repositorySupport.executeSingleReadQuery(FIND_STALE_EDGES, Map.of("staleDays", staleDays))
                 .stream()
-                .map(r -> new SatisfiesEdge(
-                        UUID.fromString(r.get("producerId").asString()),
-                        UUID.fromString(r.get("consumerId").asString()),
-                        r.get(PROP_SCORE).asDouble(),
-                        r.get(PROP_EFFECT_PHRASE).asString(),
-                        r.get(PROP_PREREQUISITE_PHRASE).asString()
-                ))
+                .map(r -> {
+                    var prereqNodeIdVal = r.get(PROP_PREREQUISITE_NODE_ID);
+                    var prereqNodeId = prereqNodeIdVal.isNull() ? null : UUID.fromString(prereqNodeIdVal.asString());
+                    return new SatisfiesEdge(
+                            UUID.fromString(r.get("producerId").asString()),
+                            UUID.fromString(r.get("consumerId").asString()),
+                            r.get(PROP_SCORE).asDouble(),
+                            r.get(PROP_EFFECT_PHRASE).asString(),
+                            r.get(PROP_PREREQUISITE_PHRASE).asString(),
+                            prereqNodeId
+                    );
+                })
+                .toList();
+    }
+
+    /**
+     * Returns the prerequisite phrases of the given consumer procedure that are not yet satisfied by
+     * any SATISFIES edge from the executed producers, and also not covered by the accumulated effects
+     * via vector similarity (fallback for async-persisted edges not yet committed).
+     */
+    public List<String> findUnsatisfiedPrerequisites(UUID consumerId, List<UUID> producerIds, Set<UUID> effectNodeIds, double threshold) {
+        requireNonNull(consumerId, "consumerId");
+        requireNonNull(producerIds, "producerIds");
+        requireNonNull(effectNodeIds, "effectNodeIds");
+        var producerIdStrings = producerIds.stream().map(UUID::toString).toList();
+        var effectIdStrings = effectNodeIds.stream().map(UUID::toString).toList();
+        return repositorySupport.executeSingleReadQuery(FIND_UNSATISFIED_PREREQUISITES, Map.of(
+                "consumerId", consumerId.toString(),
+                "producerIds", producerIdStrings,
+                "effectNodeIds", effectIdStrings,
+                "indexName", VECTOR_INDEX_NAME,
+                "topN", UNSATISFIED_TOP_N,
+                "threshold", threshold
+        )).stream()
+                .map(r -> r.get("phrase").asString())
                 .toList();
     }
 

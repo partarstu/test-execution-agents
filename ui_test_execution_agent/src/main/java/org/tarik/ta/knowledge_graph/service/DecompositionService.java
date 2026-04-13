@@ -66,7 +66,7 @@ public class DecompositionService {
             var root = repository.findById(id).orElseThrow(() ->
                     new IllegalStateException("Procedure not found: %s".formatted(id)));
             var atomics = new ArrayList<Procedure>();
-            decomposeRecursive(root, atomics, 0, config.getKnowledgeMaxDepth());
+            decomposeRecursive(root, atomics, 0, config.getKnowledgeMaxDepth(), new ArrayList<>());
             LOG.info("Decomposed procedure '{}' ({}) into {} atomic step(s)", root.description(), id, atomics.size());
             return List.copyOf(atomics);
         });
@@ -80,7 +80,8 @@ public class DecompositionService {
         LOG.debug("Decomposition cache fully invalidated");
     }
 
-    private void decomposeRecursive(Procedure current, List<Procedure> atomics, int depth, int maxDepth) {
+    private void decomposeRecursive(Procedure current, List<Procedure> atomics, int depth, int maxDepth,
+                                    List<Procedure> path) {
         if (depth > maxDepth) {
             throw new IllegalStateException(
                     "Max decomposition depth (%d) exceeded at procedure '%s' (%s). Check for circular CONTAINS relationships."
@@ -94,13 +95,30 @@ public class DecompositionService {
 
         var children = repository.findChildrenOrdered(current.id());
         if (children.isEmpty()) {
-            throw new IllegalStateException(
-                    "Composite procedure '%s' (%s) has no children. Add its sub-steps in the knowledge base editor."
-                            .formatted(current.description(), current.id()));
+            var fullPath = new ArrayList<>(path);
+            fullPath.add(current);
+            throw new IllegalStateException(formatNoChildrenError(current, fullPath));
         }
 
+        var nextPath = new ArrayList<>(path);
+        nextPath.add(current);
         for (var child : children) {
-            decomposeRecursive(child, atomics, depth + 1, maxDepth);
+            decomposeRecursive(child, atomics, depth + 1, maxDepth, nextPath);
         }
+    }
+
+    private static String formatNoChildrenError(Procedure problematic, List<Procedure> fullPath) {
+        var sb = new StringBuilder();
+        sb.append("Composite procedure '%s' (%s) has no children. Add its sub-steps in the procedure editor."
+                .formatted(problematic.description(), problematic.id()));
+        if (fullPath.size() > 1) {
+            sb.append("\n\nExecution graph:");
+            for (int i = 0; i < fullPath.size(); i++) {
+                var p = fullPath.get(i);
+                var suffix = (i == fullPath.size() - 1) ? "  \u2190 no children" : "";
+                sb.append("\n%s\u2192 %s (%s)%s".formatted("  ".repeat(i), p.description(), p.id(), suffix));
+            }
+        }
+        return sb.toString();
     }
 }

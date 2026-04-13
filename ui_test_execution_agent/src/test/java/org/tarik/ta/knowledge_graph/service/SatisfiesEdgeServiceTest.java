@@ -70,7 +70,8 @@ class SatisfiesEdgeServiceTest {
         UUID producerId = UUID.randomUUID();
         UUID consumerId = UUID.randomUUID();
 
-        var match = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "user logged in", "user logged in", 0.95);
+        UUID prereqNodeId = UUID.randomUUID();
+        var match = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "user logged in", "user logged in", prereqNodeId, 0.95);
         when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfiedByProducer(eq(producerId), anyDouble(), anyInt()))
                 .thenReturn(List.of(match));
 
@@ -117,9 +118,10 @@ class SatisfiesEdgeServiceTest {
         UUID producerId = UUID.randomUUID();
         UUID consumerId = UUID.randomUUID();
 
-        // Two matches for the same consumer — the higher-scored one should win
-        var match1 = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "effect 1", "prereq 1", 0.90);
-        var match2 = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "effect 2", "prereq 1", 0.95);
+        // Two matches for the same (consumer, prerequisiteNodeId) — the higher-scored one should win
+        UUID prereqNodeId = UUID.randomUUID();
+        var match1 = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "effect 1", "prereq 1", prereqNodeId, 0.90);
+        var match2 = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "effect 2", "prereq 1", prereqNodeId, 0.95);
         when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfiedByProducer(eq(producerId), anyDouble(), anyInt()))
                 .thenReturn(List.of(match1, match2));
 

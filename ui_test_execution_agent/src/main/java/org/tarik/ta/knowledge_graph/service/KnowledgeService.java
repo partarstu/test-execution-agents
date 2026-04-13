@@ -88,7 +88,7 @@ public class KnowledgeService {
         var reranked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
         var bestMatch = reranked.procedures().getFirst().procedure();
         var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
-        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures().stream().map(ScoredProcedure::procedure).toList(), reranked.wasDemoted()));
+        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures(), reranked.wasDemoted()));
     }
 
     /**
@@ -124,7 +124,7 @@ public class KnowledgeService {
         LOG.info("Found {} confidence match for '{}': procedure '{}' ({}) | all candidates: {}",
                 confidence, description, bestMatch.description(), bestMatch.id(),
                 reranked.procedures().stream().map(sp -> "'%s' [score=%.3f]".formatted(sp.procedure().description(), scoreById.get(sp.procedure().id()))).toList());
-        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures().stream().map(ScoredProcedure::procedure).toList(), reranked.wasDemoted()));
+        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures(), reranked.wasDemoted()));
     }
 
     /**
@@ -210,12 +210,14 @@ public class KnowledgeService {
     }
 
     /**
-     * Returns the top semantic match for the given embedding without re-ranking.
+     * Returns the top semantic match for the given embedding without re-ranking, only when the score meets
+     * the HIGH confidence threshold. Using HIGH confidence ensures that steps with no corresponding procedure
+     * in the DB are not falsely matched to unrelated procedures (which could happen at the LOW threshold).
      * Intended for lightweight lookups (e.g., ordering conflict detection) where re-ranking overhead is unnecessary.
      */
     public Optional<Procedure> findTopSemanticMatch(Embedding queryEmbedding) {
         requireNonNull(queryEmbedding, "queryEmbedding");
-        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), 1, config.getKnowledgeMatchConfidenceLow());
+        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), 1, config.getKnowledgeMatchConfidenceHigh());
         return matches.isEmpty() ? Optional.empty() : Optional.of(matches.getFirst().procedure());
     }
 
@@ -380,7 +382,7 @@ public class KnowledgeService {
     /**
      * A matched procedure with its confidence level.
      */
-    public record MatchResult(Procedure procedure, MatchConfidence confidence, List<Procedure> allMatches, boolean wasDemoted) {
+    public record MatchResult(Procedure procedure, MatchConfidence confidence, List<ScoredProcedure> allMatches, boolean wasDemoted) {
         public MatchResult {
             requireNonNull(procedure, "procedure");
             requireNonNull(confidence, "confidence");

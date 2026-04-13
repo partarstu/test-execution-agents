@@ -12,8 +12,33 @@ working with agentic systems. Use skills located in @.agents folder if needed fo
 
 ### Coding guidelines and rules
 
-* Execute provided to you requests immediately, unless planning is explicitly requested. Concise answers only, no wandering.
-* Keep your implementation simple and short.
+* Before implementing:
+  - State your assumptions explicitly. If uncertain, ask.
+  - If multiple interpretations exist, present them - don't pick silently.
+  - If a simpler approach exists, say so. Push back when warranted.
+  - If something is unclear, stop. Name what's confusing. Ask.
+* Keep your implementation simple and short:
+  - No features beyond what was asked.
+  - No abstractions for single-use code.
+  - No "flexibility" or "configurability" that wasn't requested.
+  - No error handling for impossible scenarios.
+  - If you write 200 lines and it could be 50, rewrite it.
+* When editing existing code:
+  - Don't "improve" adjacent code, comments, or formatting.
+  - Don't refactor things that aren't broken.
+  - Match existing style, even if you'd do it differently.
+  - If you notice unrelated dead code, mention it - don't delete it.
+* Every changed by you line of code should trace directly to the user's request.
+* Transform tasks into verifiable goals:
+  - "Add validation" → "Write tests for invalid inputs, then make them pass"
+  - "Fix the bug" → "Write a test that reproduces it, then make it pass"
+  - "Refactor X" → "Ensure tests pass before and after".
+  For multi-step tasks, state a brief plan:
+  ```
+  1. [Step] → verify: [check]
+  2. [Step] → verify: [check]
+  3. [Step] → verify: [check]
+  ```
 * The code which you create must be easily readable and clear to understand.
 * Never keep redundant code.
 * If anything about provided to you request or requests is not clear to you or if you need clarifications - always ask user to clarify!

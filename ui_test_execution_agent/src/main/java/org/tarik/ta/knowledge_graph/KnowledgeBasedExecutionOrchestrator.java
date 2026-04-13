@@ -157,7 +157,6 @@ public class KnowledgeBasedExecutionOrchestrator {
             if (uiTestAgentConfig.isFullyUnattended()) {
                 throw e;
             }
-            InformationalPopup.display("Invalid Procedure Configuration", errorMessage, null, ERROR, uiTestAgentConfig);
             var outcome = stepExecutionOrchestrator.handleDecompositionFailureInSupervisedMode(
                     errorMessage, procedure, item, testCase, context);
             return switch (outcome) {
@@ -228,15 +227,17 @@ public class KnowledgeBasedExecutionOrchestrator {
             return new ProcedureLookup.NeedsUserResolution(null, List.of());
         }
         var match = matchResult.get();
-        var feasible = selectFeasibleProcedure(match.allMatches(), stateTracker);
+        var feasible = selectFeasibleProcedure(match.allMatches());
         if (feasible.isPresent() && match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
             return new ProcedureLookup.DirectMatch(feasible.get());
         }
         if (match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
             // High semantic score but no feasible procedure — prerequisites are the blocker
-            var missing = match.allMatches().stream()
-                    .flatMap(p -> stateTracker.findMissingPrerequisites(p.prerequisites()).stream())
-                    .distinct().toList();
+            var topCandidate = match.allMatches().getFirst();
+            var missing = satisfiesEdgeService.findUnsatisfiedPrerequisites(
+                    topCandidate.procedure().id(),
+                    stateTracker.getExecutedAtomicProcedures().stream().map(Procedure::id).toList(),
+                    stateTracker.getEffectNodeIds());
             return new ProcedureLookup.NeedsUserResolution(match, missing);
         }
         // LOW confidence — semantic score too low; prerequisites are irrelevant
@@ -280,8 +281,11 @@ public class KnowledgeBasedExecutionOrchestrator {
         int totalAtomics = atomicSteps.size();
         for (int i = 0; i < totalAtomics; i++) {
             Procedure atomicStep = atomicSteps.get(i);
-            if (!atomicStep.prerequisites().isEmpty() && !stateTracker.arePrerequisitesMet(atomicStep.prerequisites())) {
-                var missing = stateTracker.findMissingPrerequisites(atomicStep.prerequisites());
+            var missing = satisfiesEdgeService.findUnsatisfiedPrerequisites(
+                    atomicStep.id(),
+                    stateTracker.getExecutedAtomicProcedures().stream().map(Procedure::id).toList(),
+                    stateTracker.getEffectNodeIds());
+            if (!missing.isEmpty()) {
                 var reason = "Atomic step '%s' skipped — prerequisites not satisfied: %s"
                         .formatted(atomicStep.description(), missing);
                 LOG.warn(reason);
@@ -449,12 +453,13 @@ public class KnowledgeBasedExecutionOrchestrator {
     }
 
     /**
-     * Returns the highest-scoring candidate whose prerequisites are all satisfied by the current state.
+     * Returns the first candidate whose prerequisites are all semantically satisfied (per re-ranking scores).
      * Procedures with no prerequisites are always considered feasible.
      */
-    private static Optional<Procedure> selectFeasibleProcedure(List<Procedure> candidates, ExecutionStateTracker stateTracker) {
+    private static Optional<Procedure> selectFeasibleProcedure(List<KnowledgeService.ScoredProcedure> candidates) {
         return candidates.stream()
-                .filter(p -> stateTracker.arePrerequisitesMet(p.prerequisites()))
+                .filter(sp -> sp.totalPrereqs() == 0 || sp.satisfied() == sp.totalPrereqs())
+                .map(KnowledgeService.ScoredProcedure::procedure)
                 .findFirst();
     }
 
@@ -529,7 +534,7 @@ public class KnowledgeBasedExecutionOrchestrator {
             }
             // After RETRY or BROWSE, return Found if there's now a feasible high-confidence match
             if (match != null && match.confidence() != KnowledgeService.MatchConfidence.LOW) {
-                var feasible = selectFeasibleProcedure(match.allMatches(), stateTracker);
+                var feasible = selectFeasibleProcedure(match.allMatches());
                 if (feasible.isPresent()) {
                     return new UserFeedback.Found(feasible.get());
                 }

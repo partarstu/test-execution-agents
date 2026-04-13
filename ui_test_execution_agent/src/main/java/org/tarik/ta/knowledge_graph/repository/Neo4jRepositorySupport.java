@@ -84,6 +84,7 @@ import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_MODE;
 import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_SCORE;
 import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_EFFECT_PHRASE;
 import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_PREREQUISITE_PHRASE;
+import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_PREREQUISITE_NODE_ID;
 import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_LAST_VERIFIED_AT;
 
 /**
@@ -159,6 +160,7 @@ public class Neo4jRepositorySupport {
             Map.entry("PROP_SCORE", PROP_SCORE),
             Map.entry("PROP_EFFECT_PHRASE", PROP_EFFECT_PHRASE),
             Map.entry("PROP_PREREQUISITE_PHRASE", PROP_PREREQUISITE_PHRASE),
+            Map.entry("PROP_PREREQUISITE_NODE_ID", PROP_PREREQUISITE_NODE_ID),
             Map.entry("PROP_LAST_VERIFIED_AT", PROP_LAST_VERIFIED_AT)
     );
 

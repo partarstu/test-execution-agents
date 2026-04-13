@@ -636,7 +636,7 @@ public class ProcedureDialog extends AbstractDialog {
             ingestionService.update(procedure.id(), np);
             knowledgeService.onKnowledgeIngested();
             var updatedProcedure = knowledgeService.findById(procedure.id()).orElse(procedure);
-            childStepsModel.set(index, new ChildProcedureInDialog.Linked(updatedProcedure, null));
+            childStepsModel.set(index, new ChildProcedureInDialog.Linked(updatedProcedure, outcome.elementScreenshot()));
             registerUnsavedChanges();
         }
     }

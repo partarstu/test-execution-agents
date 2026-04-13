@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Singleton
@@ -59,10 +60,13 @@ public class SatisfiesEdgeService {
                     LOG.debug("No SATISFIES edges matched for procedure {} (threshold={})", executedProcedureId, threshold);
                     return;
                 }
-                Map<UUID, SatisfiesEdge> merged = new HashMap<>();
+                // Deduplication key: one SATISFIES edge per (consumer, prerequisiteNodeId) pair,
+                // keeping the highest-scoring match when multiple effects satisfy the same prerequisite.
+                Map<String, SatisfiesEdge> merged = new HashMap<>();
                 for (var match : matches) {
-                    var edge = new SatisfiesEdge(executedProcedureId, match.consumerId(), match.score(), match.effectPhrase(), match.prerequisitePhrase());
-                    merged.merge(match.consumerId(), edge, (e1, e2) -> e1.score() >= e2.score() ? e1 : e2);
+                    var edge = new SatisfiesEdge(executedProcedureId, match.consumerId(), match.score(), match.effectPhrase(), match.prerequisitePhrase(), match.prereqNodeId());
+                    var key = "%s:%s".formatted(match.consumerId(), match.prereqNodeId());
+                    merged.merge(key, edge, (e1, e2) -> e1.score() >= e2.score() ? e1 : e2);
                 }
                 LOG.debug("Persisting {} SATISFIES edge(s) for procedure {}", merged.size(), executedProcedureId);
                 satisfiesEdgeRepository.persistSatisfiesEdges(new ArrayList<>(merged.values()));
@@ -70,6 +74,18 @@ public class SatisfiesEdgeService {
                 LOG.error("Failed to persist SATISFIES edges async for procedure: {}", executedProcedureId, e);
             }
         });
+    }
+
+    /**
+     * Returns the prerequisite phrases of the given atomic step that are not yet satisfied by either:
+     * <ul>
+     *   <li>an existing SATISFIES edge from any of the previously executed procedures, or</li>
+     *   <li>a current-run effect node that is semantically similar (vector fallback for async-persisted edges).</li>
+     * </ul>
+     */
+    public List<String> findUnsatisfiedPrerequisites(UUID atomicStepId, List<UUID> executedProcedureIds, Set<UUID> effectNodeIds) {
+        return satisfiesEdgeRepository.findUnsatisfiedPrerequisites(
+                atomicStepId, executedProcedureIds, effectNodeIds, config.getSatisfiesSimilarityThreshold());
     }
 
     public boolean hasSatisfiesEdges() {
