@@ -142,4 +142,20 @@ class SatisfiesEdgeServiceTest {
         assertThat(edges).hasSize(1);
         assertThat(edges.get(0).score()).isEqualTo(0.95);
     }
+
+    @Test
+    @DisplayName("findUnsatisfiedPrerequisites should delegate to repository")
+    void findUnsatisfiedPrerequisites_shouldDelegateToRepository() {
+        UUID stepId = UUID.randomUUID();
+        java.util.Set<UUID> effectIds = java.util.Set.of(UUID.randomUUID(), UUID.randomUUID());
+        List<String> expectedMissing = List.of("missing prereq 1");
+
+        when(mockSatisfiesEdgeRepository.findUnsatisfiedPrerequisites(eq(stepId), eq(effectIds), anyDouble()))
+                .thenReturn(expectedMissing);
+
+        List<String> actualMissing = satisfiesEdgeService.findUnsatisfiedPrerequisites(stepId, effectIds);
+
+        assertThat(actualMissing).isEqualTo(expectedMissing);
+        verify(mockSatisfiesEdgeRepository).findUnsatisfiedPrerequisites(eq(stepId), eq(effectIds), anyDouble());
+    }
 }

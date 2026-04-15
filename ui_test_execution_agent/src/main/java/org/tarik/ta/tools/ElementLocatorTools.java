@@ -138,8 +138,8 @@ public class ElementLocatorTools extends UiAbstractTools {
         try {
             var uiElement = uiElementCache.get(elementId)
                     .or(() -> elementRepository.findById(elementId))
-                    .orElseThrow(() -> new ToolExecutionException("UI element with id %s not found in the database".formatted(elementId),
-                            TRANSIENT_TOOL_ERROR));
+                    .orElseThrow(() -> new ElementLocationException("UI element with id %s not found in the database".formatted(elementId),
+                            ElementLocationStatus.NO_ELEMENTS_FOUND_IN_DB));
             LOG.info("Retrieved UiElement '{}' by UUID {}, proceeding with on-screen location", uiElement.name(), elementId);
             long startMs = System.currentTimeMillis();
             try {

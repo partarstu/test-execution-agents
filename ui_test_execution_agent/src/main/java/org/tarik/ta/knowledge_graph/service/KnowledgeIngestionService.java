@@ -161,10 +161,8 @@ public class KnowledgeIngestionService {
     public void deleteProcedure(UUID procedureId) {
         requireNonNull(procedureId, "procedureId");
         LOG.info("Deleting procedure with id={}", procedureId);
-        var candidateUiElementIds = procedureRepository.findAllTargetedUiElementIds(procedureId);
         phraseEmbeddingRepository.deleteForProcedure(procedureId);
         procedureRepository.deleteProcedure(procedureId);
-        procedureRepository.deleteUiElementsIfOrphaned(candidateUiElementIds);
         decompositionService.invalidateCache();
         LOG.info("Procedure deleted successfully: id={}", procedureId);
     }
@@ -314,15 +312,13 @@ public class KnowledgeIngestionService {
                 Embedding embedding = embeddingIterator.next();
 
                 if (existingId != null) {
-                    var candidateUiElementIds = procedureRepository.findAllTargetedUiElementIds(currentId);
                     procedureRepository.deleteTargets(currentId);
                     final UUID idForTx = currentId;
                     repositorySupport.executeComplexWriteQuery(tx -> {
-                        procedureRepository.deleteDescendants(idForTx, tx);
+                        procedureRepository.removeContainsRelationships(idForTx, tx);
                         satisfiesEdgeRepository.deleteSatisfiesEdges(idForTx, tx);
                     });
                     procedureRepository.update(procedure, embedding.vector());
-                    procedureRepository.deleteUiElementsIfOrphaned(candidateUiElementIds);
                 } else {
                     if (parentId != null) {
                         procedureRepository.saveWithParent(procedure, embedding.vector(), parentId, sequence);

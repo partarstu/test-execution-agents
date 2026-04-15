@@ -74,10 +74,6 @@ public class SatisfiesEdgeRepository {
             """);
         this.FIND_UNSATISFIED_PREREQUISITES = repositorySupport.cypher("""
             MATCH (consumer:${LABEL_PROCEDURE} {${PROP_ID}: $consumerId})-[:${REL_HAS_PREREQUISITE}]->(prereq:${LABEL_PHRASE_EMBEDDING})
-            WHERE NOT EXISTS {
-                MATCH (prod:${LABEL_PROCEDURE})-[:${REL_SATISFIES} {${PROP_PREREQUISITE_NODE_ID}: prereq.${PROP_ID}}]->(consumer)
-                WHERE prod.${PROP_ID} IN $producerIds
-            }
             CALL {
                 WITH prereq
                 CALL db.index.vector.queryNodes($indexName, $topN, prereq.${PROP_EMBEDDING})
@@ -85,6 +81,7 @@ public class SatisfiesEdgeRepository {
                 WHERE score >= $threshold AND effNode.${PROP_ID} IN $effectNodeIds
                 RETURN count(effNode) > 0 AS metByVector
             }
+            WITH prereq, metByVector
             WHERE NOT metByVector
             RETURN prereq.${PROP_PHRASE} AS phrase
             """);
@@ -163,19 +160,15 @@ public class SatisfiesEdgeRepository {
     }
 
     /**
-     * Returns the prerequisite phrases of the given consumer procedure that are not yet satisfied by
-     * any SATISFIES edge from the executed producers, and also not covered by the accumulated effects
-     * via vector similarity (fallback for async-persisted edges not yet committed).
+     * Returns the prerequisite phrases of the given consumer procedure that are not yet covered by
+     * the accumulated effects via vector similarity.
      */
-    public List<String> findUnsatisfiedPrerequisites(UUID consumerId, List<UUID> producerIds, Set<UUID> effectNodeIds, double threshold) {
+    public List<String> findUnsatisfiedPrerequisites(UUID consumerId, Set<UUID> effectNodeIds, double threshold) {
         requireNonNull(consumerId, "consumerId");
-        requireNonNull(producerIds, "producerIds");
         requireNonNull(effectNodeIds, "effectNodeIds");
-        var producerIdStrings = producerIds.stream().map(UUID::toString).toList();
         var effectIdStrings = effectNodeIds.stream().map(UUID::toString).toList();
         return repositorySupport.executeSingleReadQuery(FIND_UNSATISFIED_PREREQUISITES, Map.of(
                 "consumerId", consumerId.toString(),
-                "producerIds", producerIdStrings,
                 "effectNodeIds", effectIdStrings,
                 "indexName", VECTOR_INDEX_NAME,
                 "topN", UNSATISFIED_TOP_N,

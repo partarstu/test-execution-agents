@@ -55,8 +55,8 @@ public class VerificationTools {
     }
 
     public VerificationExecutionResult verifyTestStep(String verificationDescription, String actionDescription,
-                                                             String actionTestData, UiTestExecutionContext context,
-                                                             UiTestStepVerificationAgent verificationAgent) {
+                                                      String actionTestData, UiTestExecutionContext context,
+                                                      UiTestStepVerificationAgent verificationAgent) {
 
         LOG.info("Starting the retriable verification that: '{}'", verificationDescription);
         Supplier<Result<?>> operation = () -> {
@@ -68,11 +68,9 @@ public class VerificationTools {
         return executeVerificationWithRetry(verificationAgent, operation, "Verification");
     }
 
-    public VerificationExecutionResult verifyPrecondition(
-            String preconditionDescription,
-            UiTestExecutionContext context,
-            UiPreconditionVerificationAgent preconditionVerificationAgent,
-            String relevantData) {
+    public VerificationExecutionResult verifyPrecondition(String preconditionDescription, UiTestExecutionContext context,
+                                                          UiPreconditionVerificationAgent preconditionVerificationAgent,
+                                                          String relevantData) {
 
         LOG.info("Verifying if precondition was successfully executed: '{}'", preconditionDescription);
         Supplier<Result<?>> operation = () -> {

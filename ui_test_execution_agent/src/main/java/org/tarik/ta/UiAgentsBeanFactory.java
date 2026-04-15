@@ -105,7 +105,7 @@ class UiAgentsBeanFactory {
                 uiTestAgentConfig.getTestStepVerificationAgentModelProvider(),
                 uiTestAgentConfig.getVerificationModelMaxRetries());
         var prompt = loadSystemPrompt("test_step/verifier", uiTestAgentConfig.getTestStepVerificationAgentPromptVersion(),
-                "main_verification_prompt.txt");
+                "verification_execution_prompt.txt");
         var agentBuilder = builder(UiTestStepVerificationAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)

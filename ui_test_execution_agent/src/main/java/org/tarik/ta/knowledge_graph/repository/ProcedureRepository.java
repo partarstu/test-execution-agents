@@ -127,16 +127,6 @@ public class ProcedureRepository {
                 n.${PROP_CREATED_AT} = $createdAt,
                 n.${PROP_UPDATED_AT} = $updatedAt
             """);
-        this.DELETE_ORPHAN_DESCENDANTS = repositorySupport.cypher("""
-            MATCH (root:${LABEL_PROCEDURE} {${PROP_ID}: $rootId})-[:${REL_CONTAINS}*1..]->(desc:${LABEL_PROCEDURE})
-            WITH root, collect(desc) AS subtree
-            UNWIND subtree AS desc
-            WITH desc, root, subtree,
-                 size([(extP:${LABEL_PROCEDURE})-[:${REL_CONTAINS}]->(desc)
-                       WHERE NOT extP IN subtree AND extP <> root | extP]) AS extParentCount
-            WHERE extParentCount = 0
-            DETACH DELETE desc
-            """);
         this.REMOVE_REMAINING_CONTAINS = repositorySupport.cypher("""
             MATCH (root:${LABEL_PROCEDURE} {${PROP_ID}: $rootId})-[r:${REL_CONTAINS}]->()
             DELETE r
@@ -153,17 +143,6 @@ public class ProcedureRepository {
         this.DELETE_TARGETS = repositorySupport.cypher("""
             MATCH (sp:${LABEL_PROCEDURE} {${PROP_ID}: $spId})-[r:${REL_TARGETS}]->()
             DELETE r
-            """);
-        this.FIND_ALL_TARGETED_UI_ELEMENT_IDS = repositorySupport.cypher("""
-            MATCH (sp:${LABEL_PROCEDURE} {${PROP_ID}: $spId})-[:${REL_CONTAINS}*0..]->(desc:${LABEL_PROCEDURE})
-                  -[:${REL_TARGETS}]->(el:${LABEL_UI_ELEMENT})
-            RETURN DISTINCT el.${PROP_ID} AS elementId
-            """);
-        this.DELETE_ORPHANED_UI_ELEMENTS = repositorySupport.cypher("""
-            UNWIND $ids AS id
-            MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: id})
-            WHERE NOT ()-[:${REL_TARGETS}]->(el)
-            DELETE el
             """);
         this.FIND_SHARED_PARENT_COUNT = repositorySupport.cypher("""
             MATCH (candidate:${LABEL_PROCEDURE} {${PROP_ID}: $candidateId})<-[:${REL_CONTAINS}]-(parent:${LABEL_PROCEDURE})
@@ -283,8 +262,6 @@ public class ProcedureRepository {
 
     private final String UPDATE_PROCEDURE;
 
-    private final String DELETE_ORPHAN_DESCENDANTS;
-
     private final String REMOVE_REMAINING_CONTAINS;
 
     private final String LINK_TO_UI_ELEMENT;
@@ -292,10 +269,6 @@ public class ProcedureRepository {
     private final String FIND_TARGETED_UI_ELEMENT_ID;
 
     private final String DELETE_TARGETS;
-
-    private final String FIND_ALL_TARGETED_UI_ELEMENT_IDS;
-
-    private final String DELETE_ORPHANED_UI_ELEMENTS;
 
     private final String FIND_SHARED_PARENT_COUNT;
 
@@ -568,15 +541,11 @@ public class ProcedureRepository {
     }
 
     /**
-     * Orphan-aware descendant deletion. Deletes all descendants reachable only via this root
-     * (i.e. those with no parents outside the subtree), then removes any remaining {@code CONTAINS}
-     * edges from the root to preserved (multi-parented) children.
-     *
-     * <p>Replaces a recursive O(n) multi-session Java algorithm with 2 Cypher queries in a single transaction.</p>
+     * Removes any existing {@code CONTAINS} edges from the root procedure to its children.
+     * Child procedures are preserved per the requirement that they may be reused.
      */
-    public void deleteDescendants(UUID procedureId, TransactionContext tx) {
+    public void removeContainsRelationships(UUID procedureId, TransactionContext tx) {
         requireNonNull(procedureId, "procedureId");
-        tx.run(DELETE_ORPHAN_DESCENDANTS, Map.of(PARAM_ROOT_ID, procedureId.toString())).consume();
         tx.run(REMOVE_REMAINING_CONTAINS, Map.of(PARAM_ROOT_ID, procedureId.toString())).consume();
     }
 
@@ -588,33 +557,6 @@ public class ProcedureRepository {
         requireNonNull(id, "id");
         repositorySupport.executeSingleWriteQuery(DELETE_PROCEDURE, Map.of(PROP_ID, id.toString()));
         LOG.info("Deleted Procedure with id={}", id);
-    }
-
-    /**
-     * Returns all UI element IDs targeted by the given procedure itself or by any of its atomic descendants
-     * via {@code TARGETS} relationships. Used to collect candidates for orphan cleanup before deletion.
-     */
-    public Set<UUID> findAllTargetedUiElementIds(UUID procedureId) {
-        requireNonNull(procedureId, "procedureId");
-        return repositorySupport.executeSingleReadQuery(FIND_ALL_TARGETED_UI_ELEMENT_IDS, Map.of(PARAM_SP_ID, procedureId.toString()))
-                .stream()
-                .map(r -> r.get(ALIAS_ELEMENT_ID))
-                .filter(v -> !v.isNull())
-                .map(v -> UUID.fromString(v.asString()))
-                .collect(Collectors.toSet());
-    }
-
-    /**
-     * Deletes any UI element node from {@code candidateIds} that is no longer targeted by any atomic
-     * procedure. Safe to call after deleting {@code TARGETS} relationships or procedure nodes.
-     */
-    public void deleteUiElementsIfOrphaned(Collection<UUID> candidateIds) {
-        if (candidateIds.isEmpty()) {
-            return;
-        }
-        var ids = candidateIds.stream().map(UUID::toString).toList();
-        repositorySupport.executeSingleWriteQuery(DELETE_ORPHANED_UI_ELEMENTS, Map.of(PARAM_IDS, ids));
-        LOG.debug("Checked and cleaned orphan UI elements from candidates: {}", candidateIds);
     }
 
     public int findSharedParentCount(UUID candidateId, Set<UUID> recentParentIds) {

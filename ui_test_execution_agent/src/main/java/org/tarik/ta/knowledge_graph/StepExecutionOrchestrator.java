@@ -52,6 +52,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.time.Instant.now;
 import static java.util.stream.Collectors.joining;
@@ -105,7 +106,7 @@ public class StepExecutionOrchestrator {
                                        UiTestExecutionContext context,
                                        List<UiTestStepResult> testStepResults,
                                        List<UiPreconditionResult> preconditionResults,
-                                       AtomicStepExecutionContext execContext) {
+                                       AtomicStepExecutionContext stepExecutionContext) {
         try {
             return switch (item) {
                 case PreconditionItem ignored -> {
@@ -113,7 +114,7 @@ public class StepExecutionOrchestrator {
                             ? atomicStep.testData().stream().map(Object::toString).collect(joining(", "))
                             : "";
                     var relevantData = atomicStep.expectedResults() != null ? atomicStep.expectedResults() : "";
-                    var result = executeSinglePrecondition(context, atomicStep, testData, relevantData, execContext);
+                    var result = executeSinglePrecondition(context, atomicStep, testData, relevantData, stepExecutionContext);
                     preconditionResults.add(result);
                     yield result.isSuccess()
                             ? new AtomicStepResult.Success()
@@ -126,7 +127,7 @@ public class StepExecutionOrchestrator {
                     List<String> effectiveTestData = hasTestStepData ? testStep.testData()
                             : (atomicStep.testData() != null ? atomicStep.testData() : List.of());
                     var testDataString = effectiveTestData.stream().map(Object::toString).collect(joining(", "));
-                    var stepResult = executeSingleTestStep(context, testStep, atomicStep, testDataString, execContext);
+                    var stepResult = executeSingleTestStep(context, testStep, atomicStep, testDataString, stepExecutionContext);
                     testStepResults.add(stepResult);
                     yield switch (stepResult.getExecutionStatus()) {
                         case SUCCESS -> new AtomicStepResult.Success();
@@ -157,12 +158,16 @@ public class StepExecutionOrchestrator {
                                                        List<UiTestStepResult> testStepResults,
                                                        List<UiPreconditionResult> preconditionResults,
                                                        List<Procedure> executedAtomics,
-                                                       AtomicStepExecutionContext execContext) {
+                                                       AtomicStepExecutionContext stepExecutionContext,
+                                                       Function<Procedure, AtomicStepExecutionContext> contextFactory) {
         boolean isPreconditionItem = item instanceof PreconditionItem;
         String itemDescription = item.getDescription();
         List<String> itemTestData = item.getTestData();
         String itemExpectedResults = item.getExpectedResults();
         var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
+        // currentExecContext is rebuilt whenever atomicStep changes (e.g. after a supervised-mode halt+edit),
+        // ensuring the agent always sees the latest TARGETS relationship and element details.
+        var currentExecContext = stepExecutionContext;
 
         // Step execution loop, automatically run only once, retry is invoked only if the user chooses to do so.
         while (true) {
@@ -176,6 +181,7 @@ public class StepExecutionOrchestrator {
                     }
                     case PreExecutionCheckResult.Proceed r -> {
                         atomicStep = r.procedure();
+                        currentExecContext = contextFactory.apply(atomicStep);
                         context.setVisualState(new VisualState(captureScreen()));
                     }
                 }
@@ -186,7 +192,7 @@ public class StepExecutionOrchestrator {
             int preconditionResultsSizeBefore = preconditionResults.size();
 
             // Execution
-            var result = executeAtomicStep(item, atomicStep, context, testStepResults, preconditionResults, execContext);
+            var result = executeAtomicStep(item, atomicStep, context, testStepResults, preconditionResults, currentExecContext);
 
             // Handling result — short-circuit in unattended mode
             if (uiTestAgentConfig.isFullyUnattended()) {
@@ -204,6 +210,7 @@ public class StepExecutionOrchestrator {
                         testStepResults.subList(testResultsSizeBefore, testStepResults.size()).clear();
                         preconditionResults.subList(preconditionResultsSizeBefore, preconditionResults.size()).clear();
                         atomicStep = r.procedure();
+                        currentExecContext = contextFactory.apply(atomicStep);
                         context.setVisualState(new VisualState(captureScreen()));
                     }
                     case PostExecutionCheckResult.TerminalOutcome r -> {
@@ -365,7 +372,7 @@ public class StepExecutionOrchestrator {
                                                    Procedure precondition,
                                                    String testDataString,
                                                    String relevantData,
-                                                   AtomicStepExecutionContext execContext) {
+                                                   AtomicStepExecutionContext stepExecutionContext) {
         var executionStartTimestamp = now();
         LOG.info("Executing precondition: {}", precondition.description());
         var screenshot = captureScreen();
@@ -373,7 +380,7 @@ public class StepExecutionOrchestrator {
         var preconditionExecutionResult = preconditionActionAgent.executeAndGetResult(
                 () -> {
                     String userMessage = getPreconditionExecutionUserMessage(context, precondition, testDataString, relevantData,
-                            execContext.uiElementId(), execContext.failureHints(), execContext.targetElement());
+                            stepExecutionContext.uiElementId(), stepExecutionContext.failureHints(), stepExecutionContext.targetElement());
                     return preconditionActionAgent.execute(userMessage, singleImageContent(screenshot));
                 });
         budgetManager.resetToolCallUsage();
@@ -389,7 +396,7 @@ public class StepExecutionOrchestrator {
         long actionDurationMs = java.time.Duration.between(executionStartTimestamp, now()).toMillis();
         LOG.info("Verifying if precondition was successfully executed.");
         var verificationResult = verificationTools.verifyPrecondition(
-                precondition.description(), context, preconditionVerificationAgent, execContext.effectiveExpectedResults());
+                precondition.description(), context, preconditionVerificationAgent, stepExecutionContext.effectiveExpectedResults());
         budgetManager.resetToolCallUsage();
 
         if (verificationResult == null) {
@@ -404,7 +411,7 @@ public class StepExecutionOrchestrator {
                     context.getVisualState().screenshot(), executionStartTimestamp, now());
         }
         LOG.info("Precondition '{}' is met.", precondition.description());
-        execContext.timingRecorder().record(precondition.id(), actionDurationMs, 0);
+        stepExecutionContext.timingRecorder().record(precondition.id(), actionDurationMs, 0);
         return new UiPreconditionResult(precondition.description(), true, null, null, executionStartTimestamp, now());
     }
 
@@ -493,7 +500,7 @@ public class StepExecutionOrchestrator {
     }
 
     UiTestStepResult executeSingleTestStep(UiTestExecutionContext context, TestStep testStep, Procedure atomic,
-                                           String testDataString, AtomicStepExecutionContext execContext) {
+                                           String testDataString, AtomicStepExecutionContext stepExecutionContext) {
         var actionInstruction = atomic.description();
         try {
             var executionStartTimestamp = now();
@@ -501,8 +508,8 @@ public class StepExecutionOrchestrator {
             var screenshot = captureScreen();
             context.setVisualState(new VisualState(screenshot));
             var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) testStepActionAgent.executeAndGetResult(() -> {
-                String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, execContext.uiElementId(),
-                        execContext.failureHints(), execContext.targetElement());
+                String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, stepExecutionContext.uiElementId(),
+                        stepExecutionContext.failureHints(), stepExecutionContext.targetElement());
                 return testStepActionAgent.execute(userMessage, singleImageContent(screenshot));
             }));
             budgetManager.resetToolCallUsage();
@@ -518,16 +525,16 @@ public class StepExecutionOrchestrator {
             long actionDurationMs = java.time.Duration.between(executionStartTimestamp, now()).toMillis();
 
             var verificationInstruction =
-                    execContext.effectiveExpectedResults() != null ? execContext.effectiveExpectedResults().trim() : "";
+                    stepExecutionContext.effectiveExpectedResults() != null ? stepExecutionContext.effectiveExpectedResults().trim() : "";
 
             boolean verificationNeeded = isNotBlank(verificationInstruction)
                     && !verificationInstruction.equalsIgnoreCase("null");
 
             if (verificationNeeded) {
                 return verifyTestStep(context, testStep, atomic, actionInstruction, testDataString,
-                        executionStartTimestamp, actionDurationMs, execContext);
+                        executionStartTimestamp, actionDurationMs, stepExecutionContext);
             } else {
-                execContext.timingRecorder().record(atomic.id(), actionDurationMs, 0);
+                stepExecutionContext.timingRecorder().record(atomic.id(), actionDurationMs, 0);
                 return new UiTestStepResult(testStep, SUCCESS, null, "No verification required", null,
                         executionStartTimestamp, now());
             }
@@ -563,16 +570,16 @@ public class StepExecutionOrchestrator {
     private UiTestStepResult verifyTestStep(UiTestExecutionContext context, TestStep testStep, Procedure atomic,
                                             String actionInstruction, String testDataString,
                                             Instant executionStartTimestamp, long actionDurationMs,
-                                            AtomicStepExecutionContext execContext) {
+                                            AtomicStepExecutionContext stepExecutionContext) {
         String verificationInstruction =
-                execContext.effectiveExpectedResults() != null ? execContext.effectiveExpectedResults().trim() : "";
+                stepExecutionContext.effectiveExpectedResults() != null ? stepExecutionContext.effectiveExpectedResults().trim() : "";
         LOG.info("Verifying that '{}'", verificationInstruction);
 
         long delayMs = TimingProfile.computeDelay(
-                execContext.timingProfile(), uiTestAgentConfig.getTimingVerificationMinDelayMs(), actionVerificationDelayMillis
+                stepExecutionContext.timingProfile(), uiTestAgentConfig.getTimingVerificationMinDelayMs(), actionVerificationDelayMillis
         );
         LOG.debug("Verification delay for '{}': {}ms ({})", atomic.description(), delayMs,
-                execContext.timingProfile() != null ? "profile-driven" : "fallback default");
+                stepExecutionContext.timingProfile() != null ? "profile-driven" : "fallback default");
         sleepMillis(delayMs);
 
         var verificationResult = verificationTools.verifyTestStep(
@@ -594,7 +601,7 @@ public class StepExecutionOrchestrator {
                     verificationResult.message(), context.getVisualState().screenshot(), executionStartTimestamp, now());
         } else {
             LOG.info("Verification succeeded.");
-            execContext.timingRecorder().record(atomic.id(), actionDurationMs, delayMs);
+            stepExecutionContext.timingRecorder().record(atomic.id(), actionDurationMs, delayMs);
             return new UiTestStepResult(testStep, SUCCESS, null, verificationResult.message(), null,
                     executionStartTimestamp, now());
         }

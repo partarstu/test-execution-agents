@@ -26,8 +26,11 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.exceptions.ElementLocationException;
 import org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus;
+
+import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -82,5 +85,26 @@ class UiToolErrorHandlerTest {
 
         assertThatThrownBy(() -> uiToolErrorHandler.handle(ex, mockContext))
                 .isSameAs(ex);
+    }
+
+    @Test
+    @DisplayName("handle should throw transient ToolExecutionException immediately in supervised mode")
+    void handle_shouldThrowImmediately_whenTransientToolExceptionAndSupervised() {
+        lenient().when(configMock.isSupervised()).thenReturn(true);
+        ToolExecutionException ex = new ToolExecutionException("tool failed", TRANSIENT_TOOL_ERROR);
+
+        assertThatThrownBy(() -> uiToolErrorHandler.handle(ex, mockContext))
+                .isSameAs(ex);
+    }
+
+    @Test
+    @DisplayName("handle should pass transient ToolExecutionException back to agent in unattended mode")
+    void handle_shouldPassToAgent_whenTransientToolExceptionAndUnattended() {
+        lenient().when(configMock.isSupervised()).thenReturn(false);
+        ToolExecutionException ex = new ToolExecutionException("tool failed", TRANSIENT_TOOL_ERROR);
+
+        ToolErrorHandlerResult result = uiToolErrorHandler.handle(ex, mockContext);
+
+        assertThat(result).isNotNull();
     }
 }

@@ -77,15 +77,12 @@ public class SatisfiesEdgeService {
     }
 
     /**
-     * Returns the prerequisite phrases of the given atomic step that are not yet satisfied by either:
-     * <ul>
-     *   <li>an existing SATISFIES edge from any of the previously executed procedures, or</li>
-     *   <li>a current-run effect node that is semantically similar (vector fallback for async-persisted edges).</li>
-     * </ul>
+     * Returns the prerequisite phrases of the given atomic step that are not yet satisfied by
+     * a current-run effect node that is semantically similar.
      */
-    public List<String> findUnsatisfiedPrerequisites(UUID atomicStepId, List<UUID> executedProcedureIds, Set<UUID> effectNodeIds) {
+    public List<String> findUnsatisfiedPrerequisites(UUID atomicStepId, Set<UUID> effectNodeIds) {
         return satisfiesEdgeRepository.findUnsatisfiedPrerequisites(
-                atomicStepId, executedProcedureIds, effectNodeIds, config.getSatisfiesSimilarityThreshold());
+                atomicStepId, effectNodeIds, config.getSatisfiesSimilarityThreshold());
     }
 
     public boolean hasSatisfiesEdges() {

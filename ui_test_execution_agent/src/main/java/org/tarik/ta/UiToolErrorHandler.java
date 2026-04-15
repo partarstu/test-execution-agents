@@ -64,7 +64,7 @@ class UiToolErrorHandler extends DefaultToolErrorHandler {
                 };
             }
             case ToolExecutionException toolExecutionException -> {
-                if (getTerminalErrors().contains(toolExecutionException.getErrorCategory())) {
+                if (config.isSupervised() || getTerminalErrors().contains(toolExecutionException.getErrorCategory())) {
                     throw toolExecutionException;
                 } else {
                     return handleRetryableToolError(toolExecutionException.getMessage());

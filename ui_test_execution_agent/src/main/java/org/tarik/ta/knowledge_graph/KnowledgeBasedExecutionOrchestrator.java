@@ -36,7 +36,6 @@ import org.tarik.ta.knowledge_graph.execution.ExecutionItem.TestStepItem;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
-import org.tarik.ta.knowledge_graph.timing.TimingRecorder;
 import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.user_dialogs.*;
@@ -51,6 +50,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static java.time.Instant.now;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
@@ -174,8 +175,8 @@ public class KnowledgeBasedExecutionOrchestrator {
         showTestDataOverrideWarningIfNeeded(item, item.getTestData(), atomicSteps);
         var testStepResults = new ArrayList<UiTestStepResult>();
         var preconditionResults = new ArrayList<UiPreconditionResult>();
-        var loopOutcome =
-                executeAtomicStepsLoop(item, procedure, atomicSteps, testCase, context, stateTracker, testStepResults, preconditionResults);
+        var loopOutcome = executeHierarchically(procedure, item, testCase, context, stateTracker, testStepResults, preconditionResults,
+                new AtomicInteger(0), atomicSteps.size(), atomicSteps.size() == 1, null, 0);
         if (loopOutcome == AtomicLoopOutcome.TERMINATE) {
             if (item instanceof TestStepItem(TestStep testStep)) {
                 context.addStepResult(mergeAtomicResults(testStep, testStepResults));
@@ -236,7 +237,6 @@ public class KnowledgeBasedExecutionOrchestrator {
             var topCandidate = match.allMatches().getFirst();
             var missing = satisfiesEdgeService.findUnsatisfiedPrerequisites(
                     topCandidate.procedure().id(),
-                    stateTracker.getExecutedAtomicProcedures().stream().map(Procedure::id).toList(),
                     stateTracker.getEffectNodeIds());
             return new ProcedureLookup.NeedsUserResolution(match, missing);
         }
@@ -273,84 +273,105 @@ public class KnowledgeBasedExecutionOrchestrator {
         }
     }
 
-    private AtomicLoopOutcome executeAtomicStepsLoop(ExecutionItem item, Procedure procedure, List<Procedure> atomicSteps,
-                                                     TestCase testCase, UiTestExecutionContext context,
-                                                     ExecutionStateTracker stateTracker,
-                                                     List<UiTestStepResult> testStepResults,
-                                                     List<UiPreconditionResult> preconditionResults) {
-        int totalAtomics = atomicSteps.size();
-        for (int i = 0; i < totalAtomics; i++) {
-            Procedure atomicStep = atomicSteps.get(i);
-            var missing = satisfiesEdgeService.findUnsatisfiedPrerequisites(
-                    atomicStep.id(),
-                    stateTracker.getExecutedAtomicProcedures().stream().map(Procedure::id).toList(),
-                    stateTracker.getEffectNodeIds());
-            if (!missing.isEmpty()) {
-                var reason = "Atomic step '%s' skipped — prerequisites not satisfied: %s"
-                        .formatted(atomicStep.description(), missing);
-                LOG.warn(reason);
-                if (uiTestAgentConfig.isFullyUnattended()) {
-                    recordFailure(context, item, item.getDescription(), reason);
-                } else {
-                    InformationalPopup.display("Prerequisites Not Satisfied", reason, null, WARNING, uiTestAgentConfig);
-                }
-                break;
+    private AtomicLoopOutcome executeAtomicLeaf(ExecutionItem item, Procedure atomicStep, @Nullable Procedure directParent,
+                                                TestCase testCase, UiTestExecutionContext context,
+                                                ExecutionStateTracker stateTracker,
+                                                List<UiTestStepResult> testStepResults,
+                                                List<UiPreconditionResult> preconditionResults,
+                                                boolean isSingle, boolean isLast) {
+        var missing = satisfiesEdgeService.findUnsatisfiedPrerequisites(
+                atomicStep.id(),
+                stateTracker.getEffectNodeIds());
+        if (!missing.isEmpty()) {
+            var reason = "Atomic step '%s' skipped — prerequisites not satisfied: %s"
+                    .formatted(atomicStep.description(), missing);
+            LOG.warn(reason);
+            if (uiTestAgentConfig.isFullyUnattended()) {
+                recordFailure(context, item, item.getDescription(), reason);
+            } else {
+                InformationalPopup.display("Prerequisites Not Satisfied", reason, null, WARNING, uiTestAgentConfig);
             }
-
-            String targetElementId = knowledgeService.findTargetedUiElementId(atomicStep.id())
-                    .map(UUID::toString)
-                    .orElse(null);
-            UiElement targetElement = targetElementId != null
-                    ? uiElementCache.get(UUID.fromString(targetElementId)).orElse(null)
-                    : null;
-            if (targetElementId == null) {
-                LOG.debug("No target UI element linked to procedure '{}' — proceeding without element hint",
-                        atomicStep.description());
-            }
-
-            boolean isSingle = totalAtomics == 1;
-            boolean isLast = (i == totalAtomics - 1);
-            String effectiveExpectedResults = computeEffectiveExpectedResults(item, atomicStep, isSingle, isLast);
-
-            TimingRecorder timingRecorder = knowledgeService::updateTimingProfile;
-            var failureHints = failureContextService.findFailureHints(atomicStep.id());
-            var execContext = new AtomicStepExecutionContext(
-                    atomicStep.timingProfile(),
-                    timingRecorder,
-                    failureHints,
-                    targetElementId,
-                    effectiveExpectedResults,
-                    targetElement
-            );
-
-            var loopOutcome = stepExecutionOrchestrator.executeAtomicStepWithRetryLoop(item, atomicStep,
-                    testCase, procedure.isAtomic() ? null : procedure, context,
-                    testStepResults, preconditionResults,
-                    stateTracker.getExecutedAtomicProcedures(), execContext);
-
-            if (loopOutcome == UserDecisionOutcome.TERMINATE_EXECUTION) {
-                LOG.error("Terminating execution after failure of atomic procedure '{}'", atomicStep.description());
-                captureFailureContext(atomicStep, testStepResults, preconditionResults);
-                return AtomicLoopOutcome.TERMINATE;
-            }
-            if (loopOutcome == UserDecisionOutcome.RE_DECOMPOSE_AND_RETRY) {
-                LOG.info("Atomic step '{}' was edited to composite — re-injecting item for re-decomposition",
-                        atomicStep.description());
-                return AtomicLoopOutcome.RE_DECOMPOSE;
-            }
-
-            var graphEffects = knowledgeService.findEffectsForProcedure(atomicStep.id());
-            stateTracker.addEffects(graphEffects);
-            if (graphEffects.isEmpty() && !atomicStep.effects().isEmpty()) {
-                LOG.warn("No HAS_EFFECT phrase nodes found for '{}' (id={}) — falling back to string-only state " +
-                                "tracking; prerequisite semantic matching will be degraded for subsequent steps",
-                        atomicStep.description(), atomicStep.id());
-                stateTracker.addEffectPhrases(atomicStep.effects());
-            }
-            satisfiesEdgeService.persistSatisfiesEdgesAsync(atomicStep.id());
-            stateTracker.addExecutedAtomicProcedure(atomicStep);
+            return AtomicLoopOutcome.TERMINATE;
         }
+
+        Function<Procedure, AtomicStepExecutionContext> contextFactory = p -> buildExecContext(p, item, isSingle, isLast);
+        var execContext = contextFactory.apply(atomicStep);
+
+        var loopOutcome = stepExecutionOrchestrator.executeAtomicStepWithRetryLoop(item, atomicStep,
+                testCase, directParent, context,
+                testStepResults, preconditionResults,
+                stateTracker.getExecutedAtomicProcedures(), execContext, contextFactory);
+
+        if (loopOutcome == UserDecisionOutcome.TERMINATE_EXECUTION) {
+            LOG.error("Terminating execution after failure of atomic procedure '{}'", atomicStep.description());
+            captureFailureContext(atomicStep, testStepResults, preconditionResults);
+            return AtomicLoopOutcome.TERMINATE;
+        }
+        if (loopOutcome == UserDecisionOutcome.RE_DECOMPOSE_AND_RETRY) {
+            LOG.info("Atomic step '{}' was edited to composite — re-injecting item for re-decomposition",
+                    atomicStep.description());
+            return AtomicLoopOutcome.RE_DECOMPOSE;
+        }
+
+        var graphEffects = knowledgeService.findEffectsForProcedure(atomicStep.id());
+        stateTracker.addEffects(graphEffects);
+        satisfiesEdgeService.persistSatisfiesEdgesAsync(atomicStep.id());
+        stateTracker.addExecutedAtomicProcedure(atomicStep);
+
         return AtomicLoopOutcome.COMPLETED;
+    }
+
+    private AtomicStepExecutionContext buildExecContext(Procedure atomicStep, ExecutionItem item, boolean isSingle, boolean isLast) {
+        String targetElementId = knowledgeService.findTargetedUiElementId(atomicStep.id())
+                .map(UUID::toString)
+                .orElse(null);
+        UiElement targetElement = targetElementId != null
+                ? uiElementCache.get(UUID.fromString(targetElementId)).orElse(null)
+                : null;
+        if (targetElementId == null) {
+            LOG.debug("No target UI element linked to procedure '{}' — proceeding without element hint",
+                    atomicStep.description());
+        }
+        return new AtomicStepExecutionContext(
+                atomicStep.timingProfile(),
+                knowledgeService::updateTimingProfile,
+                failureContextService.findFailureHints(atomicStep.id()),
+                targetElementId,
+                computeEffectiveExpectedResults(item, atomicStep, isSingle, isLast),
+                targetElement
+        );
+    }
+
+    private AtomicLoopOutcome executeHierarchically(Procedure procedure, ExecutionItem item, TestCase testCase,
+                                                    UiTestExecutionContext context, ExecutionStateTracker stateTracker,
+                                                    List<UiTestStepResult> testStepResults,
+                                                    List<UiPreconditionResult> preconditionResults,
+                                                    AtomicInteger atomicCounter,
+                                                    int totalAtomics, boolean isSingle, @Nullable Procedure directParent, int depth) {
+        String indent = "  ".repeat(depth);
+        if (procedure.isAtomic()) {
+            LOG.info("{}→ Executing atomic: '{}' ({}/{})", indent, procedure.description(), atomicCounter.get() + 1, totalAtomics);
+            boolean isLast = atomicCounter.getAndIncrement() == totalAtomics - 1;
+            return executeAtomicLeaf(item, procedure, directParent, testCase, context, stateTracker,
+                    testStepResults, preconditionResults, isSingle, isLast);
+        } else {
+            LOG.info("{}→ Entering composite: '{}'", indent, procedure.description());
+            stateTracker.enterCompositeScope(procedure);
+            var children = knowledgeService.getChildren(procedure.id());
+            for (Procedure child : children) {
+                var outcome = executeHierarchically(child, item, testCase, context, stateTracker,
+                        testStepResults, preconditionResults, atomicCounter, totalAtomics, isSingle, procedure, depth + 1);
+                if (outcome != AtomicLoopOutcome.COMPLETED) {
+                    stateTracker.abandonCompositeScope();
+                    LOG.info("{}← Abandoned composite scope: '{}'", indent, procedure.description());
+                    return outcome;
+                }
+            }
+            var graphEffects = knowledgeService.findEffectsForProcedure(procedure.id());
+            stateTracker.closeCompositeScope(graphEffects);
+            LOG.info("{}← Closed composite: '{}' ({} effects promoted)", indent, procedure.description(), graphEffects.size());
+            return AtomicLoopOutcome.COMPLETED;
+        }
     }
 
     private void detectAndWarnOrderingConflicts(TestCase testCase) {

@@ -42,7 +42,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.tarik.ta.exceptions.ElementLocationException;
+import org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -127,5 +131,18 @@ class ElementLocatorToolsTest {
         assertThat(result.elementId()).isEqualTo(id);
         assertThat(result.centerXCoordinate()).isEqualTo(15);
         assertThat(result.centerYCoordinate()).isEqualTo(15);
+    }
+
+    @Test
+    @DisplayName("locateKnownElementById should throw ElementLocationException with NO_ELEMENTS_FOUND_IN_DB when element not in DB")
+    void locateKnownElementById_shouldThrowElementLocationException_whenElementNotInDb() {
+        UUID id = UUID.randomUUID();
+        when(mockUiElementCache.get(id)).thenReturn(Optional.empty());
+        when(mockRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> elementLocatorTools.locateKnownElementById(id, null))
+                .isInstanceOf(ElementLocationException.class)
+                .satisfies(e -> assertThat(((ElementLocationException) e).getStatus())
+                        .isEqualTo(ElementLocationStatus.NO_ELEMENTS_FOUND_IN_DB));
     }
 }
