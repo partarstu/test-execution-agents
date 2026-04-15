@@ -47,9 +47,10 @@ public class SpinnerManager {
 
     private static void initIfNeeded() {
         if (dialog == null) {
-            dialog = new JDialog((Frame) null, "Please Wait", false);
+            dialog = new JDialog((Frame) null, false);
+            dialog.setUndecorated(true);
             dialog.setAlwaysOnTop(true);
-            dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            dialog.setFocusableWindowState(false);
             var panel = new JPanel(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
             panel.setBorder(BorderFactory.createEmptyBorder(SPINNER_VERTICAL_PADDING, SPINNER_HORIZONTAL_PADDING,
                     SPINNER_VERTICAL_PADDING, SPINNER_HORIZONTAL_PADDING));

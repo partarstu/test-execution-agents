@@ -79,10 +79,15 @@ public class SatisfiesEdgeService {
     /**
      * Returns the prerequisite phrases of the given atomic step that are not yet satisfied by
      * a current-run effect node that is semantically similar.
+     * Logs the best similarity score found per unmet prerequisite to aid diagnosis.
      */
     public List<String> findUnsatisfiedPrerequisites(UUID atomicStepId, Set<UUID> effectNodeIds) {
-        return satisfiesEdgeRepository.findUnsatisfiedPrerequisites(
-                atomicStepId, effectNodeIds, config.getSatisfiesSimilarityThreshold());
+        double threshold = config.getSatisfiesSimilarityThreshold();
+        var unmet = satisfiesEdgeRepository.findUnsatisfiedPrerequisites(atomicStepId, effectNodeIds, threshold);
+        unmet.forEach(p -> LOG.debug(
+                "Unmet prerequisite '{}': best effect similarity score = {} (threshold = {})",
+                p.phrase(), p.bestScore(), threshold));
+        return unmet.stream().map(SatisfiesEdgeRepository.UnsatisfiedPrerequisite::phrase).toList();
     }
 
     public boolean hasSatisfiesEdges() {

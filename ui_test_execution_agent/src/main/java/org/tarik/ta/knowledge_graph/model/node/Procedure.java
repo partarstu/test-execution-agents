@@ -45,6 +45,7 @@ public record Procedure(
         String expectedResults,
         boolean isAtomic,
         boolean isPrecondition,
+        boolean optional,
         List<String> prerequisites,
         List<String> effects,
         Instant createdAt,
@@ -59,6 +60,7 @@ public record Procedure(
     public static final String PROP_TEST_DATA = "testData";
     public static final String PROP_EXPECTED_RESULTS = "expectedResults";
     public static final String PROP_IS_PRECONDITION = "isPrecondition";
+    public static final String PROP_OPTIONAL = "optional";
     public static final String PROP_PREREQUISITES = "prerequisites";
     public static final String PROP_EFFECTS = "effects";
     public static final String PROP_CREATED_AT = "createdAt";
@@ -91,7 +93,7 @@ public record Procedure(
                                             boolean isPrecondition) {
         var now = Instant.now();
         return new Procedure(UUID.randomUUID(), description, testData, expectedResults,
-                false, isPrecondition, prerequisites, effects, now, now, null, null);
+                false, isPrecondition, false, prerequisites, effects, now, now, null, null);
     }
 
     /**
@@ -105,7 +107,7 @@ public record Procedure(
                                          boolean isPrecondition) {
         var now = Instant.now();
         return new Procedure(UUID.randomUUID(), description, testData, expectedResults,
-                true, isPrecondition, prerequisites, effects, now, now, null, null);
+                true, isPrecondition, false, prerequisites, effects, now, now, null, null);
     }
 
     @Override
@@ -120,14 +122,20 @@ public record Procedure(
 
     /** Returns a copy with the given embedding vector populated. */
     public Procedure withEmbedding(float @NotNull [] newEmbedding) {
-        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition,
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
                 prerequisites, effects, createdAt, updatedAt, requireNonNull(newEmbedding, "embedding"), timingProfile);
     }
 
     /** Returns a copy with the given timing profile populated. */
     public Procedure withTiming(@NotNull TimingProfile newTiming) {
-        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition,
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
                 prerequisites, effects, createdAt, updatedAt, embedding, requireNonNull(newTiming, "timing"));
+    }
+
+    /** Returns a copy with the given optional flag. */
+    public Procedure withOptional(boolean newOptional) {
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, newOptional,
+                prerequisites, effects, createdAt, updatedAt, embedding, timingProfile);
     }
 
     /**
@@ -135,7 +143,7 @@ public record Procedure(
      * Used when updating an existing procedure node to preserve its original identity and creation timestamp.
      */
     public Procedure withId(UUID newId, Instant originalCreatedAt) {
-        return new Procedure(newId, description, testData, expectedResults, isAtomic, isPrecondition,
+        return new Procedure(newId, description, testData, expectedResults, isAtomic, isPrecondition, optional,
                 prerequisites, effects, originalCreatedAt, Instant.now(), embedding, timingProfile);
     }
 
@@ -152,6 +160,7 @@ public record Procedure(
                 .add("id=" + id)
                 .add("isAtomic=" + isAtomic)
                 .add("isPrecondition=" + isPrecondition)
+                .add("optional=" + optional)
                 .add("prerequisites=" + prerequisites)
                 .add("effects=" + effects)
                 .add("testData=" + testData)

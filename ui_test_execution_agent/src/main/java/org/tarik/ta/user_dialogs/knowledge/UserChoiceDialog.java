@@ -60,7 +60,7 @@ public class UserChoiceDialog extends AbstractDialog {
         retryButton.addActionListener(_ -> handleRetry(itemDescription));
         setHoverAsClick(retryButton);
 
-        JButton createNewButton = new JButton("Create New...");
+        JButton createNewButton = new JButton("Create New Procedure");
         createNewButton.addActionListener(_ -> handleCreateNew(itemDescription));
         setHoverAsClick(createNewButton);
 
@@ -69,7 +69,7 @@ public class UserChoiceDialog extends AbstractDialog {
         setHoverAsClick(cancelButton);
 
         if (!allScoredMatches.isEmpty()) {
-            JButton browseButton = new JButton("Browse All...");
+            JButton browseButton = new JButton("Browse All Procedures");
             setHoverAsClick(browseButton);
             browseButton.addActionListener(_ -> {
                 var selected = MatchingProcedureBrowseDialog.displayAndGetSelection(

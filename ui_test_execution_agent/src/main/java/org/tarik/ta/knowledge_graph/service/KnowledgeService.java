@@ -88,7 +88,8 @@ public class KnowledgeService {
         var reranked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
         var bestMatch = reranked.procedures().getFirst().procedure();
         var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
-        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures(), reranked.wasDemoted()));
+        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures(), reranked.wasDemoted(),
+                reranked.demotedDueToPrerequisites(), reranked.selectedHasLowStability()));
     }
 
     /**
@@ -124,7 +125,8 @@ public class KnowledgeService {
         LOG.info("Found {} confidence match for '{}': procedure '{}' ({}) | all candidates: {}",
                 confidence, description, bestMatch.description(), bestMatch.id(),
                 reranked.procedures().stream().map(sp -> "'%s' [score=%.3f]".formatted(sp.procedure().description(), scoreById.get(sp.procedure().id()))).toList());
-        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures(), reranked.wasDemoted()));
+        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures(), reranked.wasDemoted(),
+                reranked.demotedDueToPrerequisites(), reranked.selectedHasLowStability()));
     }
 
     /**
@@ -134,7 +136,8 @@ public class KnowledgeService {
      * Uses Neo4j vector index queries via {@link PhraseEmbeddingRepository} instead of in-memory cosine similarity.
      * Logs a DEBUG message when the top semantic match is demoted by re-ranking, including which prerequisites were unmet.
      */
-    private record RerankResult(List<ScoredProcedure> procedures, boolean wasDemoted) {}
+    private record RerankResult(List<ScoredProcedure> procedures, boolean wasDemoted,
+                                boolean demotedDueToPrerequisites, boolean selectedHasLowStability) {}
 
     private RerankResult reRankByStateCompatibility(List<Procedure> candidates, Map<UUID, Double> scoreById,
                                                     Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
@@ -181,20 +184,24 @@ public class KnowledgeService {
                 })
                 .toList();
 
+        var scoredById = scored.stream().collect(toMap(s -> s.procedure().id(), s -> s));
+
+        // Sort: prerequisite ratio first (gates feasibility), then satisfied count, then semantic score minus stability penalty, then ancestry.
         var reRanked = scored.stream()
                 .sorted(Comparator.comparingDouble(Scored::proportion).reversed()
                         .thenComparing(Comparator.comparingInt(Scored::satisfied).reversed())
-                        .thenComparing(Comparator.comparingInt(Scored::parentSharedCount).reversed())
-                        .thenComparingDouble(Scored::stabilityPenalty))
+                        .thenComparing(Comparator.comparingDouble((Scored s) -> scoreById.get(s.procedure().id()) - s.stabilityPenalty()).reversed())
+                        .thenComparing(Comparator.comparingInt(Scored::parentSharedCount).reversed()))
                 .map(s -> new ScoredProcedure(s.procedure(), s.satisfied(), s.totalPrereqs()))
                 .toList();
 
         boolean wasDemoted = false;
+        boolean demotedDueToPrerequisites = false;
         if (!candidates.isEmpty() && !reRanked.getFirst().procedure().id().equals(candidates.getFirst().id())) {
             wasDemoted = true;
             var topSemantic = candidates.getFirst();
-            var scoredById = scored.stream().collect(toMap(s -> s.procedure().id(), s -> s));
             var topSemanticScored = scoredById.get(topSemantic.id());
+            demotedDueToPrerequisites = topSemanticScored.proportion() < 1.0;
             var selected = reRanked.getFirst().procedure();
             LOG.debug(
                 "Top semantic match '{}' (score={}) was demoted by re-ranking: {}/{} prerequisites met, " +
@@ -206,7 +213,14 @@ public class KnowledgeService {
                 scoredById.get(selected.id()).proportion());
         }
 
-        return new RerankResult(reRanked, wasDemoted);
+        boolean selectedHasLowStability = !reRanked.isEmpty() &&
+                scoredById.get(reRanked.getFirst().procedure().id()).stabilityPenalty() > 0;
+        if (selectedHasLowStability) {
+            LOG.warn("Selected procedure '{}' has low element-location stability (threshold={})",
+                    reRanked.getFirst().procedure().description(), penaltyThreshold);
+        }
+
+        return new RerankResult(reRanked, wasDemoted, demotedDueToPrerequisites, selectedHasLowStability);
     }
 
     /**
@@ -382,7 +396,8 @@ public class KnowledgeService {
     /**
      * A matched procedure with its confidence level.
      */
-    public record MatchResult(Procedure procedure, MatchConfidence confidence, List<ScoredProcedure> allMatches, boolean wasDemoted) {
+    public record MatchResult(Procedure procedure, MatchConfidence confidence, List<ScoredProcedure> allMatches,
+                              boolean wasDemoted, boolean demotedDueToPrerequisites, boolean selectedHasLowStability) {
         public MatchResult {
             requireNonNull(procedure, "procedure");
             requireNonNull(confidence, "confidence");

@@ -95,6 +95,7 @@ public class ProcedureRepository {
                 n.${PROP_EXPECTED_RESULTS} = $expectedResults,
                 n.${PROP_IS_ATOMIC} = $isAtomic,
                 n.${PROP_IS_PRECONDITION} = $isPrecondition,
+                n.${PROP_OPTIONAL} = $optional,
                 n.${PROP_PREREQUISITES} = $prerequisites,
                 n.${PROP_EFFECTS} = $effects,
                 n.${PROP_CREATED_AT} = $createdAt,
@@ -109,6 +110,7 @@ public class ProcedureRepository {
                 n.${PROP_EXPECTED_RESULTS} = node.${PROP_EXPECTED_RESULTS},
                 n.${PROP_IS_ATOMIC} = node.${PROP_IS_ATOMIC},
                 n.${PROP_IS_PRECONDITION} = node.${PROP_IS_PRECONDITION},
+                n.${PROP_OPTIONAL} = node.${PROP_OPTIONAL},
                 n.${PROP_PREREQUISITES} = node.${PROP_PREREQUISITES},
                 n.${PROP_EFFECTS} = node.${PROP_EFFECTS},
                 n.${PROP_CREATED_AT} = node.${PROP_CREATED_AT},
@@ -122,6 +124,7 @@ public class ProcedureRepository {
                 n.${PROP_EXPECTED_RESULTS} = $expectedResults,
                 n.${PROP_IS_ATOMIC} = $isAtomic,
                 n.${PROP_IS_PRECONDITION} = $isPrecondition,
+                n.${PROP_OPTIONAL} = $optional,
                 n.${PROP_PREREQUISITES} = $prerequisites,
                 n.${PROP_EFFECTS} = $effects,
                 n.${PROP_CREATED_AT} = $createdAt,
@@ -755,6 +758,7 @@ public class ProcedureRepository {
         var expectedResults = node.containsKey(PROP_EXPECTED_RESULTS) ? node.get(PROP_EXPECTED_RESULTS).asString() : "";
         var isAtomic = node.get(PROP_IS_ATOMIC).asBoolean();
         var isPrecondition = node.containsKey(PROP_IS_PRECONDITION) && node.get(PROP_IS_PRECONDITION).asBoolean();
+        var optional = node.containsKey(PROP_OPTIONAL) && node.get(PROP_OPTIONAL).asBoolean();
         var prerequisites = node.containsKey(PROP_PREREQUISITES) ? node.get(PROP_PREREQUISITES).asList(Value::asString) : List.<String>of();
         var effects = node.containsKey(PROP_EFFECTS) ? node.get(PROP_EFFECTS).asList(Value::asString) : List.<String>of();
         var createdAt = node.containsKey(PROP_CREATED_AT) ? Instant.parse(node.get(PROP_CREATED_AT).asString()) : Instant.now();
@@ -780,7 +784,7 @@ public class ProcedureRepository {
             );
         }
 
-        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition,
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
                 prerequisites, effects, createdAt, updatedAt, embedding, timing);
     }
 
@@ -793,6 +797,7 @@ public class ProcedureRepository {
         params.put(PROP_EXPECTED_RESULTS, procedure.expectedResults());
         params.put(PROP_IS_ATOMIC, procedure.isAtomic());
         params.put(PROP_IS_PRECONDITION, procedure.isPrecondition());
+        params.put(PROP_OPTIONAL, procedure.optional());
         params.put(PROP_PREREQUISITES, procedure.prerequisites());
         params.put(PROP_EFFECTS, procedure.effects());
         params.put(PROP_CREATED_AT, procedure.createdAt().toString());

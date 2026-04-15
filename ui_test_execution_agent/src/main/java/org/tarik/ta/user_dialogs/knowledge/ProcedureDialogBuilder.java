@@ -74,12 +74,16 @@ public class ProcedureDialogBuilder {
         return panel;
     }
 
-    public static JPanel createAtomicityPanel(ProcedureDialog dialog, boolean initialIsAtomic) {
+    public static JPanel createAtomicityPanel(ProcedureDialog dialog, boolean initialIsAtomic, boolean initialIsOptional) {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         dialog.atomicCheckBox = new JCheckBox("Atomic Step (single UI action)", initialIsAtomic);
         dialog.atomicCheckBox.addActionListener(_ -> dialog.handleAtomicityToggle());
         dialog.setHoverAsClick(dialog.atomicCheckBox);
         panel.add(dialog.atomicCheckBox);
+
+        dialog.optionalCheckBox = new JCheckBox("Optional (skip silently if prerequisites unmet)", initialIsOptional);
+        dialog.setHoverAsClick(dialog.optionalCheckBox);
+        panel.add(dialog.optionalCheckBox);
 
         dialog.locateElementButton =
                 dialog.createButton("Locate UI Element...", _ -> dialog.handleElementSelection(dialog.handlers.locate()));

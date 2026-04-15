@@ -84,6 +84,7 @@ public class ProcedureDialog extends AbstractDialog {
 
     JTextArea descriptionArea;
     JCheckBox atomicCheckBox;
+    JCheckBox optionalCheckBox;
     DefaultListModel<ChildProcedureInDialog> childStepsModel;
     JPanel childStepsContainer;
     int childStepsSelectedIndex = -1;
@@ -158,7 +159,7 @@ public class ProcedureDialog extends AbstractDialog {
         mainPanel.add(rightPanel, BorderLayout.EAST);
 
         JPanel centerPanel = new JPanel(new BorderLayout());
-        centerPanel.add(ProcedureDialogBuilder.createAtomicityPanel(this, p == null || p.isAtomic()), NORTH);
+        centerPanel.add(ProcedureDialogBuilder.createAtomicityPanel(this, p == null || p.isAtomic(), p != null && p.optional()), NORTH);
         rowBuilder = new ChildStepRowBuilder(() -> childStepsSelectedIndex, stepsWithSimilarItems, atomicCheckBox::isSelected,
                 knowledgeService, idx -> {
             childStepsSelectedIndex = idx;
@@ -453,6 +454,7 @@ public class ProcedureDialog extends AbstractDialog {
         var docListener = dirtyDocListener(this::registerUnsavedChanges);
         List.of(descriptionArea, expectedResultsArea).forEach(a -> a.getDocument().addDocumentListener(docListener));
         atomicCheckBox.addItemListener(_ -> registerUnsavedChanges());
+        optionalCheckBox.addItemListener(_ -> registerUnsavedChanges());
 
         var listListener = dirtyListListener(this::registerUnsavedChanges);
         List.of(childStepsModel, prerequisitesModel, effectsModel, testDataModel).forEach(m -> m.addListDataListener(listListener));
@@ -818,9 +820,10 @@ public class ProcedureDialog extends AbstractDialog {
         List<String> testData = modelToList(testDataModel);
         String expectedResults = expectedResultsArea.getText().trim();
 
-        Procedure procedure = isAtomic
+        Procedure procedure = (isAtomic
                 ? createAtomic(description, testData, expectedResults, prerequisites, effects, isPrecondition)
-                : createComposite(description, testData, expectedResults, prerequisites, effects, isPrecondition);
+                : createComposite(description, testData, expectedResults, prerequisites, effects, isPrecondition))
+                .withOptional(optionalCheckBox.isSelected());
         List<IngestionNode> childNodes = isAtomic ? List.of()
                 : Collections.list(childStepsModel.elements()).stream().map(ChildProcedureInDialog::toIngestionNode).toList();
         var result = new IngestionNode.NewProcedure(procedure, isAtomic ? targetUiElementId : null, childNodes);

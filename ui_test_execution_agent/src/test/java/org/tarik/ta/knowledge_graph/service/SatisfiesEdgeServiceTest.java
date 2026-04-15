@@ -28,6 +28,7 @@ import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository;
+import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository.UnsatisfiedPrerequisite;
 
 import java.util.List;
 import java.util.UUID;
@@ -148,10 +149,11 @@ class SatisfiesEdgeServiceTest {
     void findUnsatisfiedPrerequisites_shouldDelegateToRepository() {
         UUID stepId = UUID.randomUUID();
         java.util.Set<UUID> effectIds = java.util.Set.of(UUID.randomUUID(), UUID.randomUUID());
+        var repoResult = List.of(new UnsatisfiedPrerequisite("missing prereq 1", 0.0));
         List<String> expectedMissing = List.of("missing prereq 1");
 
         when(mockSatisfiesEdgeRepository.findUnsatisfiedPrerequisites(eq(stepId), eq(effectIds), anyDouble()))
-                .thenReturn(expectedMissing);
+                .thenReturn(repoResult);
 
         List<String> actualMissing = satisfiesEdgeService.findUnsatisfiedPrerequisites(stepId, effectIds);
 

@@ -56,17 +56,17 @@ public interface UiElementResolutionAgent extends GenericAiAgent<UiElementLocati
 
     String CREATE_WORKFLOW = """
             1. %s
-            2. %s
-            3. Do the following:
+            2. Do the following:
                %s
-            """.formatted(DESCRIPTION_EXTRACTION_WORKFLOW_PART, CREATE_UI_ELEMENT_IN_DB_WORKFLOW_PART, VISUAL_GROUNDING_WORKFLOW_PART);
+            """.formatted(CREATE_UI_ELEMENT_IN_DB_WORKFLOW_PART, VISUAL_GROUNDING_WORKFLOW_PART);
 
     @UserMessage("""
-            Action description: {{description}}
-            
+            {{descriptionLabel}}: {{description}}
+
             Data related to the element: {{relatedData}}
             """)
     Result<String> resolveForAction(
+            @V("descriptionLabel") String descriptionLabel,
             @V("description") String description,
             @V("relatedData") String relatedData,
             // This one is a placeholder in the system prompt

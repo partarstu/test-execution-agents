@@ -59,6 +59,7 @@ import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
 import static org.tarik.ta.knowledge_graph.ExecutionResultHelper.*;
 import static org.tarik.ta.knowledge_graph.UserDecisionOutcome.*;
 import static org.tarik.ta.user_dialogs.PopupType.ERROR;
+import static org.tarik.ta.user_dialogs.PopupType.INFO;
 import static org.tarik.ta.user_dialogs.PopupType.WARNING;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
@@ -110,9 +111,9 @@ public class KnowledgeBasedExecutionOrchestrator {
                 LOG.info("Processing execution item: {} (remaining in queue: {})", item.getClass().getSimpleName(),
                         queue.remainingCount());
                 var nextStep = switch (findProcedureInDb(item, stateTracker)) {
-                    case ProcedureLookup.DirectMatch(var procedure) -> {
+                    case ProcedureLookup.DirectMatch(var procedure, var hasLowStability) -> {
                         LOG.info("Direct high-confidence match found for '{}'", item.getDescription());
-                        yield processFoundProcedure(procedure, item, testCase, context, stateTracker, usedProcedureIds, queue);
+                        yield processFoundProcedure(procedure, hasLowStability, item, testCase, context, stateTracker, usedProcedureIds, queue);
                     }
                     case ProcedureLookup.NeedsUserResolution res -> {
                         if (uiTestAgentConfig.isFullyUnattended()) {
@@ -144,11 +145,17 @@ public class KnowledgeBasedExecutionOrchestrator {
         }
     }
 
-    private ExecutionFlow processFoundProcedure(Procedure procedure, ExecutionItem item, TestCase testCase,
-                                                UiTestExecutionContext context, ExecutionStateTracker stateTracker,
+    private ExecutionFlow processFoundProcedure(Procedure procedure, boolean hasLowStability, ExecutionItem item,
+                                                TestCase testCase, UiTestExecutionContext context,
+                                                ExecutionStateTracker stateTracker,
                                                 List<UUID> usedProcedureIds, ExecutionQueue queue) {
         stateTracker.addRecentParent(procedure.id());
         LOG.info("Found matching procedure '{}' ({}) for '{}'", procedure.description(), procedure.id(), item.getDescription());
+        if (hasLowStability && !uiTestAgentConfig.isFullyUnattended()) {
+            InformationalPopup.display("Unstable Procedure Warning",
+                    "Procedure '%s' has a low element-location stability score. It may be unreliable. Consider reviewing and updating it."
+                            .formatted(procedure.description()), null, WARNING, uiTestAgentConfig);
+        }
         List<Procedure> atomicSteps;
         try {
             atomicSteps = resolveToAtomicSteps(procedure);
@@ -217,7 +224,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                 yield new ExecutionFlow.Stop();
             }
             case UserFeedback.Found(var procedure) ->
-                    processFoundProcedure(procedure, item, testCase, context, stateTracker, usedProcedureIds, queue);
+                    processFoundProcedure(procedure, false, item, testCase, context, stateTracker, usedProcedureIds, queue);
         };
     }
 
@@ -230,7 +237,7 @@ public class KnowledgeBasedExecutionOrchestrator {
         var match = matchResult.get();
         var feasible = selectFeasibleProcedure(match.allMatches());
         if (feasible.isPresent() && match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
-            return new ProcedureLookup.DirectMatch(feasible.get());
+            return new ProcedureLookup.DirectMatch(feasible.get(), match.selectedHasLowStability());
         }
         if (match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
             // High semantic score but no feasible procedure — prerequisites are the blocker
@@ -283,13 +290,26 @@ public class KnowledgeBasedExecutionOrchestrator {
                 atomicStep.id(),
                 stateTracker.getEffectNodeIds());
         if (!missing.isEmpty()) {
-            var reason = "Atomic step '%s' skipped — prerequisites not satisfied: %s"
-                    .formatted(atomicStep.description(), missing);
-            LOG.warn(reason);
-            if (uiTestAgentConfig.isFullyUnattended()) {
-                recordFailure(context, item, item.getDescription(), reason);
-            } else {
-                InformationalPopup.display("Prerequisites Not Satisfied", reason, null, WARNING, uiTestAgentConfig);
+            var reason = "prerequisites not satisfied: %s".formatted(missing);
+            if (atomicStep.optional()) {
+                LOG.debug("Optional atomic step '{}' skipped — {}", atomicStep.description(), reason);
+                if (!uiTestAgentConfig.isFullyUnattended()) {
+                    InformationalPopup.display("Optional Step Skipped",
+                            "Optional step '%s' was skipped — %s".formatted(atomicStep.description(), reason),
+                            null, INFO, uiTestAgentConfig);
+                }
+                return AtomicLoopOutcome.SKIPPED;
+            }
+            var fullReason = "Atomic step '%s' skipped — %s".formatted(atomicStep.description(), reason);
+            LOG.warn(fullReason);
+            if (!uiTestAgentConfig.isFullyUnattended()) {
+                InformationalPopup.display("Prerequisites Not Satisfied", fullReason, null, WARNING, uiTestAgentConfig);
+            }
+            switch (item) {
+                case TestStepItem(TestStep testStep) ->
+                        testStepResults.add(new UiTestStepResult(testStep, FAILURE, fullReason, null, captureScreen(), now(), now()));
+                case PreconditionItem _ ->
+                        preconditionResults.add(new UiPreconditionResult(item.getDescription(), false, fullReason, captureScreen(), now(), now()));
             }
             return AtomicLoopOutcome.TERMINATE;
         }
@@ -361,11 +381,12 @@ public class KnowledgeBasedExecutionOrchestrator {
             for (Procedure child : children) {
                 var outcome = executeHierarchically(child, item, testCase, context, stateTracker,
                         testStepResults, preconditionResults, atomicCounter, totalAtomics, isSingle, procedure, depth + 1);
-                if (outcome != AtomicLoopOutcome.COMPLETED) {
+                if (outcome == AtomicLoopOutcome.TERMINATE || outcome == AtomicLoopOutcome.RE_DECOMPOSE) {
                     stateTracker.abandonCompositeScope();
                     LOG.info("{}← Abandoned composite scope: '{}'", indent, procedure.description());
                     return outcome;
                 }
+                // COMPLETED and SKIPPED both continue to the next sibling
             }
             var graphEffects = knowledgeService.findEffectsForProcedure(procedure.id());
             stateTracker.closeCompositeScope(graphEffects);
@@ -600,10 +621,12 @@ public class KnowledgeBasedExecutionOrchestrator {
             return "No matching procedure found for '%s'. Please create a new one.".formatted(description);
         }
         if (res.match().confidence() == KnowledgeService.MatchConfidence.LOW) {
-            var base = res.match().wasDemoted()
-                    ? "A high-confidence match was found for '%s' but was demoted because its prerequisites are not satisfied."
-                    : "No high-confidence match found for '%s'.";
-            return (base + " Select an existing procedure to edit, browse all matches, or create a new one.")
+            var base = !res.match().wasDemoted()
+                    ? "No high-confidence match found for '%s'."
+                    : res.match().demotedDueToPrerequisites()
+                        ? "A high-confidence procedure match was found for '%s' but was demoted because its prerequisites are not satisfied."
+                        : "A high-confidence procedure match was found for '%s' but was demoted by a better-ranked contextual match.";
+            return (base + " What do you want to do next ?")
                     .formatted(description);
         }
         return ("Matching procedure found for '%s' but its prerequisites are not satisfied. Missing: %s")
@@ -657,7 +680,7 @@ public class KnowledgeBasedExecutionOrchestrator {
     }
 
     private sealed interface ProcedureLookup {
-        record DirectMatch(Procedure procedure) implements ProcedureLookup {}
+        record DirectMatch(Procedure procedure, boolean hasLowStability) implements ProcedureLookup {}
 
         record NeedsUserResolution(@Nullable KnowledgeService.MatchResult match, List<String> missingPrerequisites)
                 implements ProcedureLookup {}
@@ -671,7 +694,7 @@ public class KnowledgeBasedExecutionOrchestrator {
         }
     }
 
-    private enum AtomicLoopOutcome {COMPLETED, TERMINATE, RE_DECOMPOSE}
+    private enum AtomicLoopOutcome {COMPLETED, TERMINATE, RE_DECOMPOSE, SKIPPED}
 
     private sealed interface ExecutionFlow {
         record Continue() implements ExecutionFlow {

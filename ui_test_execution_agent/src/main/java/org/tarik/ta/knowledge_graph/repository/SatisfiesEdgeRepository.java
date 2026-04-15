@@ -78,12 +78,12 @@ public class SatisfiesEdgeRepository {
                 WITH prereq
                 CALL db.index.vector.queryNodes($indexName, $topN, prereq.${PROP_EMBEDDING})
                 YIELD node AS effNode, score
-                WHERE score >= $threshold AND effNode.${PROP_ID} IN $effectNodeIds
-                RETURN count(effNode) > 0 AS metByVector
+                WHERE effNode.${PROP_ID} IN $effectNodeIds
+                RETURN max(score) AS bestScore
             }
-            WITH prereq, metByVector
-            WHERE NOT metByVector
-            RETURN prereq.${PROP_PHRASE} AS phrase
+            WITH prereq, coalesce(bestScore, 0.0) AS bestScore
+            WHERE bestScore < $threshold
+            RETURN prereq.${PROP_PHRASE} AS phrase, bestScore
             """);
     }
 
@@ -159,11 +159,13 @@ public class SatisfiesEdgeRepository {
                 .toList();
     }
 
+    public record UnsatisfiedPrerequisite(String phrase, double bestScore) {}
+
     /**
-     * Returns the prerequisite phrases of the given consumer procedure that are not yet covered by
-     * the accumulated effects via vector similarity.
+     * Returns the prerequisites of the given consumer procedure that are not yet covered by
+     * the accumulated effects via vector similarity, together with the best score found for each.
      */
-    public List<String> findUnsatisfiedPrerequisites(UUID consumerId, Set<UUID> effectNodeIds, double threshold) {
+    public List<UnsatisfiedPrerequisite> findUnsatisfiedPrerequisites(UUID consumerId, Set<UUID> effectNodeIds, double threshold) {
         requireNonNull(consumerId, "consumerId");
         requireNonNull(effectNodeIds, "effectNodeIds");
         var effectIdStrings = effectNodeIds.stream().map(UUID::toString).toList();
@@ -174,7 +176,7 @@ public class SatisfiesEdgeRepository {
                 "topN", UNSATISFIED_TOP_N,
                 "threshold", threshold
         )).stream()
-                .map(r -> r.get("phrase").asString())
+                .map(r -> new UnsatisfiedPrerequisite(r.get("phrase").asString(), r.get("bestScore").asDouble()))
                 .toList();
     }
 

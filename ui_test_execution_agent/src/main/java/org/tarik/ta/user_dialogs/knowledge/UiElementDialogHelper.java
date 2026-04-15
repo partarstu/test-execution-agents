@@ -25,6 +25,9 @@ import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.tools.UiElementRefinementHelper;
 import org.tarik.ta.user_dialogs.SpinnerManager;
+
+import static org.tarik.ta.user_dialogs.knowledge.UiElementDialogHelper.DescriptionLabel.ACTION_DESCRIPTION;
+import static org.tarik.ta.user_dialogs.knowledge.UiElementDialogHelper.DescriptionLabel.ELEMENT_DESCRIPTION;
 import org.tarik.ta.user_dialogs.UiElementLookupDialog;
 
 import javax.swing.*;
@@ -79,7 +82,7 @@ public class UiElementDialogHelper {
             String actionDescription = actionDescriptionSupplier.get();
             String relatedData = relatedDataSupplier.get();
             var future = CompletableFuture.supplyAsync(() -> uiElementResolutionAgent.executeAndGetResult(
-                            () -> uiElementResolutionAgent.resolveForAction(actionDescription, relatedData, RESOLVE_WORKFLOW)))
+                            () -> uiElementResolutionAgent.resolveForAction(ACTION_DESCRIPTION.label, actionDescription, relatedData, RESOLVE_WORKFLOW)))
                     .orTimeout(uiTestAgentConfig.getMaxActionExecutionDurationMillis(), MILLISECONDS);
             try {
                 return processAgentResult(future.join().getResultPayload(), actionDescription);
@@ -92,6 +95,7 @@ public class UiElementDialogHelper {
                 dispatchFailure("An unexpected error occurred while locating the element: " + e.getMessage());
                 return Optional.empty();
             } finally {
+                SpinnerManager.hide();
                 LOG.info("Completed workflow: Automatic Resolution of UI Element...");
             }
         };
@@ -101,24 +105,25 @@ public class UiElementDialogHelper {
      * Builds an {@link AutoLocateHandler} that creates a new UI element (skipping DB search) and then locates it on screen.
      * Must be invoked from a virtual thread.
      */
-    public AutoLocateHandler buildCreateAndLocateHandler(String actionDescription, Supplier<String> elementDataSupplier) {
+    public AutoLocateHandler buildCreateAndLocateHandler(String uiElementDescription, Supplier<String> elementDataSupplier) {
         return () -> {
             LOG.info("Starting workflow: Create and Locate UI Element...");
             String relatedData = elementDataSupplier.get();
             var future = CompletableFuture.supplyAsync(() -> uiElementResolutionAgent.executeAndGetResult(
-                            () -> uiElementResolutionAgent.resolveForAction(actionDescription, relatedData, CREATE_WORKFLOW)))
+                            () -> uiElementResolutionAgent.resolveForAction(ELEMENT_DESCRIPTION.label, uiElementDescription, relatedData, CREATE_WORKFLOW)))
                     .orTimeout(uiTestAgentConfig.getMaxActionExecutionDurationMillis(), MILLISECONDS);
             try {
-                return processAgentResult(future.join().getResultPayload(), actionDescription);
+                return processAgentResult(future.join().getResultPayload(), uiElementDescription);
             } catch (CancellationException | CompletionException e) {
-                handleAgentException(e, actionDescription);
+                handleAgentException(e, uiElementDescription);
                 return Optional.empty();
             } catch (Exception e) {
-                String msg = "Create and Locate UI Element agent failed for '%s'.".formatted(actionDescription);
+                String msg = "Create and Locate UI Element agent failed for '%s'.".formatted(uiElementDescription);
                 LOG.error(msg, e);
                 dispatchFailure("An unexpected error occurred while creating the element: " + e.getMessage());
                 return Optional.empty();
             } finally {
+                SpinnerManager.hide();
                 LOG.info("Completed workflow: Create and Locate UI Element...");
             }
         };
@@ -141,19 +146,19 @@ public class UiElementDialogHelper {
             LOG.info("Starting workflow: Select UI Element...");
             try {
                 String procedureDescription = actionDescriptionSupplier.get();
-                String elementDescription = resolveElementDescription(procedureDescription, lastProcedureDesc, cachedElementDesc);
+                String uiElementDescription = resolveElementDescription(procedureDescription, lastProcedureDesc, cachedElementDesc);
                 Function<String, List<UiElement>> searchFn = query ->
                         uiElementRefinementHelper.retrieveUiElementsWithMinimumSimilarity(uiElementRepository, query)
                                 .stream().map(UiElementRepository.UiElementMatch::element).toList();
                 Consumer<UiElement> deleteHandler = uiElementRepository::remove;
-                UiElementLookupDialog.LookupResult[] holder = {null};
-                SwingUtilities.invokeAndWait(() -> holder[0] =
-                        UiElementLookupDialog.displayAndGetChoice(null, elementDescription, searchFn, deleteHandler, uiTestAgentConfig));
+                AtomicReference<UiElementLookupDialog.LookupResult> result = new AtomicReference<>();
+                SwingUtilities.invokeAndWait(() -> result.set(UiElementLookupDialog.displayAndGetChoice(
+                        null, uiElementDescription, searchFn, deleteHandler, uiTestAgentConfig)));
 
-                return switch (holder[0]) {
+                return switch (result.get()) {
                     case UiElementLookupDialog.LookupResult.Selected(UiElement element) -> Optional.of(element);
-                    case UiElementLookupDialog.LookupResult.CreateNew(String desc) ->
-                            buildCreateAndLocateHandler(desc, elementDataSupplier).locate();
+                    case UiElementLookupDialog.LookupResult.CreateNew(String elementDescription) ->
+                            buildCreateAndLocateHandler(elementDescription, elementDataSupplier).locate();
                     case UiElementLookupDialog.LookupResult.Cancelled() -> Optional.empty();
                 };
             } catch (InterruptedException e) {
@@ -340,5 +345,16 @@ public class UiElementDialogHelper {
             Supplier<Optional<UiElement>> editDetails,
             Supplier<Optional<UiElement>> replaceScreenshot,
             AutoLocateHandler selectElement) {
+    }
+
+    enum DescriptionLabel {
+        ACTION_DESCRIPTION("Action description"),
+        ELEMENT_DESCRIPTION("Element description");
+
+        final String label;
+
+        DescriptionLabel(String label) {
+            this.label = label;
+        }
     }
 }
