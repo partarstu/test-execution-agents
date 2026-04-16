@@ -46,7 +46,6 @@ public class ProcedureExecutionConfirmationPopup
         super(TITLE, proceed(), timeoutSeconds, config);
 
         initializeComponents(atomicDescription, parentDescription, itemContext, isPreExecution);
-        setFocusableWindowState(false);
         startCountdown();
         displayPopup();
     }

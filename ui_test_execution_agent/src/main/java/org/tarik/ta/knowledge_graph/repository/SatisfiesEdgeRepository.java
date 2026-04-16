@@ -159,7 +159,7 @@ public class SatisfiesEdgeRepository {
                 .toList();
     }
 
-    public record UnsatisfiedPrerequisite(String phrase, double bestScore) {}
+    public record UnsatisfiedPrerequisite(String phrase, double bestScore, String bestEffectPhrase) {}
 
     /**
      * Returns the prerequisites of the given consumer procedure that are not yet covered by
@@ -176,7 +176,10 @@ public class SatisfiesEdgeRepository {
                 "topN", UNSATISFIED_TOP_N,
                 "threshold", threshold
         )).stream()
-                .map(r -> new UnsatisfiedPrerequisite(r.get("phrase").asString(), r.get("bestScore").asDouble()))
+                .map(r -> new UnsatisfiedPrerequisite(
+                        r.get("phrase").asString(),
+                        r.get("bestScore").asDouble(),
+                        r.get("bestEffectPhrase").isNull() ? null : r.get("bestEffectPhrase").asString()))
                 .toList();
     }
 

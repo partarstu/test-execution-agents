@@ -33,9 +33,12 @@ import org.tarik.ta.knowledge_graph.execution.AtomicStepExecutionContext;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.PreconditionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.TestStepItem;
+import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
+import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository.UnsatisfiedPrerequisite;
 import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.user_dialogs.*;
@@ -76,6 +79,7 @@ public class KnowledgeBasedExecutionOrchestrator {
     private final FailureContextService failureContextService;
     private final UiTestAgentConfig uiTestAgentConfig;
     private final UiElementCache uiElementCache;
+    private final ElementLocationHistoryLookup elementLocationHistoryLookup;
 
     public KnowledgeBasedExecutionOrchestrator(KnowledgeService knowledgeService,
                                                KnowledgeIngestionService knowledgeIngestionService,
@@ -85,7 +89,8 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                ProcedureUsageByTestCaseTrackingService procedureUsageByTestCaseTrackingService,
                                                FailureContextService failureContextService,
                                                UiTestAgentConfig uiTestAgentConfig,
-                                               UiElementCache uiElementCache) {
+                                               UiElementCache uiElementCache,
+                                               ElementLocationHistoryLookup elementLocationHistoryLookup) {
         this.knowledgeService = knowledgeService;
         this.knowledgeIngestionService = knowledgeIngestionService;
         this.stepExecutionOrchestrator = stepExecutionOrchestrator;
@@ -95,6 +100,7 @@ public class KnowledgeBasedExecutionOrchestrator {
         this.failureContextService = failureContextService;
         this.uiTestAgentConfig = uiTestAgentConfig;
         this.uiElementCache = uiElementCache;
+        this.elementLocationHistoryLookup = elementLocationHistoryLookup;
     }
 
     public void executeBasedOnKnowledge(UiTestExecutionContext context,
@@ -117,9 +123,9 @@ public class KnowledgeBasedExecutionOrchestrator {
                     }
                     case ProcedureLookup.NeedsUserResolution res -> {
                         if (uiTestAgentConfig.isFullyUnattended()) {
-                            throw new MissingProcedureException(buildSelectionReason(item.getDescription(), res));
+                            throw new MissingProcedureException(buildSelectionReason(item.getDescription(), res, item instanceof ExecutionItem.PreconditionItem));
                         }
-                        var reason = buildSelectionReason(item.getDescription(), res);
+                        var reason = buildSelectionReason(item.getDescription(), res, item instanceof ExecutionItem.PreconditionItem);
                         LOG.info("No direct match for '{}' — prompting user. Reason: {}", item.getDescription(), reason);
                         var userDecision = resolveWithUserInput(item, res.match(), reason, stateTracker, testCase, context);
                         yield processUserFeedback(userDecision, item, testCase, context, stateTracker, usedProcedureIds, queue);
@@ -345,10 +351,13 @@ public class KnowledgeBasedExecutionOrchestrator {
         String targetElementId = knowledgeService.findTargetedUiElementId(atomicStep.id())
                 .map(UUID::toString)
                 .orElse(null);
-        UiElement targetElement = targetElementId != null
-                ? uiElementCache.get(UUID.fromString(targetElementId)).orElse(null)
-                : null;
-        if (targetElementId == null) {
+        UiElement targetElement = null;
+        ElementLocationHistory locationHistory = null;
+        if (targetElementId != null) {
+            UUID elementUuid = UUID.fromString(targetElementId);
+            targetElement = uiElementCache.get(elementUuid).orElse(null);
+            locationHistory = elementLocationHistoryLookup.lookup(elementUuid).orElse(null);
+        } else {
             LOG.debug("No target UI element linked to procedure '{}' — proceeding without element hint",
                     atomicStep.description());
         }
@@ -358,7 +367,8 @@ public class KnowledgeBasedExecutionOrchestrator {
                 failureContextService.findFailureHints(atomicStep.id()),
                 targetElementId,
                 computeEffectiveExpectedResults(item, atomicStep, isSingle, isLast),
-                targetElement
+                targetElement,
+                locationHistory
         );
     }
 
@@ -616,18 +626,21 @@ public class KnowledgeBasedExecutionOrchestrator {
         return Optional.empty();
     }
 
-    private static String buildSelectionReason(String description, ProcedureLookup.NeedsUserResolution res) {
+    private static String buildSelectionReason(String description, ProcedureLookup.NeedsUserResolution res, boolean isPrecondition) {
+        var itemKind = isPrecondition ? "the test precondition" : "the test step";
         if (res.match() == null) {
             return "No matching procedure found for '%s'. Please create a new one.".formatted(description);
         }
         if (res.match().confidence() == KnowledgeService.MatchConfidence.LOW) {
             var base = !res.match().wasDemoted()
-                    ? "No high-confidence match found for '%s'."
+                    ? "No high-confidence match found for %s '%s'."
                     : res.match().demotedDueToPrerequisites()
                         ? "A high-confidence procedure match was found for '%s' but was demoted because its prerequisites are not satisfied."
                         : "A high-confidence procedure match was found for '%s' but was demoted by a better-ranked contextual match.";
-            return (base + " What do you want to do next ?")
-                    .formatted(description);
+            if (!res.match().wasDemoted()) {
+                return (base + " What do you want to do next ?").formatted(itemKind, description);
+            }
+            return (base + " What do you want to do next ?").formatted(description);
         }
         return ("Matching procedure found for '%s' but its prerequisites are not satisfied. Missing: %s")
                 .formatted(description, res.missingPrerequisites());
@@ -682,7 +695,7 @@ public class KnowledgeBasedExecutionOrchestrator {
     private sealed interface ProcedureLookup {
         record DirectMatch(Procedure procedure, boolean hasLowStability) implements ProcedureLookup {}
 
-        record NeedsUserResolution(@Nullable KnowledgeService.MatchResult match, List<String> missingPrerequisites)
+        record NeedsUserResolution(@Nullable KnowledgeService.MatchResult match, List<UnsatisfiedPrerequisite> missingPrerequisites)
                 implements ProcedureLookup {}
     }
 

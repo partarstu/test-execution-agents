@@ -18,6 +18,7 @@ package org.tarik.ta.knowledge_graph.execution;
 import org.jetbrains.annotations.Nullable;
 import org.tarik.ta.knowledge_graph.model.node.Procedure.TimingProfile;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 import org.tarik.ta.knowledge_graph.timing.TimingRecorder;
 
 import java.util.List;
@@ -28,6 +29,7 @@ public record AtomicStepExecutionContext(
         List<String> failureHints,
         String uiElementId,
         String effectiveExpectedResults,
-        @Nullable UiElement targetElement
+        @Nullable UiElement targetElement,
+        @Nullable ElementLocationHistory locationHistory
 ) {
 }

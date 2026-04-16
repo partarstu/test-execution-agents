@@ -33,6 +33,7 @@ public class NoElementFoundPopup extends AbstractDialog {
 
     private NoElementFoundPopup(Window owner, String message, UiTestAgentConfig config) {
         super(owner, "UI element not found", config);
+        setFocusableWindowState(false);
         var userMessageArea = getUserMessageArea(message);
         var continueButton = new JButton("Continue");
         setHoverAsClick(continueButton);

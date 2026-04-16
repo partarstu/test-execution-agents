@@ -51,6 +51,7 @@ import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_IS_ATOMIC;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_TEST_DATA;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_EXPECTED_RESULTS;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_IS_PRECONDITION;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_OPTIONAL;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_PREREQUISITES;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_EFFECTS;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_CREATED_AT;
@@ -127,6 +128,7 @@ public class Neo4jRepositorySupport {
             Map.entry("PROP_TEST_DATA", PROP_TEST_DATA),
             Map.entry("PROP_EXPECTED_RESULTS", PROP_EXPECTED_RESULTS),
             Map.entry("PROP_IS_PRECONDITION", PROP_IS_PRECONDITION),
+            Map.entry("PROP_OPTIONAL", PROP_OPTIONAL),
             Map.entry("PROP_PREREQUISITES", PROP_PREREQUISITES),
             Map.entry("PROP_EFFECTS", PROP_EFFECTS),
             Map.entry("PROP_CREATED_AT", PROP_CREATED_AT),

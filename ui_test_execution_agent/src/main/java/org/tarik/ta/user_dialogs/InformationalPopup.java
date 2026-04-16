@@ -26,6 +26,7 @@ public class InformationalPopup extends AbstractConfirmationDialog {
 
     public InformationalPopup(Window owner, String title, UiTestAgentConfig config) {
         super(owner, title, config);
+        setFocusableWindowState(false);
     }
 
     public static void display(String title, String message, BufferedImage screenshot, PopupType popupType, UiTestAgentConfig config) {

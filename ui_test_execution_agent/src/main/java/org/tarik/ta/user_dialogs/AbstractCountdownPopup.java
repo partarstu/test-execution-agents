@@ -35,6 +35,7 @@ public abstract class AbstractCountdownPopup<T> extends AbstractDialog {
         this.result = new AtomicReference<>(defaultResult);
         this.remainingSeconds = seconds;
         setUndecorated(true);
+        setFocusableWindowState(false);
     }
 
     /**

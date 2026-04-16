@@ -44,11 +44,11 @@ public class Neo4jFactory implements AutoCloseable {
         }
 
         Config config = Config.builder()
-                .withMaxConnectionPoolSize(50)
-                .withConnectionAcquisitionTimeout(30, TimeUnit.SECONDS)
-                .withConnectionTimeout(10, TimeUnit.SECONDS)
-                // Allow the driver to retry failed managed transactions for up to 120s (~10 connection-timeout cycles)
-                .withMaxTransactionRetryTime(120, TimeUnit.SECONDS)
+                .withMaxConnectionPoolSize(uiTestAgentConfig.getNeo4jMaxConnectionPoolSize())
+                .withConnectionAcquisitionTimeout(uiTestAgentConfig.getNeo4jConnectionAcquisitionTimeoutSeconds(), TimeUnit.SECONDS)
+                .withConnectionTimeout(uiTestAgentConfig.getNeo4jConnectionTimeoutSeconds(), TimeUnit.SECONDS)
+                // Allow the driver to retry failed managed transactions (~10 connection-timeout cycles by default)
+                .withMaxTransactionRetryTime(uiTestAgentConfig.getNeo4jMaxTransactionRetryTimeSeconds(), TimeUnit.SECONDS)
                 .build();
 
         try {

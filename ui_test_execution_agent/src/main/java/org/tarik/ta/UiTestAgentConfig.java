@@ -28,7 +28,7 @@ public class UiTestAgentConfig extends AgentConfig {
                 "SCREENSHOTS_SAVE_FOLDER", "screens", s -> s, false);
         this.executionMode = loadProperty(
                 "execution.mode", "EXECUTION_MODE", "SUPERVISED",
-                s -> ExecutionMode.valueOf(s.toUpperCase()), false);
+                s -> parseEnum(ExecutionMode.class, s), false);
         this.supervisedCountdownSeconds = loadPropertyAsInteger(
                 "supervised.countdown.seconds", "SUPERVISED_COUNTDOWN_SECONDS", "5", false);
         this.screenRecordingEnabled = loadProperty("screen.recording.active",
@@ -93,6 +93,14 @@ public class UiTestAgentConfig extends AgentConfig {
                 "neo4j", s -> s, false);
         this.neo4jDatabase = loadProperty("neo4j.database", "NEO4J_DATABASE",
                 "neo4j", s -> s, false);
+        this.neo4jMaxConnectionPoolSize = loadPropertyAsInteger(
+                "neo4j.max.connection.pool.size", "NEO4J_MAX_CONNECTION_POOL_SIZE", "20", false);
+        this.neo4jConnectionAcquisitionTimeoutSeconds = loadPropertyAsInteger(
+                "neo4j.connection.acquisition.timeout.seconds", "NEO4J_CONNECTION_ACQUISITION_TIMEOUT_SECONDS", "30", false);
+        this.neo4jConnectionTimeoutSeconds = loadPropertyAsInteger(
+                "neo4j.connection.timeout.seconds", "NEO4J_CONNECTION_TIMEOUT_SECONDS", "10", false);
+        this.neo4jMaxTransactionRetryTimeSeconds = loadPropertyAsInteger(
+                "neo4j.max.transaction.retry.time.seconds", "NEO4J_MAX_TRANSACTION_RETRY_TIME_SECONDS", "120", false);
         this.knowledgeMaxDepth = loadPropertyAsInteger("knowledge.max.depth",
                 "KNOWLEDGE_MAX_DEPTH", "3", false);
         this.knowledgeEmbeddingBatchSize = loadPropertyAsInteger(
@@ -420,6 +428,10 @@ public class UiTestAgentConfig extends AgentConfig {
     // Knowledge Persistence Configuration (Neo4j)
     private final ConfigProperty<String> neo4jUsername;
     private final ConfigProperty<String> neo4jDatabase;
+    private final ConfigProperty<Integer> neo4jMaxConnectionPoolSize;
+    private final ConfigProperty<Integer> neo4jConnectionAcquisitionTimeoutSeconds;
+    private final ConfigProperty<Integer> neo4jConnectionTimeoutSeconds;
+    private final ConfigProperty<Integer> neo4jMaxTransactionRetryTimeSeconds;
     private final ConfigProperty<Integer> knowledgeMaxDepth;
     private final ConfigProperty<Integer> knowledgeEmbeddingBatchSize;
     private final ConfigProperty<Double> knowledgeMatchConfidenceHigh;
@@ -433,6 +445,22 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public String getNeo4jDatabase() {
         return neo4jDatabase.value();
+    }
+
+    public int getNeo4jMaxConnectionPoolSize() {
+        return neo4jMaxConnectionPoolSize.value();
+    }
+
+    public int getNeo4jConnectionAcquisitionTimeoutSeconds() {
+        return neo4jConnectionAcquisitionTimeoutSeconds.value();
+    }
+
+    public int getNeo4jConnectionTimeoutSeconds() {
+        return neo4jConnectionTimeoutSeconds.value();
+    }
+
+    public int getNeo4jMaxTransactionRetryTimeSeconds() {
+        return neo4jMaxTransactionRetryTimeSeconds.value();
     }
 
     public int getKnowledgeMaxDepth() {

@@ -529,6 +529,7 @@ public class ProcedureDialog extends AbstractDialog {
         editDetailsButton.setEnabled(true);
         replaceScreenshotButton.setEnabled(true);
         removeElementButton.setEnabled(true);
+        registerUnsavedChanges();
     }
 
     void handleRemoveElement() {

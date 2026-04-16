@@ -149,15 +149,14 @@ class SatisfiesEdgeServiceTest {
     void findUnsatisfiedPrerequisites_shouldDelegateToRepository() {
         UUID stepId = UUID.randomUUID();
         java.util.Set<UUID> effectIds = java.util.Set.of(UUID.randomUUID(), UUID.randomUUID());
-        var repoResult = List.of(new UnsatisfiedPrerequisite("missing prereq 1", 0.0));
-        List<String> expectedMissing = List.of("missing prereq 1");
+        var repoResult = List.of(new UnsatisfiedPrerequisite("missing prereq 1", 0.0, null));
 
         when(mockSatisfiesEdgeRepository.findUnsatisfiedPrerequisites(eq(stepId), eq(effectIds), anyDouble()))
                 .thenReturn(repoResult);
 
-        List<String> actualMissing = satisfiesEdgeService.findUnsatisfiedPrerequisites(stepId, effectIds);
+        List<UnsatisfiedPrerequisite> actualMissing = satisfiesEdgeService.findUnsatisfiedPrerequisites(stepId, effectIds);
 
-        assertThat(actualMissing).isEqualTo(expectedMissing);
+        assertThat(actualMissing).isEqualTo(repoResult);
         verify(mockSatisfiesEdgeRepository).findUnsatisfiedPrerequisites(eq(stepId), eq(effectIds), anyDouble());
     }
 }

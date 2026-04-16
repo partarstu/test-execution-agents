@@ -22,6 +22,7 @@ import java.awt.*;
 public class BoundingBoxCaptureNeededPopup extends AbstractConfirmationDialog {
     private BoundingBoxCaptureNeededPopup(Window owner, UiTestAgentConfig config) {
         super(owner, "Further action required", config);
+        setFocusableWindowState(false);
 
         initializeDialog("The screenshot of the first screen is to be made and after that you'll " +
                 "be asked to highlight the target element on that screenshot. Please make sure that the target element is visible on the " +

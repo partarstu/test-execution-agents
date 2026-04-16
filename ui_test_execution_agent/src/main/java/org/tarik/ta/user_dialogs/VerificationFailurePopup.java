@@ -39,6 +39,7 @@ public class VerificationFailurePopup extends AbstractDialog {
     private VerificationFailurePopup(Window owner, String verificationDescription, String failureReason,
                                      BufferedImage screenshot, UiTestAgentConfig config) {
         super(owner, "Verification Failure", config);
+        setFocusableWindowState(false);
 
         JPanel mainPanel = getDefaultMainPanel();
 

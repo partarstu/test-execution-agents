@@ -67,8 +67,7 @@ class ExecutionStateTrackerTest {
         stateTracker.enterCompositeScope(compositeProc());
         stateTracker.addEffects(List.of(atomicEffect));
 
-        // Atomic effect should be in the child frame, which is the "second frame",
-        // so it IS visible via getEffectNodeIds() (root + second frame).
+        // Atomic effect is in the child frame — visible because all open frames are included.
         assertThat(stateTracker.getEffectNodeIds()).containsExactly(atomicEffect.id());
 
         stateTracker.closeCompositeScope(List.of(compositeEffect));
@@ -78,7 +77,7 @@ class ExecutionStateTrackerTest {
     }
 
     @Test
-    void getEffectNodeIds_returnsRootPlusSecondFrame() {
+    void getEffectNodeIds_returnsAllOpenScopeFrames() {
         PhraseEmbedding rootEffect = pe();
         PhraseEmbedding aEffect = pe();
         PhraseEmbedding bEffect = pe();
@@ -94,8 +93,8 @@ class ExecutionStateTrackerTest {
         stateTracker.enterCompositeScope(compositeProc());
         stateTracker.addEffects(List.of(bEffect));
 
-        // Should return only root + A, not B
-        assertThat(stateTracker.getEffectNodeIds()).containsExactlyInAnyOrder(rootEffect.id(), aEffect.id());
+        // All open frames (root, A, B) must be visible
+        assertThat(stateTracker.getEffectNodeIds()).containsExactlyInAnyOrder(rootEffect.id(), aEffect.id(), bEffect.id());
     }
 
     @Test

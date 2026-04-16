@@ -140,14 +140,8 @@ public class AgentConfig {
         this.debugMode = loadProperty("debug.mode", "DEBUG_MODE", "false", Boolean::parseBoolean, false);
 
         // RAG Config
-        this.vectorDbProvider = getProperty("vector.db.provider", "VECTOR_DB_PROVIDER", "qdrant",
-                s -> stream(RagDbProvider.values())
-                        .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
-                        .findAny()
-                        .orElseThrow(() -> new IllegalArgumentException(
-                                "%s is not a supported RAG DB provider. Supported ones: %s".formatted(s,
-                                        Arrays.toString(RagDbProvider.values())))),
-                false);
+        this.vectorDbProvider = getProperty("vector.db.provider", "VECTOR_DB_PROVIDER", "neo4j",
+                s -> parseEnum(RagDbProvider.class, s), false);
         this.vectorDbUrl = getRequiredProperty("vector.db.url", "VECTOR_DB_URL", false);
         this.vectorDbKey = loadProperty("vector.db.key", "VECTOR_DB_KEY", "", s -> s, true);
         this.retrieverTopN = loadPropertyAsInteger("retriever.top.n", "RETRIEVER_TOP_N", "5", false);
@@ -162,13 +156,7 @@ public class AgentConfig {
 
         // Google API Config
         this.googleApiProvider = getProperty("google.api.provider", "GOOGLE_API_PROVIDER", "studio_ai",
-                s -> stream(GoogleApiProvider.values())
-                        .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
-                        .findAny()
-                        .orElseThrow(() -> new IllegalArgumentException(
-                                "%s is not a supported Google API provider. Supported ones: %s".formatted(s,
-                                        Arrays.toString(GoogleApiProvider.values())))),
-                false);
+                s -> parseEnum(GoogleApiProvider.class, s), false);
         this.googleApiToken = getRequiredProperty("google.api.token", "GOOGLE_API_KEY", true);
         this.googleProject = getRequiredProperty("google.project", "GOOGLE_PROJECT", false);
         this.googleLocation = getRequiredProperty("google.location", "GOOGLE_LOCATION", false);
@@ -183,13 +171,7 @@ public class AgentConfig {
 
         // Anthropic API Config
         this.anthropicApiProvider = getProperty("anthropic.api.provider", "ANTHROPIC_API_PROVIDER", "anthropic_api",
-                s -> stream(AnthropicApiProvider.values())
-                        .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
-                        .findAny()
-                        .orElseThrow(() -> new IllegalArgumentException(
-                                "%s is not a supported Anthropic API provider. Supported ones: %s".formatted(s,
-                                        Arrays.toString(AnthropicApiProvider.values())))),
-                false);
+                s -> parseEnum(AnthropicApiProvider.class, s), false);
         this.anthropicApiKey = loadProperty("anthropic.api.key", "ANTHROPIC_API_KEY", "", s -> s, true);
         this.anthropicApiEndpoint = loadProperty("anthropic.endpoint", "ANTHROPIC_ENDPOINT",
                 "https://api.anthropic.com/v1/", s -> s, false);
@@ -277,15 +259,19 @@ public class AgentConfig {
         return retrieverTopN.value();
     }
 
+    protected <E extends Enum<E>> E parseEnum(Class<E> enumClass, String value) {
+        return stream(enumClass.getEnumConstants())
+                .filter(e -> e.name().equalsIgnoreCase(value))
+                .findAny()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "%s is not a valid %s value. Supported ones: %s".formatted(value,
+                                enumClass.getSimpleName(), Arrays.toString(enumClass.getEnumConstants()))));
+    }
+
     // -----------------------------------------------------
     // Model Config
     protected ModelProvider getModelProvider(String s) {
-        return stream(ModelProvider.values())
-                .filter(provider -> provider.name().toLowerCase().equalsIgnoreCase(s))
-                .findAny()
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "%s is not a supported model provider. Supported ones: %s".formatted(s,
-                                Arrays.toString(ModelProvider.values()))));
+        return parseEnum(ModelProvider.class, s);
     }
 
     public int getMaxOutputTokens() {

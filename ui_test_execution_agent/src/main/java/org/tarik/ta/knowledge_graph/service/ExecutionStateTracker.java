@@ -164,12 +164,14 @@ public class ExecutionStateTracker {
     }
 
     /**
-     * Returns an unmodifiable snapshot of effect node IDs for semantic precondition checking via the graph.
+     * Returns an unmodifiable snapshot of all currently visible effect node IDs.
+     * Includes effects from every open scope frame: root-level completed procedures plus
+     * accumulated completed-children effects at each level of the currently-executing hierarchy.
      */
     public Set<UUID> getEffectNodeIds() {
-        Set<UUID> visibleEffects = new HashSet<>(scopeStack.get(0).effectNodeIds);
-        if (scopeStack.size() >= 2) {
-            visibleEffects.addAll(scopeStack.get(1).effectNodeIds);
+        Set<UUID> visibleEffects = new HashSet<>();
+        for (ScopeFrame frame : scopeStack) {
+            visibleEffects.addAll(frame.effectNodeIds);
         }
         return Set.copyOf(visibleEffects);
     }

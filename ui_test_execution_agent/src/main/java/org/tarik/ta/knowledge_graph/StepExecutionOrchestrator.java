@@ -36,6 +36,7 @@ import org.tarik.ta.knowledge_graph.execution.ExecutionItem.TestStepItem;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.Procedure.TimingProfile;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
 import org.tarik.ta.model.UiTestExecutionContext;
@@ -380,7 +381,8 @@ public class StepExecutionOrchestrator {
         var preconditionExecutionResult = preconditionActionAgent.executeAndGetResult(
                 () -> {
                     String userMessage = getPreconditionExecutionUserMessage(context, precondition, testDataString, relevantData,
-                            stepExecutionContext.uiElementId(), stepExecutionContext.failureHints(), stepExecutionContext.targetElement());
+                            stepExecutionContext.uiElementId(), stepExecutionContext.failureHints(), stepExecutionContext.targetElement(),
+                            stepExecutionContext.locationHistory());
                     return preconditionActionAgent.execute(userMessage, singleImageContent(screenshot));
                 });
         budgetManager.resetToolCallUsage();
@@ -456,11 +458,27 @@ public class StepExecutionOrchestrator {
     }
 
     private static String buildExecutionContextString(UiTestExecutionContext context, String elementId, List<String> failureHints,
-                                                      String uiElementDetails) {
+                                                      String uiElementDetails, @Nullable ElementLocationHistory locationHistory) {
         String uiElementIdInfo = elementId != null ? "Target UI element ID: %s".formatted(elementId) : "";
         var knownIssues = knownExecutionIssues(failureHints);
         var contextString = "Test execution context data:\n%s\n".formatted(context.getSharedData().toString()).trim();
-        return "%s\n%s\n%s\n%s".formatted(contextString, uiElementIdInfo.trim(), uiElementDetails.trim(), knownIssues.trim());
+        var locationHistoryBlock = buildLocationHistoryBlock(locationHistory);
+        return "%s\n%s\n%s\n%s\n%s".formatted(contextString, uiElementIdInfo.trim(), uiElementDetails.trim(),
+                locationHistoryBlock.trim(), knownIssues.trim());
+    }
+
+    private static String buildLocationHistoryBlock(@Nullable ElementLocationHistory history) {
+        if (history == null) {
+            return "";
+        }
+        return """
+                Target UI element location history:
+                   - Stability score: %s
+                   - Average location time: %s ms
+                   - Location strategy: %s
+                   - Average retries count: %s
+                """.formatted(history.stabilityScore(), history.avgLocationTimeMs(),
+                history.locationStrategy(), history.locationRetriesCount());
     }
 
     private static String buildTargetElementDetailBlock(UiElement targetElement) {
@@ -483,20 +501,21 @@ public class StepExecutionOrchestrator {
     private static @NonNull String getPreconditionExecutionUserMessage(UiTestExecutionContext context, Procedure precondition,
                                                                        String testDataString, String relevantData,
                                                                        String elementId, List<String> failureHints,
-                                                                       UiElement targetElement) {
+                                                                       UiElement targetElement,
+                                                                       @Nullable ElementLocationHistory locationHistory) {
         String elementDetailBlock = buildTargetElementDetailBlock(targetElement);
         return """
                 The precondition you need to execute: %s.
-                
+
                 Relevant data for this precondition: %s
-                
+
                 %s.
-                
+
                 The screenshot follows.
                 """.formatted(
                 precondition.description(),
                 relevantData.isBlank() ? testDataString : relevantData,
-                buildExecutionContextString(context, elementId, failureHints, elementDetailBlock).trim());
+                buildExecutionContextString(context, elementId, failureHints, elementDetailBlock, locationHistory).trim());
     }
 
     UiTestStepResult executeSingleTestStep(UiTestExecutionContext context, TestStep testStep, Procedure atomic,
@@ -509,7 +528,7 @@ public class StepExecutionOrchestrator {
             context.setVisualState(new VisualState(screenshot));
             var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) testStepActionAgent.executeAndGetResult(() -> {
                 String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, stepExecutionContext.uiElementId(),
-                        stepExecutionContext.failureHints(), stepExecutionContext.targetElement());
+                        stepExecutionContext.failureHints(), stepExecutionContext.targetElement(), stepExecutionContext.locationHistory());
                 return testStepActionAgent.execute(userMessage, singleImageContent(screenshot));
             }));
             budgetManager.resetToolCallUsage();
@@ -551,20 +570,21 @@ public class StepExecutionOrchestrator {
 
     private static @NonNull String getTestStepActionUserMessage(UiTestExecutionContext context, Procedure atomic, String testDataString,
                                                                 String elementId, List<String> failureHints,
-                                                                UiElement targetElement) {
+                                                                UiElement targetElement,
+                                                                @Nullable ElementLocationHistory locationHistory) {
         String elementDetailBlock = buildTargetElementDetailBlock(targetElement);
         return """
                 Execute the following action: %s
-                
+
                 Data, related to the action: %s
-                
+
                 %s
-                
+
                 The screenshot follows.
                 """.formatted(
                 atomic.description(),
                 testDataString,
-                buildExecutionContextString(context, elementId, failureHints, elementDetailBlock).trim());
+                buildExecutionContextString(context, elementId, failureHints, elementDetailBlock, locationHistory).trim());
     }
 
     private UiTestStepResult verifyTestStep(UiTestExecutionContext context, TestStep testStep, Procedure atomic,
