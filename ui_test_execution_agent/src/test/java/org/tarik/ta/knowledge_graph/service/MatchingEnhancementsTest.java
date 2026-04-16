@@ -32,7 +32,6 @@ import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 import org.tarik.ta.knowledge_graph.repository.ProcedureMatch;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
-import org.tarik.ta.knowledge_graph.location_history.LocationStrategy;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 
 import java.time.Instant;
@@ -116,8 +115,8 @@ class MatchingEnhancementsTest {
         // p1 is unstable (0.3 < 0.5 threshold), p2 is stable (1.0)
         when(mockRepository.findCandidateContextBatch(anyList(), anySet()))
                 .thenReturn(List.of(
-                        new ProcedureRepository.CandidateContext(p1.id(), Optional.of(el1), Optional.of(new ElementLocationHistory(0.3, 100, LocationStrategy.VISUAL_GROUNDING, 0, Instant.now())), 0),
-                        new ProcedureRepository.CandidateContext(p2.id(), Optional.of(el2), Optional.of(new ElementLocationHistory(1.0, 100, LocationStrategy.VISUAL_GROUNDING, 0, Instant.now())), 0)
+                        new ProcedureRepository.CandidateContext(p1.id(), Optional.of(el1), Optional.of(new ElementLocationHistory(0.3, 100, 0, Instant.now())), 0),
+                        new ProcedureRepository.CandidateContext(p2.id(), Optional.of(el2), Optional.of(new ElementLocationHistory(1.0, 100, 0, Instant.now())), 0)
                 ));
         when(mockPhraseEmbeddingRepository.findPrerequisitesForProcedure(any())).thenReturn(List.of());
 

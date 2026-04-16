@@ -72,8 +72,6 @@ class ElementLocatorToolsTest {
     @Mock
     private org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder mockLocationHistoryRecorder;
     @Mock
-    private org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup mockStabilityLookup;
-    @Mock
     private UiTestAgentConfig configMock;
 
     private MockedStatic<UiCommonUtils> uiCommonUtilsMock;
@@ -85,8 +83,9 @@ class ElementLocatorToolsTest {
         uiCommonUtilsMock = mockStatic(UiCommonUtils.class);
 
         spinnerManagerMock = mockStatic(org.tarik.ta.user_dialogs.SpinnerManager.class);
-        spinnerManagerMock.when(org.tarik.ta.user_dialogs.SpinnerManager::hideIfVisible).thenReturn(mock(org.tarik.ta.user_dialogs.SpinnerState.class));
-        
+        spinnerManagerMock.when(org.tarik.ta.user_dialogs.SpinnerManager::hideIfVisible)
+                .thenReturn(mock(org.tarik.ta.user_dialogs.SpinnerState.class));
+
         lenient().when(configMock.getElementBoundingBoxColorName()).thenReturn("red");
         lenient().when(configMock.getElementLocatorVisualGroundingVoteCount()).thenReturn(1);
         lenient().when(configMock.getBboxClusteringMinIntersectionRatio()).thenReturn(0.9);
@@ -94,8 +93,8 @@ class ElementLocatorToolsTest {
         lenient().when(configMock.getBboxScreenshotMaxSizeMegapixels()).thenReturn(10.0);
         lenient().when(configMock.isBoundingBoxAlreadyNormalized()).thenReturn(false);
 
-        elementLocatorTools = new ElementLocatorTools(mockUiElementCache, mockRepository, mockUiStateCheckAgent, 
-                mockLocationHistoryRecorder, mockStabilityLookup, mockBBoxAgent, mockSelectionAgent, configMock);
+        elementLocatorTools = new ElementLocatorTools(mockUiElementCache, mockRepository, mockUiStateCheckAgent,
+                mockLocationHistoryRecorder, mockBBoxAgent, mockSelectionAgent, configMock);
     }
 
     @AfterEach
@@ -115,12 +114,14 @@ class ElementLocatorToolsTest {
 
         BufferedImage mockScreen = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
         uiCommonUtilsMock.when(UiCommonUtils::captureScreen).thenReturn(mockScreen);
-        uiCommonUtilsMock.when(() -> UiCommonUtils.getScaledBoundingBox(any(Rectangle.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        uiCommonUtilsMock.when(() -> UiCommonUtils.getScaledBoundingBox(any(Rectangle.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
         uiCommonUtilsMock.when(() -> UiCommonUtils.getColorByName(anyString())).thenReturn(Color.RED);
 
         BoundingBoxes boundingBoxes = new BoundingBoxes(List.of(new org.tarik.ta.dto.BoundingBox(10, 10, 20, 20)));
-        UiOperationExecutionResult<BoundingBoxes> executionResult = new UiOperationExecutionResult<>(SUCCESS, "success", boundingBoxes, null);
-        
+        UiOperationExecutionResult<BoundingBoxes> executionResult =
+                new UiOperationExecutionResult<>(SUCCESS, "success", boundingBoxes, null);
+
         when(mockBBoxAgent.executeAndGetResult(any())).thenReturn(executionResult);
         lenient().when(configMock.skipBestUiElementMatchSelection()).thenReturn(true);
 

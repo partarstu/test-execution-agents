@@ -59,6 +59,7 @@ import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_UPDATED_AT;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_AVG_EXECUTION_MS;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_AVG_VERIFICATION_DELAY_MS;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_MAX_VERIFICATION_DELAY_MS;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_ADDITIONAL_INFO;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_LAST_TIMING_UPDATE;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_NAME;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_OWN_DESCRIPTION;
@@ -70,7 +71,6 @@ import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_SCREENSHOT_
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_IS_DATA_DEPENDENT;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_STABILITY_SCORE;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_AVG_LOCATION_TIME_MS;
-import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_LOCATION_STRATEGY;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_FAILED_LOCATION_COUNT;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_LAST_LOCATED_AT;
 import static org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PROP_PHRASE;
@@ -131,6 +131,7 @@ public class Neo4jRepositorySupport {
             Map.entry("PROP_OPTIONAL", PROP_OPTIONAL),
             Map.entry("PROP_PREREQUISITES", PROP_PREREQUISITES),
             Map.entry("PROP_EFFECTS", PROP_EFFECTS),
+            Map.entry("PROP_ADDITIONAL_INFO", PROP_ADDITIONAL_INFO),
             Map.entry("PROP_CREATED_AT", PROP_CREATED_AT),
             Map.entry("PROP_UPDATED_AT", PROP_UPDATED_AT),
             Map.entry("PROP_AVG_EXECUTION_MS", PROP_AVG_EXECUTION_MS),
@@ -146,7 +147,6 @@ public class Neo4jRepositorySupport {
             Map.entry("PROP_IS_DATA_DEPENDENT", PROP_IS_DATA_DEPENDENT),
             Map.entry("PROP_STABILITY_SCORE", PROP_STABILITY_SCORE),
             Map.entry("PROP_AVG_LOCATION_TIME_MS", PROP_AVG_LOCATION_TIME_MS),
-            Map.entry("PROP_LOCATION_STRATEGY", PROP_LOCATION_STRATEGY),
             Map.entry("PROP_FAILED_LOCATION_COUNT", PROP_FAILED_LOCATION_COUNT),
             Map.entry("PROP_LAST_LOCATED_AT", PROP_LAST_LOCATED_AT),
             Map.entry("PROP_PHRASE", PROP_PHRASE),

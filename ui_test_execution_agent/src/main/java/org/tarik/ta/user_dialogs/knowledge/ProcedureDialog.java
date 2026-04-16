@@ -83,6 +83,7 @@ public class ProcedureDialog extends AbstractDialog {
     JButton moveChildStepDownButton;
 
     JTextArea descriptionArea;
+    JTextArea additionalInfoArea;
     JCheckBox atomicCheckBox;
     JCheckBox optionalCheckBox;
     DefaultListModel<ChildProcedureInDialog> childStepsModel;
@@ -139,7 +140,8 @@ public class ProcedureDialog extends AbstractDialog {
         JPanel mainPanel = getDefaultMainPanel();
 
         JPanel headerPanel =
-                ProcedureDialogBuilder.createHeaderPanel(this, p != null ? p.description() : "", cfg.headerMessage(), cfg.itemContext());
+                ProcedureDialogBuilder.createHeaderPanel(this, p != null ? p.description() : "", cfg.headerMessage(), cfg.itemContext(),
+                        p != null ? p.additionalInfo() : null);
         mainPanel.add(headerPanel, NORTH);
 
         this.handlers = uiElementDialogHelper.buildElementHandlers(
@@ -452,7 +454,7 @@ public class ProcedureDialog extends AbstractDialog {
 
     private void attachDirtyListeners() {
         var docListener = dirtyDocListener(this::registerUnsavedChanges);
-        List.of(descriptionArea, expectedResultsArea).forEach(a -> a.getDocument().addDocumentListener(docListener));
+        List.of(descriptionArea, expectedResultsArea, additionalInfoArea).forEach(a -> a.getDocument().addDocumentListener(docListener));
         atomicCheckBox.addItemListener(_ -> registerUnsavedChanges());
         optionalCheckBox.addItemListener(_ -> registerUnsavedChanges());
 
@@ -461,10 +463,22 @@ public class ProcedureDialog extends AbstractDialog {
     }
 
     JTextArea createWrappedTextArea(String text, int rows, int cols) {
-        JTextArea area = new JTextArea(text, rows, cols);
+        JTextArea area = new JTextArea(text, 1, cols) {
+            @Override
+            public Dimension getPreferredScrollableViewportSize() {
+                return getPreferredSize();
+            }
+        };
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
         area.setFont(new Font(dialogDefaultFontType, PLAIN, dialogDefaultFontSize));
+        // Revalidate the enclosing JScrollPane on content change so layout reflects the new preferred size
+        area.getDocument().addDocumentListener(dirtyDocListener(() -> {
+            var scrollPane = SwingUtilities.getAncestorOfClass(JScrollPane.class, area);
+            if (scrollPane != null) {
+                scrollPane.revalidate();
+            }
+        }));
         return area;
     }
 
@@ -821,10 +835,12 @@ public class ProcedureDialog extends AbstractDialog {
         List<String> testData = modelToList(testDataModel);
         String expectedResults = expectedResultsArea.getText().trim();
 
+        var additionalInfoText = additionalInfoArea.getText().trim();
         Procedure procedure = (isAtomic
                 ? createAtomic(description, testData, expectedResults, prerequisites, effects, isPrecondition)
                 : createComposite(description, testData, expectedResults, prerequisites, effects, isPrecondition))
-                .withOptional(optionalCheckBox.isSelected());
+                .withOptional(optionalCheckBox.isSelected())
+                .withAdditionalInfo(additionalInfoText.isEmpty() ? null : additionalInfoText);
         List<IngestionNode> childNodes = isAtomic ? List.of()
                 : Collections.list(childStepsModel.elements()).stream().map(ChildProcedureInDialog::toIngestionNode).toList();
         var result = new IngestionNode.NewProcedure(procedure, isAtomic ? targetUiElementId : null, childNodes);

@@ -26,7 +26,6 @@ import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PhraseType;
-import org.tarik.ta.knowledge_graph.location_history.LocationStrategy;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 import org.tarik.ta.knowledge_graph.model.node.Procedure.TimingProfile;
 
@@ -40,7 +39,6 @@ import static org.tarik.ta.knowledge_graph.model.node.Embeddable.PROP_EMBEDDING;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.*;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_STABILITY_SCORE;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_AVG_LOCATION_TIME_MS;
-import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_LOCATION_STRATEGY;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_FAILED_LOCATION_COUNT;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_LAST_LOCATED_AT;
 import static org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PROP_PHRASE;
@@ -98,6 +96,7 @@ public class ProcedureRepository {
                 n.${PROP_OPTIONAL} = $optional,
                 n.${PROP_PREREQUISITES} = $prerequisites,
                 n.${PROP_EFFECTS} = $effects,
+                n.${PROP_ADDITIONAL_INFO} = $additionalInfo,
                 n.${PROP_CREATED_AT} = $createdAt,
                 n.${PROP_UPDATED_AT} = $updatedAt
             """);
@@ -113,6 +112,7 @@ public class ProcedureRepository {
                 n.${PROP_OPTIONAL} = node.${PROP_OPTIONAL},
                 n.${PROP_PREREQUISITES} = node.${PROP_PREREQUISITES},
                 n.${PROP_EFFECTS} = node.${PROP_EFFECTS},
+                n.${PROP_ADDITIONAL_INFO} = node.${PROP_ADDITIONAL_INFO},
                 n.${PROP_CREATED_AT} = node.${PROP_CREATED_AT},
                 n.${PROP_UPDATED_AT} = node.${PROP_UPDATED_AT}
             """);
@@ -127,6 +127,7 @@ public class ProcedureRepository {
                 n.${PROP_OPTIONAL} = $optional,
                 n.${PROP_PREREQUISITES} = $prerequisites,
                 n.${PROP_EFFECTS} = $effects,
+                n.${PROP_ADDITIONAL_INFO} = $additionalInfo,
                 n.${PROP_CREATED_AT} = $createdAt,
                 n.${PROP_UPDATED_AT} = $updatedAt
             """);
@@ -156,7 +157,6 @@ public class ProcedureRepository {
             MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elementId})
             SET el.${PROP_STABILITY_SCORE} = $score,
                 el.${PROP_AVG_LOCATION_TIME_MS} = $avgTime,
-                el.${PROP_LOCATION_STRATEGY} = $strategy,
                 el.${PROP_FAILED_LOCATION_COUNT} = $failedCount,
                 el.${PROP_LAST_LOCATED_AT} = $lastLocatedAt
             """);
@@ -239,7 +239,6 @@ public class ProcedureRepository {
         static final String PARAM_ELEMENT_ID = "elementId";
         static final String PARAM_SCORE = "score";
         static final String PARAM_AVG_TIME = "avgTime";
-        static final String PARAM_STRATEGY = "strategy";
         static final String PARAM_FAILED_COUNT = "failedCount";
         static final String PARAM_LAST_LOCATED_AT = "lastLocatedAt";
 
@@ -480,7 +479,6 @@ public class ProcedureRepository {
                         stability = Optional.of(new ElementLocationHistory(
                                 r.get(PROP_STABILITY_SCORE).asDouble(),
                                 r.get(PROP_AVG_LOCATION_TIME_MS).asLong(),
-                                LocationStrategy.fromString(r.get(PROP_LOCATION_STRATEGY).asString()),
                                 r.get(PROP_FAILED_LOCATION_COUNT).asDouble(),
                                 Instant.parse(r.get(PROP_LAST_LOCATED_AT).asString())
                         ));
@@ -585,7 +583,6 @@ public class ProcedureRepository {
         return Optional.of(new ElementLocationHistory(
                 node.get(PROP_STABILITY_SCORE).asDouble(),
                 node.get(PROP_AVG_LOCATION_TIME_MS).asLong(),
-                LocationStrategy.fromString(node.get(PROP_LOCATION_STRATEGY).asString()),
                 node.get(PROP_FAILED_LOCATION_COUNT).asDouble(),
                 Instant.parse(node.get(PROP_LAST_LOCATED_AT).asString())
         ));
@@ -599,7 +596,6 @@ public class ProcedureRepository {
                 return Optional.of(new ElementLocationHistory(
                         node.get(PROP_STABILITY_SCORE).asDouble(),
                         node.get(PROP_AVG_LOCATION_TIME_MS).asLong(),
-                        LocationStrategy.fromString(node.get(PROP_LOCATION_STRATEGY).asString()),
                         node.get(PROP_FAILED_LOCATION_COUNT).asDouble(),
                         Instant.parse(node.get(PROP_LAST_LOCATED_AT).asString())
                 ));
@@ -608,7 +604,7 @@ public class ProcedureRepository {
         return Optional.empty();
     }
 
-    public void updateElementStability(UUID elementId, boolean located, long locationTimeMs, LocationStrategy strategy) {
+    public void updateElementStability(UUID elementId, boolean located, long locationTimeMs) {
         repositorySupport.executeComplexWriteQuery(tx -> {
             var elOpt = getElementLocationHistory(elementId, tx);
             double alpha = config.getStabilityEwmaAlpha();
@@ -630,7 +626,6 @@ public class ProcedureRepository {
                     PARAM_ELEMENT_ID, elementId.toString(),
                     PARAM_SCORE, newScore,
                     PARAM_AVG_TIME, newAvgTime,
-                    PARAM_STRATEGY, strategy.name(),
                     PARAM_FAILED_COUNT, failedCount,
                     PARAM_LAST_LOCATED_AT, Instant.now().toString()
             ));
@@ -737,7 +732,6 @@ public class ProcedureRepository {
                        el.${PROP_ID} AS elementId,
                        el.${PROP_STABILITY_SCORE} AS ${PROP_STABILITY_SCORE},
                        el.${PROP_AVG_LOCATION_TIME_MS} AS ${PROP_AVG_LOCATION_TIME_MS},
-                       el.${PROP_LOCATION_STRATEGY} AS ${PROP_LOCATION_STRATEGY},
                        el.${PROP_FAILED_LOCATION_COUNT} AS ${PROP_FAILED_LOCATION_COUNT},
                        el.${PROP_LAST_LOCATED_AT} AS ${PROP_LAST_LOCATED_AT},
                        count(DISTINCT parent) AS sharedCount
@@ -761,6 +755,9 @@ public class ProcedureRepository {
         var optional = node.containsKey(PROP_OPTIONAL) && node.get(PROP_OPTIONAL).asBoolean();
         var prerequisites = node.containsKey(PROP_PREREQUISITES) ? node.get(PROP_PREREQUISITES).asList(Value::asString) : List.<String>of();
         var effects = node.containsKey(PROP_EFFECTS) ? node.get(PROP_EFFECTS).asList(Value::asString) : List.<String>of();
+        var additionalInfoValue = node.get(PROP_ADDITIONAL_INFO);
+        var additionalInfo = (!additionalInfoValue.isNull() && !additionalInfoValue.asString().isBlank())
+                ? additionalInfoValue.asString() : null;
         var createdAt = node.containsKey(PROP_CREATED_AT) ? Instant.parse(node.get(PROP_CREATED_AT).asString()) : Instant.now();
         var updatedAt = node.containsKey(PROP_UPDATED_AT) ? Instant.parse(node.get(PROP_UPDATED_AT).asString()) : Instant.now();
 
@@ -785,7 +782,7 @@ public class ProcedureRepository {
         }
 
         return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
-                prerequisites, effects, createdAt, updatedAt, embedding, timing);
+                prerequisites, effects, additionalInfo, createdAt, updatedAt, embedding, timing);
     }
 
     private static Map<String, Object> buildParams(Procedure procedure, float[] embedding) {
@@ -800,6 +797,7 @@ public class ProcedureRepository {
         params.put(PROP_OPTIONAL, procedure.optional());
         params.put(PROP_PREREQUISITES, procedure.prerequisites());
         params.put(PROP_EFFECTS, procedure.effects());
+        params.put(PROP_ADDITIONAL_INFO, procedure.additionalInfo());
         params.put(PROP_CREATED_AT, procedure.createdAt().toString());
         params.put(PROP_UPDATED_AT, procedure.updatedAt().toString());
         return params;

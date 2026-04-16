@@ -36,14 +36,11 @@ import org.tarik.ta.exceptions.ElementLocationException;
 import org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
-import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.UiElementCache;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.user_dialogs.SpinnerManager;
 import org.tarik.ta.utils.UiCommonUtils;
-import org.tarik.ta.knowledge_graph.location_history.LocationStrategy;
-import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 
 
 import java.awt.*;
@@ -78,7 +75,6 @@ import static java.util.stream.IntStream.range;
 import static java.util.stream.Stream.concat;
 
 import static javax.imageio.ImageIO.write;
-import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.utils.BoundingBoxUtil.*;
 import static org.tarik.ta.utils.ImageUtils.*;
 import static org.tarik.ta.utils.UiCommonUtils.*;
@@ -95,26 +91,24 @@ public class ElementLocatorTools extends UiAbstractTools {
     private final UiElementBoundingBoxAgent uiElementBoundingBoxAgent;
     private final BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent;
     private final LocationHistoryRecorder locationHistoryRecorder;
-    private final ElementLocationHistoryLookup stabilityLookup;
     private final UiTestAgentConfig uiTestAgentConfig;
     private final Color boundingBoxColor;
     private final boolean debugMode;
 
     @Inject
     public ElementLocatorTools(UiElementCache uiElementCache, UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
-                                LocationHistoryRecorder locationHistoryRecorder,
-                                ElementLocationHistoryLookup elementLocationHistoryLookup,
-                                UiElementBoundingBoxAgent uiElementBoundingBoxAgent,
-                                BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent,
-                                UiTestAgentConfig uiTestAgentConfig) {
+                               LocationHistoryRecorder locationHistoryRecorder,
+                               UiElementBoundingBoxAgent uiElementBoundingBoxAgent,
+                               BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent,
+                               UiTestAgentConfig uiTestAgentConfig) {
         super(uiStateCheckAgent);
         this.uiElementCache = requireNonNull(uiElementCache, "uiElementCache");
         this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
         this.uiElementBoundingBoxAgent = requireNonNull(uiElementBoundingBoxAgent, "uiElementBoundingBoxAgent");
         this.bestUiElementMatchSelectionAgent = requireNonNull(bestUiElementMatchSelectionAgent, "bestUiElementMatchSelectionAgent");
         this.locationHistoryRecorder = locationHistoryRecorder != null ?
-                locationHistoryRecorder : (elementId, located, locationTimeMs, strategy) -> {};
-        this.stabilityLookup = elementLocationHistoryLookup != null ? elementLocationHistoryLookup : _ -> Optional.empty();
+                locationHistoryRecorder : (elementId, located, locationTimeMs) -> {
+        };
         this.uiTestAgentConfig = requireNonNull(uiTestAgentConfig, "uiTestAgentConfig");
         String boundingBoxColorName = uiTestAgentConfig.getElementBoundingBoxColorName();
         this.boundingBoxColor = getColorByName(boundingBoxColorName);
@@ -126,8 +120,10 @@ public class ElementLocatorTools extends UiAbstractTools {
      */
     @Tool("Locates UI element on the screen, first retrieving it from DB based on its ID")
     public LocatedElementInfo locateKnownElementById(
-            @P("ID of the UI element to locate") UUID elementId,
-            @P(value = "Any data relevant for this element") String elementSpecificData) {
+            @P("ID of the UI element to locate")
+            UUID elementId,
+            @P(value = "Any data relevant for this element or action which involves this element", required = false)
+            String elementSpecificData) {
         requireNonNull(elementId, "elementId");
         try {
             var uiElement = uiElementCache.get(elementId)
@@ -139,10 +135,10 @@ public class ElementLocatorTools extends UiAbstractTools {
             try {
                 var result = findElementAndProcessLocationResult(
                         () -> getFinalElementLocation(uiElement, elementSpecificData), uiElement.name());
-                locationHistoryRecorder.record(elementId, true, System.currentTimeMillis() - startMs, resolveLocationStrategy(uiElement));
+                locationHistoryRecorder.record(elementId, true, System.currentTimeMillis() - startMs);
                 return result;
             } catch (ElementLocationException e) {
-                locationHistoryRecorder.record(elementId, false, System.currentTimeMillis() - startMs, resolveLocationStrategy(uiElement));
+                locationHistoryRecorder.record(elementId, false, System.currentTimeMillis() - startMs);
                 throw e;
             }
         } catch (ToolExecutionException | ElementLocationException e) {
@@ -234,11 +230,6 @@ public class ElementLocatorTools extends UiAbstractTools {
         return new ElementLocationException(failureReason, status);
     }
 
-    private LocationStrategy resolveLocationStrategy(UiElement element) {
-        boolean algorithmic = uiTestAgentConfig.isAlgorithmicSearchEnabled() && !element.isDataDependent() && element.screenshot() != null;
-        return algorithmic ? LocationStrategy.HYBRID : LocationStrategy.VISUAL_GROUNDING;
-    }
-
     private UiElementLocationInternalResult getFinalElementLocation(UiElement elementRetrievedFromMemory,
                                                                     String elementTestData) {
         var elementScreenshot =
@@ -253,8 +244,7 @@ public class ElementLocatorTools extends UiAbstractTools {
         boolean useAlgorithmicSearch = uiTestAgentConfig.isAlgorithmicSearchEnabled()
                 && !(elementRetrievedFromMemory.isDataDependent()) && elementScreenshot != null;
         return getUiElementLocationResult(elementRetrievedFromMemory, elementTestData, wholeScreenshot,
-                elementScreenshot,
-                useAlgorithmicSearch);
+                elementScreenshot, useAlgorithmicSearch);
     }
 
 

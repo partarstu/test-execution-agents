@@ -451,6 +451,12 @@ public class StepExecutionOrchestrator {
         }
     }
 
+    private static String additionalInfoBlock(@Nullable String additionalInfo) {
+        return (additionalInfo != null && !additionalInfo.isBlank())
+                ? "\nAdditional info: %s".formatted(additionalInfo)
+                : "";
+    }
+
     private static String knownExecutionIssues(List<String> failureHints) {
         return (failureHints != null && !failureHints.isEmpty())
                 ? "Known issues with this procedure:\n- " + String.join("\n- ", failureHints)
@@ -463,7 +469,7 @@ public class StepExecutionOrchestrator {
         var knownIssues = knownExecutionIssues(failureHints);
         var contextString = "Test execution context data:\n%s\n".formatted(context.getSharedData().toString()).trim();
         var locationHistoryBlock = buildLocationHistoryBlock(locationHistory);
-        return "%s\n%s\n%s\n%s\n%s".formatted(contextString, uiElementIdInfo.trim(), uiElementDetails.trim(),
+        return "%s\n\n%s\n\n%s\n\n%s\n\n%s".formatted(contextString, uiElementIdInfo.trim(), uiElementDetails.trim(),
                 locationHistoryBlock.trim(), knownIssues.trim());
     }
 
@@ -475,10 +481,9 @@ public class StepExecutionOrchestrator {
                 Target UI element location history:
                    - Stability score: %s
                    - Average location time: %s ms
-                   - Location strategy: %s
                    - Average retries count: %s
                 """.formatted(history.stabilityScore(), history.avgLocationTimeMs(),
-                history.locationStrategy(), history.locationRetriesCount());
+                history.locationRetriesCount());
     }
 
     private static String buildTargetElementDetailBlock(UiElement targetElement) {
@@ -507,7 +512,7 @@ public class StepExecutionOrchestrator {
         return """
                 The precondition you need to execute: %s.
 
-                Relevant data for this precondition: %s
+                Data relevant to this precondition: %s%s
 
                 %s.
 
@@ -515,6 +520,7 @@ public class StepExecutionOrchestrator {
                 """.formatted(
                 precondition.description(),
                 relevantData.isBlank() ? testDataString : relevantData,
+                additionalInfoBlock(precondition.additionalInfo()),
                 buildExecutionContextString(context, elementId, failureHints, elementDetailBlock, locationHistory).trim());
     }
 
@@ -576,7 +582,7 @@ public class StepExecutionOrchestrator {
         return """
                 Execute the following action: %s
 
-                Data, related to the action: %s
+                Data relevant to this action: %s%s
 
                 %s
 
@@ -584,6 +590,7 @@ public class StepExecutionOrchestrator {
                 """.formatted(
                 atomic.description(),
                 testDataString,
+                additionalInfoBlock(atomic.additionalInfo()),
                 buildExecutionContextString(context, elementId, failureHints, elementDetailBlock, locationHistory).trim());
     }
 

@@ -48,6 +48,7 @@ public record Procedure(
         boolean optional,
         List<String> prerequisites,
         List<String> effects,
+        @Nullable String additionalInfo,
         Instant createdAt,
         Instant updatedAt,
         float @Nullable [] embedding,
@@ -63,6 +64,7 @@ public record Procedure(
     public static final String PROP_OPTIONAL = "optional";
     public static final String PROP_PREREQUISITES = "prerequisites";
     public static final String PROP_EFFECTS = "effects";
+    public static final String PROP_ADDITIONAL_INFO = "additionalInfo";
     public static final String PROP_CREATED_AT = "createdAt";
     public static final String PROP_UPDATED_AT = "updatedAt";
     public static final String PROP_AVG_EXECUTION_MS = "avgExecutionMs";
@@ -93,7 +95,7 @@ public record Procedure(
                                             boolean isPrecondition) {
         var now = Instant.now();
         return new Procedure(UUID.randomUUID(), description, testData, expectedResults,
-                false, isPrecondition, false, prerequisites, effects, now, now, null, null);
+                false, isPrecondition, false, prerequisites, effects, null, now, now, null, null);
     }
 
     /**
@@ -107,7 +109,7 @@ public record Procedure(
                                          boolean isPrecondition) {
         var now = Instant.now();
         return new Procedure(UUID.randomUUID(), description, testData, expectedResults,
-                true, isPrecondition, false, prerequisites, effects, now, now, null, null);
+                true, isPrecondition, false, prerequisites, effects, null, now, now, null, null);
     }
 
     @Override
@@ -123,19 +125,25 @@ public record Procedure(
     /** Returns a copy with the given embedding vector populated. */
     public Procedure withEmbedding(float @NotNull [] newEmbedding) {
         return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
-                prerequisites, effects, createdAt, updatedAt, requireNonNull(newEmbedding, "embedding"), timingProfile);
+                prerequisites, effects, additionalInfo, createdAt, updatedAt, requireNonNull(newEmbedding, "embedding"), timingProfile);
     }
 
     /** Returns a copy with the given timing profile populated. */
     public Procedure withTiming(@NotNull TimingProfile newTiming) {
         return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
-                prerequisites, effects, createdAt, updatedAt, embedding, requireNonNull(newTiming, "timing"));
+                prerequisites, effects, additionalInfo, createdAt, updatedAt, embedding, requireNonNull(newTiming, "timing"));
     }
 
     /** Returns a copy with the given optional flag. */
     public Procedure withOptional(boolean newOptional) {
         return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, newOptional,
-                prerequisites, effects, createdAt, updatedAt, embedding, timingProfile);
+                prerequisites, effects, additionalInfo, createdAt, updatedAt, embedding, timingProfile);
+    }
+
+    /** Returns a copy with the given additional info. */
+    public Procedure withAdditionalInfo(@Nullable String newAdditionalInfo) {
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
+                prerequisites, effects, newAdditionalInfo, createdAt, updatedAt, embedding, timingProfile);
     }
 
     /**
@@ -144,7 +152,7 @@ public record Procedure(
      */
     public Procedure withId(UUID newId, Instant originalCreatedAt) {
         return new Procedure(newId, description, testData, expectedResults, isAtomic, isPrecondition, optional,
-                prerequisites, effects, originalCreatedAt, Instant.now(), embedding, timingProfile);
+                prerequisites, effects, additionalInfo, originalCreatedAt, Instant.now(), embedding, timingProfile);
     }
 
     public record TimingProfile(long avgExecutionMs, long avgVerificationDelayMs, long maxVerificationDelayMs,
@@ -165,6 +173,7 @@ public record Procedure(
                 .add("effects=" + effects)
                 .add("testData=" + testData)
                 .add("expectedResults='%s'".formatted(this.expectedResults))
+                .add("additionalInfo='%s'".formatted(additionalInfo))
                 .add("description='%s'".formatted(description))
                 .toString();
     }

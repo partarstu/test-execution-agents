@@ -33,7 +33,7 @@ import static javax.swing.border.TitledBorder.TOP;
 public class ProcedureDialogBuilder {
 
     public static JPanel createHeaderPanel(ProcedureDialog dialog, String initialDescription, String headerMessage,
-                                           ExecutionItemContext itemContext) {
+                                           ExecutionItemContext itemContext, String initialAdditionalInfo) {
         JPanel panel = new JPanel(new BorderLayout(dialog.getDialogDefaultHorizontalGap(), dialog.getDialogDefaultVerticalGap()));
         panel.setBorder(createEmptyBorder(dialog.getDialogDefaultVerticalGap(), dialog.getDialogDefaultHorizontalGap(),
                 dialog.getDialogDefaultVerticalGap(), dialog.getDialogDefaultHorizontalGap()));
@@ -45,11 +45,22 @@ public class ProcedureDialogBuilder {
         topSection.add(new JScrollPane(dialog.getUserMessageArea(headerMessage)), CENTER);
         panel.add(topSection, NORTH);
 
+        JPanel fieldsPanel = new JPanel();
+        fieldsPanel.setLayout(new BoxLayout(fieldsPanel, BoxLayout.Y_AXIS));
+
         JPanel descPanel = new JPanel(new BorderLayout(5, 0));
         descPanel.add(new JLabel("Description:"), WEST);
         dialog.descriptionArea = dialog.createWrappedTextArea(initialDescription != null ? initialDescription : "", 3, 40);
         descPanel.add(new JScrollPane(dialog.descriptionArea), CENTER);
-        panel.add(descPanel, CENTER);
+        fieldsPanel.add(descPanel);
+
+        JPanel additionalInfoPanel = new JPanel(new BorderLayout(5, 0));
+        additionalInfoPanel.add(new JLabel("Additional info:"), WEST);
+        dialog.additionalInfoArea = dialog.createWrappedTextArea(initialAdditionalInfo != null ? initialAdditionalInfo : "", 3, 40);
+        additionalInfoPanel.add(new JScrollPane(dialog.additionalInfoArea), CENTER);
+        fieldsPanel.add(additionalInfoPanel);
+
+        panel.add(fieldsPanel, CENTER);
         return panel;
     }
 
@@ -256,7 +267,6 @@ public class ProcedureDialogBuilder {
         if (initialExpectedResults != null && !initialExpectedResults.isBlank()) {
             dialog.expectedResultsArea.setText(initialExpectedResults);
         }
-
         return panel;
     }
 

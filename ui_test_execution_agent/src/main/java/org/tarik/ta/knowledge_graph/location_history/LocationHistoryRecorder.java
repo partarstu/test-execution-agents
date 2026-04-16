@@ -19,5 +19,5 @@ import java.util.UUID;
 
 @FunctionalInterface
 public interface LocationHistoryRecorder {
-    void record(UUID elementId, boolean located, long locationTimeMs, LocationStrategy strategy);
+    void record(UUID elementId, boolean located, long locationTimeMs);
 }

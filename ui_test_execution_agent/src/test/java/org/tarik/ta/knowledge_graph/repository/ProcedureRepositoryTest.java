@@ -24,7 +24,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.tarik.ta.knowledge_graph.location_history.LocationStrategy;
 import org.neo4j.driver.EagerResult;
 import org.neo4j.driver.ExecutableQuery;
 import org.neo4j.driver.Record;
@@ -108,7 +107,7 @@ class ProcedureRepositoryTest {
     void updateElementStability_shouldCallExecuteWrite() {
         UUID elementId = UUID.randomUUID();
 
-        procedureRepository.updateElementStability(elementId, true, 100, LocationStrategy.HYBRID);
+        procedureRepository.updateElementStability(elementId, true, 100);
 
         verify(mockRepositorySupport).executeComplexWriteQuery(any(Consumer.class));
     }
