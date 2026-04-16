@@ -122,18 +122,12 @@ public class ElementLocatorTools extends UiAbstractTools {
     }
 
     /**
-     * Execution flow: locates a known UI element by its UUID, bypassing vector DB search.
-     * Retrieves the {@link UiElement} directly by UUID from the embedding store, then runs
-     * the visual grounding + algorithmic matching pipeline on the current screen.
-     * <p>
-     * No retry logic is applied here — the calling agent is responsible for consulting
-     * {@link #getElementLocationContext} and deciding whether to wait or take preparatory
-     * actions before invoking this tool.
+     * Execution flow: locates a known UI element by its UUID
      */
     @Tool("Locates UI element on the screen, first retrieving it from DB based on its ID")
     public LocatedElementInfo locateKnownElementById(
             @P("ID of the UI element to locate") UUID elementId,
-            @P(value = "Any element-specific data", required = false) String elementSpecificData) {
+            @P(value = "Any data relevant for this element") String elementSpecificData) {
         requireNonNull(elementId, "elementId");
         try {
             var uiElement = uiElementCache.get(elementId)
@@ -157,17 +151,6 @@ public class ElementLocatorTools extends UiAbstractTools {
             throw rethrowAsToolException(e, "locating known UI element by UUID");
         }
     }
-
-    /**
-     * Returns historical stability data for a UI element so the agent can decide
-     * whether to wait, scroll, or take other preparatory steps before locating it.
-     */
-    @Tool("Returns the context (historical info about element location success stability, location duration etc.) for locating a UI " +
-            "element. This information might be useful in order to identify the location approach.")
-    public ElementLocationHistory getElementLocationContext(@P("ID of the UI element") UUID elementId) {
-        return stabilityLookup.lookup(elementId).orElse(null);
-    }
-
 
     private String getElementBoundingBoxUserMessage(UiElement uiElement, String elementTestData) {
         if (isNotBlank(elementTestData) && uiElement.isDataDependent()) {

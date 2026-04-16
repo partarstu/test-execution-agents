@@ -59,7 +59,6 @@ public class AgentConfig {
     private final ConfigProperty<Double> topP;
     private final ConfigProperty<Boolean> modelLoggingEnabled;
     private final ConfigProperty<Boolean> thinkingOutputEnabled;
-    private final ConfigProperty<Integer> geminiThinkingBudget;
     private final ConfigProperty<Integer> maxRetries;
     private final ConfigProperty<String> geminiThinkingLevel;
 
@@ -150,7 +149,6 @@ public class AgentConfig {
         this.topP = loadPropertyAsDouble("model.top.p", "TOP_P", "1.0", false);
         this.modelLoggingEnabled = loadProperty("model.logging.enabled", "LOG_MODEL_OUTPUT", "false", Boolean::parseBoolean, false);
         this.thinkingOutputEnabled = loadProperty("thinking.output.enabled", "OUTPUT_THINKING", "false", Boolean::parseBoolean, false);
-        this.geminiThinkingBudget = loadPropertyAsInteger("gemini.thinking.budget", "GEMINI_THINKING_BUDGET", "5000", false);
         this.maxRetries = loadPropertyAsInteger("model.max.retries", "MAX_RETRIES", "10", false);
         this.geminiThinkingLevel = loadProperty("gemini.thinking.level", "GEMINI_THINKING_LEVEL", "MINIMAL", s -> s, false);
 
@@ -292,10 +290,6 @@ public class AgentConfig {
 
     public boolean isThinkingOutputEnabled() {
         return thinkingOutputEnabled.value();
-    }
-
-    public int getGeminiThinkingBudget() {
-        return geminiThinkingBudget.value();
     }
 
     public int getMaxRetries() {

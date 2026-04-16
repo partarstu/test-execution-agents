@@ -124,7 +124,8 @@ public class MouseTools extends UiAbstractTools {
         }
     }
 
-    @Tool(value = "Repeatedly clicks at specified coordinates until a desired state is reached or a timeout occurs.")
+    @Tool(value = "Repeatedly clicks at specified coordinates until a desired state is reached or a timeout occurs. Use this tool if a " +
+            "single mouse click is not enough in order to reach the desired state.")
     public void clickElementUntilStateAchieved(
             @P("The x-coordinate of the screen location to click (must be >= 0)") int x,
             @P("The y-coordinate of the screen location to click (must be >= 0)") int y,
