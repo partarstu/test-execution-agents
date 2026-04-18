@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.partitioningBy;
 import static java.util.stream.Collectors.toMap;
 
@@ -149,6 +150,11 @@ public class KnowledgeService {
         var contextById = procedureRepository.findCandidateContextBatch(candidateIds, recentParentIds)
                 .stream().collect(toMap(CandidateContext::candidateId, ctx -> ctx));
 
+        var satisfactionResults = phraseEmbeddingRepository.findPrerequisitesSatisfactionBatch(
+                candidateIds, effectNodeIds, config.getKnowledgeMatchConfidenceHigh());
+        var satisfactionByProc = satisfactionResults.stream()
+                .collect(groupingBy(PhraseEmbeddingRepository.PrerequisiteSatisfaction::procedureId));
+
         var scored = candidates.stream()
                 .map(p -> {
                     var ctx = contextById.get(p.id());
@@ -164,23 +170,16 @@ public class KnowledgeService {
                         LOG.debug("Ancestry boost: procedure '{}' shares {} parent(s) with recent execution context", p.description(), parentSharedCount);
                     }
 
-                    var prereqNodes = phraseEmbeddingRepository.findPrerequisitesForProcedure(p.id());
-                    int satisfied = 0;
-                    List<String> unmetPrereqs = List.of();
-                    double proportion = 1.0;
-                    if (!prereqNodes.isEmpty()) {
-                        if (!effectNodeIds.isEmpty()) {
-                            double threshold = config.getKnowledgeMatchConfidenceHigh();
-                            var partitioned = prereqNodes.stream()
-                                    .collect(partitioningBy(pe -> phraseEmbeddingRepository.isPrerequisiteMetByEffects(pe.id(), effectNodeIds, threshold)));
-                            satisfied = partitioned.get(true).size();
-                            unmetPrereqs = partitioned.get(false).stream().map(PhraseEmbedding::phrase).toList();
-                        } else {
-                            unmetPrereqs = prereqNodes.stream().map(PhraseEmbedding::phrase).toList();
-                        }
-                        proportion = (double) satisfied / prereqNodes.size();
-                    }
-                    return new Scored(p, proportion, satisfied, prereqNodes.size(), parentSharedCount, stabilityPenalty, unmetPrereqs);
+                    var results = satisfactionByProc.getOrDefault(p.id(), List.of());
+                    int totalPrereqs = results.size();
+                    int satisfied = (int) results.stream().filter(PhraseEmbeddingRepository.PrerequisiteSatisfaction::isMet).count();
+                    List<String> unmetPrereqs = results.stream()
+                            .filter(r -> !r.isMet())
+                            .map(PhraseEmbeddingRepository.PrerequisiteSatisfaction::phrase)
+                            .toList();
+                    double proportion = totalPrereqs == 0 ? 1.0 : (double) satisfied / totalPrereqs;
+
+                    return new Scored(p, proportion, satisfied, totalPrereqs, parentSharedCount, stabilityPenalty, unmetPrereqs);
                 })
                 .toList();
 

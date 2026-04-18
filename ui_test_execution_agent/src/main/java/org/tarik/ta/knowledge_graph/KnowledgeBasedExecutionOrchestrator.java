@@ -16,6 +16,7 @@
 package org.tarik.ta.knowledge_graph;
 
 import jakarta.inject.Singleton;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
@@ -41,6 +42,7 @@ import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository.UnsatisfiedPrerequisite;
+import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.user_dialogs.*;
@@ -81,6 +83,7 @@ public class KnowledgeBasedExecutionOrchestrator {
     private final FailureContextService failureContextService;
     private final UiTestAgentConfig uiTestAgentConfig;
     private final UiElementCache uiElementCache;
+    private final UiElementRepository uiElementRepository;
     private final ElementLocationHistoryLookup elementLocationHistoryLookup;
     private final AsyncExecutionPersistenceService asyncExecutionPersistenceService;
 
@@ -93,6 +96,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                FailureContextService failureContextService,
                                                UiTestAgentConfig uiTestAgentConfig,
                                                UiElementCache uiElementCache,
+                                               UiElementRepository uiElementRepository,
                                                ElementLocationHistoryLookup elementLocationHistoryLookup,
                                                AsyncExecutionPersistenceService asyncExecutionPersistenceService) {
         this.knowledgeService = knowledgeService;
@@ -104,6 +108,7 @@ public class KnowledgeBasedExecutionOrchestrator {
         this.failureContextService = failureContextService;
         this.uiTestAgentConfig = uiTestAgentConfig;
         this.uiElementCache = uiElementCache;
+        this.uiElementRepository = uiElementRepository;
         this.elementLocationHistoryLookup = elementLocationHistoryLookup;
         this.asyncExecutionPersistenceService = asyncExecutionPersistenceService;
     }
@@ -114,7 +119,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                                         ExecutionStateTracker stateTracker) {
         try (var prefetchCoordinator = new NextAtomicPrefetchCoordinator(
                 uiTestAgentConfig.getExecutionMode(),
-                knowledgeService, uiElementCache, elementLocationHistoryLookup, failureContextService)) {
+                knowledgeService, uiElementCache, uiElementRepository, elementLocationHistoryLookup, failureContextService)) {
             var queue = ExecutionQueue.fromTestCase(testCase, startingStepIndex);
             LOG.info("Created preconditions and test steps executions queue with {} item(s)", queue.remainingCount());
             var usedProcedureIds = new ArrayList<UUID>();
@@ -124,7 +129,10 @@ public class KnowledgeBasedExecutionOrchestrator {
                     ExecutionItem item = queue.next();
                     LOG.info("Processing execution item: {} (remaining in queue: {})", item.getClass().getSimpleName(),
                             queue.remainingCount());
-                    var nextStep = switch (findProcedureInDb(item, stateTracker)) {
+                    var lookup = prefetchCoordinator.takeMatchResultIfValid(item)
+                            .map(m -> toProcedureLookup(m, stateTracker))
+                            .orElseGet(() -> findProcedureInDb(item, stateTracker));
+                    var nextStep = switch (lookup) {
                         case ProcedureLookup.DirectMatch(var procedure, var hasLowStability) -> {
                             LOG.info("Direct high-confidence match found for '{}'", item.getDescription());
                             yield processFoundProcedure(procedure, hasLowStability, item, testCase, context, stateTracker, usedProcedureIds, queue, prefetchCoordinator);
@@ -246,12 +254,13 @@ public class KnowledgeBasedExecutionOrchestrator {
     }
 
     private ProcedureLookup findProcedureInDb(ExecutionItem item, ExecutionStateTracker stateTracker) {
-        var matchResult = knowledgeService.findBestMatch(item.getDescription(), stateTracker.getEffectNodeIds(),
-                stateTracker.getRecentParentIds());
-        if (matchResult.isEmpty()) {
-            return new ProcedureLookup.NeedsUserResolution(null, List.of());
-        }
-        var match = matchResult.get();
+        return knowledgeService.findBestMatch(item.getDescription(), stateTracker.getEffectNodeIds(),
+                        stateTracker.getRecentParentIds())
+                .map(m -> toProcedureLookup(m, stateTracker))
+                .orElseGet(() -> new ProcedureLookup.NeedsUserResolution(null, List.of()));
+    }
+
+    private ProcedureLookup toProcedureLookup(@NotNull KnowledgeService.MatchResult match, @NotNull ExecutionStateTracker stateTracker) {
         var feasible = selectFeasibleProcedure(match.allMatches());
         if (feasible.isPresent() && match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
             return new ProcedureLookup.DirectMatch(feasible.get(), match.selectedHasLowStability());
@@ -345,12 +354,13 @@ public class KnowledgeBasedExecutionOrchestrator {
         ExecutionStateSnapshot snapshot = stateTracker.snapshot().withPredictedEffects(effectIds);
 
         asyncExecutionPersistenceService.persistSatisfiesEdges(atomicStep.id());
-        prefetchCoordinator.scheduleSuccessPathPrefetch(atomicStep, item, nextAtomicInDecomposition, nextQueueItem, snapshot);
 
         Function<Procedure, AtomicStepExecutionContext> contextFactory = p -> prefetchCoordinator.takeIfValid(p, item)
                 .map(ctx -> buildExecContextFromPrefetch(ctx, item, p, isSingle, isLast))
                 .orElseGet(() -> buildExecContext(p, item, isSingle, isLast));
         var execContext = contextFactory.apply(atomicStep);
+
+        prefetchCoordinator.scheduleSuccessPathPrefetch(atomicStep, item, nextAtomicInDecomposition, nextQueueItem, snapshot);
 
         var loopOutcome = stepExecutionOrchestrator.executeAtomicStepWithRetryLoop(item, atomicStep,
                 testCase, directParent, context,

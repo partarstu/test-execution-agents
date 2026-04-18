@@ -11,6 +11,7 @@ import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
+import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.FailureContextService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
 import org.tarik.ta.knowledge_graph.service.UiElementCache;
@@ -32,6 +33,7 @@ class NextAtomicPrefetchCoordinatorTest {
 
     @Mock private KnowledgeService mockKnowledgeService;
     @Mock private UiElementCache mockUiElementCache;
+    @Mock private UiElementRepository mockUiElementRepository;
     @Mock private ElementLocationHistoryLookup mockElementLocationHistoryLookup;
     @Mock private FailureContextService mockFailureContextService;
 
@@ -42,10 +44,10 @@ class NextAtomicPrefetchCoordinatorTest {
     void setUp() {
         coordinatorUnattended = new NextAtomicPrefetchCoordinator(
                 ExecutionMode.UNATTENDED,
-                mockKnowledgeService, mockUiElementCache, mockElementLocationHistoryLookup, mockFailureContextService);
+                mockKnowledgeService, mockUiElementCache, mockUiElementRepository, mockElementLocationHistoryLookup, mockFailureContextService);
         coordinatorSupervised = new NextAtomicPrefetchCoordinator(
                 ExecutionMode.SUPERVISED,
-                mockKnowledgeService, mockUiElementCache, mockElementLocationHistoryLookup, mockFailureContextService);
+                mockKnowledgeService, mockUiElementCache, mockUiElementRepository, mockElementLocationHistoryLookup, mockFailureContextService);
     }
 
     @Test
@@ -152,6 +154,32 @@ class NextAtomicPrefetchCoordinatorTest {
         assertThat(ctx.locationHistory()).isNull();
         assertThat(ctx.metadata().uiElementFound()).isTrue();
         assertThat(ctx.metadata().locationHistoryFound()).isFalse();
+    }
+
+    @Test
+    @DisplayName("UI element is fetched from DB when not in cache, and result is present")
+    void buildElementContext_fetchesFromDb_whenNotInCache() {
+        Procedure current = Procedure.createAtomic("current", List.of(), "", List.of(), List.of(), false);
+        Procedure next = Procedure.createAtomic("next", List.of(), "", List.of(), List.of(), false);
+        ExecutionItem item = new ExecutionItem.TestStepItem(new TestStep("step", List.of(), ""));
+        ExecutionStateSnapshot snapshot = new ExecutionStateSnapshot(Set.of(), List.of(), List.of());
+
+        UUID elementId = UUID.randomUUID();
+        UiElement element = mock(UiElement.class);
+
+        when(mockKnowledgeService.findTargetedUiElementId(next.id())).thenReturn(Optional.of(elementId));
+        when(mockUiElementCache.get(elementId)).thenReturn(Optional.empty());
+        when(mockUiElementRepository.findById(elementId)).thenReturn(Optional.of(element));
+        when(mockElementLocationHistoryLookup.lookup(elementId)).thenReturn(Optional.empty());
+        when(mockFailureContextService.findFailureHints(next.id())).thenReturn(List.of());
+
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, snapshot);
+
+        Optional<PrefetchedAtomicContext> result = coordinatorUnattended.takeIfValid(next, item);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().targetElement()).isEqualTo(element);
+        assertThat(result.get().metadata().uiElementFound()).isTrue();
     }
 
     @Test

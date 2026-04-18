@@ -8,13 +8,16 @@ import org.tarik.ta.ExecutionMode;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
+import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.FailureContextService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
 import org.tarik.ta.knowledge_graph.service.UiElementCache;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -41,26 +44,31 @@ import java.util.concurrent.TimeoutException;
  */
 public class NextAtomicPrefetchCoordinator implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(NextAtomicPrefetchCoordinator.class);
-    private static final int TAKE_TIMEOUT_SECONDS = 2;
+    private static final int TAKE_TIMEOUT_SECONDS = 10;
 
     private final ExecutionMode executionMode;
     private final KnowledgeService knowledgeService;
     private final UiElementCache uiElementCache;
+    private final UiElementRepository uiElementRepository;
     private final ElementLocationHistoryLookup elementLocationHistoryLookup;
     private final FailureContextService failureContextService;
     @Nullable private final ExecutorService prefetchExecutor;
 
     private volatile CompletableFuture<PrefetchedAtomicContext> pendingFuture;
+    @Nullable private volatile CompletableFuture<KnowledgeService.MatchResult> pendingMatchFuture;
+    @Nullable private volatile String pendingMatchForDescription;
     private volatile boolean invalidated = false;
 
     public NextAtomicPrefetchCoordinator(@NotNull ExecutionMode executionMode,
                                          @NotNull KnowledgeService knowledgeService,
                                          @NotNull UiElementCache uiElementCache,
+                                         @NotNull UiElementRepository uiElementRepository,
                                          @NotNull ElementLocationHistoryLookup elementLocationHistoryLookup,
                                          @NotNull FailureContextService failureContextService) {
         this.executionMode = executionMode;
         this.knowledgeService = knowledgeService;
         this.uiElementCache = uiElementCache;
+        this.uiElementRepository = uiElementRepository;
         this.elementLocationHistoryLookup = elementLocationHistoryLookup;
         this.failureContextService = failureContextService;
         this.prefetchExecutor = executionMode == ExecutionMode.UNATTENDED
@@ -137,6 +145,40 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
     }
 
     /**
+     * Returns the prefetched MatchResult for the given queue item if the background search completed
+     * with a high-confidence match for this item. Returns empty on miss, timeout, or invalidation.
+     * Consuming the result clears it so the next call returns empty (each result is single-use).
+     */
+    @NotNull
+    public Optional<KnowledgeService.MatchResult> takeMatchResultIfValid(@NotNull ExecutionItem item) {
+        if (executionMode != ExecutionMode.UNATTENDED) {
+            return Optional.empty();
+        }
+        var future = pendingMatchFuture;
+        var desc = pendingMatchForDescription;
+        if (future == null || invalidated || desc == null || !item.getDescription().equals(desc)) {
+            return Optional.empty();
+        }
+        try {
+            KnowledgeService.MatchResult result = future.get(TAKE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (result == null) {
+                return Optional.empty();
+            }
+            LOG.debug("Match result prefetch hit for '{}'", item.getDescription());
+            pendingMatchFuture = null;
+            return Optional.of(result);
+        } catch (TimeoutException e) {
+            LOG.debug("Match result prefetch timed out for '{}' after {}s — falling back to synchronous lookup",
+                    item.getDescription(), TAKE_TIMEOUT_SECONDS);
+            return Optional.empty();
+        } catch (Exception e) {
+            LOG.debug("Match result prefetch failed for '{}': {} — falling back to synchronous lookup",
+                    item.getDescription(), e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Invalidates any in-flight or completed prefetch when the success-path assumption is broken
      * (e.g. on retry, failure, or re-decomposition).
      */
@@ -165,6 +207,12 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
             existing.cancel(false);
             pendingFuture = null;
         }
+        var existingMatch = pendingMatchFuture;
+        if (existingMatch != null) {
+            existingMatch.cancel(false);
+            pendingMatchFuture = null;
+        }
+        pendingMatchForDescription = null;
     }
 
     /**
@@ -189,46 +237,48 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
 
     /**
      * Starts a semantic-search prefetch for the next queue item (non-deterministic path).
-     * Similarity search runs first; if a high-confidence match is found, its first atomic's context
-     * is prefetched in parallel.
+     * Similarity search runs first; if a high-confidence match is found, its MatchResult is cached
+     * in {@code pendingMatchFuture} so the main thread can skip re-embedding, and its first atomic's
+     * context is prefetched in parallel.
      */
     private CompletableFuture<PrefetchedAtomicContext> startSearchAndContextPrefetch(
             @NotNull ExecutionItem nextQueueItem,
             @NotNull ExecutionStateSnapshot snapshot) {
-        return CompletableFuture
-                .supplyAsync(() -> findFirstAtomicForQueueItem(nextQueueItem, snapshot), prefetchExecutor)
-                .thenComposeAsync(firstAtomic -> {
-                    if (firstAtomic == null) {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                    return startContextPrefetch(firstAtomic, nextQueueItem);
-                }, prefetchExecutor);
+        pendingMatchForDescription = nextQueueItem.getDescription();
+        var matchFuture = CompletableFuture.supplyAsync(
+                () -> findMatchAndFirstAtomicForQueueItem(nextQueueItem, snapshot), prefetchExecutor);
+        pendingMatchFuture = matchFuture.thenApply(result -> result != null ? result.match() : null);
+        return matchFuture.thenComposeAsync(result -> {
+            if (result == null || result.firstAtomic() == null) {
+                return CompletableFuture.completedFuture(null);
+            }
+            return startContextPrefetch(result.firstAtomic(), nextQueueItem);
+        }, prefetchExecutor);
     }
 
+    private record MatchAndFirstAtomic(@NotNull KnowledgeService.MatchResult match, @Nullable Procedure firstAtomic) {}
+
     @Nullable
-    private Procedure findFirstAtomicForQueueItem(@NotNull ExecutionItem nextQueueItem,
-                                                  @NotNull ExecutionStateSnapshot snapshot) {
-        var match = knowledgeService.findBestMatch(
+    private MatchAndFirstAtomic findMatchAndFirstAtomicForQueueItem(@NotNull ExecutionItem nextQueueItem,
+                                                                    @NotNull ExecutionStateSnapshot snapshot) {
+        var matchOpt = knowledgeService.findBestMatch(
                 nextQueueItem.getDescription(),
                 snapshot.effectNodeIds(),
-                snapshot.recentParentIds().isEmpty()
-                        ? java.util.Set.of()
-                        : new java.util.HashSet<>(snapshot.recentParentIds()));
-        if (match.isEmpty() || match.get().confidence() != KnowledgeService.MatchConfidence.HIGH) {
-            LOG.debug("No high-confidence match for prefetch of queue item '{}'",
-                    nextQueueItem.getDescription());
+                snapshot.recentParentIds().isEmpty() ? Set.of() : new HashSet<>(snapshot.recentParentIds()));
+        if (matchOpt.isEmpty() || matchOpt.get().confidence() != KnowledgeService.MatchConfidence.HIGH) {
+            LOG.debug("No high-confidence match for prefetch of queue item '{}'", nextQueueItem.getDescription());
             return null;
         }
-        Procedure procedure = match.get().procedure();
+        var match = matchOpt.get();
+        Procedure procedure = match.procedure();
         try {
             List<Procedure> atomics = procedure.isAtomic()
                     ? List.of(procedure)
                     : knowledgeService.resolveToAtomicSteps(procedure.id());
-            return atomics.isEmpty() ? null : atomics.get(0);
+            return new MatchAndFirstAtomic(match, atomics.isEmpty() ? null : atomics.get(0));
         } catch (Exception e) {
-            LOG.debug("Could not decompose procedure '{}' for prefetch: {}",
-                    procedure.description(), e.getMessage());
-            return null;
+            LOG.debug("Could not decompose procedure '{}' for prefetch: {}", procedure.description(), e.getMessage());
+            return new MatchAndFirstAtomic(match, null);
         }
     }
 
@@ -238,7 +288,10 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
         }
         UUID uuid = UUID.fromString(elementId);
         var elementFuture = CompletableFuture.supplyAsync(
-                () -> safeGet(() -> uiElementCache.get(uuid).orElse(null), (UiElement) null),
+                () -> safeGet(() -> {
+                    var cached = uiElementCache.get(uuid);
+                    return cached.isPresent() ? cached.get() : uiElementRepository.findById(uuid).orElse(null);
+                }, (UiElement) null),
                 prefetchExecutor);
         var historyFuture = CompletableFuture.supplyAsync(
                 () -> safeGet(() -> elementLocationHistoryLookup.lookup(uuid).orElse(null),

@@ -33,6 +33,7 @@ import org.tarik.ta.knowledge_graph.ProcedureKnowledgeCollectionService;
 import org.tarik.ta.knowledge_graph.execution.AtomicStepExecutionContext;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.knowledge_graph.service.UiElementCache;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
@@ -73,6 +74,8 @@ class KnowledgeBasedExecutionOrchestratorTest {
     @Mock
     private UiElementCache mockUiElementCache;
     @Mock
+    private UiElementRepository mockUiElementRepository;
+    @Mock
     private ElementLocationHistoryLookup mockElementLocationHistoryLookup;
     @Mock
     private AsyncExecutionPersistenceService mockAsyncExecutionPersistenceService;
@@ -84,12 +87,12 @@ class KnowledgeBasedExecutionOrchestratorTest {
         lenient().when(configMock.isFullyUnattended()).thenReturn(true);
         lenient().when(configMock.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
         lenient().when(configMock.getAncestryWindowSize()).thenReturn(5);
-        
+
         orchestrator = new KnowledgeBasedExecutionOrchestrator(
                 mockKnowledgeService, mockIngestionService, mockStepExecutionOrchestrator,
                 mockProcedureKnowledgeCollectionService, mockSatisfiesEdgeService,
-                mockProcedureUsageByTestCaseTrackingService, mockFailureContextService, 
-                configMock, mockUiElementCache, mockElementLocationHistoryLookup, 
+                mockProcedureUsageByTestCaseTrackingService, mockFailureContextService,
+                configMock, mockUiElementCache, mockUiElementRepository, mockElementLocationHistoryLookup,
                 mockAsyncExecutionPersistenceService);
     }
 

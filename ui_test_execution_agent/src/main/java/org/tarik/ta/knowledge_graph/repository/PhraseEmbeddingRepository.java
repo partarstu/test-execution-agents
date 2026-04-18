@@ -101,6 +101,18 @@ public class PhraseEmbeddingRepository {
             WHERE score >= $threshold AND node.${PROP_TYPE} = $phraseType AND node.${PROP_ID} IN $effectNodeIds
             RETURN count(node) > 0 AS isMet
             """);
+        this.IS_PREREQUISITE_MET_BATCH = repositorySupport.cypher("""
+            UNWIND $procedureIds AS pId
+            MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: pId})-[r:${REL_HAS_PREREQUISITE}]->(pe:${LABEL_PHRASE_EMBEDDING})
+            CALL {
+                WITH pe
+                CALL db.index.vector.queryNodes($indexName, $topN, pe.${PROP_EMBEDDING})
+                YIELD node, score
+                WHERE score >= $threshold AND node.${PROP_TYPE} = $phraseType AND node.${PROP_ID} IN $effectNodeIds
+                RETURN count(node) > 0 AS met
+            }
+            RETURN pId AS procedureId, pe.${PROP_ID} AS prereqNodeId, pe.${PROP_PHRASE} AS phrase, met AS isMet
+            """);
     }
 
     private final Neo4jRepositorySupport repositorySupport;
@@ -113,10 +125,12 @@ public class PhraseEmbeddingRepository {
         static final String ALIAS_NODE = "node";
         static final String ALIAS_SCORE = "score";
         static final String ALIAS_PE = "pe";
+        static final String ALIAS_PROCEDURE_ID = "procedureId";
         static final String ALIAS_CONSUMER_ID = "consumerId";
         static final String ALIAS_EFFECT_PHRASE = "effectPhrase";
         static final String ALIAS_PREREQUISITE_PHRASE = "prerequisitePhrase";
         static final String ALIAS_PREREQ_NODE_ID = "prereqNodeId";
+        static final String ALIAS_PHRASE = "phrase";
         static final String ALIAS_IS_MET = "isMet";
 
         private QueryAliases() {}
@@ -128,6 +142,7 @@ public class PhraseEmbeddingRepository {
         static final String PARAM_QUERY_VECTOR = "queryVector";
         static final String PARAM_MIN_SCORE = "minScore";
         static final String PARAM_PROCEDURE_ID = "procedureId";
+        static final String PARAM_PROCEDURE_IDS = "procedureIds";
         static final String PARAM_NODES = "nodes";
         static final String PARAM_PHRASE_TYPE = "phraseType";
         static final String PARAM_PRODUCER_ID = "producerId";
@@ -165,6 +180,8 @@ public class PhraseEmbeddingRepository {
      * node present in the accumulated effects set.
      */
     private final String IS_PREREQUISITE_MET_BY_EFFECTS;
+
+    private final String IS_PREREQUISITE_MET_BATCH;
 
     /**
      * Creates a standalone {@link PhraseEmbedding} in Neo4j without linking it to any Procedure.
@@ -301,13 +318,6 @@ public class PhraseEmbeddingRepository {
                 .toList();
     }
 
-    /**
-     * Returns {@code true} if the given prerequisite node is semantically matched by any of the accumulated effects.
-     *
-     * @param prereqNodeId the UUID of the PhraseEmbeddingNode for the prerequisite
-     * @param effectNodeIds the set of PhraseEmbeddingNode UUIDs representing accumulated effects
-     * @param threshold    minimum cosine similarity score
-     */
     public boolean isPrerequisiteMetByEffects(UUID prereqNodeId, java.util.Set<UUID> effectNodeIds, double threshold) {
         requireNonNull(prereqNodeId, "prereqNodeId");
         requireNonNull(effectNodeIds, "effectNodeIds");
@@ -327,6 +337,47 @@ public class PhraseEmbeddingRepository {
         ));
         return !records.isEmpty() && records.getFirst().get(ALIAS_IS_MET).asBoolean(false);
     }
+
+    /**
+     * Checks prerequisite satisfaction for multiple procedures in a single database round-trip.
+     * Replaces iterative O(N) calls to {@link #isPrerequisiteMetByEffects}.
+     *
+     * @param procedureIds  list of procedure UUIDs to check
+     * @param effectNodeIds set of accumulated effect phrase UUIDs
+     * @param threshold     minimum cosine similarity for a semantic match
+     * @return list of results mapping each procedure-prerequisite pair to its satisfaction status
+     */
+    public List<PrerequisiteSatisfaction> findPrerequisitesSatisfactionBatch(List<UUID> procedureIds,
+                                                                              java.util.Set<UUID> effectNodeIds,
+                                                                              double threshold) {
+        requireNonNull(procedureIds, "procedureIds");
+        requireNonNull(effectNodeIds, "effectNodeIds");
+        if (procedureIds.isEmpty() || effectNodeIds.isEmpty()) {
+            return List.of();
+        }
+
+        int topN = Math.max(effectNodeIds.size() + 10, 50);
+        var procIdStrings = procedureIds.stream().map(UUID::toString).toList();
+        var effectIdStrings = effectNodeIds.stream().map(UUID::toString).toList();
+
+        return repositorySupport.executeSingleReadQuery(IS_PREREQUISITE_MET_BATCH, Map.of(
+                PARAM_PROCEDURE_IDS, procIdStrings,
+                PARAM_INDEX_NAME, VECTOR_INDEX_NAME,
+                PARAM_TOP_N, topN,
+                PARAM_THRESHOLD, threshold,
+                PARAM_EFFECT_NODE_IDS, effectIdStrings,
+                PARAM_PHRASE_TYPE, PhraseType.EFFECT.name()
+        )).stream()
+                .map(r -> new PrerequisiteSatisfaction(
+                        UUID.fromString(r.get(ALIAS_PROCEDURE_ID).asString()),
+                        UUID.fromString(r.get(ALIAS_PREREQ_NODE_ID).asString()),
+                        r.get(ALIAS_PHRASE).asString(),
+                        r.get(ALIAS_IS_MET).asBoolean(false)
+                ))
+                .toList();
+    }
+
+    public record PrerequisiteSatisfaction(UUID procedureId, UUID prereqNodeId, String phrase, boolean isMet) {}
 
     /** Result of a SATISFIES edge candidate match from the vector index. */
     public record SatisfiesMatch(UUID consumerId, String effectPhrase, String prerequisitePhrase, UUID prereqNodeId, double score) {}

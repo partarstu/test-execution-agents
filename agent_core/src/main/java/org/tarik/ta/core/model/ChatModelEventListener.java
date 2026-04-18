@@ -76,7 +76,7 @@ public class ChatModelEventListener implements ChatModelListener {
                 String modelName = metadata.modelName() != null ? metadata.modelName() : "Unknown";
                 budgetManager.consumeTokens(modelName, input, output, cached);
                 metadataInfo = ("%s, input tokens = %d, output tokens = %d, total tokens = %d. " +
-                        "Accumulated: input = %d, output = %d, cached = %d, total = %d")
+                        "Accumulated during the test case execution: input = %d, output = %d, cached = %d, total = %d")
                         .formatted(metadataInfo, input, output, total,
                                 budgetManager.getAccumulatedInputTokens(modelName),
                                 budgetManager.getAccumulatedOutputTokens(modelName),
