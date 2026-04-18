@@ -138,11 +138,11 @@ public class MouseTools extends UiAbstractTools {
         try {
             var actionDescription = "Clicked at location (%s, %s)".formatted(x, y);
             var checkResult = uiStateCheckAgent.executeAndGetResult(() ->
-                    uiStateCheckAgent.verify(expectedStateDescription, actionDescription, "",
+                    uiStateCheckAgent.check(expectedStateDescription, actionDescription, "",
                             singleImageContent(captureScreen()))).getResultPayload();
             if (checkResult == null || !checkResult.success()) {
                 var waitDuration = uiTestAgentConfig.getMaxActionExecutionDurationMillis();
-                long retryDelayMillis = uiTestAgentConfig.getActionRetryPolicy().delayMillis() * 2;
+                long retryDelayMillis = uiTestAgentConfig.getActionRetryPolicy().delayMillis();
                 long deadline = currentTimeMillis() + waitDuration;
                 AtomicReference<BufferedImage> latestScreenshot = new AtomicReference<>();
                 Point clickLocation = new Point(x, y);
@@ -151,7 +151,7 @@ public class MouseTools extends UiAbstractTools {
                     sleepMillis(retryDelayMillis);
                     var screenshot = latestScreenshot.updateAndGet(_ -> captureScreen());
                     var result = uiStateCheckAgent.executeAndGetResult(() ->
-                            uiStateCheckAgent.verify(expectedStateDescription, actionDescription, "",
+                            uiStateCheckAgent.check(expectedStateDescription, actionDescription, "",
                                     singleImageContent(screenshot))).getResultPayload();
                     if (result != null && result.success()) {
                         return;

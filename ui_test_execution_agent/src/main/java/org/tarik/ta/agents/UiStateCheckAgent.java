@@ -20,7 +20,6 @@ import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.dto.UiStateCheckResult;
-import org.tarik.ta.core.error.RetryPolicy;
 
 public interface UiStateCheckAgent extends BaseUiAgent<UiStateCheckResult> {
     @UserMessage("""
@@ -32,7 +31,7 @@ public interface UiStateCheckAgent extends BaseUiAgent<UiStateCheckResult> {
             
             Screenshot attached.
             """)
-    Result<String> verify(
+    Result<String> check(
             @V("expectedStateDescription") String expectedStateDescription,
             @V("actionDescription") String actionDescription,
             @V("relevantData") String relevantData,
@@ -43,6 +42,3 @@ public interface UiStateCheckAgent extends BaseUiAgent<UiStateCheckResult> {
         return "Checking UI state";
     }
 }
-
-
-
