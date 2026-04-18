@@ -83,6 +83,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
     void setUp() {
         lenient().when(configMock.isFullyUnattended()).thenReturn(true);
         lenient().when(configMock.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
+        lenient().when(configMock.getAncestryWindowSize()).thenReturn(5);
         
         orchestrator = new KnowledgeBasedExecutionOrchestrator(
                 mockKnowledgeService, mockIngestionService, mockStepExecutionOrchestrator,
@@ -178,8 +179,8 @@ class KnowledgeBasedExecutionOrchestratorTest {
 
         orchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, stateTracker);
         
-        // Next step was matched correctly
-        verify(mockKnowledgeService).findBestMatch("step2", Set.of(effectId), Set.of(proc1.id()));
+        // Next step was matched correctly (at least once, as prefetch might also trigger match)
+        verify(mockKnowledgeService, atLeastOnce()).findBestMatch("step2", Set.of(effectId), Set.of(proc1.id()));
     }
 
     @Test
@@ -199,6 +200,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
                 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(match));
         when(mockKnowledgeService.resolveToAtomicSteps(composite.id())).thenReturn(List.of(proc1, proc2));
+        when(mockKnowledgeService.getChildren(composite.id())).thenReturn(List.of(proc1, proc2));
         when(mockKnowledgeService.findEffectsForProcedure(any())).thenReturn(List.of());
         when(mockKnowledgeService.findTargetedUiElementId(any())).thenReturn(Optional.empty());
         when(mockFailureContextService.findFailureHints(any())).thenReturn(List.of());

@@ -106,8 +106,6 @@ class StepExecutionOrchestratorTest {
         AtomicStepExecutionContext stepExecutionContext = new AtomicStepExecutionContext(null, mock(TimingRecorder.class), List.of(), "ui1", "expect this", null, null);
         VerificationExecutionResult vResult = new VerificationExecutionResult(true, "verified");
         when(mockVerificationTools.verifyTestStep(anyString(), anyString(), anyString(), any(), any())).thenReturn(vResult);
-        when(mockConfig.getTimingVerificationMinDelayMs()).thenReturn(100);
-        when(mockContext.getVisualState()).thenReturn(new org.tarik.ta.model.VisualState(null));
         
         // Act
         StepExecutionOrchestrator.AtomicStepResult result = orchestrator.executeAtomicStep(
