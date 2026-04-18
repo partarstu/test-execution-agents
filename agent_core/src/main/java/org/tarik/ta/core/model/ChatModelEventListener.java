@@ -22,19 +22,28 @@ import dev.langchain4j.model.chat.listener.ChatModelResponseContext;
 import dev.langchain4j.model.chat.listener.ChatModelErrorContext;
 import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.model.chat.response.ChatResponseMetadata;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.manager.BudgetManager;
 import java.util.Map;
 
 import static java.util.Optional.ofNullable;
-import static org.tarik.ta.core.manager.BudgetManager.*;
-import static org.tarik.ta.core.manager.BudgetManager.getAccumulatedTotalTokens;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 
+@Singleton
 public class ChatModelEventListener implements ChatModelListener {
     private static final Logger LOG = LoggerFactory.getLogger(ChatModelEventListener.class);
     private static final String MESSAGE_SEPARATOR = "---------------------------------------------------------------------";
+
+    private final BudgetManager budgetManager;
+
+    @Inject
+    public ChatModelEventListener(BudgetManager budgetManager) {
+        this.budgetManager = budgetManager;
+    }
 
     @Override
     public void onResponse(ChatModelResponseContext responseContext) {
@@ -65,12 +74,14 @@ public class ChatModelEventListener implements ChatModelListener {
                 int total = ofNullable(tokenUsage.totalTokenCount()).orElse(0);
                 int cached = 0;
                 String modelName = metadata.modelName() != null ? metadata.modelName() : "Unknown";
-                consumeTokens(modelName, input, output, cached);
+                budgetManager.consumeTokens(modelName, input, output, cached);
                 metadataInfo = ("%s, input tokens = %d, output tokens = %d, total tokens = %d. " +
                         "Accumulated: input = %d, output = %d, cached = %d, total = %d")
                         .formatted(metadataInfo, input, output, total,
-                                getAccumulatedInputTokens(modelName), getAccumulatedOutputTokens(modelName),
-                                getAccumulatedCachedTokens(modelName), getAccumulatedTotalTokens(modelName));
+                                budgetManager.getAccumulatedInputTokens(modelName),
+                                budgetManager.getAccumulatedOutputTokens(modelName),
+                                budgetManager.getAccumulatedCachedTokens(modelName),
+                                budgetManager.getAccumulatedTotalTokens(modelName));
             }
             LOG.debug(metadataInfo);
         }

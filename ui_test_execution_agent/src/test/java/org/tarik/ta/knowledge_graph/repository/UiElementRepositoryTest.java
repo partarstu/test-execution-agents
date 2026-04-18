@@ -15,7 +15,6 @@
  */
 package org.tarik.ta.knowledge_graph.repository;
 
-import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
 import org.junit.jupiter.api.AfterEach;
@@ -24,14 +23,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.neo4j.driver.EagerResult;
-import org.neo4j.driver.ExecutableQuery;
-import org.tarik.ta.knowledge_graph.Neo4jConnectionManager;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.service.UiElementCache;
 
 import java.util.List;
 import java.util.UUID;
@@ -48,59 +44,41 @@ class UiElementRepositoryTest {
     private UiElementRepository repository;
 
     @Mock private EmbeddingModel mockEmbeddingModel;
-    @Mock private org.neo4j.driver.Driver mockDriver;
-    @Mock private ExecutableQuery mockExecutableQuery;
-    @Mock private EagerResult mockEagerResult;
-
+    @Mock private Neo4jRepositorySupport mockRepositorySupport;
+    @Mock private UiElementCache mockUiElementCache;
     @SuppressWarnings("rawtypes")
     @Mock private Response mockEmbeddingResponse;
-
-    private MockedStatic<Neo4jConnectionManager> neo4jMock;
-    private MockedStatic<org.tarik.ta.UiTestAgentConfig> configMock;
 
     @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
-        neo4jMock = mockStatic(Neo4jConnectionManager.class);
-        neo4jMock.when(Neo4jConnectionManager::getDriver).thenReturn(mockDriver);
-        neo4jMock.when(() -> Neo4jConnectionManager.executableQuery(anyString())).thenReturn(mockExecutableQuery);
-        lenient().when(mockDriver.executableQuery(anyString())).thenReturn(mockExecutableQuery);
-        lenient().when(mockExecutableQuery.withConfig(any())).thenReturn(mockExecutableQuery);
-        lenient().when(mockExecutableQuery.withParameters(anyMap())).thenReturn(mockExecutableQuery);
-        when(mockExecutableQuery.execute()).thenReturn(mockEagerResult);
-        when(mockEagerResult.records()).thenReturn(List.of());
-
-        configMock = mockStatic(org.tarik.ta.UiTestAgentConfig.class);
-        configMock.when(org.tarik.ta.UiTestAgentConfig::getNeo4jDatabase).thenReturn("neo4j");
+        when(mockRepositorySupport.cypher(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
 
         when(mockEmbeddingModel.embed(anyString())).thenReturn(mockEmbeddingResponse);
-        when(mockEmbeddingResponse.content()).thenReturn(new Embedding(new float[384]));
+        when(mockEmbeddingResponse.content()).thenReturn(new dev.langchain4j.data.embedding.Embedding(new float[384]));
 
-        repository = new UiElementRepository(mockEmbeddingModel);
+        repository = new UiElementRepository(mockRepositorySupport, mockEmbeddingModel, mockUiElementCache);
     }
 
     @AfterEach
     void tearDown() {
-        neo4jMock.close();
-        configMock.close();
     }
 
     @Test
     @DisplayName("save should compute embedding and execute Neo4j query")
-    void save_shouldComputeEmbeddingAndExecuteQuery() {
+    void create_shouldComputeEmbeddingAndExecuteQuery() {
         UiElement element = new UiElement(UUID.randomUUID(), "test-button", "a button", "near header", "main page", null, false);
 
-        repository.save(element);
+        repository.create(element);
 
         verify(mockEmbeddingModel).embed(element.name());
-        verify(mockDriver).executableQuery(anyString());
-        verify(mockExecutableQuery).withParameters(any());
-        verify(mockExecutableQuery).execute();
+        verify(mockRepositorySupport).executeSingleWriteQuery(anyString(), anyMap());
     }
 
     @Test
     @DisplayName("findBySemanticSearch should return empty list when no matches")
     void findBySemanticSearch_shouldReturnEmptyList_whenNoMatches() {
+        when(mockRepositorySupport.executeSingleReadQuery(anyString(), anyMap())).thenReturn(List.of());
         List<UiElementRepository.UiElementMatch> result = repository.findBySemanticSearch("query text", 5, 0.8);
 
         assertThat(result).isEmpty();
@@ -114,8 +92,6 @@ class UiElementRepositoryTest {
 
         repository.remove(element);
 
-        verify(mockDriver).executableQuery(anyString());
-        verify(mockExecutableQuery).withParameters(any());
-        verify(mockExecutableQuery).execute();
+        verify(mockRepositorySupport).executeSingleWriteQuery(anyString(), anyMap());
     }
 }

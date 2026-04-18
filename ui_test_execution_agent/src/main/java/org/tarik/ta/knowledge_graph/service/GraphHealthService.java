@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import jakarta.inject.Singleton;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
@@ -32,21 +34,27 @@ import java.util.List;
 /**
  * Runs knowledge graph health checks, generates structured reports, and exports them as HTML.
  */
+@Singleton
 class GraphHealthService {
     private static final Logger LOG = LoggerFactory.getLogger(GraphHealthService.class);
 
     private final GraphHealthRepository repository;
+    private final GraphHealthHtmlReportGenerator reportGenerator;
 
-    GraphHealthService(GraphHealthRepository repository) {
+    private final UiTestAgentConfig config;
+
+    GraphHealthService(GraphHealthRepository repository, GraphHealthHtmlReportGenerator reportGenerator, UiTestAgentConfig config) {
         this.repository = repository;
+        this.reportGenerator = reportGenerator;
+        this.config = config;
     }
 
     GraphHealthReport runFullHealthCheck() {
-        int warnThreshold = UiTestAgentConfig.getHealthWarningThreshold();
-        int critThreshold = UiTestAgentConfig.getHealthCriticalThreshold();
+        int warnThreshold = config.getHealthWarningThreshold();
+        int critThreshold = config.getHealthCriticalThreshold();
         LOG.debug("Running full knowledge graph health check (warn threshold={}, critical threshold={})", warnThreshold, critThreshold);
-        int staleDays = UiTestAgentConfig.getSatisfiesStaleDays();
-        int maxDepth = UiTestAgentConfig.getKnowledgeMaxDepth();
+        int staleDays = config.getSatisfiesStaleDays();
+        int maxDepth = config.getKnowledgeMaxDepth();
 
         var categories = List.of(
                 HealthCheckCategory.of("Orphaned UI Elements",
@@ -78,7 +86,7 @@ class GraphHealthService {
     }
 
     void runStaleSatisfiesEdgeCleanup() {
-        int staleDays = UiTestAgentConfig.getSatisfiesStaleDays();
+        int staleDays = config.getSatisfiesStaleDays();
         int deleted = repository.deleteStaleSatisfiesEdges(staleDays);
         LOG.info("Stale SATISFIES edge cleanup: deleted {} edge(s) older than {} days", deleted, staleDays);
     }
@@ -102,7 +110,7 @@ class GraphHealthService {
      */
     Path generateHtmlReport(Path outputPath) throws IOException {
         var report = runFullHealthCheck();
-        var html = new GraphHealthHtmlReportGenerator().generateHtml(report);
+        var html = reportGenerator.generateHtml(report);
         if (outputPath.getParent() != null) {
             Files.createDirectories(outputPath.getParent());
         }

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.utils.UiCommonUtils;
@@ -39,12 +40,14 @@ class MouseToolsTest {
 
     @Mock
     private Robot mockRobot;
+    @Mock
+    private UiTestAgentConfig mockConfig;
 
     private MouseTools mouseTools;
 
     @BeforeEach
     void setUp() throws Exception {
-        mouseTools = new MouseTools(mock(UiStateCheckAgent.class));
+        mouseTools = new MouseTools(mock(UiStateCheckAgent.class), mockConfig);
         setMockRobot(mockRobot);
     }
 

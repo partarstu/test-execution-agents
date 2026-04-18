@@ -15,58 +15,14 @@
  */
 package org.tarik.ta;
 
-import io.a2a.spec.AgentCard;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.tarik.ta.a2a.UiAgentExecutor;
+import io.avaje.inject.BeanScope;
 import org.tarik.ta.core.AbstractServer;
-import org.tarik.ta.core.a2a.AgentExecutor;
-import org.tarik.ta.knowledge_graph.Neo4jConnectionManager;
-import org.tarik.ta.knowledge_graph.schema.SchemaMigrationManager;
 
-import static org.tarik.ta.UiTestAgentConfig.getExecutionMode;
+public class Server {
 
-import static org.tarik.ta.UiTestAgentConfig.getNeo4jUsername;
-import static org.tarik.ta.UiTestAgentConfig.isNeo4jAuthConfigured;
-import static org.tarik.ta.a2a.AgentCardProducer.agentCard;
-import org.tarik.ta.core.AgentConfig;
-
-public class Server extends AbstractServer {
-    private static final Logger LOG = LoggerFactory.getLogger(Server.class);
-
-    static void main() {
-        var server = new Server();
-        server.initKnowledgePersistence();
+    public static void main(String[] args) {
+        BeanScope scope = BeanScope.builder().shutdownHook(true).build();
+        AbstractServer server = scope.get(AbstractServer.class);
         server.start();
-    }
-
-    @Override
-    protected AgentExecutor createAgentExecutor() {
-        return new UiAgentExecutor();
-    }
-
-    @Override
-    protected AgentCard createAgentCard() {
-        return agentCard();
-    }
-
-    @Override
-    protected String getStartupLogMessage(String host, int port) {
-        String mode = getExecutionMode().name().toLowerCase().replace('_', '-');
-        return "Agent server started on host %s and port %d in %s mode".formatted(host, port, mode);
-    }
-
-    private void initKnowledgePersistence() {
-        if (!isNeo4jAuthConfigured()) {
-            LOG.warn("Neo4j password is set but username is blank — authentication may fail");
-        }
-
-        LOG.info("Initializing knowledge persistence layer (uri={}, user={})", AgentConfig.getVectorDbUrl(), getNeo4jUsername());
-        SchemaMigrationManager.migrateOnStartup();
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            LOG.info("Shutting down Neo4j connection");
-            Neo4jConnectionManager.close();
-        }, "neo4j-shutdown"));
-        LOG.info("Knowledge persistence layer initialized successfully with authenticated connection");
     }
 }

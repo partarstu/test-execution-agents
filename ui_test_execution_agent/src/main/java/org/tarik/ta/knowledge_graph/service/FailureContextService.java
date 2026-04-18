@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import jakarta.inject.Singleton;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
@@ -25,6 +27,7 @@ import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
 
+@Singleton
 public class FailureContextService {
     private static final Logger LOG = LoggerFactory.getLogger(FailureContextService.class);
 

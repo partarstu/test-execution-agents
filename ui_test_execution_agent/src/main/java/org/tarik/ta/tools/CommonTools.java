@@ -17,6 +17,7 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import jakarta.inject.Singleton;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.apache.commons.io.IOUtils;
@@ -34,6 +35,7 @@ import static java.awt.Desktop.isDesktopSupported;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
+@Singleton
 public class CommonTools extends UiAbstractTools {
     private static final int BROWSER_OPEN_TIME_SECONDS = 1;
     private static final Logger LOG = LoggerFactory.getLogger(CommonTools.class);
@@ -43,11 +45,7 @@ public class CommonTools extends UiAbstractTools {
     private static Process browserProcess;
     private static final Object LOCK = new Object();
 
-    public CommonTools() {
-        super();
-    }
-
-    protected CommonTools(UiStateCheckAgent uiStateCheckAgent) {
+    public CommonTools(UiStateCheckAgent uiStateCheckAgent) {
         super(uiStateCheckAgent);
     }
 

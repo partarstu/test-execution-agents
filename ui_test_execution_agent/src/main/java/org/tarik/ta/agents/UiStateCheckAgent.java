@@ -19,13 +19,9 @@ import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.dto.UiStateCheckResult;
-import org.tarik.ta.core.error.RetryPolicy;
 
 public interface UiStateCheckAgent extends BaseUiAgent<UiStateCheckResult> {
-    RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
-
     @UserMessage("""
             The expected state of the screen: {{expectedStateDescription}}
             
@@ -35,7 +31,7 @@ public interface UiStateCheckAgent extends BaseUiAgent<UiStateCheckResult> {
             
             Screenshot attached.
             """)
-    Result<String> verify(
+    Result<String> check(
             @V("expectedStateDescription") String expectedStateDescription,
             @V("actionDescription") String actionDescription,
             @V("relevantData") String relevantData,
@@ -45,12 +41,4 @@ public interface UiStateCheckAgent extends BaseUiAgent<UiStateCheckResult> {
     default String getAgentTaskDescription() {
         return "Checking UI state";
     }
-
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
-    }
 }
-
-
-

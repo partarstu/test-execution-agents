@@ -17,6 +17,7 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import jakarta.inject.Singleton;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,7 @@ import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
+@Singleton
 public class KeyboardTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(KeyboardTools.class);
     private static final Map<String, Integer> actionableKeyCodeByNameMap = getActionableKeyCodesByName();
@@ -42,11 +44,7 @@ public class KeyboardTools extends UiAbstractTools {
     private static final int KEYBOARD_ACTION_DELAY_MILLIS = 500;
     private static final int AUTO_DELAY = 10;
 
-    public KeyboardTools() {
-        super();
-    }
-
-    protected KeyboardTools(UiStateCheckAgent uiStateCheckAgent) {
+    public KeyboardTools(UiStateCheckAgent uiStateCheckAgent) {
         super(uiStateCheckAgent);
     }
 

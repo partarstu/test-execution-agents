@@ -21,32 +21,32 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.tarik.ta.agents.*;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator;
+import org.tarik.ta.knowledge_graph.StepExecutionOrchestrator;
+import org.tarik.ta.knowledge_graph.ProcedureKnowledgeCollectionService;
 import org.tarik.ta.knowledge_graph.service.*;
-import org.tarik.ta.knowledge_graph.KnowledgeServices;
-import org.tarik.ta.knowledge_graph.service.ProcedureUsageByTestCaseTrackingService;
+import org.tarik.ta.knowledge_graph.service.UiElementCache;
+import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.model.UiTestExecutionContext;
-import org.tarik.ta.tools.CommonTools;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class KnowledgeBasedExecutionOrchestratorTest {
 
     @Mock
     private UiTestExecutionContext mockContext;
-    @Mock
-    private CommonTools mockCommonTools;
     @Mock
     private KnowledgeService mockKnowledgeService;
     @Mock
@@ -57,30 +57,24 @@ class KnowledgeBasedExecutionOrchestratorTest {
     private FailureContextService mockFailureContextService;
     @Mock
     private ProcedureUsageByTestCaseTrackingService mockProcedureUsageByTestCaseTrackingService;
-
-    private KnowledgeServices mockKnowledgeServices;
-
-    private MockedStatic<AgentFactory> agentFactoryMock;
-    private MockedStatic<UiTestAgentConfig> configMock;
-    private MockedStatic<KnowledgeServiceFactory> knowledgeServiceFactoryMock;
+    @Mock
+    private StepExecutionOrchestrator mockStepExecutionOrchestrator;
+    @Mock
+    private ProcedureKnowledgeCollectionService mockProcedureKnowledgeCollectionService;
+    @Mock
+    private UiTestAgentConfig configMock;
+    @Mock
+    private UiElementCache mockUiElementCache;
+    @Mock
+    private ElementLocationHistoryLookup mockElementLocationHistoryLookup;
 
     @BeforeEach
     void setUp() {
-        agentFactoryMock = mockStatic(AgentFactory.class);
-        configMock = mockStatic(UiTestAgentConfig.class);
-        knowledgeServiceFactoryMock = mockStatic(KnowledgeServiceFactory.class);
-        
-        configMock.when(UiTestAgentConfig::isFullyUnattended).thenReturn(true);
-        knowledgeServiceFactoryMock.when(() -> KnowledgeServiceFactory.createKnowledgeIngestionService(any(), any(), any())).thenReturn(mockIngestionService);
-        mockKnowledgeServices = new KnowledgeServices(mockKnowledgeService, mockIngestionService, mockSatisfiesEdgeService,
-                mockProcedureUsageByTestCaseTrackingService, mockFailureContextService, (id, located, timeMs, strategy) -> {}, id -> Optional.empty());
+        lenient().when(configMock.isFullyUnattended()).thenReturn(true);
     }
 
     @AfterEach
     void tearDown() {
-        agentFactoryMock.close();
-        configMock.close();
-        knowledgeServiceFactoryMock.close();
     }
 
     @Test
@@ -91,7 +85,13 @@ class KnowledgeBasedExecutionOrchestratorTest {
 
         // This should throw MissingProcedureException
         org.junit.jupiter.api.Assertions.assertThrows(org.tarik.ta.exceptions.MissingProcedureException.class, () -> {
-            KnowledgeBasedExecutionOrchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, mockKnowledgeServices, mockCommonTools);
+            
+        var orchestrator = new KnowledgeBasedExecutionOrchestrator(
+                mockKnowledgeService, mockIngestionService, mockStepExecutionOrchestrator,
+                mockProcedureKnowledgeCollectionService, mockSatisfiesEdgeService,
+                mockProcedureUsageByTestCaseTrackingService, mockFailureContextService, configMock, mockUiElementCache, mockElementLocationHistoryLookup);
+        orchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, mock(ExecutionStateTracker.class));
+    
         });
     }
 }

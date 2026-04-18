@@ -15,17 +15,19 @@
  */
 package org.tarik.ta.model;
 
+import jakarta.inject.Inject;
 import org.tarik.ta.core.model.TestExecutionContext;
-import org.tarik.ta.core.dto.TestCase;
+import org.tarik.ta.config.scopes.UiAgentRequestScope;
 
 /**
  * Holds the context and state of the current UI test execution, including visual state.
  */
+@UiAgentRequestScope
 public class UiTestExecutionContext extends TestExecutionContext {
     private VisualState visualState;
 
-    public UiTestExecutionContext(TestCase testCase, VisualState visualState) {
-        super(testCase);
+    @Inject
+    public UiTestExecutionContext(VisualState visualState) {
         this.visualState = visualState;
     }
 

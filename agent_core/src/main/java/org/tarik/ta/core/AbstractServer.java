@@ -17,57 +17,37 @@ package org.tarik.ta.core;
 
 import io.a2a.spec.AgentCard;
 import io.javalin.json.JavalinJackson;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.a2a.AgentExecutionResource;
-import org.tarik.ta.core.a2a.AgentExecutor;
 
 import static io.javalin.Javalin.create;
-import static org.tarik.ta.core.AgentConfig.getHost;
-import static org.tarik.ta.core.AgentConfig.getStartPort;
 
 /**
- * Abstract base class for agent servers. Provides common server initialization
- * logic
- * while allowing subclasses to specify agent-specific components.
+ * Base class for agent servers. Bootstraps the application DI container and provides
+ * common server initialization logic.
  */
-public abstract class AbstractServer {
+@Singleton
+public class AbstractServer {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractServer.class);
     private static final long MAX_REQUEST_SIZE = 10000000;
     private static final String MAIN_PATH = "/";
     private static final String AGENT_CARD_PATH = "/.well-known/agent-card.json";
 
-    /**
-     * Creates the agent-specific executor.
-     *
-     * @return the agent executor instance
-     */
-    protected abstract AgentExecutor createAgentExecutor();
+    private final AgentConfig agentConfig;
+    private final AgentExecutionResource agentExecutionResource;
 
-    /**
-     * Creates the agent-specific card.
-     *
-     * @return the agent card instance
-     */
-    protected abstract AgentCard createAgentCard();
+    @Inject
+    public AbstractServer(AgentExecutionResource agentExecutionResource, AgentConfig agentConfig) {
+        this.agentExecutionResource = agentExecutionResource;
+        this.agentConfig = agentConfig;
+    }
 
-    /**
-     * Returns the startup log message for this agent.
-     *
-     * @param host the host the server is listening on
-     * @param port the port the server is listening on
-     * @return the formatted startup log message
-     */
-    protected abstract String getStartupLogMessage(String host, int port);
-
-    /**
-     * Starts the agent server.
-     */
     public void start() {
-        int port = getStartPort();
-        String host = getHost();
-        AgentExecutor executor = createAgentExecutor();
-        AgentExecutionResource agentExecutionResource = new AgentExecutionResource(executor, createAgentCard());
+        int port = agentConfig.getStartPort();
+        String host = agentConfig.getHost();
 
         create(config -> {
             config.http.maxRequestSize = MAX_REQUEST_SIZE;
@@ -76,6 +56,6 @@ public abstract class AbstractServer {
             config.routes.get(AGENT_CARD_PATH, agentExecutionResource::getAgentCard);
         }).start(host, port);
 
-        LOG.info(getStartupLogMessage(host, port));
+        LOG.info("Agent server started on {}:{}", host, port);
     }
 }

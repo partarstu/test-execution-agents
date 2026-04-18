@@ -17,6 +17,7 @@ package org.tarik.ta.user_dialogs;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.error.ErrorCategory;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
 
@@ -34,8 +35,8 @@ public class FailureContextCaptureDialog extends AbstractDialog {
     private final JTextField symptomField;
     private final JTextArea resolutionArea;
 
-    private FailureContextCaptureDialog(ErrorCategory preSelectedCategory, String preFilledSymptom) {
-        super(null, "Capture Failure Context");
+    private FailureContextCaptureDialog(ErrorCategory preSelectedCategory, String preFilledSymptom, UiTestAgentConfig config) {
+        super(null, "Capture Failure Context", config);
 
         categoryComboBox = new JComboBox<>(ErrorCategory.values());
         if (preSelectedCategory != null) {
@@ -61,12 +62,14 @@ public class FailureContextCaptureDialog extends AbstractDialog {
             dispose();
         });
 
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        JPanel panel = new JPanel(new BorderLayout(dialogDefaultHorizontalGap, dialogDefaultVerticalGap));
+        panel.setBorder(BorderFactory.createEmptyBorder(dialogDefaultVerticalGap, dialogDefaultHorizontalGap,
+                dialogDefaultVerticalGap, dialogDefaultHorizontalGap));
 
         JPanel formPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.insets = new Insets(dialogDefaultVerticalGap / 2, dialogDefaultHorizontalGap / 2,
+                dialogDefaultVerticalGap / 2, dialogDefaultHorizontalGap / 2);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         gbc.gridx = 0; gbc.gridy = 0;
@@ -87,14 +90,12 @@ public class FailureContextCaptureDialog extends AbstractDialog {
         formPanel.add(new JScrollPane(resolutionArea), gbc);
 
         JLabel descLabel = new JLabel("<html><b>A failure occurred.</b> Help the agent learn by capturing the context and resolution so it can avoid this error in the future.</html>");
-        descLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        descLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, dialogDefaultVerticalGap, 0));
 
         panel.add(descLabel, BorderLayout.NORTH);
         panel.add(formPanel, BorderLayout.CENTER);
 
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanel.add(submitButton);
-        buttonPanel.add(cancelButton);
+        JPanel buttonPanel = getButtonsPanel(submitButton, cancelButton);
 
         panel.add(buttonPanel, BorderLayout.SOUTH);
 
@@ -128,8 +129,8 @@ public class FailureContextCaptureDialog extends AbstractDialog {
         return result.get();
     }
 
-    public static FailureContext displayAndGetSelection(ErrorCategory preSelectedCategory, String preFilledSymptom) {
-        var dialog = new FailureContextCaptureDialog(preSelectedCategory, preFilledSymptom);
+    public static FailureContext displayAndGetSelection(ErrorCategory preSelectedCategory, String preFilledSymptom, UiTestAgentConfig config) {
+        var dialog = new FailureContextCaptureDialog(preSelectedCategory, preFilledSymptom, config);
         dialog.displayPopup();
         return dialog.getResult();
     }

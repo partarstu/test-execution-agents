@@ -15,25 +15,19 @@
  */
 package org.tarik.ta;
 
-import io.a2a.spec.AgentCard;
 import org.junit.jupiter.api.Test;
-import org.tarik.ta.core.a2a.AgentExecutor;
+
+import java.lang.reflect.Modifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ServerTest {
 
     @Test
-    void testServerMethods() {
-        Server server = new Server();
-        
-        AgentExecutor executor = server.createAgentExecutor();
-        assertThat(executor).isInstanceOf(org.tarik.ta.a2a.ApiAgentExecutor.class);
-        
-        AgentCard card = server.createAgentCard();
-        assertThat(card.name()).isEqualTo("API Test Execution Agent");
-        
-        String logMessage = server.getStartupLogMessage("localhost", 8080);
-        assertThat(logMessage).contains("localhost").contains("8080");
+    void main_shouldExistAsStaticBootstrapEntryPoint() throws NoSuchMethodException {
+        var mainMethod = Server.class.getDeclaredMethod("main");
+
+        assertThat(Modifier.isStatic(mainMethod.getModifiers())).isTrue();
+        assertThat(mainMethod.getReturnType()).isEqualTo(void.class);
     }
 }

@@ -55,7 +55,10 @@ class AgentExecutionResourceTest {
                 "1.0", 
                 java.util.List.of()
         );
-        resource = new AgentExecutionResource(agentExecutor, agentCard);
+        jakarta.inject.Provider<AgentExecutor> agentExecutorProvider = () -> agentExecutor;
+        jakarta.inject.Provider<AgentCard> agentCardProvider = () -> agentCard;
+        resource = new AgentExecutionResource(agentExecutorProvider, agentCardProvider);
+        resource.init();
     }
 
     @Test

@@ -18,6 +18,7 @@ package org.tarik.ta.context;
 import io.restassured.filter.cookie.CookieFilter;
 import io.restassured.response.Response;
 import org.tarik.ta.ApiTestAgentConfig;
+import org.tarik.ta.ApiAgentRequestScope;
 
 import java.util.Optional;
 
@@ -34,6 +35,7 @@ import java.util.Optional;
  * 
  * @see ApiTestAgentConfig for default configuration values
  */
+@ApiAgentRequestScope
 public class ApiContext {
     private final CookieFilter cookieFilter = new CookieFilter();
     private Response lastResponse;
@@ -43,30 +45,20 @@ public class ApiContext {
     private boolean relaxedHttpsValidation = true;
 
     /**
-     * Creates a new ApiContext with default settings.
-     */
-    public ApiContext() {
-    }
-
-    /**
      * Creates a new ApiContext initialized from configuration properties.
      * <p>
-     * This factory method reads the following from {@link ApiTestAgentConfig}:
+     * This constructor reads the following from {@link ApiTestAgentConfig}:
      * <ul>
      * <li>Base URI</li>
      * <li>Proxy host and port</li>
      * <li>HTTPS validation settings</li>
      * </ul>
-     *
-     * @return a new ApiContext configured from properties
      */
-    public static ApiContext createFromConfig() {
-        ApiContext context = new ApiContext();
-        ApiTestAgentConfig.getTargetBaseUri().ifPresent(context::setBaseUri);
-        ApiTestAgentConfig.getProxyHost().ifPresent(context::setProxyHost);
-        context.setProxyPort(ApiTestAgentConfig.getProxyPort());
-        context.setRelaxedHttpsValidation(ApiTestAgentConfig.getRelaxedHttpsValidation());
-        return context;
+    public ApiContext(ApiTestAgentConfig config) {
+        config.getTargetBaseUri().ifPresent(this::setBaseUri);
+        config.getProxyHost().ifPresent(this::setProxyHost);
+        this.setProxyPort(config.getProxyPort());
+        this.setRelaxedHttpsValidation(config.getRelaxedHttpsValidation());
     }
 
     public CookieFilter getCookieFilter() {

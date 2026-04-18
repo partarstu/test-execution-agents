@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import jakarta.inject.Singleton;
+
 import dev.langchain4j.data.embedding.Embedding;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,17 +29,16 @@ import org.tarik.ta.knowledge_graph.repository.ProcedureRepository.CandidateCont
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.partitioningBy;
 import static java.util.stream.Collectors.toMap;
 
-import static org.tarik.ta.UiTestAgentConfig.getKnowledgeMatchConfidenceHigh;
-import static org.tarik.ta.UiTestAgentConfig.getKnowledgeMatchConfidenceLow;
-import static org.tarik.ta.UiTestAgentConfig.getKnowledgeMatchTopN;
-import static org.tarik.ta.UiTestAgentConfig.getStabilityPenaltyThreshold;
+import org.tarik.ta.UiTestAgentConfig;
 
 /**
  * Main facade coordinating procedure retrieval and decomposition.
@@ -48,6 +49,7 @@ import static org.tarik.ta.UiTestAgentConfig.getStabilityPenaltyThreshold;
  * {@link DecompositionService} for hierarchy traversal, and {@link EmbeddingService} for embedding generation.
  * </p>
  */
+@Singleton
 public class KnowledgeService {
     private static final Logger LOG = LoggerFactory.getLogger(KnowledgeService.class);
 
@@ -55,15 +57,18 @@ public class KnowledgeService {
     private final EmbeddingService embeddingService;
     private final DecompositionService decompositionService;
     private final PhraseEmbeddingRepository phraseEmbeddingRepository;
+    private final UiTestAgentConfig config;
 
     public KnowledgeService(ProcedureRepository procedureRepository,
                             EmbeddingService embeddingService,
                             DecompositionService decompositionService,
-                            PhraseEmbeddingRepository phraseEmbeddingRepository) {
+                            PhraseEmbeddingRepository phraseEmbeddingRepository,
+                            UiTestAgentConfig config) {
         this.procedureRepository = requireNonNull(procedureRepository, "procedureRepository");
         this.embeddingService = requireNonNull(embeddingService, "embeddingService");
         this.decompositionService = requireNonNull(decompositionService, "decompositionService");
         this.phraseEmbeddingRepository = requireNonNull(phraseEmbeddingRepository, "phraseEmbeddingRepository");
+        this.config = requireNonNull(config, "config");
     }
 
     /**
@@ -74,16 +79,17 @@ public class KnowledgeService {
         requireNonNull(queryEmbedding, "queryEmbedding");
         requireNonNull(effectNodeIds, "effectNodeIds");
         requireNonNull(recentParentIds, "recentParentIds");
-        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), getKnowledgeMatchTopN(), getKnowledgeMatchConfidenceLow());
+        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), config.getKnowledgeMatchTopN(), config.getKnowledgeMatchConfidenceLow());
         if (matches.isEmpty()) {
             return Optional.empty();
         }
         var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
         var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
-        var reRanked = reRankByStateCompatibility(procedures, effectNodeIds, recentParentIds);
-        var bestMatch = reRanked.getFirst();
-        var confidence = scoreById.get(bestMatch.id()) >= getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
-        return Optional.of(new MatchResult(bestMatch, confidence, reRanked));
+        var reranked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
+        var bestMatch = reranked.procedures().getFirst().procedure();
+        var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
+        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures(), reranked.wasDemoted(),
+                reranked.demotedDueToPrerequisites(), reranked.selectedHasLowStability()));
     }
 
     /**
@@ -102,7 +108,7 @@ public class KnowledgeService {
         requireNonNull(effectNodeIds, "effectNodeIds");
         requireNonNull(recentParentIds, "recentParentIds");
         var queryEmbedding = embeddingService.embed(description);
-        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), getKnowledgeMatchTopN(), getKnowledgeMatchConfidenceLow());
+        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), config.getKnowledgeMatchTopN(), config.getKnowledgeMatchConfidenceLow());
 
         if (matches.isEmpty()) {
             LOG.debug("No procedure match found for description: '{}'", description);
@@ -111,15 +117,16 @@ public class KnowledgeService {
 
         var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
         var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
-        var reRanked = reRankByStateCompatibility(procedures, effectNodeIds, recentParentIds);
-        var bestMatch = reRanked.getFirst();
+        var reranked = reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds);
+        var bestMatch = reranked.procedures().getFirst().procedure();
 
-        var confidence = scoreById.get(bestMatch.id()) >= getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
+        var confidence = scoreById.get(bestMatch.id()) >= config.getKnowledgeMatchConfidenceHigh() ? MatchConfidence.HIGH : MatchConfidence.LOW;
 
         LOG.info("Found {} confidence match for '{}': procedure '{}' ({}) | all candidates: {}",
                 confidence, description, bestMatch.description(), bestMatch.id(),
-                reRanked.stream().map(p -> "'%s' [score=%.3f]".formatted(p.description(), scoreById.get(p.id()))).toList());
-        return Optional.of(new MatchResult(bestMatch, confidence, reRanked));
+                reranked.procedures().stream().map(sp -> "'%s' [score=%.3f]".formatted(sp.procedure().description(), scoreById.get(sp.procedure().id()))).toList());
+        return Optional.of(new MatchResult(bestMatch, confidence, reranked.procedures(), reranked.wasDemoted(),
+                reranked.demotedDueToPrerequisites(), reranked.selectedHasLowStability()));
     }
 
     /**
@@ -127,16 +134,22 @@ public class KnowledgeService {
      * Procedures with no preconditions always score {@code 1.0}. Within equal scores, higher satisfied count ranks first;
      * within equal counts, original semantic order is preserved (stable sort).
      * Uses Neo4j vector index queries via {@link PhraseEmbeddingRepository} instead of in-memory cosine similarity.
+     * Logs a DEBUG message when the top semantic match is demoted by re-ranking, including which prerequisites were unmet.
      */
-    private List<Procedure> reRankByStateCompatibility(List<Procedure> candidates, Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
-        record Scored(Procedure procedure, double proportion, int satisfied, int parentSharedCount, double stabilityPenalty) {}
+    private record RerankResult(List<ScoredProcedure> procedures, boolean wasDemoted,
+                                boolean demotedDueToPrerequisites, boolean selectedHasLowStability) {}
 
-        double penaltyThreshold = getStabilityPenaltyThreshold();
+    private RerankResult reRankByStateCompatibility(List<Procedure> candidates, Map<UUID, Double> scoreById,
+                                                    Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
+        record Scored(Procedure procedure, double proportion, int satisfied, int totalPrereqs,
+                      int parentSharedCount, double stabilityPenalty, List<String> unmetPrereqs) {}
+
+        double penaltyThreshold = config.getStabilityPenaltyThreshold();
         var candidateIds = candidates.stream().map(Procedure::id).toList();
         var contextById = procedureRepository.findCandidateContextBatch(candidateIds, recentParentIds)
                 .stream().collect(toMap(CandidateContext::candidateId, ctx -> ctx));
 
-        return candidates.stream()
+        var scored = candidates.stream()
                 .map(p -> {
                     var ctx = contextById.get(p.id());
                     double stabilityPenalty = 0.0;
@@ -153,33 +166,72 @@ public class KnowledgeService {
 
                     var prereqNodes = phraseEmbeddingRepository.findPrerequisitesForProcedure(p.id());
                     int satisfied = 0;
+                    List<String> unmetPrereqs = List.of();
                     double proportion = 1.0;
                     if (!prereqNodes.isEmpty()) {
                         if (!effectNodeIds.isEmpty()) {
-                            double threshold = getKnowledgeMatchConfidenceHigh();
-                            satisfied = (int) prereqNodes.stream()
-                                    .filter(pe -> phraseEmbeddingRepository.isPrerequisiteMetByEffects(pe.id(), effectNodeIds, threshold))
-                                    .count();
+                            double threshold = config.getKnowledgeMatchConfidenceHigh();
+                            var partitioned = prereqNodes.stream()
+                                    .collect(partitioningBy(pe -> phraseEmbeddingRepository.isPrerequisiteMetByEffects(pe.id(), effectNodeIds, threshold)));
+                            satisfied = partitioned.get(true).size();
+                            unmetPrereqs = partitioned.get(false).stream().map(PhraseEmbedding::phrase).toList();
+                        } else {
+                            unmetPrereqs = prereqNodes.stream().map(PhraseEmbedding::phrase).toList();
                         }
                         proportion = (double) satisfied / prereqNodes.size();
                     }
-                    return new Scored(p, proportion, satisfied, parentSharedCount, stabilityPenalty);
+                    return new Scored(p, proportion, satisfied, prereqNodes.size(), parentSharedCount, stabilityPenalty, unmetPrereqs);
                 })
+                .toList();
+
+        var scoredById = scored.stream().collect(toMap(s -> s.procedure().id(), s -> s));
+
+        // Sort: prerequisite ratio first (gates feasibility), then satisfied count, then semantic score minus stability penalty, then ancestry.
+        var reRanked = scored.stream()
                 .sorted(Comparator.comparingDouble(Scored::proportion).reversed()
                         .thenComparing(Comparator.comparingInt(Scored::satisfied).reversed())
-                        .thenComparing(Comparator.comparingInt(Scored::parentSharedCount).reversed())
-                        .thenComparingDouble(Scored::stabilityPenalty))
-                .map(Scored::procedure)
+                        .thenComparing(Comparator.comparingDouble((Scored s) -> scoreById.get(s.procedure().id()) - s.stabilityPenalty()).reversed())
+                        .thenComparing(Comparator.comparingInt(Scored::parentSharedCount).reversed()))
+                .map(s -> new ScoredProcedure(s.procedure(), s.satisfied(), s.totalPrereqs()))
                 .toList();
+
+        boolean wasDemoted = false;
+        boolean demotedDueToPrerequisites = false;
+        if (!candidates.isEmpty() && !reRanked.getFirst().procedure().id().equals(candidates.getFirst().id())) {
+            wasDemoted = true;
+            var topSemantic = candidates.getFirst();
+            var topSemanticScored = scoredById.get(topSemantic.id());
+            demotedDueToPrerequisites = topSemanticScored.proportion() < 1.0;
+            var selected = reRanked.getFirst().procedure();
+            LOG.debug(
+                "Top semantic match '{}' (score={}) was demoted by re-ranking: {}/{} prerequisites met, " +
+                "unmet={}, effectNodeIds empty={}. Selected '{}' (score={}) instead with proportion={}",
+                topSemantic.description(), scoreById.get(topSemantic.id()),
+                topSemanticScored.satisfied(), topSemanticScored.totalPrereqs(),
+                topSemanticScored.unmetPrereqs(), effectNodeIds.isEmpty(),
+                selected.description(), scoreById.get(selected.id()),
+                scoredById.get(selected.id()).proportion());
+        }
+
+        boolean selectedHasLowStability = !reRanked.isEmpty() &&
+                scoredById.get(reRanked.getFirst().procedure().id()).stabilityPenalty() > 0;
+        if (selectedHasLowStability) {
+            LOG.warn("Selected procedure '{}' has low element-location stability (threshold={})",
+                    reRanked.getFirst().procedure().description(), penaltyThreshold);
+        }
+
+        return new RerankResult(reRanked, wasDemoted, demotedDueToPrerequisites, selectedHasLowStability);
     }
 
     /**
-     * Returns the top semantic match for the given embedding without re-ranking.
+     * Returns the top semantic match for the given embedding without re-ranking, only when the score meets
+     * the HIGH confidence threshold. Using HIGH confidence ensures that steps with no corresponding procedure
+     * in the DB are not falsely matched to unrelated procedures (which could happen at the LOW threshold).
      * Intended for lightweight lookups (e.g., ordering conflict detection) where re-ranking overhead is unnecessary.
      */
     public Optional<Procedure> findTopSemanticMatch(Embedding queryEmbedding) {
         requireNonNull(queryEmbedding, "queryEmbedding");
-        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), 1, getKnowledgeMatchConfidenceLow());
+        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), 1, config.getKnowledgeMatchConfidenceHigh());
         return matches.isEmpty() ? Optional.empty() : Optional.of(matches.getFirst().procedure());
     }
 
@@ -200,8 +252,8 @@ public class KnowledgeService {
         requireNonNull(description, "description");
         LOG.debug("findTopMatches query: '{}'", description);
         var queryEmbedding = embeddingService.embed(description);
-        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), getKnowledgeMatchTopN(),
-                getKnowledgeMatchConfidenceHigh());
+        var matches = procedureRepository.findBySemanticSearch(queryEmbedding.vector(), config.getKnowledgeMatchTopN(),
+                config.getKnowledgeMatchConfidenceHigh());
         LOG.debug("findTopMatches found {} result(s) for '{}': {}", matches.size(), description,
                 matches.stream().map(m -> m.procedure().description()).toList());
         return matches.stream().map(ProcedureMatch::procedure).toList();
@@ -259,6 +311,24 @@ public class KnowledgeService {
     }
 
     /**
+     * Returns all semantically matching procedures scored by prerequisite satisfaction.
+     * Uses the LOW confidence threshold as the search floor, then re-ranks by state compatibility.
+     * Intended for lookup dialogs that display matches to the user.
+     */
+    public List<ScoredProcedure> findTopRankedWithScores(String description, Set<UUID> effectNodeIds, Set<UUID> recentParentIds) {
+        requireNonNull(description, "description");
+        requireNonNull(effectNodeIds, "effectNodeIds");
+        requireNonNull(recentParentIds, "recentParentIds");
+        var queryEmbedding = embeddingService.embed(description);
+        var matches = procedureRepository.findBySemanticSearch(
+                queryEmbedding.vector(), config.getKnowledgeMatchTopN(), config.getKnowledgeMatchConfidenceLow());
+        if (matches.isEmpty()) return List.of();
+        var scoreById = matches.stream().collect(toMap(m -> m.procedure().id(), ProcedureMatch::score));
+        var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
+        return reRankByStateCompatibility(procedures, scoreById, effectNodeIds, recentParentIds).procedures();
+    }
+
+    /**
      * Returns the effects (as PhraseEmbeddingNodes) of the given procedure from the graph.
      */
     public List<PhraseEmbedding> findEffectsForProcedure(UUID procedureId) {
@@ -304,6 +374,11 @@ public class KnowledgeService {
     }
 
     /**
+     * A procedure with its prerequisite-satisfaction scores from re-ranking.
+     */
+    public record ScoredProcedure(Procedure procedure, int satisfied, int totalPrereqs) {}
+
+    /**
      * Confidence level of a semantic match.
      */
     public enum MatchConfidence {
@@ -321,7 +396,8 @@ public class KnowledgeService {
     /**
      * A matched procedure with its confidence level.
      */
-    public record MatchResult(Procedure procedure, MatchConfidence confidence, List<Procedure> allMatches) {
+    public record MatchResult(Procedure procedure, MatchConfidence confidence, List<ScoredProcedure> allMatches,
+                              boolean wasDemoted, boolean demotedDueToPrerequisites, boolean selectedHasLowStability) {
         public MatchResult {
             requireNonNull(procedure, "procedure");
             requireNonNull(confidence, "confidence");

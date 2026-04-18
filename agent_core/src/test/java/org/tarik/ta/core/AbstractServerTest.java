@@ -15,13 +15,11 @@
  */
 package org.tarik.ta.core;
 
-import io.a2a.spec.AgentCard;
 import io.javalin.Javalin;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.tarik.ta.core.a2a.AgentExecutor;
+import org.tarik.ta.core.a2a.AgentExecutionResource;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -31,26 +29,12 @@ class AbstractServerTest {
 
     @Test
     void start_shouldInitializeAndStartServer() {
-        AgentExecutor executor = mock(AgentExecutor.class);
-        io.a2a.spec.AgentCapabilities capabilities = new io.a2a.spec.AgentCapabilities(false, false, false, java.util.List.of());
-        AgentCard card = new AgentCard("test", "desc", "url", null, "1.0", "doc", capabilities, java.util.List.of(), java.util.List.of(), java.util.List.of(), false, java.util.Map.of(), java.util.List.of(), "icon", java.util.List.of(), "JSONRPC", "1.0", java.util.List.of());
+        var resource = mock(AgentExecutionResource.class);
+        var config = mock(AgentConfig.class);
+        when(config.getStartPort()).thenReturn(8080);
+        when(config.getHost()).thenReturn("localhost");
 
-        AbstractServer server = new AbstractServer() {
-            @Override
-            protected AgentExecutor createAgentExecutor() {
-                return executor;
-            }
-
-            @Override
-            protected AgentCard createAgentCard() {
-                return card;
-            }
-
-            @Override
-            protected String getStartupLogMessage(String host, int port) {
-                return "Started on " + host + ":" + port;
-            }
-        };
+        AbstractServer server = new AbstractServer(resource, config);
 
         Javalin mockJavalin = mock(Javalin.class);
         when(mockJavalin.start(anyString(), anyInt())).thenReturn(mockJavalin);

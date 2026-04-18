@@ -24,29 +24,31 @@ class ApiTestAgentConfigTest {
 
     @Test
     void testConfigAccessors() {
-        assertThat(ApiTestAgentConfig.getTargetBaseUri()).isNotNull();
-        assertThat(ApiTestAgentConfig.getProxyPort()).isNotNull();
-        assertThat(ApiTestAgentConfig.getProxyHost()).isNotNull();
-        assertThat(ApiTestAgentConfig.getRelaxedHttpsValidation()).isTrue();
-        assertThat(ApiTestAgentConfig.getRequestTimeoutMillis()).isGreaterThan(0);
-        assertThat(ApiTestAgentConfig.getResponseTimeoutMillis()).isGreaterThan(0);
-        assertThat(ApiTestAgentConfig.getConnectionTimeoutMillis()).isGreaterThan(0);
-        assertThat(ApiTestAgentConfig.getRequestLoggingEnabled()).isFalse();
-        assertThat(ApiTestAgentConfig.getResponseLoggingEnabled()).isFalse();
-        assertThat(ApiTestAgentConfig.getTestDataFolder()).isEqualTo("test-data");
-        assertThat(ApiTestAgentConfig.getApiSchemaFolder()).isEqualTo("schemas");
-        assertThat(ApiTestAgentConfig.getApiOpenApiSpecPath()).isEmpty();
-        assertThat(ApiTestAgentConfig.getMaxRetryAttempts()).isGreaterThanOrEqualTo(0);
-        assertThat(ApiTestAgentConfig.getRetryDelayMillis()).isGreaterThanOrEqualTo(0);
-        assertThat(ApiTestAgentConfig.getDefaultContentType()).isEqualTo("application/json");
-        assertThat(ApiTestAgentConfig.getDefaultAccept()).isEqualTo("application/json");
-        assertThat(ApiTestAgentConfig.getCookiesEnabled()).isTrue();
-        assertThat(ApiTestAgentConfig.getMaxResponseBodySizeKb()).isGreaterThan(0);
-        assertThat(ApiTestAgentConfig.getDefaultAuthType()).isEqualTo(AuthType.NONE);
-        assertThat(ApiTestAgentConfig.getBasicAuthUsernameEnv()).isEqualTo("API_USERNAME");
-        assertThat(ApiTestAgentConfig.getBasicAuthPasswordEnv()).isEqualTo("API_PASSWORD");
-        assertThat(ApiTestAgentConfig.getBearerTokenEnv()).isEqualTo("API_TOKEN");
-        assertThat(ApiTestAgentConfig.getApiKeyNameEnv()).isEqualTo("API_KEY_NAME");
-        assertThat(ApiTestAgentConfig.getApiKeyValueEnv()).isEqualTo("API_KEY_VALUE");
+        var config = new ApiTestAgentConfig();
+
+        assertThat(config.getTargetBaseUri()).isNotNull();
+        assertThat(config.getProxyPort()).isNotNull();
+        assertThat(config.getProxyHost()).isNotNull();
+        assertThat(config.getRelaxedHttpsValidation()).isTrue();
+        assertThat(config.getRequestTimeoutMillis()).isGreaterThan(0);
+        assertThat(config.getResponseTimeoutMillis()).isGreaterThan(0);
+        assertThat(config.getConnectionTimeoutMillis()).isGreaterThan(0);
+        assertThat(config.getRequestLoggingEnabled()).isFalse();
+        assertThat(config.getResponseLoggingEnabled()).isFalse();
+        assertThat(config.getTestDataFolder()).isEqualTo("test-data");
+        assertThat(config.getApiSchemaFolder()).isEqualTo("schemas");
+        assertThat(config.getApiOpenApiSpecPath()).isEmpty();
+        assertThat(config.getMaxRetryAttempts()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getRetryDelayMillis()).isGreaterThanOrEqualTo(0);
+        assertThat(config.getDefaultContentType()).isEqualTo("application/json");
+        assertThat(config.getDefaultAccept()).isEqualTo("application/json");
+        assertThat(config.getCookiesEnabled()).isTrue();
+        assertThat(config.getMaxResponseBodySizeKb()).isGreaterThan(0);
+        assertThat(config.getDefaultAuthType()).isEqualTo(AuthType.NONE);
+        assertThat(config.getBasicAuthUsernameEnv()).isEqualTo("API_USERNAME");
+        assertThat(config.getBasicAuthPasswordEnv()).isEqualTo("API_PASSWORD");
+        assertThat(config.getBearerTokenEnv()).isEqualTo("API_TOKEN");
+        assertThat(config.getApiKeyNameEnv()).isEqualTo("API_KEY_NAME");
+        assertThat(config.getApiKeyValueEnv()).isEqualTo("API_KEY_VALUE");
     }
 }

@@ -13,25 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.core.agents;
+package org.tarik.ta.a2a;
 
+import io.a2a.spec.AgentCard;
+import io.avaje.inject.Bean;
+import io.avaje.inject.Factory;
+import jakarta.inject.Singleton;
 import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.dto.VerificationExecutionResult;
-import org.tarik.ta.core.error.RetryPolicy;
 
-/**
- * Agent responsible for verifying test step expected results.
- */
-public interface TestStepVerificationAgent extends GenericAiAgent<VerificationExecutionResult> {
-    RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
+@Factory
+public class UiAgentCardFactory {
 
-    @Override
-    default String getAgentTaskDescription() {
-        return "Verifying test step actual results";
+    private final AgentConfig agentConfig;
+
+    public UiAgentCardFactory(AgentConfig agentConfig) {
+        this.agentConfig = agentConfig;
     }
 
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
+    @Bean
+    @Singleton
+    public AgentCard agentCard() {
+        return new AgentCardProducer(agentConfig.getExternalUrl()).agentCard();
     }
 }

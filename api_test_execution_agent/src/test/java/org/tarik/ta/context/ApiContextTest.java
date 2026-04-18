@@ -17,19 +17,20 @@ package org.tarik.ta.context;
 
 import io.restassured.response.Response;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.tarik.ta.ApiTestAgentConfig;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ApiContextTest {
 
     @Test
     void testApiContextAccessors() {
-        ApiContext context = new ApiContext();
+        ApiTestAgentConfig config = mock(ApiTestAgentConfig.class);
+        ApiContext context = new ApiContext(config);
         
         context.setBaseUri("http://localhost");
         assertThat(context.getBaseUri()).contains("http://localhost");
@@ -54,19 +55,18 @@ class ApiContextTest {
     }
 
     @Test
-    void testCreateFromConfig() {
-        try (MockedStatic<ApiTestAgentConfig> configMock = mockStatic(ApiTestAgentConfig.class)) {
-            configMock.when(ApiTestAgentConfig::getTargetBaseUri).thenReturn(Optional.of("http://base"));
-            configMock.when(ApiTestAgentConfig::getProxyHost).thenReturn(Optional.of("proxy-host"));
-            configMock.when(ApiTestAgentConfig::getProxyPort).thenReturn(8888);
-            configMock.when(ApiTestAgentConfig::getRelaxedHttpsValidation).thenReturn(true);
-            
-            ApiContext context = ApiContext.createFromConfig();
-            
-            assertThat(context.getBaseUri()).contains("http://base");
-            assertThat(context.getProxyHost()).contains("proxy-host");
-            assertThat(context.getProxyPort()).contains(8888);
-            assertThat(context.isRelaxedHttpsValidation()).isTrue();
-        }
+    void constructor_shouldInitializeFromConfig() {
+        ApiTestAgentConfig config = mock(ApiTestAgentConfig.class);
+        when(config.getTargetBaseUri()).thenReturn(Optional.of("http://base"));
+        when(config.getProxyHost()).thenReturn(Optional.of("proxy-host"));
+        when(config.getProxyPort()).thenReturn(8888);
+        when(config.getRelaxedHttpsValidation()).thenReturn(true);
+
+        ApiContext context = new ApiContext(config);
+
+        assertThat(context.getBaseUri()).contains("http://base");
+        assertThat(context.getProxyHost()).contains("proxy-host");
+        assertThat(context.getProxyPort()).contains(8888);
+        assertThat(context.isRelaxedHttpsValidation()).isTrue();
     }
 }

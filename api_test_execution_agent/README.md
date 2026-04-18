@@ -28,10 +28,17 @@ It is implemented as a standalone Cloud Run-deployable service that communicates
 
 ## Key Classes
 
+The runtime bootstrap now uses Avaje Inject modules. `Server` creates the root `BeanScope`, resolves `AbstractServer` from `agent_core`,
+and `ApiAgentExecutor` opens a child request scope through `ApiAgentRequestScopeFactory` for each test case execution. The request scope
+explicitly reuses app-scope singletons such as `ApiTestAgentConfig`, `ModelFactory`, `TestCaseExtractor`, and `BudgetManager` so manual
+or nested scope creation resolves all required dependencies consistently.
+
 | Class | Description |
 |-------|-------------|
-| `Server` | HTTP server entry point, extends `AbstractServer` from core |
+| `Server` | Thin bootstrap entry point that creates the root `BeanScope` and starts the injected `AbstractServer` |
+| `ApiAgentCardFactory` | Produces the singleton A2A `AgentCard` bean from injected configuration |
 | `ApiAgentExecutor` | Handles A2A task execution, extends `AbstractAgentExecutor` |
+| `ApiAgentRequestScopeFactory` | Centralizes creation of API request-scoped child `BeanScope` instances |
 | `ApiTestAgent` | Main orchestrator for API test execution |
 | `ApiTestAgentConfig` | API-specific configuration properties |
 | `ApiContext` | Session state management (cookies, variables, last response) |
@@ -255,8 +262,8 @@ java -jar api_test_execution_agent/target/api-test-execution-agent-*-shaded.jar
 The `ApiTestAgent.executeTestCase(String message)` method is the main entry point. It:
 
 1. Parses the user message using `TestCaseExtractor` to extract a structured `TestCase`
-2. Initializes `ApiContext` from `ApiTestAgentConfig`
-3. Creates the necessary tools (`ApiRequestTools`, `ApiAssertionTools`, `TestContextDataTools`)
+2. Stores the parsed `TestCase` in the request-scoped `TestExecutionContext`
+3. Uses the already-open request scope to initialize `ApiContext` and request-scoped tools
 4. Executes preconditions using `ApiPreconditionActionAgent`
 5. Executes test steps using `ApiTestStepActionAgent`
 6. Returns a `TestExecutionResult` with logs and system info

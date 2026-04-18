@@ -15,14 +15,16 @@
  */
 package org.tarik.ta.knowledge_graph;
 
+import jakarta.inject.Singleton;
+import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.agents.UiTestStepActionAgent;
-import org.tarik.ta.agents.UiPreconditionActionAgent;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.dto.*;
-import org.tarik.ta.dto.IngestionNode;
+import org.tarik.ta.exceptions.DatabaseConnectionException;
 import org.tarik.ta.exceptions.MissingProcedureException;
 import org.tarik.ta.knowledge_graph.execution.ExecutionQueue;
 import org.tarik.ta.core.error.ErrorCategory;
@@ -31,19 +33,17 @@ import org.tarik.ta.knowledge_graph.execution.AtomicStepExecutionContext;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.PreconditionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.TestStepItem;
+import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
-import org.tarik.ta.knowledge_graph.timing.TimingRecorder;
+import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
+import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository.UnsatisfiedPrerequisite;
 import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.user_dialogs.*;
-import org.tarik.ta.user_dialogs.knowledge.ProcedureKnowledgeCollectionDialog;
 import org.tarik.ta.user_dialogs.knowledge.ExecutionItemContext;
-import org.tarik.ta.user_dialogs.knowledge.SuggestionLoaderFactory;
-
-import org.tarik.ta.tools.CommonTools;
-import org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup;
-import org.tarik.ta.user_dialogs.knowledge.UiElementDialogHelper;
+import org.tarik.ta.user_dialogs.knowledge.UserChoiceDialog;
 
 import javax.swing.*;
 import java.util.ArrayList;
@@ -51,243 +51,362 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static java.time.Instant.now;
-import static java.util.Optional.empty;
-import static org.tarik.ta.AgentFactory.*;
-import static org.tarik.ta.UiTestAgentConfig.isFullyUnattended;
-import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.*;
-import static org.tarik.ta.knowledge_graph.service.ExecutionGraphContextBuilder.*;
+import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
+import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
+import static org.tarik.ta.knowledge_graph.ExecutionResultHelper.*;
+import static org.tarik.ta.knowledge_graph.UserDecisionOutcome.*;
+import static org.tarik.ta.user_dialogs.PopupType.ERROR;
+import static org.tarik.ta.user_dialogs.PopupType.INFO;
 import static org.tarik.ta.user_dialogs.PopupType.WARNING;
-import static org.tarik.ta.user_dialogs.knowledge.ProcedureLowConfidenceSelectionPopup.SelectionAction.EDIT;
-import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
-import java.util.function.Supplier;
-
-import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
-import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
-
+@Singleton
 public class KnowledgeBasedExecutionOrchestrator {
     private static final Logger LOG = LoggerFactory.getLogger(KnowledgeBasedExecutionOrchestrator.class);
 
-    private KnowledgeBasedExecutionOrchestrator() {
+    private final KnowledgeService knowledgeService;
+    private final KnowledgeIngestionService knowledgeIngestionService;
+    private final StepExecutionOrchestrator stepExecutionOrchestrator;
+    private final ProcedureKnowledgeCollectionService procedureKnowledgeService;
+    private final SatisfiesEdgeService satisfiesEdgeService;
+    private final ProcedureUsageByTestCaseTrackingService procedureUsageByTestCaseTrackingService;
+    private final FailureContextService failureContextService;
+    private final UiTestAgentConfig uiTestAgentConfig;
+    private final UiElementCache uiElementCache;
+    private final ElementLocationHistoryLookup elementLocationHistoryLookup;
+
+    public KnowledgeBasedExecutionOrchestrator(KnowledgeService knowledgeService,
+                                               KnowledgeIngestionService knowledgeIngestionService,
+                                               StepExecutionOrchestrator stepExecutionOrchestrator,
+                                               ProcedureKnowledgeCollectionService procedureKnowledgeService,
+                                               SatisfiesEdgeService satisfiesEdgeService,
+                                               ProcedureUsageByTestCaseTrackingService procedureUsageByTestCaseTrackingService,
+                                               FailureContextService failureContextService,
+                                               UiTestAgentConfig uiTestAgentConfig,
+                                               UiElementCache uiElementCache,
+                                               ElementLocationHistoryLookup elementLocationHistoryLookup) {
+        this.knowledgeService = knowledgeService;
+        this.knowledgeIngestionService = knowledgeIngestionService;
+        this.stepExecutionOrchestrator = stepExecutionOrchestrator;
+        this.procedureKnowledgeService = procedureKnowledgeService;
+        this.satisfiesEdgeService = satisfiesEdgeService;
+        this.procedureUsageByTestCaseTrackingService = procedureUsageByTestCaseTrackingService;
+        this.failureContextService = failureContextService;
+        this.uiTestAgentConfig = uiTestAgentConfig;
+        this.uiElementCache = uiElementCache;
+        this.elementLocationHistoryLookup = elementLocationHistoryLookup;
     }
 
-    public static void executeBasedOnKnowledge(UiTestExecutionContext context,
-                                               TestCase testCase,
-                                               int startingStepIndex,
-                                               KnowledgeServices knowledgeServices,
-                                               CommonTools commonTools) {
-        var stateTracker = new ExecutionStateTracker();
+    public void executeBasedOnKnowledge(UiTestExecutionContext context,
+                                        TestCase testCase,
+                                        int startingStepIndex,
+                                        ExecutionStateTracker stateTracker) {
         var queue = ExecutionQueue.fromTestCase(testCase, startingStepIndex);
         LOG.info("Created preconditions and test steps executions queue with {} item(s)", queue.remainingCount());
-        var stabilityRecorder = knowledgeServices.locationHistoryRecorder();
-        var stabilityLookup = knowledgeServices.stabilityLookup();
-        var preconditionActionAgentFactory = (Supplier<UiPreconditionActionAgent>) () -> getPreconditionActionAgent(commonTools, stabilityRecorder, stabilityLookup);
-        var actionAgentFactory = (Supplier<UiTestStepActionAgent>) () -> getUiTestStepActionAgent(commonTools, stabilityRecorder, stabilityLookup);
-        var preconditionVerificationAgent = getPreconditionVerificationAgent();
-        var testStepVerificationAgent = getTestStepVerificationAgent();
-
-        var knowledgeService = knowledgeServices.mainKnowledgeService();
-        var ingestionService = knowledgeServices.ingestionService();
-        var satisfiesEdgeService = knowledgeServices.satisfiesEdgeService();
-        var usageTrackingService = knowledgeServices.procedureUsageByTestCaseTrackingService();
         var usedProcedureIds = new ArrayList<UUID>();
-
-        detectAndWarnOrderingConflicts(testCase, knowledgeService, satisfiesEdgeService);
-
+        detectAndWarnOrderingConflicts(testCase);
         try {
             while (queue.hasNext()) {
                 ExecutionItem item = queue.next();
                 LOG.info("Processing execution item: {} (remaining in queue: {})", item.getClass().getSimpleName(),
                         queue.remainingCount());
-                String itemDescription = item.getDescription();
-                List<String> itemTestData = item.getTestData();
-                String itemExpectedResults = item.getExpectedResults();
-
-                Optional<KnowledgeService.MatchResult> matchResult =
-                        knowledgeService.findBestMatch(itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
-                if (matchResult.isEmpty()) {
-                    LOG.info("No matching procedure found for '{}'", itemDescription);
-                    if (isFullyUnattended()) {
-                        LOG.error("No matching procedure found in UNATTENDED mode for: {}", itemDescription);
-                        throw new MissingProcedureException(
-                                ("No matching procedure found for '%s' and knowledge collection is not available in " +
-                                        "UNATTENDED mode").formatted(itemDescription));
+                var nextStep = switch (findProcedureInDb(item, stateTracker)) {
+                    case ProcedureLookup.DirectMatch(var procedure, var hasLowStability) -> {
+                        LOG.info("Direct high-confidence match found for '{}'", item.getDescription());
+                        yield processFoundProcedure(procedure, hasLowStability, item, testCase, context, stateTracker, usedProcedureIds, queue);
                     }
-                    if (!handleNoProcedureMatchFoundCase(item, itemDescription, itemTestData, itemExpectedResults, knowledgeService,
-                            ingestionService, queue, context, stateTracker.getExecutedAtomicProcedures(), stateTracker)) {
-                        recordFailure(context, item, itemDescription,
-                                "No matching procedure found and knowledge collection was cancelled or failed");
-                        return;
-                    }
-                    continue;
-                }
-
-                var match = matchResult.get();
-                var feasible = selectFeasibleProcedure(match.allMatches(), stateTracker);
-                if (feasible.isEmpty()) {
-                    var missingPrerequisites = match.allMatches().stream()
-                            .flatMap(p -> stateTracker.findMissingPrerequisites(p.prerequisites()).stream())
-                            .distinct().toList();
-                    var reason = "Procedures found for '%s' but none have satisfied prerequisites. Missing: %s"
-                            .formatted(itemDescription, missingPrerequisites);
-                    LOG.warn(reason);
-                    if (isFullyUnattended()) {
-                        recordFailure(context, item, itemDescription, reason);
-                        return;
-                    }
-                    var resolved = handleLowConfidenceProcedureMatchCase(item, itemDescription, itemTestData, itemExpectedResults, match,
-                            knowledgeServices, stateTracker, context);
-                    if (resolved.isEmpty()) {
-                        recordFailure(context, item, itemDescription, "User cancelled after no feasible procedure branch found");
-                        return;
-                    }
-                    feasible = resolved;
-                } else if (match.confidence() == KnowledgeService.MatchConfidence.LOW && !isFullyUnattended()) {
-                    LOG.info("Low confidence match for '{}' - prompting user for selection/editing", itemDescription);
-                    var resolved = handleLowConfidenceProcedureMatchCase(item, itemDescription, itemTestData, itemExpectedResults, match,
-                            knowledgeServices, stateTracker, context);
-                    if (resolved.isEmpty()) {
-                        recordFailure(context, item, itemDescription, "User cancelled low-confidence selection");
-                        return;
-                    }
-                    feasible = resolved;
-                }
-                Procedure procedure = feasible.get();
-                stateTracker.addRecentParent(procedure.id());
-
-                LOG.info("Found matching procedure '{}' ({}) for '{}'", procedure.description(), procedure.id(),
-                        itemDescription);
-                List<Procedure> atomicSteps;
-                if (procedure.isAtomic()) {
-                    atomicSteps = List.of(procedure);
-                    LOG.info("Procedure is already atomic, no decomposition is needed");
-                } else {
-                    atomicSteps = knowledgeService.resolveToAtomicSteps(procedure.id());
-                    LOG.info("Decomposed into {} atomic step(s)", atomicSteps.size());
-                }
-
-                boolean hasTestStepData = itemTestData != null && !itemTestData.isEmpty() &&
-                        itemTestData.stream().anyMatch(CommonUtils::isNotBlank);
-                if (hasTestStepData && !isFullyUnattended() && item instanceof TestStepItem) {
-                    List<String> affectedProcedures = atomicSteps.stream()
-                            .filter(s -> s.testData() != null && !s.testData().isEmpty() &&
-                                    s.testData().stream().anyMatch(CommonUtils::isNotBlank))
-                            .map(Procedure::description)
-                            .toList();
-
-                    if (!affectedProcedures.isEmpty()) {
-                        String procList = String.join("\n- ", affectedProcedures);
-                        String message = "This Test Step contains test data. The saved data for the following atomic procedures will " +
-                                "be discarded:\n" + procList;
-                        InformationalPopup.display("Data Override Warning", message, null, WARNING);
-                    }
-                }
-
-                List<UiTestStepResult> testStepResults = new ArrayList<>();
-                List<UiPreconditionResult> preconditionResults = new ArrayList<>();
-                boolean allAtomicsSuccess = true;
-                boolean reDecomposeNeeded = false;
-                int totalAtomics = atomicSteps.size();
-                for (int i = 0; i < totalAtomics; i++) {
-                    Procedure atomicStep = atomicSteps.get(i);
-                    if (!atomicStep.prerequisites().isEmpty() && !stateTracker.arePrerequisitesMet(atomicStep.prerequisites())) {
-                        var missing = stateTracker.findMissingPrerequisites(atomicStep.prerequisites());
-                        var reason = "Atomic step '%s' skipped — prerequisites not satisfied: %s"
-                                .formatted(atomicStep.description(), missing);
-                        LOG.warn(reason);
-                        if (isFullyUnattended()) {
-                            recordFailure(context, item, itemDescription, reason);
-                            allAtomicsSuccess = false;
-                            break;
-                        } else {
-                            InformationalPopup.display("Prerequisites Not Satisfied", reason, null, WARNING);
-                            allAtomicsSuccess = false;
-                            break;
+                    case ProcedureLookup.NeedsUserResolution res -> {
+                        if (uiTestAgentConfig.isFullyUnattended()) {
+                            throw new MissingProcedureException(buildSelectionReason(item.getDescription(), res, item instanceof ExecutionItem.PreconditionItem));
                         }
+                        var reason = buildSelectionReason(item.getDescription(), res, item instanceof ExecutionItem.PreconditionItem);
+                        LOG.info("No direct match for '{}' — prompting user. Reason: {}", item.getDescription(), reason);
+                        var userDecision = resolveWithUserInput(item, res.match(), reason, stateTracker, testCase, context);
+                        yield processUserFeedback(userDecision, item, testCase, context, stateTracker, usedProcedureIds, queue);
                     }
-
-                    String targetElementId = knowledgeService.findTargetedUiElementId(atomicStep.id())
-                            .map(UUID::toString)
-                            .orElse(null);
-
-                    if (targetElementId == null) {
-                        LOG.debug("No target UI element linked to procedure '{}' — proceeding without element hint",
-                                atomicStep.description());
-                    }
-
-                    boolean isSingle = totalAtomics == 1;
-                    boolean isLast = (i == totalAtomics - 1);
-                    String effectiveExpectedResults = computeEffectiveExpectedResults(item, atomicStep, isSingle, isLast);
-
-                    TimingRecorder timingRecorder = knowledgeService::updateTimingProfile;
-                    var failureHints = knowledgeServices.failureContextService().findFailureHints(atomicStep.id());
-                    var execContext = new AtomicStepExecutionContext(
-                            atomicStep.timingProfile(),
-                            timingRecorder,
-                            failureHints,
-                            targetElementId,
-                            effectiveExpectedResults
-                    );
-
-                    var loopOutcome = executeAtomicStepWithRetryLoop(item, atomicStep, procedure.isAtomic() ? null : procedure, context,
-                            preconditionActionAgentFactory,
-                            preconditionVerificationAgent, actionAgentFactory, testStepVerificationAgent, testStepResults, preconditionResults,
-                            knowledgeServices, stateTracker.getExecutedAtomicProcedures(), execContext);
-
-                    if (loopOutcome == StepExecutionOrchestrator.RetryLoopOutcome.TERMINATE_EXECUTION) {
-                        LOG.error("Terminating execution after failure of atomic procedure '{}'", atomicStep.description());
-                        captureFailureContext(atomicStep, knowledgeServices, testStepResults, preconditionResults);
-                        allAtomicsSuccess = false;
-                        break;
-                    }
-                    if (loopOutcome == StepExecutionOrchestrator.RetryLoopOutcome.RE_DECOMPOSE_AND_RETRY) {
-                        LOG.info("Atomic step '{}' was edited to composite — re-injecting item for re-decomposition", atomicStep.description());
-                        queue.injectAtFront(List.of(item));
-                        reDecomposeNeeded = true;
-                        break;
-                    }
-
-                    stateTracker.addEffects(knowledgeService.findEffectsForProcedure(atomicStep.id()));
-                    satisfiesEdgeService.persistSatisfiesEdgesAsync(atomicStep.id());
-                    stateTracker.addExecutedAtomicProcedure(atomicStep);
-                    LOG.debug("Added {} effect(s) to state tracker", atomicStep.effects().size());
+                };
+                if (nextStep instanceof ExecutionFlow.Stop) {
+                    return;
                 }
-
-                if (reDecomposeNeeded) {
-                    continue;
-                }
-                if (item instanceof TestStepItem(TestStep testStep)) {
-                    UiTestStepResult mergedResult = mergeAtomicResults(testStep, testStepResults);
-                    context.addStepResult(mergedResult);
-                    if (mergedResult.getExecutionStatus() != SUCCESS) {
-                        return;
-                    }
-                } else {
-                    UiPreconditionResult mergedResult = mergePreconditionResults(itemDescription, preconditionResults, allAtomicsSuccess);
-                    context.addPreconditionResult(mergedResult);
-                    if (!mergedResult.isSuccess()) {
-                        return;
-                    }
-                }
-                usedProcedureIds.add(procedure.id());
-                usageTrackingService.mergeUsesProcedure(testCase.name(), procedure.id());
             }
+        } catch (DatabaseConnectionException e) {
+            LOG.error("DB connection error during execution of test case '{}'", testCase.name(), e);
+            if (!uiTestAgentConfig.isFullyUnattended()) {
+                InformationalPopup.display("Database Connection Error",
+                        "Lost connection to the knowledge graph DB: " + e.getMessage(), null, ERROR, uiTestAgentConfig);
+            }
+            throw e;
         } finally {
             try {
-                usageTrackingService.cleanupStaleUsesProcedure(testCase.name(), usedProcedureIds);
+                procedureUsageByTestCaseTrackingService.cleanupStaleUsesProcedure(testCase.name(), usedProcedureIds);
             } catch (Exception e) {
                 LOG.error("Failed to clean up stale USES_PROCEDURE edges for test case '{}'", testCase.name(), e);
             }
         }
     }
 
-    private static void detectAndWarnOrderingConflicts(TestCase testCase, KnowledgeService knowledgeService, SatisfiesEdgeService satisfiesEdgeService) {
-        if (isFullyUnattended()) {
+    private ExecutionFlow processFoundProcedure(Procedure procedure, boolean hasLowStability, ExecutionItem item,
+                                                TestCase testCase, UiTestExecutionContext context,
+                                                ExecutionStateTracker stateTracker,
+                                                List<UUID> usedProcedureIds, ExecutionQueue queue) {
+        stateTracker.addRecentParent(procedure.id());
+        LOG.info("Found matching procedure '{}' ({}) for '{}'", procedure.description(), procedure.id(), item.getDescription());
+        if (hasLowStability && !uiTestAgentConfig.isFullyUnattended()) {
+            InformationalPopup.display("Unstable Procedure Warning",
+                    "Procedure '%s' has a low element-location stability score. It may be unreliable. Consider reviewing and updating it."
+                            .formatted(procedure.description()), null, WARNING, uiTestAgentConfig);
+        }
+        List<Procedure> atomicSteps;
+        try {
+            atomicSteps = resolveToAtomicSteps(procedure);
+        } catch (IllegalStateException e) {
+            var errorMessage = e.getMessage();
+            LOG.error("Decomposition failure for procedure '{}' ({}): {}", procedure.description(), procedure.id(), errorMessage);
+            if (uiTestAgentConfig.isFullyUnattended()) {
+                throw e;
+            }
+            var outcome = stepExecutionOrchestrator.handleDecompositionFailureInSupervisedMode(
+                    errorMessage, procedure, item, testCase, context);
+            return switch (outcome) {
+                case TERMINATE_EXECUTION -> {
+                    recordFailure(context, item, item.getDescription(), errorMessage);
+                    yield new ExecutionFlow.Stop();
+                }
+                case RE_DECOMPOSE_AND_RETRY, RE_FETCH_AND_RETRY -> {
+                    queue.injectAtFront(List.of(item));
+                    yield new ExecutionFlow.Continue();
+                }
+                case CONTINUE_NEXT_STEP -> new ExecutionFlow.Continue();
+            };
+        }
+        showTestDataOverrideWarningIfNeeded(item, item.getTestData(), atomicSteps);
+        var testStepResults = new ArrayList<UiTestStepResult>();
+        var preconditionResults = new ArrayList<UiPreconditionResult>();
+        var loopOutcome = executeHierarchically(procedure, item, testCase, context, stateTracker, testStepResults, preconditionResults,
+                new AtomicInteger(0), atomicSteps.size(), atomicSteps.size() == 1, null, 0);
+        if (loopOutcome == AtomicLoopOutcome.TERMINATE) {
+            if (item instanceof TestStepItem(TestStep testStep)) {
+                context.addStepResult(mergeAtomicResults(testStep, testStepResults));
+            } else {
+                context.addPreconditionResult(mergePreconditionResults(item.getDescription(), preconditionResults));
+            }
+            return new ExecutionFlow.Stop();
+        }
+        if (loopOutcome == AtomicLoopOutcome.RE_DECOMPOSE) {
+            queue.injectAtFront(List.of(item));
+            return new ExecutionFlow.Continue();
+        }
+        if (item instanceof TestStepItem(TestStep testStep)) {
+            UiTestStepResult mergedResult = mergeAtomicResults(testStep, testStepResults);
+            context.addStepResult(mergedResult);
+            if (mergedResult.getExecutionStatus() != SUCCESS) {
+                return new ExecutionFlow.Stop();
+            }
+        } else {
+            UiPreconditionResult mergedResult = mergePreconditionResults(item.getDescription(), preconditionResults);
+            context.addPreconditionResult(mergedResult);
+            if (!mergedResult.isSuccess()) {
+                return new ExecutionFlow.Stop();
+            }
+        }
+        usedProcedureIds.add(procedure.id());
+        procedureUsageByTestCaseTrackingService.mergeUsesProcedure(testCase.name(), procedure.id());
+        return new ExecutionFlow.Continue();
+    }
+
+    private ExecutionFlow processUserFeedback(UserFeedback resolution, ExecutionItem item, TestCase testCase,
+                                              UiTestExecutionContext context, ExecutionStateTracker stateTracker,
+                                              List<UUID> usedProcedureIds, ExecutionQueue queue) {
+        return switch (resolution) {
+            case UserFeedback.ManualTermination(var reason) -> {
+                LOG.warn("Execution was interrupted by user for item '{}': {}", item.getDescription(), reason);
+                recordFailure(context, item, item.getDescription(), reason);
+                yield new ExecutionFlow.Stop();
+            }
+            case UserFeedback.Found(var procedure) ->
+                    processFoundProcedure(procedure, false, item, testCase, context, stateTracker, usedProcedureIds, queue);
+        };
+    }
+
+    private ProcedureLookup findProcedureInDb(ExecutionItem item, ExecutionStateTracker stateTracker) {
+        var matchResult = knowledgeService.findBestMatch(item.getDescription(), stateTracker.getEffectNodeIds(),
+                stateTracker.getRecentParentIds());
+        if (matchResult.isEmpty()) {
+            return new ProcedureLookup.NeedsUserResolution(null, List.of());
+        }
+        var match = matchResult.get();
+        var feasible = selectFeasibleProcedure(match.allMatches());
+        if (feasible.isPresent() && match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
+            return new ProcedureLookup.DirectMatch(feasible.get(), match.selectedHasLowStability());
+        }
+        if (match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
+            // High semantic score but no feasible procedure — prerequisites are the blocker
+            var topCandidate = match.allMatches().getFirst();
+            var missing = satisfiesEdgeService.findUnsatisfiedPrerequisites(
+                    topCandidate.procedure().id(),
+                    stateTracker.getEffectNodeIds());
+            return new ProcedureLookup.NeedsUserResolution(match, missing);
+        }
+        // LOW confidence — semantic score too low; prerequisites are irrelevant
+        return new ProcedureLookup.NeedsUserResolution(match, List.of());
+    }
+
+    private List<Procedure> resolveToAtomicSteps(Procedure procedure) {
+        if (procedure.isAtomic()) {
+            LOG.info("Procedure is already atomic, no decomposition is needed");
+            return List.of(procedure);
+        }
+        var atomicSteps = knowledgeService.resolveToAtomicSteps(procedure.id());
+        LOG.info("Decomposed into {} atomic step(s)", atomicSteps.size());
+        return atomicSteps;
+    }
+
+    private void showTestDataOverrideWarningIfNeeded(ExecutionItem item, List<String> itemTestData, List<Procedure> atomicSteps) {
+        boolean hasTestStepData = itemTestData != null && !itemTestData.isEmpty() &&
+                itemTestData.stream().anyMatch(CommonUtils::isNotBlank);
+        if (!hasTestStepData || uiTestAgentConfig.isFullyUnattended() || !(item instanceof TestStepItem)) {
+            return;
+        }
+        List<String> affectedProcedures = atomicSteps.stream()
+                .filter(s -> s.testData() != null && !s.testData().isEmpty() &&
+                        s.testData().stream().anyMatch(CommonUtils::isNotBlank))
+                .map(Procedure::description)
+                .toList();
+        if (!affectedProcedures.isEmpty()) {
+            String procList = String.join("\n- ", affectedProcedures);
+            String message = "This Test Step contains test data. The saved data for the following atomic procedures will " +
+                    "be discarded:\n" + procList;
+            InformationalPopup.display("Data Override Warning", message, null, WARNING, uiTestAgentConfig);
+        }
+    }
+
+    private AtomicLoopOutcome executeAtomicLeaf(ExecutionItem item, Procedure atomicStep, @Nullable Procedure directParent,
+                                                TestCase testCase, UiTestExecutionContext context,
+                                                ExecutionStateTracker stateTracker,
+                                                List<UiTestStepResult> testStepResults,
+                                                List<UiPreconditionResult> preconditionResults,
+                                                boolean isSingle, boolean isLast) {
+        var missing = satisfiesEdgeService.findUnsatisfiedPrerequisites(
+                atomicStep.id(),
+                stateTracker.getEffectNodeIds());
+        if (!missing.isEmpty()) {
+            var reason = "prerequisites not satisfied: %s".formatted(missing);
+            if (atomicStep.optional()) {
+                LOG.debug("Optional atomic step '{}' skipped — {}", atomicStep.description(), reason);
+                if (!uiTestAgentConfig.isFullyUnattended()) {
+                    InformationalPopup.display("Optional Step Skipped",
+                            "Optional step '%s' was skipped — %s".formatted(atomicStep.description(), reason),
+                            null, INFO, uiTestAgentConfig);
+                }
+                return AtomicLoopOutcome.SKIPPED;
+            }
+            var fullReason = "Atomic step '%s' skipped — %s".formatted(atomicStep.description(), reason);
+            LOG.warn(fullReason);
+            if (!uiTestAgentConfig.isFullyUnattended()) {
+                InformationalPopup.display("Prerequisites Not Satisfied", fullReason, null, WARNING, uiTestAgentConfig);
+            }
+            switch (item) {
+                case TestStepItem(TestStep testStep) ->
+                        testStepResults.add(new UiTestStepResult(testStep, FAILURE, fullReason, null, captureScreen(), now(), now()));
+                case PreconditionItem _ ->
+                        preconditionResults.add(new UiPreconditionResult(item.getDescription(), false, fullReason, captureScreen(), now(), now()));
+            }
+            return AtomicLoopOutcome.TERMINATE;
+        }
+
+        Function<Procedure, AtomicStepExecutionContext> contextFactory = p -> buildExecContext(p, item, isSingle, isLast);
+        var execContext = contextFactory.apply(atomicStep);
+
+        var loopOutcome = stepExecutionOrchestrator.executeAtomicStepWithRetryLoop(item, atomicStep,
+                testCase, directParent, context,
+                testStepResults, preconditionResults,
+                stateTracker.getExecutedAtomicProcedures(), execContext, contextFactory);
+
+        if (loopOutcome == UserDecisionOutcome.TERMINATE_EXECUTION) {
+            LOG.error("Terminating execution after failure of atomic procedure '{}'", atomicStep.description());
+            captureFailureContext(atomicStep, testStepResults, preconditionResults);
+            return AtomicLoopOutcome.TERMINATE;
+        }
+        if (loopOutcome == UserDecisionOutcome.RE_DECOMPOSE_AND_RETRY) {
+            LOG.info("Atomic step '{}' was edited to composite — re-injecting item for re-decomposition",
+                    atomicStep.description());
+            return AtomicLoopOutcome.RE_DECOMPOSE;
+        }
+
+        var graphEffects = knowledgeService.findEffectsForProcedure(atomicStep.id());
+        stateTracker.addEffects(graphEffects);
+        satisfiesEdgeService.persistSatisfiesEdgesAsync(atomicStep.id());
+        stateTracker.addExecutedAtomicProcedure(atomicStep);
+
+        return AtomicLoopOutcome.COMPLETED;
+    }
+
+    private AtomicStepExecutionContext buildExecContext(Procedure atomicStep, ExecutionItem item, boolean isSingle, boolean isLast) {
+        String targetElementId = knowledgeService.findTargetedUiElementId(atomicStep.id())
+                .map(UUID::toString)
+                .orElse(null);
+        UiElement targetElement = null;
+        ElementLocationHistory locationHistory = null;
+        if (targetElementId != null) {
+            UUID elementUuid = UUID.fromString(targetElementId);
+            targetElement = uiElementCache.get(elementUuid).orElse(null);
+            locationHistory = elementLocationHistoryLookup.lookup(elementUuid).orElse(null);
+        } else {
+            LOG.debug("No target UI element linked to procedure '{}' — proceeding without element hint",
+                    atomicStep.description());
+        }
+        return new AtomicStepExecutionContext(
+                atomicStep.timingProfile(),
+                knowledgeService::updateTimingProfile,
+                failureContextService.findFailureHints(atomicStep.id()),
+                targetElementId,
+                computeEffectiveExpectedResults(item, atomicStep, isSingle, isLast),
+                targetElement,
+                locationHistory
+        );
+    }
+
+    private AtomicLoopOutcome executeHierarchically(Procedure procedure, ExecutionItem item, TestCase testCase,
+                                                    UiTestExecutionContext context, ExecutionStateTracker stateTracker,
+                                                    List<UiTestStepResult> testStepResults,
+                                                    List<UiPreconditionResult> preconditionResults,
+                                                    AtomicInteger atomicCounter,
+                                                    int totalAtomics, boolean isSingle, @Nullable Procedure directParent, int depth) {
+        String indent = "  ".repeat(depth);
+        if (procedure.isAtomic()) {
+            LOG.info("{}→ Executing atomic: '{}' ({}/{})", indent, procedure.description(), atomicCounter.get() + 1, totalAtomics);
+            boolean isLast = atomicCounter.getAndIncrement() == totalAtomics - 1;
+            return executeAtomicLeaf(item, procedure, directParent, testCase, context, stateTracker,
+                    testStepResults, preconditionResults, isSingle, isLast);
+        } else {
+            LOG.info("{}→ Entering composite: '{}'", indent, procedure.description());
+            stateTracker.enterCompositeScope(procedure);
+            var children = knowledgeService.getChildren(procedure.id());
+            for (Procedure child : children) {
+                var outcome = executeHierarchically(child, item, testCase, context, stateTracker,
+                        testStepResults, preconditionResults, atomicCounter, totalAtomics, isSingle, procedure, depth + 1);
+                if (outcome == AtomicLoopOutcome.TERMINATE || outcome == AtomicLoopOutcome.RE_DECOMPOSE) {
+                    stateTracker.abandonCompositeScope();
+                    LOG.info("{}← Abandoned composite scope: '{}'", indent, procedure.description());
+                    return outcome;
+                }
+                // COMPLETED and SKIPPED both continue to the next sibling
+            }
+            var graphEffects = knowledgeService.findEffectsForProcedure(procedure.id());
+            stateTracker.closeCompositeScope(graphEffects);
+            LOG.info("{}← Closed composite: '{}' ({} effects promoted)", indent, procedure.description(), graphEffects.size());
+            return AtomicLoopOutcome.COMPLETED;
+        }
+    }
+
+    private void detectAndWarnOrderingConflicts(TestCase testCase) {
+        if (uiTestAgentConfig.isFullyUnattended()) {
             LOG.debug("Ordering conflict detection skipped: running in UNATTENDED mode");
             return;
         }
@@ -327,7 +446,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                         .formatted(steps.get(consumerIndex).stepDescription(), steps.get(producerIndex).stepDescription());
             }).toList());
             InformationalPopup.display("Ordering Conflicts Detected",
-                    "The following test steps appear to be out of order:\n\n" + details, null, WARNING);
+                    "The following test steps appear to be out of order:\n\n" + details, null, WARNING, uiTestAgentConfig);
         }
     }
 
@@ -342,131 +461,196 @@ public class KnowledgeBasedExecutionOrchestrator {
      */
     private static String computeEffectiveExpectedResults(ExecutionItem item, Procedure atomicStep, boolean isSingle, boolean isLast) {
         return switch (item) {
-            case TestStepItem(TestStep testStep) -> {
-                String testStepExpected = testStep.expectedResults() != null ? testStep.expectedResults() : "";
-                String atomicExpected = atomicStep.expectedResults() != null ? atomicStep.expectedResults() : "";
-                if (isSingle) {
-                    yield testStepExpected;
-                } else if (isLast) {
-                    yield atomicExpected.isBlank() ? testStepExpected
-                            : testStepExpected.isBlank() ? atomicExpected
-                            : atomicExpected + "\n" + testStepExpected;
-                } else {
-                    yield atomicExpected;
-                }
-            }
-            case PreconditionItem ignored -> {
-                if (isSingle) {
-                    String atomicExpected = atomicStep.expectedResults() != null ? atomicStep.expectedResults() : "";
-                    String testDataString = atomicStep.testData() != null ? String.join(", ", atomicStep.testData()) : "";
-                    yield atomicExpected.isBlank() ? testDataString : atomicExpected;
-                } else {
-                    yield "";
-                }
-            }
+            case TestStepItem(TestStep testStep) -> getTestStepEffectiveExpectedResults(atomicStep, isSingle, isLast, testStep);
+            case PreconditionItem ignored -> getPreconditionEffectiveExpectedResults(atomicStep, isSingle);
         };
+    }
+
+    private static @NonNull String getPreconditionEffectiveExpectedResults(Procedure atomicStep, boolean isSingle) {
+        if (isSingle) {
+            String atomicExpected = getAtomicStepExpectedResults(atomicStep);
+            String testDataString = atomicStep.testData() != null ? String.join(", ", atomicStep.testData()) : "";
+            return atomicExpected.isBlank() ? testDataString : atomicExpected;
+        } else {
+            return "";
+        }
+    }
+
+    private static @NonNull String getTestStepEffectiveExpectedResults(Procedure atomicStep, boolean isSingle, boolean isLast,
+                                                                       TestStep testStep) {
+        String testStepExpected = testStep.expectedResults() != null ? testStep.expectedResults() : "";
+        String atomicExpected = getAtomicStepExpectedResults(atomicStep);
+        if (isSingle) {
+            return testStepExpected;
+        } else if (isLast) {
+            return atomicExpected.isBlank()
+                    ? testStepExpected
+                    : testStepExpected.isBlank() ? atomicExpected : atomicExpected + "\n" + testStepExpected;
+        } else {
+            return atomicExpected;
+        }
+    }
+
+    private static @NonNull String getAtomicStepExpectedResults(Procedure atomicStep) {
+        return atomicStep.expectedResults() != null ? atomicStep.expectedResults() : "";
     }
 
     private static void recordFailure(UiTestExecutionContext context, ExecutionItem item, String itemDescription, String errorMessage) {
         switch (item) {
-            case PreconditionItem ignored ->
-                    context.addPreconditionResult(new UiPreconditionResult(itemDescription, false, errorMessage, captureScreen(), now(), now()));
-            case TestStepItem(TestStep testStep) ->
-                    context.addStepResult(new UiTestStepResult(testStep, FAILURE, errorMessage, null, captureScreen(), now(), now()));
+            case PreconditionItem _ -> context.addPreconditionResult(new UiPreconditionResult(itemDescription, false, errorMessage,
+                    captureScreen(), now(), now()));
+            case TestStepItem(TestStep testStep) -> context.addStepResult(new UiTestStepResult(testStep, FAILURE, errorMessage, null,
+                    captureScreen(), now(), now()));
         }
     }
 
     /**
-     * Returns the highest-scoring candidate whose prerequisites are all satisfied by the current state.
+     * Returns the first candidate whose prerequisites are all semantically satisfied (per re-ranking scores).
      * Procedures with no prerequisites are always considered feasible.
      */
-    private static Optional<Procedure> selectFeasibleProcedure(List<Procedure> candidates, ExecutionStateTracker stateTracker) {
+    private static Optional<Procedure> selectFeasibleProcedure(List<KnowledgeService.ScoredProcedure> candidates) {
         return candidates.stream()
-                .filter(p -> stateTracker.arePrerequisitesMet(p.prerequisites()))
+                .filter(sp -> sp.totalPrereqs() == 0 || sp.satisfied() == sp.totalPrereqs())
+                .map(KnowledgeService.ScoredProcedure::procedure)
                 .findFirst();
     }
 
-    private static Optional<Procedure> handleLowConfidenceProcedureMatchCase(ExecutionItem item, String itemDescription,
-                                                                             List<String> itemTestData, String itemExpectedResults,
-                                                                             KnowledgeService.MatchResult match,
-                                                                             KnowledgeServices knowledgeServices,
-                                                                             ExecutionStateTracker stateTracker,
-                                                                             UiTestExecutionContext executionContext) {
+    /**
+     * Shows the procedure selection popup in a loop, handling RETRY, BROWSE, and CREATE actions until
+     * a procedure is resolved or the user terminates.
+     */
+    private UserFeedback resolveWithUserInput(ExecutionItem item, @Nullable KnowledgeService.MatchResult match,
+                                              String selectionReason, ExecutionStateTracker stateTracker,
+                                              TestCase testCase, UiTestExecutionContext executionContext) {
+        String itemDescription = item.getDescription();
+        List<String> itemTestData = item.getTestData();
+        String itemExpectedResults = item.getExpectedResults();
+        boolean isPreconditionItem = item instanceof PreconditionItem;
+        List<KnowledgeService.ScoredProcedure> allScoredMatches = knowledgeService.findTopRankedWithScores(
+                itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
         while (true) {
-            var selectionResult = ProcedureLowConfidenceSelectionPopup.displayAndGetSelection(null, itemDescription, match.allMatches());
+            LOG.info("Showing procedure selection popup for '{}'. Reason: {}", itemDescription, selectionReason);
+            var selectionResult = UserChoiceDialog.displayAndGetSelection(
+                    null, selectionReason, itemDescription,
+                    allScoredMatches, knowledgeService,
+                    stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds(),
+                    uiTestAgentConfig);
             if (selectionResult.isEmpty()) {
                 LOG.warn("User cancelled selection for '{}', stopping execution", itemDescription);
-                throw new IllegalStateException("User cancelled knowledge workflow");
+                return new UserFeedback.ManualTermination("User cancelled procedure selection for '%s'".formatted(itemDescription));
             }
             var res = selectionResult.get();
-            boolean isPreconditionItem = item instanceof PreconditionItem;
-            var knowledgeService = knowledgeServices.mainKnowledgeService();
-            var ingestionService = knowledgeServices.ingestionService();
             switch (res.action()) {
                 case RETRY -> {
+                    LOG.info("User selected RETRY for '{}', refreshing matches", itemDescription);
                     knowledgeService.onKnowledgeIngested();
-                    var refreshed = refreshBestMatch(itemDescription, knowledgeService, stateTracker);
-                    if (refreshed.isPresent()) match = refreshed.get();
+                    var refreshed = refreshBestMatch(itemDescription, stateTracker);
+                    if (refreshed.isPresent()) {
+                        match = refreshed.get();
+                    }
+                    allScoredMatches = knowledgeService.findTopRankedWithScores(
+                            itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
                 }
-                case EDIT -> {
-                    var existing = knowledgeService.findById(res.existingId())
-                            .orElseThrow(() -> new IllegalStateException(
-                                    "Selected procedure with ID '%s' not found".formatted(res.existingId())));
-                    var testCasesUsingIt = knowledgeServices.procedureUsageByTestCaseTrackingService().findTestCasesUsingProcedure(existing.id());
-                    if (!testCasesUsingIt.isEmpty()) {
-                        String tcList = String.join("\n- ", testCasesUsingIt);
-                        String msg = "This procedure is used by %d test case(s):\n- %s\n\nEditing it may affect all of them."
-                                .formatted(testCasesUsingIt.size(), tcList);
-                        InformationalPopup.display("Shared Procedure Warning", msg, null, WARNING);
+                case BROWSE -> {
+                    var refreshed = handleProcedureEdit(res.existingId(), itemDescription, itemTestData,
+                            itemExpectedResults, isPreconditionItem, testCase, executionContext, stateTracker);
+                    if (refreshed.isPresent()) {
+                        match = refreshed.get();
                     }
-                    var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
-                    var editResult = triggerEditProcedureFlow(existing, itemTestData, itemExpectedResults,
-                            knowledgeService, ingestionService, !isPreconditionItem, itemContext, executionContext,
-                            stateTracker.getExecutedAtomicProcedures());
-                    if (editResult.isSaved()) {
-                        ingestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
-                        knowledgeService.onKnowledgeIngested();
-                        LOG.info("Procedure edited, re-fetching matches for '{}'", itemDescription);
-                        var refreshed = refreshBestMatch(itemDescription, knowledgeService, stateTracker);
-                        if (refreshed.isEmpty()) LOG.warn("No matches found after edit for '{}'", itemDescription);
-                        else match = refreshed.get();
-                    } else {
-                        LOG.info("User cancelled the procedure edit flow for '{}'", itemDescription);
-                    }
+                    allScoredMatches = knowledgeService.findTopRankedWithScores(
+                            itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
                 }
                 case CREATE -> {
-                    var newProcedureResult = triggerNewProcedureFlow(itemDescription, itemTestData,
-                            itemExpectedResults, knowledgeService, ingestionService, isPreconditionItem,
+                    LOG.info("User selected CREATE for '{}', opening knowledge collection dialog", itemDescription);
+                    var newProcedureResult = procedureKnowledgeService.triggerNewProcedureFlow(itemDescription,
+                            itemTestData, itemExpectedResults, isPreconditionItem, testCase,
                             executionContext, stateTracker.getExecutedAtomicProcedures());
-                    newProcedureResult.ifPresent(r -> {
-                        ingestionService.ingest(r);
-                        knowledgeService.onKnowledgeIngested();
-                    });
-                    var newMatchOpt = knowledgeService.findBestMatch(itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
-                    if (newMatchOpt.isPresent()) {
-                        return Optional.of(newMatchOpt.get().procedure());
+                    if (newProcedureResult.isEmpty()) {
+                        LOG.info("User cancelled new procedure creation for '{}', returning to selection popup", itemDescription);
+                        continue;
                     }
+                    LOG.info("New procedure created for '{}', ingesting into knowledge DB", itemDescription);
+                    knowledgeIngestionService.ingest(newProcedureResult.get());
+                    knowledgeService.onKnowledgeIngested();
+                    var newMatchOpt = knowledgeService.findBestMatch(itemDescription, stateTracker.getEffectNodeIds(),
+                            stateTracker.getRecentParentIds());
+                    if (newMatchOpt.isPresent()) {
+                        return new UserFeedback.Found(newMatchOpt.get().procedure());
+                    }
+                    LOG.warn("No match found after creation for '{}', returning to selection popup", itemDescription);
+                    allScoredMatches = knowledgeService.findTopRankedWithScores(
+                            itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
                 }
                 case null, default -> {
                 }
             }
-            // After RETRY or EDIT, return the first feasible high-confidence match if one exists now
-            if (match.confidence() != KnowledgeService.MatchConfidence.LOW) {
-                var feasible = selectFeasibleProcedure(match.allMatches(), stateTracker);
+            // After RETRY or BROWSE, return Found if there's now a feasible high-confidence match
+            if (match != null && match.confidence() != KnowledgeService.MatchConfidence.LOW) {
+                var feasible = selectFeasibleProcedure(match.allMatches());
                 if (feasible.isPresent()) {
-                    return feasible;
+                    return new UserFeedback.Found(feasible.get());
                 }
             }
         }
+    }
+
+    private Optional<KnowledgeService.MatchResult> handleProcedureEdit(UUID procedureId, String itemDescription,
+                                                                        List<String> itemTestData, String itemExpectedResults,
+                                                                        boolean isPreconditionItem, TestCase testCase,
+                                                                        UiTestExecutionContext executionContext,
+                                                                        ExecutionStateTracker stateTracker) {
+        var existing = knowledgeService.findById(procedureId)
+                .orElseThrow(() -> new IllegalStateException("Selected procedure with ID '%s' not found".formatted(procedureId)));
+        var testCasesUsingIt = procedureUsageByTestCaseTrackingService.findTestCasesUsingProcedure(existing.id());
+        if (!testCasesUsingIt.isEmpty()) {
+            String tcList = String.join("\n- ", testCasesUsingIt);
+            String msg = "This procedure is used by %d test case(s):\n- %s\n\nEditing it may affect all of them."
+                    .formatted(testCasesUsingIt.size(), tcList);
+            InformationalPopup.display("Shared Procedure Warning", msg, null, WARNING, uiTestAgentConfig);
+        }
+        var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
+        var editResult = procedureKnowledgeService.triggerEditProcedureFlow(existing, itemTestData,
+                itemExpectedResults, !isPreconditionItem, itemContext, testCase, executionContext,
+                stateTracker.getExecutedAtomicProcedures());
+        if (editResult.isSaved()) {
+            knowledgeIngestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
+            knowledgeService.onKnowledgeIngested();
+            LOG.info("Procedure edited, re-fetching matches for '{}'", itemDescription);
+            var refreshed = refreshBestMatch(itemDescription, stateTracker);
+            if (refreshed.isEmpty()) {
+                LOG.warn("No matches found after edit for '{}'", itemDescription);
+            }
+            return refreshed;
+        }
+        LOG.info("User cancelled the procedure edit flow for '{}'", itemDescription);
+        return Optional.empty();
+    }
+
+    private static String buildSelectionReason(String description, ProcedureLookup.NeedsUserResolution res, boolean isPrecondition) {
+        var itemKind = isPrecondition ? "the test precondition" : "the test step";
+        if (res.match() == null) {
+            return "No matching procedure found for '%s'. Please create a new one.".formatted(description);
+        }
+        if (res.match().confidence() == KnowledgeService.MatchConfidence.LOW) {
+            var base = !res.match().wasDemoted()
+                    ? "No high-confidence match found for %s '%s'."
+                    : res.match().demotedDueToPrerequisites()
+                        ? "A high-confidence procedure match was found for '%s' but was demoted because its prerequisites are not satisfied."
+                        : "A high-confidence procedure match was found for '%s' but was demoted by a better-ranked contextual match.";
+            if (!res.match().wasDemoted()) {
+                return (base + " What do you want to do next ?").formatted(itemKind, description);
+            }
+            return (base + " What do you want to do next ?").formatted(description);
+        }
+        return ("Matching procedure found for '%s' but its prerequisites are not satisfied. Missing: %s")
+                .formatted(description, res.missingPrerequisites());
     }
 
     /**
      * Finds the best match for the given description and shows a dialog if none is found.
      * Returns the updated match result, or empty if no match exists.
      */
-    private static Optional<KnowledgeService.MatchResult> refreshBestMatch(String itemDescription,
-                                                                            KnowledgeService knowledgeService,
-                                                                            ExecutionStateTracker stateTracker) {
+    private Optional<KnowledgeService.MatchResult> refreshBestMatch(String itemDescription, ExecutionStateTracker stateTracker) {
         var result = knowledgeService.findBestMatch(itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
         if (result.isEmpty()) {
             JOptionPane.showMessageDialog(null, "No matches found. Please create a new procedure.");
@@ -474,176 +658,24 @@ public class KnowledgeBasedExecutionOrchestrator {
         return result;
     }
 
-    private static boolean handleNoProcedureMatchFoundCase(ExecutionItem item, String itemDescription,
-                                                           List<String> itemTestData, String itemExpectedResults,
-                                                           KnowledgeService knowledgeService,
-                                                           KnowledgeIngestionService ingestionService, ExecutionQueue queue,
-                                                           UiTestExecutionContext executionContext,
-                                                           List<Procedure> executedAtomics,
-                                                           ExecutionStateTracker stateTracker) {
-        boolean isPreconditionItem = item instanceof PreconditionItem;
-        var knowledgeCollectionResult = triggerNewProcedureFlow(itemDescription, itemTestData, itemExpectedResults,
-                knowledgeService, ingestionService, isPreconditionItem, executionContext, executedAtomics);
-        if (knowledgeCollectionResult.isEmpty()) {
-            LOG.warn("User cancelled collecting knowledge for a new procedure for '{}', stopping execution", itemDescription);
-            return false;
-        }
-        LOG.info("User completed collecting knowledge for a new procedure for '{}', ingesting into knowledge DB", itemDescription);
-        ingestionService.ingest(knowledgeCollectionResult.get());
-        knowledgeService.onKnowledgeIngested();
-        var newMatch = knowledgeService.findBestMatch(itemDescription, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds());
-        if (newMatch.isPresent()) {
-            LOG.info("Successfully matched newly ingested procedure for '{}'", itemDescription);
-            queue.injectAtFront(List.of(item));
-            return true;
-        } else {
-            LOG.warn("Newly created procedure has a description which doesn't match '{}' - stopping execution", itemDescription);
-            return false;
-        }
-    }
-
-    /**
-     * Triggers the Human-in-the-Loop flow for creating a new procedure.
-     * Pre-loads AI suggestions using the projected execution graph, then opens the dialog.
-     * Exceptions propagate to the caller; ingestion is the caller's responsibility.
-     *
-     * @param itemDescription  the description of the unmatched item
-     * @param testData         test data for the item
-     * @param expectedResults  expected results for the item
-     * @param isPrecondition   whether the item is a precondition (affects which UI sections are shown)
-     * @param executionContext the current test execution context
-     * @param executedAtomics  atomic procedures already executed during this test run, in order
-     * @return the collected procedure if user completed, empty if cancelled
-     */
-    static Optional<IngestionNode> triggerNewProcedureFlow(String itemDescription,
-                                                           List<String> testData,
-                                                           String expectedResults,
-                                                           KnowledgeService knowledgeService,
-                                                           KnowledgeIngestionService ingestionService,
-                                                           boolean isPrecondition,
-                                                           UiTestExecutionContext executionContext,
-                                                           List<Procedure> executedAtomics) {
-        LOG.info("Triggering new procedure knowledge collection flow for: '{}'", itemDescription);
-        // Factory builds the projected execution graph context for any new procedure (root or child step)
-        SuggestionLoaderFactory childLoaderFactory = (precedingAtomicsSupplier) -> (desc) ->
-                loadSuggestionsWithSpinner(desc, testData, expectedResults,
-                        buildExecutionGraphContext(executionContext, executedAtomics, precedingAtomicsSupplier.get()));
-        // Pre-load suggestions for the root level (no preceding siblings)
-        var aiSuggestions = loadSuggestionsWithSpinner(itemDescription, testData, expectedResults,
-                buildExecutionGraphContext(executionContext, executedAtomics, List.of()));
-        var itemContext = new ExecutionItemContext(itemDescription, testData, isPrecondition);
-        return ProcedureKnowledgeCollectionDialog.displayAndGetResult(null, itemDescription, aiSuggestions,
-                !isPrecondition, itemContext, knowledgeService, ingestionService, childLoaderFactory);
-    }
-
-    /**
-     * Triggers the Human-in-the-Loop flow for editing an existing procedure.
-     * The existing procedure itself does not receive AI suggestions; only new child steps added during
-     * editing do. Returns the updated node to the caller for ingestion — does not ingest internally.
-     * Exceptions propagate to the caller.
-     *
-     * @param executedAtomics atomic procedures already executed during this test run, in order
-     * @return saved result carrying the updated node (caller must ingest), or cancelled
-     */
-    static ProcedureEditResult triggerEditProcedureFlow(Procedure startingProcedure, List<String> testData,
-                                                        String expectedResults, KnowledgeService knowledgeService,
-                                                        KnowledgeIngestionService ingestionService,
-                                                        boolean showTestDataAndExpectedResults,
-                                                        ExecutionItemContext itemContext,
-                                                        UiTestExecutionContext executionContext,
-                                                        List<Procedure> executedAtomics) {
-        // Factory is the same regardless of which procedure is being edited — built once before the loop
-        SuggestionLoaderFactory childLoaderFactory = (precedingAtomicsSupplier) -> (desc) ->
-                loadSuggestionsWithSpinner(desc, testData, expectedResults,
-                        buildExecutionGraphContext(executionContext, executedAtomics, precedingAtomicsSupplier.get()));
-        Procedure current = startingProcedure;
-        while (true) {
-            var parents = knowledgeService.findParents(current.id());
-            boolean hasParent = !parents.isEmpty();
-            var children = knowledgeService.getChildren(current.id());
-            UUID targetElementId = null;
-            if (current.isAtomic()) {
-                targetElementId = knowledgeService.findTargetedUiElementId(current.id()).orElse(null);
-            }
-            var preloadedChildren = children.isEmpty() ? null : children;
-            var outcome = ProcedureKnowledgeCollectionDialog.displayForEditing(null, current, targetElementId,
-                    showTestDataAndExpectedResults, hasParent, itemContext, knowledgeService, ingestionService,
-                    childLoaderFactory, preloadedChildren);
-            if (outcome.result() instanceof IngestionNode.NewProcedure np) {
-                LOG.info("Procedure '{}' edited by user", current.description());
-                return ProcedureEditResult.saved(current.id(), np);
-            } else if (outcome.editParentRequested() && hasParent) {
-                if (parents.size() > 1) {
-                    var selection = ProcedureLowConfidenceSelectionPopup.displayAndGetSelection(null,
-                            "Select parent of %s".formatted(current.description()), parents);
-                    if (selection.isPresent() && selection.get().action() == EDIT) {
-                        current = knowledgeService.findById(selection.get().existingId())
-                                .orElseThrow(() -> new IllegalStateException("Selected parent with ID '%s' not found"
-                                        .formatted(selection.get().existingId())));
-                    } else {
-                        return ProcedureEditResult.cancelled();
-                    }
-                } else {
-                    current = parents.getFirst();
-                }
-            } else {
-                return ProcedureEditResult.cancelled();
-            }
-        }
-    }
-
-    private static KnowledgeSuggestionResult loadSuggestionsWithSpinner(String itemDescription, List<String> testData,
-                                                                        String expectedResults, String agentContext) {
-        var suggestionsRef = new AtomicReference<>(KnowledgeSuggestionResult.empty());
-        // Capture screen before showing the spinner so no dialog/spinner overlays appear in the screenshot
-        var screenshot = singleImageContent(captureScreen());
-        UiElementDialogHelper.showSpinnerUntilDone(() -> {
-            try {
-                var agent = getKnowledgeSuggestionAgent();
-                var result = agent.executeAndGetResult(
-                        () -> agent.suggest(itemDescription, agentContext, testData.toString(), expectedResults, screenshot));
-                var payload = result.getResultPayload();
-                if (payload != null) {
-                    suggestionsRef.set(payload);
-                } else {
-                    LOG.warn("Knowledge Suggestion Agent returned no result for '{}'", itemDescription);
-                }
-            } catch (Exception e) {
-                LOG.warn("Suggestion loading failed for '{}': {}", itemDescription, e.getMessage(), e);
-            }
-        }, itemDescription);
-        return suggestionsRef.get();
-    }
-
-    public record ProcedureEditResult(boolean isSaved, Optional<UUID> savedProcedureId,
-                                      Optional<IngestionNode.NewProcedure> updatedNode) {
-        public static ProcedureEditResult cancelled() {
-            return new ProcedureEditResult(false, empty(), empty());
-        }
-
-        public static ProcedureEditResult saved(UUID id, IngestionNode.NewProcedure node) {
-            return new ProcedureEditResult(true, Optional.of(id), Optional.of(node));
-        }
-    }
-
-    private static void captureFailureContext(Procedure atomicStep, KnowledgeServices knowledgeServices,
-                                              List<UiTestStepResult> testStepResults, List<UiPreconditionResult> preconditionResults) {
+    private void captureFailureContext(Procedure atomicStep, List<UiTestStepResult> testStepResults,
+                                       List<UiPreconditionResult> preconditionResults) {
         var preSelectedCategory = ErrorCategory.UNKNOWN;
         String defaultSymptom = "Unknown failure in procedure " + atomicStep.description();
         String preFilledSymptom = extractLastErrorMessage(testStepResults, preconditionResults, defaultSymptom);
 
-        FailureContext failureContext = isFullyUnattended()
+        FailureContext failureContext = uiTestAgentConfig.isFullyUnattended()
                 ? new FailureContext(UUID.randomUUID(), preFilledSymptom, preSelectedCategory, "", 1, now(), FailureContext.Mode.UNATTENDED)
-                : FailureContextCaptureDialog.displayAndGetSelection(preSelectedCategory, preFilledSymptom);
+                : FailureContextCaptureDialog.displayAndGetSelection(preSelectedCategory, preFilledSymptom, uiTestAgentConfig);
 
         if (failureContext != null) {
-            knowledgeServices.failureContextService().captureFailureContext(atomicStep.id(), failureContext);
+            failureContextService.captureFailureContext(atomicStep.id(), failureContext);
         }
     }
 
     private static String extractLastErrorMessage(List<UiTestStepResult> testStepResults,
-                                                   List<UiPreconditionResult> preconditionResults,
-                                                   String defaultMessage) {
+                                                  List<UiPreconditionResult> preconditionResults,
+                                                  String defaultMessage) {
         if (!testStepResults.isEmpty()) {
             var lastStep = testStepResults.getLast();
             if (lastStep.getExecutionStatus() != SUCCESS) {
@@ -658,5 +690,30 @@ public class KnowledgeBasedExecutionOrchestrator {
             }
         }
         return defaultMessage;
+    }
+
+    private sealed interface ProcedureLookup {
+        record DirectMatch(Procedure procedure, boolean hasLowStability) implements ProcedureLookup {}
+
+        record NeedsUserResolution(@Nullable KnowledgeService.MatchResult match, List<UnsatisfiedPrerequisite> missingPrerequisites)
+                implements ProcedureLookup {}
+    }
+
+    private sealed interface UserFeedback {
+        record Found(Procedure procedure) implements UserFeedback {
+        }
+
+        record ManualTermination(String reason) implements UserFeedback {
+        }
+    }
+
+    private enum AtomicLoopOutcome {COMPLETED, TERMINATE, RE_DECOMPOSE, SKIPPED}
+
+    private sealed interface ExecutionFlow {
+        record Continue() implements ExecutionFlow {
+        }
+
+        record Stop() implements ExecutionFlow {
+        }
     }
 }

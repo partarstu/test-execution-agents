@@ -18,15 +18,13 @@ package org.tarik.ta.knowledge_graph.model.node;
 import dev.langchain4j.model.output.structured.Description;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.tarik.ta.knowledge_graph.location_history.LocationStrategy;
 
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.StringJoiner;
 import java.util.UUID;
 
-import static org.tarik.ta.utils.ImageUtils.convertBase64ToImage;
-import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
+import static org.tarik.ta.utils.ImageUtils.*;
 
 public class UiElement implements IEntity {
 
@@ -41,7 +39,6 @@ public class UiElement implements IEntity {
     public static final String PROP_IS_DATA_DEPENDENT = "isDataDependent";
     public static final String PROP_STABILITY_SCORE = "stabilityScore";
     public static final String PROP_AVG_LOCATION_TIME_MS = "avgLocationTimeMs";
-    public static final String PROP_LOCATION_STRATEGY = "locationStrategy";
     public static final String PROP_FAILED_LOCATION_COUNT = "locationRetriesCount";
     public static final String PROP_LAST_LOCATED_AT = "lastLocatedAt";
 
@@ -117,9 +114,6 @@ public class UiElement implements IEntity {
             double stabilityScore,
             @Description("Average time in milliseconds it took to locate this element in previous attempts")
             long avgLocationTimeMs,
-            @Description("The location strategy that was most recently used to successfully locate this element (using visual " +
-                    "grounding task, using hybrid search etc.)")
-            LocationStrategy locationStrategy,
             @Description("Average number of retries needed to locate this element; higher values indicate an unstable element or " +
                     "element which gets visible after some delay")
             double locationRetriesCount,

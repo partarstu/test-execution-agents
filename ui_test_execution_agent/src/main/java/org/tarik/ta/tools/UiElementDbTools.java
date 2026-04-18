@@ -17,20 +17,22 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.DbUiElementSelectionAgent;
 import org.tarik.ta.agents.UiElementExtendedDescriptionAgent;
+import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.dto.DbElementSearchResult;
 import org.tarik.ta.dto.ElementCreationResult;
-import org.tarik.ta.dto.UiElementDescription;
 import org.tarik.ta.dto.UiElementIdentificationResult;
-import org.tarik.ta.dto.DbUiElementSelectionResult;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.user_dialogs.SpinnerManager;
+import org.tarik.ta.utils.ImageUtils;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
@@ -38,36 +40,35 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
-import static dev.langchain4j.service.AiServices.builder;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
-import static org.tarik.ta.UiTestAgentConfig.*;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
-import static org.tarik.ta.core.model.ModelFactory.getModel;
-import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
-import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static java.util.UUID.randomUUID;
+import static java.util.Objects.requireNonNull;
 
+@Singleton
 public class UiElementDbTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementDbTools.class);
     private final UiElementRepository elementRepository;
     private final UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
     private final DbUiElementSelectionAgent dbUiElementSelectionAgent;
+    private final UiElementRefinementHelper uiElementRefinementHelper;
 
-    public UiElementDbTools() {
-        this(new UiElementRepository());
-    }
-
-    // package-private for testing
-    UiElementDbTools(UiElementRepository elementRepository) {
-        this.elementRepository = elementRepository;
-        this.uiElementExtendedDescriptionAgent = createUiElementDescriptionMatcherAgent();
-        this.dbUiElementSelectionAgent = createDbElementSelectionAgent();
+    @Inject
+    public UiElementDbTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
+                             UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent,
+                             DbUiElementSelectionAgent dbUiElementSelectionAgent,
+                             UiElementRefinementHelper uiElementRefinementHelper) {
+        super(uiStateCheckAgent);
+        this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
+        this.uiElementExtendedDescriptionAgent = requireNonNull(uiElementExtendedDescriptionAgent, "uiElementExtendedDescriptionAgent");
+        this.dbUiElementSelectionAgent = requireNonNull(dbUiElementSelectionAgent, "dbUiElementSelectionAgent");
+        this.uiElementRefinementHelper = requireNonNull(uiElementRefinementHelper, "uiElementRefinementHelper");
     }
 
     @Tool("Searches for a UI element in the database using vector similarity and selects the best candidate.")
@@ -78,7 +79,7 @@ public class UiElementDbTools extends UiAbstractTools {
             throw new ToolExecutionException("Element description cannot be empty", TRANSIENT_TOOL_ERROR);
         }
         try {
-            var retrievedElements = UiElementRefinementHelper.retrieveUiElements(elementRepository, elementDescription);
+            var retrievedElements = uiElementRefinementHelper.retrieveUiElementsWithTargetSimilarity(elementRepository, elementDescription);
             var candidates = retrievedElements.stream()
                     .map(UiElementRepository.UiElementMatch::element)
                     .toList();
@@ -122,9 +123,9 @@ public class UiElementDbTools extends UiAbstractTools {
             LOG.info("Automatically identified element '{}'. Proceeding with creation.", elementDescription);
             var uuid = randomUUID();
             UiElement uiElementToStore = new UiElement(uuid, descriptionResult.name(), descriptionResult.ownDescription(),
-                    descriptionResult.locationDescription(), descriptionResult.pageSummary(), null,
+                    descriptionResult.locationDescription(), descriptionResult.parentSummary(), null,
                     descriptionResult.elementIsDataDependent());
-            elementRepository.save(uiElementToStore);
+            elementRepository.create(uiElementToStore);
             return new ElementCreationResult(true, uuid, descriptionResult.name(), "Element created successfully");
         } catch (Exception e) {
             throw rethrowAsToolException(e, "creating a new UI element automatically");
@@ -133,37 +134,12 @@ public class UiElementDbTools extends UiAbstractTools {
 
     private UiElementIdentificationResult getElementIdentification(String elementDescription, String relevantTestData,
                                                                    BufferedImage screenshot) {
-        var imageContent = singleImageContent(screenshot);
+        var imageContent = ImageUtils.singleImageContent(screenshot);
         var relevantDataString = relevantTestData == null ? "" : relevantTestData;
         return uiElementExtendedDescriptionAgent
                 .executeAndGetResult(() -> uiElementExtendedDescriptionAgent.describeUiElement(elementDescription,
                         relevantDataString, imageContent))
                 .getResultPayload();
-    }
-
-    private static UiElementExtendedDescriptionAgent createUiElementDescriptionMatcherAgent() {
-        var model = getModel(getUiElementDescriptionMatcherAgentModelName(),
-                getUiElementDescriptionMatcherAgentModelProvider());
-        var prompt = loadSystemPrompt("element_describer", getUiElementDescriptionMatcherAgentPromptVersion(),
-                "description_matcher_prompt.txt");
-        return builder(UiElementExtendedDescriptionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .tools(new UiElementIdentificationResult(false, false,
-                        new UiElementDescription("", "", "", "", false)))
-                .build();
-    }
-
-    private DbUiElementSelectionAgent createDbElementSelectionAgent() {
-        var model = getModel(getDbElementCandidateSelectionAgentModelName(),
-                getDbElementCandidateSelectionAgentModelProvider());
-        var prompt = loadSystemPrompt("db_element_selector", getDbElementCandidateSelectionAgentPromptVersion(),
-                "select_best_db_search_result_prompt.txt");
-        return builder(DbUiElementSelectionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .tools(new DbUiElementSelectionResult(false, false, "", ""))
-                .build();
     }
 
     private Optional<UiElement> selectBestMatchingDbElement(List<UiElement> candidates, String elementDescription,
@@ -182,7 +158,7 @@ public class UiElementDbTools extends UiAbstractTools {
         BufferedImage screenshot = getScreenshotTogglingSpinner();
         try {
             var result = dbUiElementSelectionAgent.executeAndGetResult(() ->
-                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, singleImageContent(screenshot)))
+                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, ImageUtils.singleImageContent(screenshot)))
                     .getResultPayload();
             if (result == null) {
                 LOG.warn("Model returned null result. Returning empty.");

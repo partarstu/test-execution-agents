@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.user_dialogs.knowledge;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
 
@@ -37,7 +38,7 @@ import static org.tarik.ta.utils.HtmlUtils.escapeHtml;
 import static org.tarik.ta.utils.ImageUtils.scaleToFitBox;
 
 /**
- * Builds Swing row panels for the child-steps list in {@link ProcedureKnowledgeCollectionDialog}.
+ * Builds Swing row panels for the child-steps list in {@link ProcedureDialog}.
  * Encapsulates all rendering logic (thumbnail, badges, action buttons) so the main dialog stays lean.
  */
 class ChildStepRowBuilder {
@@ -171,11 +172,12 @@ class ChildStepRowBuilder {
         return panel;
     }
 
-    static ImageIcon buildThumbnailIcon(ChildProcedureInDialog step) {
+    static ImageIcon buildThumbnailIcon(@NotNull ChildProcedureInDialog step) {
         if (!step.isAtomic() || step.elementScreenshot() == null) {
             return new ImageIcon(new BufferedImage(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, TYPE_INT_ARGB));
+        } else {
+            return new ImageIcon(scaleToFitBox(step.elementScreenshot(), THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
         }
-        return new ImageIcon(scaleToFitBox(step.elementScreenshot(), THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
     }
 
     private static Color getListColor(String key, Color fallback) {

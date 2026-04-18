@@ -32,7 +32,6 @@ import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 import org.tarik.ta.knowledge_graph.repository.ProcedureMatch;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
-import org.tarik.ta.knowledge_graph.location_history.LocationStrategy;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 
 import java.time.Instant;
@@ -42,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -54,22 +54,22 @@ class MatchingEnhancementsTest {
     @Mock private DecompositionService mockDecompositionService;
     @Mock private PhraseEmbeddingRepository mockPhraseEmbeddingRepository;
 
-    private MockedStatic<UiTestAgentConfig> configMock;
+    @Mock
+    private UiTestAgentConfig configMock;
 
     @BeforeEach
     void setUp() {
-        configMock = mockStatic(UiTestAgentConfig.class);
-        configMock.when(UiTestAgentConfig::getKnowledgeMatchConfidenceLow).thenReturn(0.5);
-        configMock.when(UiTestAgentConfig::getKnowledgeMatchConfidenceHigh).thenReturn(0.85);
-        configMock.when(UiTestAgentConfig::getKnowledgeMatchTopN).thenReturn(5);
-        configMock.when(UiTestAgentConfig::getStabilityPenaltyThreshold).thenReturn(0.5);
+        
+        lenient().when(configMock.getKnowledgeMatchConfidenceLow()).thenReturn(0.5);
+        lenient().when(configMock.getKnowledgeMatchConfidenceHigh()).thenReturn(0.85);
+        lenient().when(configMock.getKnowledgeMatchTopN()).thenReturn(5);
+        lenient().when(configMock.getStabilityPenaltyThreshold()).thenReturn(0.5);
 
-        knowledgeService = new KnowledgeService(mockRepository, mockEmbeddingService, mockDecompositionService, mockPhraseEmbeddingRepository);
+        knowledgeService = new KnowledgeService(mockRepository, mockEmbeddingService, mockDecompositionService, mockPhraseEmbeddingRepository, configMock);
     }
 
     @AfterEach
     void tearDown() {
-        configMock.close();
     }
 
     @Test
@@ -115,8 +115,8 @@ class MatchingEnhancementsTest {
         // p1 is unstable (0.3 < 0.5 threshold), p2 is stable (1.0)
         when(mockRepository.findCandidateContextBatch(anyList(), anySet()))
                 .thenReturn(List.of(
-                        new ProcedureRepository.CandidateContext(p1.id(), Optional.of(el1), Optional.of(new ElementLocationHistory(0.3, 100, LocationStrategy.VISUAL_GROUNDING, 0, Instant.now())), 0),
-                        new ProcedureRepository.CandidateContext(p2.id(), Optional.of(el2), Optional.of(new ElementLocationHistory(1.0, 100, LocationStrategy.VISUAL_GROUNDING, 0, Instant.now())), 0)
+                        new ProcedureRepository.CandidateContext(p1.id(), Optional.of(el1), Optional.of(new ElementLocationHistory(0.3, 100, 0, Instant.now())), 0),
+                        new ProcedureRepository.CandidateContext(p2.id(), Optional.of(el2), Optional.of(new ElementLocationHistory(1.0, 100, 0, Instant.now())), 0)
                 ));
         when(mockPhraseEmbeddingRepository.findPrerequisitesForProcedure(any())).thenReturn(List.of());
 

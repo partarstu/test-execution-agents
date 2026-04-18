@@ -21,155 +21,134 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.tarik.ta.core.AgentConfig;
 
-import java.time.Duration;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
-import org.assertj.core.api.Assertions;
 
 class BudgetManagerTest {
 
+    private BudgetManager budgetManager;
+
     @BeforeEach
     void setUp() {
-        BudgetManager.reset();
+        budgetManager = new BudgetManager(new AgentConfig());
+        budgetManager.reset();
     }
 
     @Test
     void checkTokenBudget_shouldNotThrow_whenUnderLimit() {
-        // Given
-        int limit = AgentConfig.getAgentTokenBudget();
+        int limit = new AgentConfig().getAgentTokenBudget();
         if (limit <= 0)
-            return; // Skip if no limit
+            return;
 
-        // When
-        BudgetManager.consumeTokens("test-model", limit - 1, 0, 0);
+        budgetManager.consumeTokens("test-model", limit - 1, 0, 0);
 
-        // Then
-        assertThatCode(BudgetManager::checkTokenBudget).doesNotThrowAnyException();
+        assertThatCode(budgetManager::checkTokenBudget).doesNotThrowAnyException();
     }
 
     @Test
     void checkTokenBudget_shouldNotThrow_whenAtLimit() {
-        // Given
-        int limit = AgentConfig.getAgentTokenBudget();
+        int limit = new AgentConfig().getAgentTokenBudget();
         if (limit <= 0)
-            return; // Skip if no limit
+            return;
 
-        // When
-        BudgetManager.consumeTokens("test-model", limit, 0, 0);
+        budgetManager.consumeTokens("test-model", limit, 0, 0);
 
-        // Then
-        assertThatCode(BudgetManager::checkTokenBudget).doesNotThrowAnyException();
+        assertThatCode(budgetManager::checkTokenBudget).doesNotThrowAnyException();
     }
 
     @Test
     void checkTokenBudget_shouldThrow_whenOverLimit() {
-        // Given
-        int limit = AgentConfig.getAgentTokenBudget();
+        int limit = new AgentConfig().getAgentTokenBudget();
         if (limit <= 0)
-            return; // Skip if no limit
+            return;
 
-        // When
         try {
-            BudgetManager.consumeTokens("test-model", limit + 1, 0, 0);
+            budgetManager.consumeTokens("test-model", limit + 1, 0, 0);
         } catch (RuntimeException e) {
             // Expected
         }
 
-        // Then
-        assertThatThrownBy(BudgetManager::checkTokenBudget)
+        assertThatThrownBy(budgetManager::checkTokenBudget)
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Token budget exceeded");
     }
 
     @Test
     void consumeTokens_AndCheckBudget_shouldTrackDetailedUsage() {
-        BudgetManager.consumeTokens("test-model", 50, 30, 20);
+        budgetManager.consumeTokens("test-model", 50, 30, 20);
 
-        Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
-        Assertions.assertThat(BudgetManager.getAccumulatedInputTokens()).isEqualTo(50);
-        Assertions.assertThat(BudgetManager.getAccumulatedOutputTokens()).isEqualTo(30);
-        Assertions.assertThat(BudgetManager.getAccumulatedCachedTokens()).isEqualTo(20);
+        assertThat(budgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
+        assertThat(budgetManager.getAccumulatedInputTokens()).isEqualTo(50);
+        assertThat(budgetManager.getAccumulatedOutputTokens()).isEqualTo(30);
+        assertThat(budgetManager.getAccumulatedCachedTokens()).isEqualTo(20);
 
-        Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens("test-model"))
-                .isEqualTo(100);
-        Assertions.assertThat(BudgetManager.getAccumulatedInputTokens("test-model")).isEqualTo(50);
-        Assertions.assertThat(BudgetManager.getAccumulatedOutputTokens("test-model"))
-                .isEqualTo(30);
-        Assertions.assertThat(BudgetManager.getAccumulatedCachedTokens("test-model"))
-                .isEqualTo(20);
+        assertThat(budgetManager.getAccumulatedTotalTokens("test-model")).isEqualTo(100);
+        assertThat(budgetManager.getAccumulatedInputTokens("test-model")).isEqualTo(50);
+        assertThat(budgetManager.getAccumulatedOutputTokens("test-model")).isEqualTo(30);
+        assertThat(budgetManager.getAccumulatedCachedTokens("test-model")).isEqualTo(20);
 
-        Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens("other-model")).isZero();
+        assertThat(budgetManager.getAccumulatedTotalTokens("other-model")).isZero();
     }
 
     @Test
     void reset_shouldClearDetailedUsage() {
-        BudgetManager.consumeTokens("test-model", 50, 30, 20);
-        BudgetManager.consumeToolCalls(5);
-        BudgetManager.reset();
+        budgetManager.consumeTokens("test-model", 50, 30, 20);
+        budgetManager.consumeToolCalls(5);
+        budgetManager.reset();
 
-        Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens()).isZero();
-        Assertions.assertThat(BudgetManager.getAccumulatedInputTokens()).isZero();
-        Assertions.assertThat(BudgetManager.getAccumulatedOutputTokens()).isZero();
-        Assertions.assertThat(BudgetManager.getAccumulatedCachedTokens()).isZero();
+        assertThat(budgetManager.getAccumulatedTotalTokens()).isZero();
+        assertThat(budgetManager.getAccumulatedInputTokens()).isZero();
+        assertThat(budgetManager.getAccumulatedOutputTokens()).isZero();
+        assertThat(budgetManager.getAccumulatedCachedTokens()).isZero();
     }
 
     @Test
     void checkToolCallBudget_shouldThrow_whenOverLimit() {
-        int limit = AgentConfig.getAgentToolCallsBudget();
+        int limit = new AgentConfig().getAgentToolCallsBudget();
         if (limit <= 0)
             return;
 
-        BudgetManager.consumeToolCalls(limit + 1);
+        budgetManager.consumeToolCalls(limit + 1);
 
-        assertThatThrownBy(BudgetManager::checkToolCallBudget)
+        assertThatThrownBy(budgetManager::checkToolCallBudget)
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Tool call budget exceeded");
     }
 
     @Test
     void checkToolCallBudget_shouldNotThrow_whenUnderLimit() {
-        int limit = AgentConfig.getAgentToolCallsBudget();
+        int limit = new AgentConfig().getAgentToolCallsBudget();
         if (limit <= 0)
             return;
 
-        BudgetManager.consumeToolCalls(limit - 1);
+        budgetManager.consumeToolCalls(limit - 1);
 
-        assertThatCode(BudgetManager::checkToolCallBudget).doesNotThrowAnyException();
+        assertThatCode(budgetManager::checkToolCallBudget).doesNotThrowAnyException();
     }
 
     @Test
     void resetToolCallUsage_shouldResetOnlyToolCalls() {
-        BudgetManager.consumeTokens("test-model", 50, 30, 20);
-        BudgetManager.consumeToolCalls(5);
+        budgetManager.consumeTokens("test-model", 50, 30, 20);
+        budgetManager.consumeToolCalls(5);
 
-        BudgetManager.resetToolCallUsage();
+        budgetManager.resetToolCallUsage();
 
-        Assertions.assertThat(BudgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
-        // We can't verify tool call usage count directly as it's private, but we can
-        // verify it doesn't throw if we add more up to limit
-        assertThatCode(BudgetManager::checkToolCallBudget).doesNotThrowAnyException();
+        assertThat(budgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
+        assertThatCode(budgetManager::checkToolCallBudget).doesNotThrowAnyException();
     }
 
     @Test
     void checkTimeBudget_shouldNotThrow_whenNotYetActivated() {
-        // Given - Create a fresh state where reset() has NOT been called
-        // We simulate this by running this test in isolation conceptually.
-        // Since @BeforeEach calls reset(), we need to use a workaround.
-        // The actual test verifies the behavior matches our expectation from the
-        // implementation.
-
-        // When/Then - reset() does not activate the timer, so checkTimeBudget() should not throw
-        assertThatCode(BudgetManager::checkTimeBudget).doesNotThrowAnyException();
+        assertThatCode(budgetManager::checkTimeBudget).doesNotThrowAnyException();
     }
 
     @Test
     void checkTimeBudget_shouldThrow_whenOverLimit() {
-        int limit = AgentConfig.getAgentExecutionTimeBudgetSeconds();
+        int limit = new AgentConfig().getAgentExecutionTimeBudgetSeconds();
         if (limit <= 0)
             return;
 
@@ -178,12 +157,12 @@ class BudgetManagerTest {
 
         try (MockedStatic<Instant> mockedInstant = mockStatic(Instant.class, Mockito.CALLS_REAL_METHODS)) {
             mockedInstant.when(Instant::now).thenReturn(start);
-            BudgetManager.reset();
-            BudgetManager.activateTimeBudget(); // Capture start time
+            budgetManager.reset();
+            budgetManager.activateTimeBudget();
 
             mockedInstant.when(Instant::now).thenReturn(later);
 
-            assertThatThrownBy(BudgetManager::checkTimeBudget)
+            assertThatThrownBy(budgetManager::checkTimeBudget)
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("Execution time budget exceeded");
         }
@@ -191,10 +170,10 @@ class BudgetManagerTest {
 
     @Test
     void checkAllBudgets_shouldCheckAll() {
-        int toolLimit = AgentConfig.getAgentToolCallsBudget();
+        int toolLimit = new AgentConfig().getAgentToolCallsBudget();
         if (toolLimit > 0) {
-            BudgetManager.consumeToolCalls(toolLimit + 1);
-            assertThatThrownBy(BudgetManager::checkAllBudgets)
+            budgetManager.consumeToolCalls(toolLimit + 1);
+            assertThatThrownBy(budgetManager::checkAllBudgets)
                     .isInstanceOf(RuntimeException.class);
         }
     }

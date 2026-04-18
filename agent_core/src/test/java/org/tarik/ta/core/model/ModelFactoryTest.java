@@ -18,37 +18,42 @@ package org.tarik.ta.core.model;
 import dev.langchain4j.model.chat.ChatModel;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.core.manager.BudgetManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.withSettings;
 
 class ModelFactoryTest {
 
+    private final AgentConfig agentConfig = new AgentConfig();
+    private final BudgetManager budgetManager = new BudgetManager(agentConfig);
+    private final ChatModelEventListener chatModelEventListener = new ChatModelEventListener(budgetManager);
+    private final ModelFactory modelFactory = new ModelFactory(agentConfig, chatModelEventListener);
+
     @Test
     void shouldGetGoogleModel() {
-        GenAiModel model = ModelFactory.getModel("gemini-pro", AgentConfig.ModelProvider.GOOGLE);
+        GenAiModel model = modelFactory.getModel("gemini-pro", AgentConfig.ModelProvider.GOOGLE);
         assertThat(model).isNotNull();
         assertThat(model.chatModel()).isNotNull();
     }
 
     @Test
     void shouldGetOpenAiModel() {
-        GenAiModel model = ModelFactory.getModel("gpt-4", AgentConfig.ModelProvider.OPENAI);
+        GenAiModel model = modelFactory.getModel("gpt-4", AgentConfig.ModelProvider.OPENAI);
         assertThat(model).isNotNull();
     }
 
     @Test
     void shouldGetGroqModel() {
-        GenAiModel model = ModelFactory.getModel("mixtral-8x7b", AgentConfig.ModelProvider.GROQ);
+        GenAiModel model = modelFactory.getModel("mixtral-8x7b", AgentConfig.ModelProvider.GROQ);
         assertThat(model).isNotNull();
     }
 
     @Test
     void shouldGetAnthropicModel() {
-        GenAiModel model = ModelFactory.getModel("claude-3", AgentConfig.ModelProvider.ANTHROPIC);
+        GenAiModel model = modelFactory.getModel("claude-3", AgentConfig.ModelProvider.ANTHROPIC);
         assertThat(model).isNotNull();
     }
 
@@ -56,9 +61,9 @@ class ModelFactoryTest {
     void genAiModel_shouldCloseIfCloseable() throws Exception {
         ChatModel chatModel = mock(ChatModel.class, withSettings().extraInterfaces(AutoCloseable.class));
         GenAiModel genAiModel = new GenAiModel(chatModel);
-        
+
         genAiModel.close();
-        
+
         verify((AutoCloseable) chatModel).close();
     }
 
@@ -66,7 +71,7 @@ class ModelFactoryTest {
     void genAiModel_shouldNotFailIfNonCloseable() {
         ChatModel chatModel = mock(ChatModel.class);
         GenAiModel genAiModel = new GenAiModel(chatModel);
-        
+
         genAiModel.close();
         // Should not throw anything
     }

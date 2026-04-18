@@ -18,6 +18,7 @@ package org.tarik.ta.user_dialogs;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 
 import javax.swing.*;
 import java.awt.*;
@@ -28,8 +29,8 @@ import java.util.Optional;
 import static java.util.Optional.ofNullable;
 import static javax.swing.JOptionPane.YES_OPTION;
 import static org.tarik.ta.utils.BoundingBoxUtil.drawBoundingBox;
-import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.utils.ImageUtils.*;
+import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 public class UiElementScreenshotCaptureWindow extends AbstractDialog {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementScreenshotCaptureWindow.class);
@@ -46,8 +47,8 @@ public class UiElementScreenshotCaptureWindow extends AbstractDialog {
     private static final double defaultZoomOutFactor = 0.9;
     private final Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
 
-    private UiElementScreenshotCaptureWindow(Window owner, BufferedImage screenshot, Color boundingBoxColor) {
-        super(owner, "UI element screenshot capture");
+    private UiElementScreenshotCaptureWindow(Window owner, BufferedImage screenshot, Color boundingBoxColor, UiTestAgentConfig config) {
+        super(owner, "UI element screenshot capture", config);
         this.originalScreenshot = screenshot;
         this.boundingBoxColor = boundingBoxColor;
         BufferedImage scaledScreenshot = scaleImage(screenshot,
@@ -117,7 +118,7 @@ public class UiElementScreenshotCaptureWindow extends AbstractDialog {
                 JPanel panel = getElementScreenshotPanel();
 
                 int result = YesNoOptionDialog.display(UiElementScreenshotCaptureWindow.this,
-                        "Is this bounding Box correct?", panel);
+                        "Is this bounding Box correct?", panel, uiTestAgentConfig);
                 if (result == YES_OPTION) {
                     dispose();
                 } else {
@@ -194,9 +195,9 @@ public class UiElementScreenshotCaptureWindow extends AbstractDialog {
         }
     }
 
-    public static Optional<UiElementCaptureResult> displayAndGetResult(Window owner, Color boundingBoxColor) {
+    public static Optional<UiElementCaptureResult> displayAndGetResult(Window owner, Color boundingBoxColor, UiTestAgentConfig config) {
         BufferedImage screenshot = captureScreen();
-        UiElementScreenshotCaptureWindow window = new UiElementScreenshotCaptureWindow(owner, screenshot, boundingBoxColor);
+        UiElementScreenshotCaptureWindow window = new UiElementScreenshotCaptureWindow(owner, screenshot, boundingBoxColor, config);
         return ofNullable(window.getCaptureResult());
     }
 
@@ -212,6 +213,3 @@ public class UiElementScreenshotCaptureWindow extends AbstractDialog {
                                          BufferedImage elementScreenshot) {
     }
 }
-
-
-

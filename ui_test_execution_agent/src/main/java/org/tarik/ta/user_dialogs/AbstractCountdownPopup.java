@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.user_dialogs;
 
+import org.tarik.ta.UiTestAgentConfig;
+
 import javax.swing.*;
 import java.awt.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -28,11 +30,12 @@ public abstract class AbstractCountdownPopup<T> extends AbstractDialog {
     protected int remainingSeconds;
     private Timer countdownTimer;
 
-    protected AbstractCountdownPopup(String title, T defaultResult, int seconds) {
-        super(null, title);
+    protected AbstractCountdownPopup(String title, T defaultResult, int seconds, UiTestAgentConfig config) {
+        super(null, title, config);
         this.result = new AtomicReference<>(defaultResult);
         this.remainingSeconds = seconds;
         setUndecorated(true);
+        setFocusableWindowState(false);
     }
 
     /**
@@ -41,7 +44,8 @@ public abstract class AbstractCountdownPopup<T> extends AbstractDialog {
     protected void applyCommonPanelStyling(JPanel panel) {
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Color.GRAY, 1),
-                BorderFactory.createEmptyBorder(10, 15, 10, 15)));
+                BorderFactory.createEmptyBorder(dialogDefaultVerticalGap, dialogDefaultHorizontalGap,
+                        dialogDefaultVerticalGap, dialogDefaultHorizontalGap)));
         panel.setBackground(new Color(255, 255, 224)); // Light yellow background
     }
 

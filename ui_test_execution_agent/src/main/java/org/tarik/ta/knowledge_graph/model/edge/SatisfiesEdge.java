@@ -22,11 +22,13 @@ public record SatisfiesEdge(
         UUID consumerId,
         double score,
         String effectPhrase,
-        String prerequisitePhrase) {
+        String prerequisitePhrase,
+        UUID prerequisiteNodeId) {
 
     public static final String PROP_SCORE = "score";
     public static final String PROP_EFFECT_PHRASE = "effectPhrase";
     public static final String PROP_PREREQUISITE_PHRASE = "prerequisitePhrase";
+    public static final String PROP_PREREQUISITE_NODE_ID = "prerequisiteNodeId";
     public static final String PROP_CREATED_AT = "createdAt";
     public static final String PROP_LAST_VERIFIED_AT = "lastVerifiedAt";
 }

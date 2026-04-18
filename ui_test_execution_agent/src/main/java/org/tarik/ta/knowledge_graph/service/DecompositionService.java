@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import jakarta.inject.Singleton;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
@@ -26,7 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Objects.requireNonNull;
-import static org.tarik.ta.UiTestAgentConfig.getKnowledgeMaxDepth;
+import org.tarik.ta.UiTestAgentConfig;
 
 /**
  * Hierarchical decomposition from composite procedures to atomic leaves.
@@ -35,14 +37,17 @@ import static org.tarik.ta.UiTestAgentConfig.getKnowledgeMaxDepth;
  * <p>Results are cached per session in a {@link ConcurrentHashMap} for repeated access.
  * Cache is invalidated on session end or after knowledge ingestion.</p>
  */
+@Singleton
 public class DecompositionService {
     private static final Logger LOG = LoggerFactory.getLogger(DecompositionService.class);
 
     private final ProcedureRepository repository;
+    private final UiTestAgentConfig config;
     private final ConcurrentHashMap<UUID, List<Procedure>> cache = new ConcurrentHashMap<>();
 
-    public DecompositionService(ProcedureRepository repository) {
+    public DecompositionService(ProcedureRepository repository, UiTestAgentConfig config) {
         this.repository = requireNonNull(repository, "repository");
+        this.config = requireNonNull(config, "config");
     }
 
     /**
@@ -52,7 +57,7 @@ public class DecompositionService {
      *
      * @param rootId the UUID of the root procedure to decompose
      * @return flat ordered list of atomic procedures (depth-first, sequence-ordered)
-     * @throws IllegalStateException if the max depth is exceeded
+     * @throws IllegalStateException if the max depth is exceeded, or if a composite procedure has no children
      */
     public List<Procedure> decompose(UUID rootId) {
         requireNonNull(rootId, "rootId");
@@ -61,7 +66,7 @@ public class DecompositionService {
             var root = repository.findById(id).orElseThrow(() ->
                     new IllegalStateException("Procedure not found: %s".formatted(id)));
             var atomics = new ArrayList<Procedure>();
-            decomposeRecursive(root, atomics, 0, getKnowledgeMaxDepth());
+            decomposeRecursive(root, atomics, 0, config.getKnowledgeMaxDepth(), new ArrayList<>());
             LOG.info("Decomposed procedure '{}' ({}) into {} atomic step(s)", root.description(), id, atomics.size());
             return List.copyOf(atomics);
         });
@@ -75,7 +80,8 @@ public class DecompositionService {
         LOG.debug("Decomposition cache fully invalidated");
     }
 
-    private void decomposeRecursive(Procedure current, List<Procedure> atomics, int depth, int maxDepth) {
+    private void decomposeRecursive(Procedure current, List<Procedure> atomics, int depth, int maxDepth,
+                                    List<Procedure> path) {
         if (depth > maxDepth) {
             throw new IllegalStateException(
                     "Max decomposition depth (%d) exceeded at procedure '%s' (%s). Check for circular CONTAINS relationships."
@@ -89,13 +95,30 @@ public class DecompositionService {
 
         var children = repository.findChildrenOrdered(current.id());
         if (children.isEmpty()) {
-            LOG.warn("Composite procedure '{}' ({}) has no children — treating as atomic", current.description(), current.id());
-            atomics.add(current);
-            return;
+            var fullPath = new ArrayList<>(path);
+            fullPath.add(current);
+            throw new IllegalStateException(formatNoChildrenError(current, fullPath));
         }
 
+        var nextPath = new ArrayList<>(path);
+        nextPath.add(current);
         for (var child : children) {
-            decomposeRecursive(child, atomics, depth + 1, maxDepth);
+            decomposeRecursive(child, atomics, depth + 1, maxDepth, nextPath);
         }
+    }
+
+    private static String formatNoChildrenError(Procedure problematic, List<Procedure> fullPath) {
+        var sb = new StringBuilder();
+        sb.append("Composite procedure '%s' (%s) has no children. Add its sub-steps in the procedure editor."
+                .formatted(problematic.description(), problematic.id()));
+        if (fullPath.size() > 1) {
+            sb.append("\n\nExecution graph:");
+            for (int i = 0; i < fullPath.size(); i++) {
+                var p = fullPath.get(i);
+                var suffix = (i == fullPath.size() - 1) ? "  \u2190 no children" : "";
+                sb.append("\n%s\u2192 %s (%s)%s".formatted("  ".repeat(i), p.description(), p.id(), suffix));
+            }
+        }
+        return sb.toString();
     }
 }

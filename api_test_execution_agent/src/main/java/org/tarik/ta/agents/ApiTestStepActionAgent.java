@@ -20,9 +20,6 @@ import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.core.agents.GenericAiAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
-import org.tarik.ta.core.error.RetryPolicy;
-
-import static org.tarik.ta.core.AgentConfig.getActionRetryPolicy;
 
 /**
  * Agent responsible for executing and verifying API test step actions.
@@ -44,7 +41,6 @@ import static org.tarik.ta.core.AgentConfig.getActionRetryPolicy;
  * </ul>
  */
 public interface ApiTestStepActionAgent extends GenericAiAgent<VerificationExecutionResult> {
-    RetryPolicy RETRY_POLICY = getActionRetryPolicy();
 
     @UserMessage("""
             Test step action: {{testStep}}
@@ -65,10 +61,5 @@ public interface ApiTestStepActionAgent extends GenericAiAgent<VerificationExecu
     @Override
     default String getAgentTaskDescription() {
         return "Executing and verifying API test step actions";
-    }
-
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
     }
 }

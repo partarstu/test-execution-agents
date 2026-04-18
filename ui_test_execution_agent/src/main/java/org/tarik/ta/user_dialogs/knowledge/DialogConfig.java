@@ -17,9 +17,12 @@ package org.tarik.ta.user_dialogs.knowledge;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
+import org.tarik.ta.knowledge_graph.service.ProcedureUsageByTestCaseTrackingService;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
@@ -27,7 +30,7 @@ import java.util.UUID;
 
 
 /**
- * Immutable configuration record for {@link ProcedureKnowledgeCollectionDialog}.
+ * Immutable configuration record for {@link ProcedureDialog}.
  * Use {@code existingProcedure} to pre-fill all procedure fields at once; pass {@code null} to start with an empty form.
  */
 record DialogConfig(
@@ -44,4 +47,8 @@ record DialogConfig(
         @NotNull KnowledgeIngestionService ingestionService,
         @Nullable UUID currentProcedureId,
         @Nullable SuggestionLoaderFactory childLoaderFactory,
-        @Nullable BufferedImage preloadedElementScreenshot) {}
+        @Nullable BufferedImage preloadedElementScreenshot,
+        @NotNull UiTestAgentConfig uiTestAgentConfig,
+        @NotNull UiElementRepository uiElementRepository,
+        @NotNull UiElementDialogHelper uiElementDialogHelper,
+        @Nullable ProcedureUsageByTestCaseTrackingService usageTrackingService) {}

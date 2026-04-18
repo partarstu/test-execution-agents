@@ -17,6 +17,8 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.apache.commons.math3.ml.clustering.Cluster;
 import org.apache.commons.math3.ml.clustering.Clusterable;
 import org.apache.commons.math3.ml.clustering.DBSCANClusterer;
@@ -25,38 +27,42 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.agents.UiElementBoundingBoxAgent;
 import org.tarik.ta.agents.BestUiElementMatchSelectionAgent;
+import org.tarik.ta.agents.UiElementBoundingBoxAgent;
+import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.dto.*;
 import org.tarik.ta.exceptions.ElementLocationException;
 import org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
+import org.tarik.ta.knowledge_graph.service.UiElementCache;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.user_dialogs.SpinnerManager;
 import org.tarik.ta.utils.UiCommonUtils;
-import org.tarik.ta.knowledge_graph.location_history.LocationStrategy;
-import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static dev.langchain4j.service.AiServices.builder;
 import static java.lang.Math.min;
 import static java.lang.Thread.currentThread;
+import static java.nio.file.Files.createDirectories;
 import static java.time.Duration.between;
+import static java.time.LocalDateTime.now;
+import static java.time.format.DateTimeFormatter.ofPattern;
 import static java.util.Collections.max;
 import static java.util.Comparator.comparingDouble;
 import static java.util.Objects.requireNonNull;
@@ -67,77 +73,72 @@ import static java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor;
 import static java.util.stream.Collectors.*;
 import static java.util.stream.IntStream.range;
 import static java.util.stream.Stream.concat;
-import static org.tarik.ta.UiTestAgentConfig.*;
-import static org.tarik.ta.core.error.ErrorCategory.*;
-import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
-import static org.tarik.ta.core.model.ModelFactory.getModel;
+
+import static javax.imageio.ImageIO.write;
 import static org.tarik.ta.utils.BoundingBoxUtil.*;
+import static org.tarik.ta.utils.ImageUtils.*;
 import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithORB;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithTemplateMatching;
-import static org.tarik.ta.utils.ImageUtils.*;
 
+@Singleton
 public class ElementLocatorTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(ElementLocatorTools.class);
-    private static final String BOUNDING_BOX_COLOR_NAME = UiTestAgentConfig.getElementBoundingBoxColorName();
-    private static final Color BOUNDING_BOX_COLOR = getColorByName(BOUNDING_BOX_COLOR_NAME);
-    private static final boolean DEBUG_MODE = AgentConfig.isDebugMode();
 
+    private final UiElementCache uiElementCache;
     private final UiElementRepository elementRepository;
     private final UiElementBoundingBoxAgent uiElementBoundingBoxAgent;
     private final BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent;
     private final LocationHistoryRecorder locationHistoryRecorder;
-    private final Function<UUID, Optional<ElementLocationHistory>> stabilityLookup;
+    private final UiTestAgentConfig uiTestAgentConfig;
+    private final Color boundingBoxColor;
+    private final boolean debugMode;
 
-    public ElementLocatorTools() {
-        this(null, null);
-    }
-
-    public ElementLocatorTools(LocationHistoryRecorder locationHistoryRecorder, Function<UUID, Optional<ElementLocationHistory>> stabilityLookup) {
-        this(new UiElementRepository(), locationHistoryRecorder, stabilityLookup);
-    }
-
-    // package-private for testing
-    ElementLocatorTools(UiElementRepository elementRepository, LocationHistoryRecorder locationHistoryRecorder,
-                        Function<UUID, Optional<ElementLocationHistory>> stabilityLookup) {
-        super();
-        this.elementRepository = elementRepository;
-        this.uiElementBoundingBoxAgent = createElementBoundingBoxAgent();
-        this.bestUiElementMatchSelectionAgent = createElementSelectionAgent();
+    @Inject
+    public ElementLocatorTools(UiElementCache uiElementCache, UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
+                               LocationHistoryRecorder locationHistoryRecorder,
+                               UiElementBoundingBoxAgent uiElementBoundingBoxAgent,
+                               BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent,
+                               UiTestAgentConfig uiTestAgentConfig) {
+        super(uiStateCheckAgent);
+        this.uiElementCache = requireNonNull(uiElementCache, "uiElementCache");
+        this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
+        this.uiElementBoundingBoxAgent = requireNonNull(uiElementBoundingBoxAgent, "uiElementBoundingBoxAgent");
+        this.bestUiElementMatchSelectionAgent = requireNonNull(bestUiElementMatchSelectionAgent, "bestUiElementMatchSelectionAgent");
         this.locationHistoryRecorder = locationHistoryRecorder != null ?
-                locationHistoryRecorder : (elementId, located, locationTimeMs, strategy) -> {
+                locationHistoryRecorder : (elementId, located, locationTimeMs) -> {
         };
-        this.stabilityLookup = stabilityLookup != null ? stabilityLookup : _ -> Optional.empty();
+        this.uiTestAgentConfig = requireNonNull(uiTestAgentConfig, "uiTestAgentConfig");
+        String boundingBoxColorName = uiTestAgentConfig.getElementBoundingBoxColorName();
+        this.boundingBoxColor = getColorByName(boundingBoxColorName);
+        this.debugMode = uiTestAgentConfig.isDebugMode();
     }
 
     /**
-     * Execution flow: locates a known UI element by its UUID, bypassing vector DB search.
-     * Retrieves the {@link UiElement} directly by UUID from the embedding store, then runs
-     * the visual grounding + algorithmic matching pipeline on the current screen.
-     * <p>
-     * No retry logic is applied here — the calling agent is responsible for consulting
-     * {@link #getElementLocationContext} and deciding whether to wait or take preparatory
-     * actions before invoking this tool.
+     * Execution flow: locates a known UI element by its UUID
      */
     @Tool("Locates UI element on the screen, first retrieving it from DB based on its ID")
     public LocatedElementInfo locateKnownElementById(
-            @P("ID of the UI element to locate") UUID elementId,
-            @P(value = "Any element-specific data", required = false) String elementSpecificData) {
+            @P("ID of the UI element to locate")
+            UUID elementId,
+            @P(value = "Any data relevant for this element or action which involves this element", required = false)
+            String elementSpecificData) {
         requireNonNull(elementId, "elementId");
         try {
-            var uiElement = elementRepository.findById(elementId)
-                    .orElseThrow(() -> new ToolExecutionException("UI element with id %s not found in the database".formatted(elementId),
-                            TRANSIENT_TOOL_ERROR));
+            var uiElement = uiElementCache.get(elementId)
+                    .or(() -> elementRepository.findById(elementId))
+                    .orElseThrow(() -> new ElementLocationException("UI element with id %s not found in the database".formatted(elementId),
+                            ElementLocationStatus.NO_ELEMENTS_FOUND_IN_DB));
             LOG.info("Retrieved UiElement '{}' by UUID {}, proceeding with on-screen location", uiElement.name(), elementId);
             long startMs = System.currentTimeMillis();
             try {
                 var result = findElementAndProcessLocationResult(
                         () -> getFinalElementLocation(uiElement, elementSpecificData), uiElement.name());
-                locationHistoryRecorder.record(elementId, true, System.currentTimeMillis() - startMs, resolveLocationStrategy(uiElement));
+                locationHistoryRecorder.record(elementId, true, System.currentTimeMillis() - startMs);
                 return result;
             } catch (ElementLocationException e) {
-                locationHistoryRecorder.record(elementId, false, System.currentTimeMillis() - startMs, resolveLocationStrategy(uiElement));
+                locationHistoryRecorder.record(elementId, false, System.currentTimeMillis() - startMs);
                 throw e;
             }
         } catch (ToolExecutionException | ElementLocationException e) {
@@ -145,38 +146,6 @@ public class ElementLocatorTools extends UiAbstractTools {
         } catch (Exception e) {
             throw rethrowAsToolException(e, "locating known UI element by UUID");
         }
-    }
-
-    /**
-     * Returns historical stability data for a UI element so the agent can decide
-     * whether to wait, scroll, or take other preparatory steps before locating it.
-     */
-    @Tool("Returns the context (historical info about element location success stability, location duration etc.) for locating a UI " +
-            "element. This information might be useful in order to identify the location approach.")
-    public ElementLocationHistory getElementLocationContext(@P("ID of the UI element") UUID elementId) {
-        return stabilityLookup.apply(elementId).orElse(null);
-    }
-
-    private UiElementBoundingBoxAgent createElementBoundingBoxAgent() {
-        var model = getModel(getElementBoundingBoxAgentModelName(), getElementBoundingBoxAgentModelProvider());
-        var prompt = loadSystemPrompt("element_locator/bounding_box", getElementBoundingBoxAgentPromptVersion(),
-                "element_bounding_box_prompt.txt");
-        return builder(UiElementBoundingBoxAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .tools(new BoundingBoxes(List.of()))
-                .build();
-    }
-
-    private BestUiElementMatchSelectionAgent createElementSelectionAgent() {
-        var model = getModel(getUiElementVisualMatchAgentModelName(), getUiElementVisualMatchAgentModelProvider());
-        var prompt = loadSystemPrompt("element_locator/best_ui_match_selection", getElementSelectionAgentPromptVersion(),
-                "find_best_matching_ui_element_id.txt");
-        return builder(BestUiElementMatchSelectionAgent.class)
-                .chatModel(model.chatModel())
-                .systemMessageProvider(_ -> prompt)
-                .tools(new BestUiElementVisualMatchResult(false, "", ""))
-                .build();
     }
 
     private String getElementBoundingBoxUserMessage(UiElement uiElement, String elementTestData) {
@@ -261,11 +230,6 @@ public class ElementLocatorTools extends UiAbstractTools {
         return new ElementLocationException(failureReason, status);
     }
 
-    private LocationStrategy resolveLocationStrategy(UiElement element) {
-        boolean algorithmic = isAlgorithmicSearchEnabled() && !element.isDataDependent() && element.screenshot() != null;
-        return algorithmic ? LocationStrategy.HYBRID : LocationStrategy.VISUAL_GROUNDING;
-    }
-
     private UiElementLocationInternalResult getFinalElementLocation(UiElement elementRetrievedFromMemory,
                                                                     String elementTestData) {
         var elementScreenshot =
@@ -277,11 +241,10 @@ public class ElementLocatorTools extends UiAbstractTools {
         } finally {
             previousState.restoreIfWasVisible();
         }
-        boolean useAlgorithmicSearch = UiTestAgentConfig.isAlgorithmicSearchEnabled()
+        boolean useAlgorithmicSearch = uiTestAgentConfig.isAlgorithmicSearchEnabled()
                 && !(elementRetrievedFromMemory.isDataDependent()) && elementScreenshot != null;
         return getUiElementLocationResult(elementRetrievedFromMemory, elementTestData, wholeScreenshot,
-                elementScreenshot,
-                useAlgorithmicSearch);
+                elementScreenshot, useAlgorithmicSearch);
     }
 
 
@@ -306,12 +269,12 @@ public class ElementLocatorTools extends UiAbstractTools {
         List<Rectangle> templateMatchedBoundingBoxes = new LinkedList<>();
         if (useAlgorithmicSearch && elementScreenshot != null) {
             var featureMatchedBoundingBoxesByElementFuture = supplyAsync(
-                    () -> findMatchingRegionsWithORB(wholeScreenshot, elementScreenshot));
+                    () -> findMatchingRegionsWithORB(wholeScreenshot, elementScreenshot, uiTestAgentConfig));
             var templateMatchedBoundingBoxesByElementFuture = supplyAsync(() -> mergeOverlappingRectangles(
-                    findMatchingRegionsWithTemplateMatching(wholeScreenshot, elementScreenshot)));
+                    findMatchingRegionsWithTemplateMatching(wholeScreenshot, elementScreenshot, uiTestAgentConfig)));
             featureMatchedBoundingBoxes = featureMatchedBoundingBoxesByElementFuture.join();
             templateMatchedBoundingBoxes = templateMatchedBoundingBoxesByElementFuture.join();
-            if (DEBUG_MODE) {
+            if (this.debugMode) {
                 markElementsToPlotWithBoundingBoxes(cloneImage(wholeScreenshot),
                         getElementToPlot(elementRetrievedFromMemory, featureMatchedBoundingBoxes), "opencv_features_original");
                 markElementsToPlotWithBoundingBoxes(cloneImage(wholeScreenshot),
@@ -339,7 +302,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                     templateMatchedBoundingBoxes);
         } else {
             if (featureMatchedBoundingBoxes.isEmpty() && templateMatchedBoundingBoxes.isEmpty()) {
-                if (UiTestAgentConfig.skipBestUiElementMatchSelection()) {
+                if (uiTestAgentConfig.skipBestUiElementMatchSelection()) {
                     LOG.info("Skipping selection of the best UI element visual match as per configuration. Returning the first " +
                             "identified element out of {} elements.", identifiedByVisionBoundingBoxes.size());
                     return new UiElementLocationInternalResult(false, true, identifiedByVisionBoundingBoxes.getFirst(),
@@ -444,7 +407,7 @@ public class ElementLocatorTools extends UiAbstractTools {
             var scalingRatio = getScalingRatio(wholeScreenshot);
             var imageToSend = scalingRatio < 1.0 ? scaleImage(wholeScreenshot, scalingRatio) : wholeScreenshot;
             var prompt = getElementBoundingBoxUserMessage(element, elementTestData);
-            int voteCount = UiTestAgentConfig.getElementLocatorVisualGroundingVoteCount();
+            int voteCount = uiTestAgentConfig.getElementLocatorVisualGroundingVoteCount();
             try (var executor = newVirtualThreadPerTaskExecutor()) {
                 List<Callable<List<BoundingBox>>> tasks = range(0, voteCount)
                         .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> Objects.requireNonNull(
@@ -457,15 +420,16 @@ public class ElementLocatorTools extends UiAbstractTools {
                         .flatMap(Optional::stream)
                         .flatMap(Collection::stream)
                         .map(bb -> {
-                            Rectangle rectOnScaledImage = bb.getActualBoundingBox(imageToSend.getWidth(), imageToSend.getHeight());
+                            Rectangle rectOnScaledImage = bb.getActualBoundingBox(imageToSend.getWidth(), imageToSend.getHeight(),
+                                    uiTestAgentConfig.isBoundingBoxAlreadyNormalized());
                             return scalingRatio < 1.0 ? getRescaledBox(rectOnScaledImage, scalingRatio) : rectOnScaledImage;
                         })
                         .filter(bb -> bb.width > 0 && bb.height > 0)
                         .toList();
 
-                if (DEBUG_MODE) {
+                if (debugMode) {
                     var imageWithAllBoxes = cloneImage(wholeScreenshot);
-                    allBoundingBoxes.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, BOUNDING_BOX_COLOR));
+                    allBoundingBoxes.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, boundingBoxColor));
                     saveImage(imageWithAllBoxes, "vision_identified_boxes_before_clustering");
                 }
 
@@ -475,7 +439,7 @@ public class ElementLocatorTools extends UiAbstractTools {
 
                 if (voteCount > 1) {
                     DBSCANClusterer<RectangleAdapter> clusterer =
-                            new DBSCANClusterer<>(UiTestAgentConfig.getBboxClusteringMinIntersectionRatio(), 0, new IoUDistance());
+                            new DBSCANClusterer<>(uiTestAgentConfig.getBboxClusteringMinIntersectionRatio(), 0, new IoUDistance());
                     List<RectangleAdapter> points = allBoundingBoxes.stream().map(RectangleAdapter::new).toList();
                     List<Cluster<RectangleAdapter>> clusters = clusterer.cluster(points);
                     var result = clusters.stream()
@@ -487,9 +451,9 @@ public class ElementLocatorTools extends UiAbstractTools {
                                 return calculateAverageBoundingBox(clusterBoxes);
                             })
                             .toList();
-                    if (DEBUG_MODE) {
+                    if (this.debugMode) {
                         var imageWithAllBoxes = cloneImage(wholeScreenshot);
-                        result.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, BOUNDING_BOX_COLOR));
+                        result.forEach(box -> drawBoundingBox(imageWithAllBoxes, box, boundingBoxColor));
                         saveImage(imageWithAllBoxes, "vision_identified_boxes_after_clustering");
                     }
                     LOG.info("Model identified {} bounding boxes with {} votes, resulting in {} common regions", allBoundingBoxes.size(),
@@ -543,14 +507,14 @@ public class ElementLocatorTools extends UiAbstractTools {
             Map<String, Rectangle> boxesWithIds = getBoxesWithIds(matchedBoundingBoxes);
             var resultingScreenshot = cloneImage(screenshot);
             drawBoundingBoxes(resultingScreenshot, boxesWithIds);
-            if (DEBUG_MODE) {
+            if (debugMode) {
                 saveImage(resultingScreenshot, "model_selection_%s".formatted(matchAlgorithm));
             }
 
             var successfulIdentificationResults = getValidSuccessfulIdentificationResultsFromModelUsingQuorum(
                     uiElement, elementTestData, resultingScreenshot, new ArrayList<>(boxesWithIds.keySet()));
             LOG.info("Model provided {} successful identification results for the element '{}' with {} vote(s).",
-                    successfulIdentificationResults.size(), uiElement.name(), UiTestAgentConfig.getElementLocatorValidationVoteCount());
+                    successfulIdentificationResults.size(), uiElement.name(), uiTestAgentConfig.getElementLocatorValidationVoteCount());
             if (successfulIdentificationResults.isEmpty()) {
                 return new UiElementLocationInternalResult(algorithmicSearchDone, visualGroundingDone, null, uiElement, screenshot);
             }
@@ -585,9 +549,9 @@ public class ElementLocatorTools extends UiAbstractTools {
             @NotNull List<String> boxIds) {
         try (var executor = newVirtualThreadPerTaskExecutor()) {
             var prompt = getBestElementVisualMatchUserMessage(uiElement, elementTestData, boxIds);
-            var boundingBoxColorName = UiCommonUtils.getColorName(BOUNDING_BOX_COLOR).toLowerCase();
+            var boundingBoxColorName = UiCommonUtils.getColorName(boundingBoxColor).toLowerCase();
 
-            List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, UiTestAgentConfig.getElementLocatorValidationVoteCount())
+            List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, uiTestAgentConfig.getElementLocatorValidationVoteCount())
                     .mapToObj(_ -> (Callable<BestUiElementVisualMatchResult>) () -> bestUiElementMatchSelectionAgent.executeAndGetResult(
                             () -> bestUiElementMatchSelectionAgent.selectBestElement(prompt,
                                     singleImageContent(resultingScreenshot), boundingBoxColorName)
@@ -627,7 +591,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                                                      String postfix) {
         var elementBoundingBoxesByLabel = elementToPlot.boundingBoxesByIds();
         drawBoundingBoxes(resultingScreenshot, elementBoundingBoxesByLabel);
-        if (DEBUG_MODE) {
+        if (debugMode) {
             saveImage(resultingScreenshot, postfix);
         }
     }
@@ -667,12 +631,12 @@ public class ElementLocatorTools extends UiAbstractTools {
         }
     }
 
-    private static double getScalingRatio(BufferedImage image) {
+    private double getScalingRatio(BufferedImage image) {
         int originalWidth = image.getWidth();
         int originalHeight = image.getHeight();
         int longestSide = Math.max(originalWidth, originalHeight);
-        int longestAllowed = UiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels();
-        double maxMegapixels = UiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels();
+        int longestAllowed = uiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels();
+        double maxMegapixels = uiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels();
         double downscaleRatio = 1.0;
         if (longestSide > longestAllowed) {
             downscaleRatio = ((double) longestAllowed) / longestSide;
@@ -684,7 +648,22 @@ public class ElementLocatorTools extends UiAbstractTools {
         }
         return downscaleRatio;
     }
+
+    private boolean saveImage(BufferedImage resultingScreenshot, String postfix) {
+        LocalDateTime now = now();
+        DateTimeFormatter formatter = ofPattern("yyyy_MM_dd_HH_mm_ss_SSS");
+        String timestamp = now.format(formatter);
+        var folder = uiTestAgentConfig.getScreenshotsSaveFolder();
+        var filePath = Paths.get(folder).resolve("%s_%s.png".formatted(timestamp, postfix)).toAbsolutePath();
+        try {
+            createDirectories(filePath.getParent());
+            write(resultingScreenshot, "png", filePath.toFile());
+            LOG.info("Saved image {}", filePath.toAbsolutePath());
+            return true;
+        } catch (IOException e) {
+            String message = "Couldn't save screenshot %s.".formatted(filePath);
+            LOG.error(message, e);
+            return false;
+        }
+    }
 }
-
-
-

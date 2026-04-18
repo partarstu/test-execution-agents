@@ -18,6 +18,7 @@ package org.tarik.ta.user_dialogs.knowledge;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.dto.ProcedureExecutionConfirmationResult;
 import org.tarik.ta.user_dialogs.AbstractCountdownPopup;
 
@@ -40,11 +41,11 @@ public class ProcedureExecutionConfirmationPopup
     private JButton proceedButton;
 
     private ProcedureExecutionConfirmationPopup(String atomicDescription, @Nullable String parentDescription,
-                                                @Nullable ExecutionItemContext itemContext, int timeoutSeconds, boolean isPreExecution) {
-        super(TITLE, proceed(), timeoutSeconds);
+                                                @Nullable ExecutionItemContext itemContext, int timeoutSeconds, boolean isPreExecution,
+                                                UiTestAgentConfig config) {
+        super(TITLE, proceed(), timeoutSeconds, config);
 
         initializeComponents(atomicDescription, parentDescription, itemContext, isPreExecution);
-        setFocusableWindowState(false);
         startCountdown();
         displayPopup();
     }
@@ -53,7 +54,7 @@ public class ProcedureExecutionConfirmationPopup
                                       @Nullable ExecutionItemContext itemContext, boolean isPreExecution) {
         JPanel mainPanel = getDefaultMainPanel();
         applyCommonPanelStyling(mainPanel);
-        mainPanel.setLayout(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
+        mainPanel.setLayout(new BorderLayout(dialogDefaultHorizontalGap, dialogDefaultVerticalGap));
 
         String contextHtml = buildContextHtml(itemContext);
         var parentDescriptionString = parentDescription==null? "N/A" : parentDescription;
@@ -67,7 +68,7 @@ public class ProcedureExecutionConfirmationPopup
 
         JLabel messageLabel = new JLabel(message);
         messageLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        messageLabel.setFont(new Font("Dialog", Font.PLAIN, 14));
+        messageLabel.setFont(new Font(dialogDefaultFontType, Font.PLAIN, dialogDefaultFontSize));
 
         mainPanel.add(messageLabel, BorderLayout.CENTER);
 
@@ -146,8 +147,8 @@ public class ProcedureExecutionConfirmationPopup
      */
     public static ProcedureExecutionConfirmationResult displayAndGetUserDecision(
             String atomicDescription, @Nullable String parentDescription, @Nullable ExecutionItemContext itemContext,
-            int seconds, boolean isPreExecution) {
-        var popup = new ProcedureExecutionConfirmationPopup(atomicDescription, parentDescription, itemContext, seconds, isPreExecution);
+            int seconds, boolean isPreExecution, UiTestAgentConfig config) {
+        var popup = new ProcedureExecutionConfirmationPopup(atomicDescription, parentDescription, itemContext, seconds, isPreExecution, config);
         return popup.getResult();
     }
 }

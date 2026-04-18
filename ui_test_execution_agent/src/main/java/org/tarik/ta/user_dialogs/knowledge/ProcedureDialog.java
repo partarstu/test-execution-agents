@@ -19,12 +19,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.dto.IngestionNode;
 import org.tarik.ta.dto.KnowledgeSuggestionResult;
 import org.tarik.ta.dto.KnowledgeSuggestionResult.SuggestedStep;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
+import org.tarik.ta.knowledge_graph.service.ProcedureUsageByTestCaseTrackingService;
+import org.tarik.ta.utils.ImageUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -42,7 +45,6 @@ import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.user_dialogs.*;
 
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.awt.BorderLayout.*;
 import static java.awt.Font.PLAIN;
@@ -50,12 +52,8 @@ import static java.lang.Math.min;
 import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 import static javax.swing.JOptionPane.*;
-import static org.tarik.ta.UiTestAgentConfig.getDialogDefaultFontSize;
-import static org.tarik.ta.UiTestAgentConfig.getDialogDefaultFontType;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.createAtomic;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.createComposite;
-import static org.tarik.ta.utils.ImageUtils.scaleImage;
-import static org.tarik.ta.utils.ImageUtils.scaleToFitBox;
 
 import java.awt.event.ActionListener;
 
@@ -64,17 +62,19 @@ import java.awt.event.ActionListener;
  * Supports atomic (single UI action) and composite (multi-step) procedures with prerequisites,
  * effects, and bidirectional parent-child navigation.
  */
-public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
-    private static final Logger LOG = LoggerFactory.getLogger(ProcedureKnowledgeCollectionDialog.class);
-    private static final UiElementRepository UI_ELEMENT_REPOSITORY = new UiElementRepository();
+public class ProcedureDialog extends AbstractDialog {
+    private static final Logger LOG = LoggerFactory.getLogger(ProcedureDialog.class);
     static final int ELEMENT_SCREENSHOT_PREFERRED_WIDTH = 200;
     static final int ELEMENT_SCREENSHOT_PREFERRED_HEIGHT = 120;
+
+    private final UiElementRepository uiElementRepository;
+    private final UiElementDialogHelper uiElementDialogHelper;
 
     JButton locateElementButton;
     JButton editDetailsButton;
     JButton replaceScreenshotButton;
     JButton removeElementButton;
-    JButton refineElementsButton;
+    JButton selectUiElementButton;
     JLabel elementNameLabel;
     JLabel elementScreenshotLabel;
     JButton addChildStepButton;
@@ -83,7 +83,9 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     JButton moveChildStepDownButton;
 
     JTextArea descriptionArea;
+    JTextArea additionalInfoArea;
     JCheckBox atomicCheckBox;
+    JCheckBox optionalCheckBox;
     DefaultListModel<ChildProcedureInDialog> childStepsModel;
     JPanel childStepsContainer;
     int childStepsSelectedIndex = -1;
@@ -102,6 +104,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     private boolean hasUnsavedChanges = false;
     private boolean editParentRequested = false;
     private boolean windowClosedByUser = false;
+    private boolean procedureDeleted = false;
     private UUID targetUiElementId;
     private BufferedImage currentElementScreenshot;
     final UiElementDialogHelper.ElementHandlers handlers;
@@ -111,6 +114,8 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     final KnowledgeService knowledgeService;
     @NotNull
     private final KnowledgeIngestionService ingestionService;
+    @Nullable
+    private final ProcedureUsageByTestCaseTrackingService usageTrackingService;
     private final UUID currentProcedureId;
     private final SuggestionLoaderFactory childLoaderFactory;
     private final ExecutionItemContext itemContext;
@@ -118,32 +123,35 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     CardLayout childStepsCardLayout;
     JPanel childStepsCards;
 
-    private ProcedureKnowledgeCollectionDialog(Window owner, DialogConfig cfg) {
-        super(owner, cfg.title());
+    private ProcedureDialog(Window owner, DialogConfig cfg) {
+        super(owner, cfg.title(), cfg.uiTestAgentConfig());
         this.showTestDataAndExpectedResults = cfg.showTestDataAndExpectedResults();
         this.targetUiElementId = cfg.targetUiElementId();
         this.knowledgeService = cfg.knowledgeService();
         this.ingestionService = cfg.ingestionService();
+        this.usageTrackingService = cfg.usageTrackingService();
         this.currentProcedureId = cfg.currentProcedureId();
         this.childLoaderFactory = cfg.childLoaderFactory();
         this.itemContext = cfg.itemContext();
+        this.uiElementRepository = cfg.uiElementRepository();
+        this.uiElementDialogHelper = cfg.uiElementDialogHelper();
 
         var p = cfg.existingProcedure();
         JPanel mainPanel = getDefaultMainPanel();
 
         JPanel headerPanel =
-                ProcedureDialogUIBuilder.createHeaderPanel(this, p != null ? p.description() : "", cfg.headerMessage(), cfg.itemContext());
+                ProcedureDialogBuilder.createHeaderPanel(this, p != null ? p.description() : "", cfg.headerMessage(), cfg.itemContext(),
+                        p != null ? p.additionalInfo() : null);
         mainPanel.add(headerPanel, NORTH);
 
-        var elementIdRef = new AtomicReference<>(cfg.targetUiElementId());
-        this.handlers = UiElementDialogHelper.buildElementHandlers(
+        this.handlers = uiElementDialogHelper.buildElementHandlers(
                 () -> descriptionArea.getText().trim(),
                 () -> getEffectiveTestData().toString(),
-                elementIdRef);
+                () -> targetUiElementId);
 
         JPanel rightPanel = new JPanel(new BorderLayout());
-        rightPanel.add(ProcedureDialogUIBuilder.createTargetElementPanel(this), NORTH);
-        JPanel advancedPanel = ProcedureDialogUIBuilder.createAdvancedPanel(this,
+        rightPanel.add(ProcedureDialogBuilder.createTargetElementPanel(this), NORTH);
+        JPanel advancedPanel = ProcedureDialogBuilder.createAdvancedPanel(this,
                 p != null ? p.prerequisites() : List.of(),
                 p != null ? p.effects() : List.of(),
                 p != null ? p.testData() : List.of(),
@@ -153,13 +161,13 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         mainPanel.add(rightPanel, BorderLayout.EAST);
 
         JPanel centerPanel = new JPanel(new BorderLayout());
-        centerPanel.add(ProcedureDialogUIBuilder.createAtomicityPanel(this, p == null || p.isAtomic()), NORTH);
+        centerPanel.add(ProcedureDialogBuilder.createAtomicityPanel(this, p == null || p.isAtomic(), p != null && p.optional()), NORTH);
         rowBuilder = new ChildStepRowBuilder(() -> childStepsSelectedIndex, stepsWithSimilarItems, atomicCheckBox::isSelected,
                 knowledgeService, idx -> {
             childStepsSelectedIndex = idx;
             refreshChildStepsList();
         }, this::editChildStep, this::openLookupForStep, this::createButton);
-        centerPanel.add(ProcedureDialogUIBuilder.createChildStepsPanel(this, cfg.preloadedChildren()), CENTER);
+        centerPanel.add(ProcedureDialogBuilder.createChildStepsPanel(this, cfg.preloadedChildren()), CENTER);
         mainPanel.add(centerPanel, CENTER);
 
         JButton saveButton = createButton("Save", _ -> {
@@ -186,6 +194,9 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                     dispose();
                 }
             }));
+        }
+        if (currentProcedureId != null) {
+            buttonsList.add(createButton("Delete", _ -> handleDeleteProcedure()));
         }
         buttonsList.add(cancelButton);
 
@@ -227,7 +238,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
             return;
         }
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        Image scaled = scaleToFitBox(currentElementScreenshot, screenSize.width / 2, screenSize.height / 2);
+        Image scaled = ImageUtils.scaleToFitBox(currentElementScreenshot, screenSize.width / 2, screenSize.height / 2);
         JDialog zoomDialog = new JDialog(this, "Element Screenshot", true);
         zoomDialog.add(new JLabel(new ImageIcon(scaled)));
         zoomDialog.pack();
@@ -242,7 +253,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
             double ratio = min(
                     (double) ELEMENT_SCREENSHOT_PREFERRED_WIDTH / screenshot.getWidth(),
                     (double) ELEMENT_SCREENSHOT_PREFERRED_HEIGHT / screenshot.getHeight());
-            elementScreenshotLabel.setIcon(new ImageIcon(ratio < 1.0 ? scaleImage(screenshot, ratio) : screenshot));
+            elementScreenshotLabel.setIcon(new ImageIcon(ratio < 1.0 ? ImageUtils.scaleImage(screenshot, ratio) : screenshot));
             elementScreenshotLabel.setText(null);
         } else {
             elementScreenshotLabel.setIcon(null);
@@ -280,12 +291,12 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     void handleAddChildStep() {
         withDialogHidden(() -> {
             var lookupResult = ExistingProcedureLookupDialog.displayAndGetResult(
-                    this, "", knowledgeService, true, getExcludedIds());
-            switch (lookupResult) {
-                case ExistingProcedureLookupDialog.LookupResult.Selected s ->
-                        childStepsModel.addElement(new ChildProcedureInDialog.Linked(s.procedure(), null));
-                case ExistingProcedureLookupDialog.LookupResult.CreateNew c -> addAndEditNewChildStep(c.searchText());
-                case ExistingProcedureLookupDialog.LookupResult.Cancelled _ -> { /* no-op */ }
+                    this, "", knowledgeService, true, getExcludedIds(), getChildEffectNodeIds(),
+                    currentProcedureId != null ? Set.of(currentProcedureId) : Set.of(), uiTestAgentConfig);
+            if (lookupResult instanceof ExistingProcedureLookupDialog.LookupResult.Selected(Procedure procedure)) {
+                childStepsModel.addElement(new ChildProcedureInDialog.Linked(procedure, null));
+            } else if (lookupResult instanceof ExistingProcedureLookupDialog.LookupResult.CreateNew(String searchText)) {
+                addAndEditNewChildStep(searchText);
             }
         });
     }
@@ -324,7 +335,8 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
             ChildProcedureInDialog step = childStepsModel.get(index);
             withDialogHidden(() -> {
                 var lookupResult = ExistingProcedureLookupDialog.displayAndGetResult(
-                        this, step.description(), knowledgeService, false, getExcludedIds());
+                        this, step.description(), knowledgeService, false, getExcludedIds(), getChildEffectNodeIds(),
+                        currentProcedureId != null ? Set.of(currentProcedureId) : Set.of(), uiTestAgentConfig);
                 if (lookupResult instanceof ExistingProcedureLookupDialog.LookupResult.Selected(Procedure procedure)) {
                     childStepsModel.set(index, new ChildProcedureInDialog.Linked(procedure, null));
                     stepsWithSimilarItems.remove(index);
@@ -420,6 +432,17 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         return ids;
     }
 
+    private Set<UUID> getChildEffectNodeIds() {
+        Set<UUID> ids = new HashSet<>();
+        for (int i = 0; i < childStepsModel.size(); i++) {
+            if (childStepsModel.get(i) instanceof ChildProcedureInDialog.Linked linked) {
+                knowledgeService.findEffectsForProcedure(linked.procedure().id())
+                        .forEach(pe -> ids.add(pe.id()));
+            }
+        }
+        return ids;
+    }
+
     boolean allChangesSaved() {
         return !hasUnsavedChanges;
     }
@@ -431,18 +454,31 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
 
     private void attachDirtyListeners() {
         var docListener = dirtyDocListener(this::registerUnsavedChanges);
-        List.of(descriptionArea, expectedResultsArea).forEach(a -> a.getDocument().addDocumentListener(docListener));
+        List.of(descriptionArea, expectedResultsArea, additionalInfoArea).forEach(a -> a.getDocument().addDocumentListener(docListener));
         atomicCheckBox.addItemListener(_ -> registerUnsavedChanges());
+        optionalCheckBox.addItemListener(_ -> registerUnsavedChanges());
 
         var listListener = dirtyListListener(this::registerUnsavedChanges);
         List.of(childStepsModel, prerequisitesModel, effectsModel, testDataModel).forEach(m -> m.addListDataListener(listListener));
     }
 
     JTextArea createWrappedTextArea(String text, int rows, int cols) {
-        JTextArea area = new JTextArea(text, rows, cols);
+        JTextArea area = new JTextArea(text, 1, cols) {
+            @Override
+            public Dimension getPreferredScrollableViewportSize() {
+                return getPreferredSize();
+            }
+        };
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
-        area.setFont(new Font(getDialogDefaultFontType(), PLAIN, getDialogDefaultFontSize()));
+        area.setFont(new Font(dialogDefaultFontType, PLAIN, dialogDefaultFontSize));
+        // Revalidate the enclosing JScrollPane on content change so layout reflects the new preferred size
+        area.getDocument().addDocumentListener(dirtyDocListener(() -> {
+            var scrollPane = SwingUtilities.getAncestorOfClass(JScrollPane.class, area);
+            if (scrollPane != null) {
+                scrollPane.revalidate();
+            }
+        }));
         return area;
     }
 
@@ -450,7 +486,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         boolean isAtomic = atomicCheckBox.isSelected();
         boolean hasElement = isAtomic && targetUiElementId != null;
 
-        List.of(locateElementButton, refineElementsButton).forEach(b -> b.setEnabled(isAtomic));
+        List.of(locateElementButton, selectUiElementButton).forEach(b -> b.setEnabled(isAtomic));
         List.of(editDetailsButton, replaceScreenshotButton, removeElementButton).forEach(b -> b.setEnabled(hasElement));
         List.of(childStepsContainer, addChildStepButton, removeChildStepButton).forEach(b -> b.setEnabled(!isAtomic));
         updateMoveButtonStates();
@@ -477,25 +513,37 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         locateElementButton.setEnabled(false);
         locateElementButton.setText("Locating...");
         hideTemporarily();
-        handler.locate(result -> {
-            switch (result) {
-                case UiElementDialogHelper.ElementSelectionResult.Selected s -> {
-                    targetUiElementId = s.elementId();
-                    currentElementScreenshot = s.screenshot();
-                    LOG.info("Target UI element located: name='{}', id={}", s.elementName(), s.elementId());
-                    updateTargetElementUi(s.elementName(), s.screenshot());
-                    editDetailsButton.setEnabled(true);
-                    replaceScreenshotButton.setEnabled(true);
-                    removeElementButton.setEnabled(true);
-                    restoreDialogAfterElementSelection();
-                }
-                case UiElementDialogHelper.ElementSelectionResult.Failure f -> {
-                    LOG.warn("Element location failed: {}", f.message());
-                    restoreDialogAfterElementSelection();
-                    showMessageDialog(this, f.message(), "Locate Element Failed", ERROR_MESSAGE);
-                }
-            }
+        Thread.ofVirtual().start(() -> {
+            var elementOpt = handler.locate();
+            SwingUtilities.invokeLater(() -> {
+                elementOpt.ifPresent(this::linkElement);
+                restoreDialogAfterElementSelection();
+            });
         });
+    }
+
+    void handleSelectUiElement() {
+        selectUiElementButton.setEnabled(false);
+        selectUiElementButton.setText("Selecting...");
+        hideTemporarily();
+        Thread.ofVirtual().start(() -> {
+            var elementOpt = handlers.selectElement().locate();
+            SwingUtilities.invokeLater(() -> {
+                elementOpt.ifPresent(this::linkElement);
+                restoreAfterSelectUiElement();
+            });
+        });
+    }
+
+    private void linkElement(@NotNull UiElement element) {
+        targetUiElementId = element.id();
+        currentElementScreenshot = element.screenshot() != null ? element.screenshot().toBufferedImage() : null;
+        LOG.info("Target UI element linked: name='{}', id={}", element.name(), element.id());
+        updateTargetElementUi(element.name(), currentElementScreenshot);
+        editDetailsButton.setEnabled(true);
+        replaceScreenshotButton.setEnabled(true);
+        removeElementButton.setEnabled(true);
+        registerUnsavedChanges();
     }
 
     void handleRemoveElement() {
@@ -510,25 +558,43 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         }
     }
 
-    void handleElementRefinement() {
-        if (handlers.refine() != null) {
-            hideTemporarily();
-            try {
-                handlers.refine().run();
-            } finally {
-                clearElementIfRefined();
-                restoreDialogVisibility();
-            }
+    private void handleDeleteProcedure() {
+        var parents = knowledgeService.findParents(currentProcedureId);
+        var testCases = usageTrackingService != null
+                ? usageTrackingService.findTestCasesUsingProcedure(currentProcedureId)
+                : List.<String>of();
+
+        boolean confirmed;
+        if (!parents.isEmpty() || !testCases.isEmpty()) {
+            var message = buildUsageWarningMessage(parents, testCases);
+            Object[] options = {"Delete Anyway", "Cancel"};
+            confirmed = showOptionDialog(this, message, "Procedure In Use", YES_NO_OPTION,
+                    WARNING_MESSAGE, null, options, options[1]) == 0;
+        } else {
+            confirmed = showConfirmDialog(this, "Delete this procedure? This action cannot be undone.",
+                    "Confirm Deletion", YES_NO_OPTION, WARNING_MESSAGE) == YES_OPTION;
+        }
+
+        if (confirmed) {
+            ingestionService.deleteProcedure(currentProcedureId);
+            knowledgeService.onKnowledgeIngested();
+            procedureDeleted = true;
+            dispose();
         }
     }
 
-    private void clearElementIfRefined() {
-        if (targetUiElementId != null && UI_ELEMENT_REPOSITORY.findById(targetUiElementId).isEmpty()) {
-            targetUiElementId = null;
-            currentElementScreenshot = null;
-            updateTargetElementUi("No element located.", null);
-            updateAtomicityState();
+    private static String buildUsageWarningMessage(List<Procedure> parents, List<String> testCases) {
+        var sb = new StringBuilder("This procedure is currently in use and cannot be safely removed:\n");
+        if (!parents.isEmpty()) {
+            sb.append("\nParent procedures that reference it:\n");
+            parents.forEach(p -> sb.append("  - ").append(p.description()).append("\n"));
         }
+        if (!testCases.isEmpty()) {
+            sb.append("\nTest cases that use it:\n");
+            testCases.forEach(tc -> sb.append("  - ").append(tc).append("\n"));
+        }
+        sb.append("\nOnly this procedure is deleted. Its child procedures are kept.\nDo you want to delete it anyway?");
+        return sb.toString();
     }
 
     private void restoreDialogAfterElementSelection() {
@@ -540,8 +606,17 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         restoreDialogVisibility();
     }
 
+    private void restoreAfterSelectUiElement() {
+        if (!isDisplayable()) {
+            return;
+        }
+        selectUiElementButton.setText("Select UI element");
+        selectUiElementButton.setEnabled(atomicCheckBox.isSelected());
+        restoreDialogVisibility();
+    }
+
     /**
-     * Opens a recursive {@link ProcedureKnowledgeCollectionDialog} for the given child step index.
+     * Opens a recursive {@link ProcedureDialog} for the given child step index.
      * Dispatches on the sealed {@link ChildProcedureInDialog} type: linked steps are edited via the
      * {@link KnowledgeIngestionService}; new steps are edited inline.
      */
@@ -569,12 +644,16 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         var children = knowledgeService.getChildren(procedure.id());
         var outcome = displayForEditing(this, procedure, targetElementId,
                 showTestDataAndExpectedResults, false, itemContext, knowledgeService, ingestionService,
-                buildChildLoaderFactory(index), children.isEmpty() ? null : children);
-        if (outcome.result() instanceof IngestionNode.NewProcedure np) {
+                buildChildLoaderFactory(index), children.isEmpty() ? null : children,
+                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, usageTrackingService);
+        if (outcome.deleted()) {
+            childStepsModel.remove(index);
+            registerUnsavedChanges();
+        } else if (outcome.result() instanceof IngestionNode.NewProcedure np) {
             ingestionService.update(procedure.id(), np);
             knowledgeService.onKnowledgeIngested();
             var updatedProcedure = knowledgeService.findById(procedure.id()).orElse(procedure);
-            childStepsModel.set(index, new ChildProcedureInDialog.Linked(updatedProcedure, null));
+            childStepsModel.set(index, new ChildProcedureInDialog.Linked(updatedProcedure, outcome.elementScreenshot()));
             registerUnsavedChanges();
         }
     }
@@ -586,7 +665,8 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                 existing.procedure(), preloadedChildren,
                 existing.targetUiElementId(), showTestDataAndExpectedResults, true, existing.needsSave(),
                 itemContext, knowledgeService, ingestionService, null,
-                buildChildLoaderFactory(index), existing.elementScreenshot());
+                buildChildLoaderFactory(index), existing.elementScreenshot(),
+                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, null);
         var outcome = openDialog(this, cfg);
         if (!outcome.cancelled() && !outcome.editParentRequested() && outcome.result() instanceof IngestionNode.NewProcedure np) {
             UUID newId = ingestionService.ingest(np);
@@ -737,11 +817,14 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
     }
 
     private ProcedureDialogOutcome getDialogOutcome() {
+        if (procedureDeleted) {
+            return new ProcedureDialogOutcome(null, false, false, true, null);
+        }
         if (windowClosedByUser) {
-            return new ProcedureDialogOutcome(null, false, true, null);
+            return new ProcedureDialogOutcome(null, false, true, false, null);
         }
         if (editParentRequested) {
-            return new ProcedureDialogOutcome(null, true, false, null);
+            return new ProcedureDialogOutcome(null, true, false, false, null);
         }
 
         String description = descriptionArea.getText().trim();
@@ -752,13 +835,16 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
         List<String> testData = modelToList(testDataModel);
         String expectedResults = expectedResultsArea.getText().trim();
 
-        Procedure procedure = isAtomic
+        var additionalInfoText = additionalInfoArea.getText().trim();
+        Procedure procedure = (isAtomic
                 ? createAtomic(description, testData, expectedResults, prerequisites, effects, isPrecondition)
-                : createComposite(description, testData, expectedResults, prerequisites, effects, isPrecondition);
+                : createComposite(description, testData, expectedResults, prerequisites, effects, isPrecondition))
+                .withOptional(optionalCheckBox.isSelected())
+                .withAdditionalInfo(additionalInfoText.isEmpty() ? null : additionalInfoText);
         List<IngestionNode> childNodes = isAtomic ? List.of()
                 : Collections.list(childStepsModel.elements()).stream().map(ChildProcedureInDialog::toIngestionNode).toList();
         var result = new IngestionNode.NewProcedure(procedure, isAtomic ? targetUiElementId : null, childNodes);
-        return new ProcedureDialogOutcome(result, false, false, currentElementScreenshot);
+        return new ProcedureDialogOutcome(result, false, false, false, currentElementScreenshot);
     }
 
     private static ChildProcedureInDialog.New newBlankDialogStep(String description, boolean showTestDataAndExpectedResults) {
@@ -783,7 +869,7 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
      * schedules auto-suggestion loading if configured, then displays and returns the outcome.
      */
     private static ProcedureDialogOutcome openDialog(Window owner, DialogConfig cfg) {
-        var dialog = new ProcedureKnowledgeCollectionDialog(owner, cfg);
+        var dialog = new ProcedureDialog(owner, cfg);
         if (cfg.targetUiElementId() != null) {
             setupTargetElementUi(dialog, cfg.targetUiElementId(), cfg.preloadedElementScreenshot());
         }
@@ -805,7 +891,10 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                                                               @Nullable ExecutionItemContext itemContext,
                                                               @NotNull KnowledgeService knowledgeService,
                                                               @NotNull KnowledgeIngestionService ingestionService,
-                                                              @Nullable SuggestionLoaderFactory childLoaderFactory) {
+                                                              @Nullable SuggestionLoaderFactory childLoaderFactory,
+                                                              @NotNull UiTestAgentConfig uiTestAgentConfig,
+                                                              @NotNull UiElementRepository uiElementRepository,
+                                                              @NotNull UiElementDialogHelper uiElementDialogHelper) {
         List<ChildProcedureInDialog> preloadedChildren = (aiSuggestions != null && !aiSuggestions.suggestedChildSteps().isEmpty())
                 ? aiSuggestions.suggestedChildSteps().stream()
                 .<ChildProcedureInDialog>map(s -> newBlankDialogStep(s.description(), showTestDataAndExpectedResults))
@@ -815,7 +904,8 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                 "Define a new procedure. AI suggestions are pre-filled where available.",
                 buildTransientProcedure(initialDescription, aiSuggestions, showTestDataAndExpectedResults),
                 preloadedChildren, null, showTestDataAndExpectedResults, false, false,
-                itemContext, knowledgeService, ingestionService, null, childLoaderFactory, null);
+                itemContext, knowledgeService, ingestionService, null, childLoaderFactory, null,
+                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, null);
         var outcome = openDialog(owner, cfg);
         return (outcome.cancelled() || outcome.editParentRequested()) ? empty() : ofNullable(outcome.result());
     }
@@ -852,13 +942,18 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
                                                            @NotNull KnowledgeService knowledgeService,
                                                            @NotNull KnowledgeIngestionService ingestionService,
                                                            @Nullable SuggestionLoaderFactory childLoaderFactory,
-                                                           @Nullable List<Procedure> preloadedChildren) {
+                                                           @Nullable List<Procedure> preloadedChildren,
+                                                           @NotNull UiTestAgentConfig uiTestAgentConfig,
+                                                           @NotNull UiElementRepository uiElementRepository,
+                                                           @NotNull UiElementDialogHelper uiElementDialogHelper,
+                                                           @Nullable ProcedureUsageByTestCaseTrackingService usageTrackingService) {
         List<ChildProcedureInDialog> childSteps = preloadedChildren == null ? null
                 : preloadedChildren.stream().<ChildProcedureInDialog>map(c -> new ChildProcedureInDialog.Linked(c, null)).toList();
         var cfg = new DialogConfig("Edit Procedure", "Modify the existing procedure definition.",
                 existingProcedure, childSteps, targetUiElementId, showTestDataAndExpectedResults,
                 hasParent, false, itemContext, knowledgeService, ingestionService, existingProcedure.id(),
-                childLoaderFactory, null);
+                childLoaderFactory, null, uiTestAgentConfig,
+                uiElementRepository, uiElementDialogHelper, usageTrackingService);
         return openDialog(owner, cfg);
     }
 
@@ -867,12 +962,12 @@ public class ProcedureKnowledgeCollectionDialog extends AbstractDialog {
      * When a {@code preloadedScreenshot} is provided it is used directly;
      * otherwise the screenshot is loaded from the retriever by {@code elementId}.
      */
-    private static void setupTargetElementUi(ProcedureKnowledgeCollectionDialog dialog, @Nullable UUID elementId,
+    private static void setupTargetElementUi(ProcedureDialog dialog, @Nullable UUID elementId,
                                              @Nullable BufferedImage preloadedScreenshot) {
         if (elementId != null) {
             dialog.editDetailsButton.setEnabled(true);
             dialog.replaceScreenshotButton.setEnabled(true);
-            var uiElementOpt = UI_ELEMENT_REPOSITORY.findById(elementId);
+            var uiElementOpt = dialog.uiElementRepository.findById(elementId);
             String name = uiElementOpt.map(UiElement::name).orElse("Element ID: " + elementId);
             BufferedImage screenshot = preloadedScreenshot != null
                     ? preloadedScreenshot

@@ -15,13 +15,16 @@
  */
 package org.tarik.ta.knowledge_graph;
 
+import jakarta.inject.Singleton;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.*;
 import org.tarik.ta.core.dto.*;
 import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
+import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.core.utils.CommonUtils;
 import org.tarik.ta.dto.UiOperationExecutionResult;
 import org.tarik.ta.dto.UiPreconditionResult;
@@ -31,53 +34,80 @@ import org.tarik.ta.knowledge_graph.execution.AtomicStepExecutionContext;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.PreconditionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.TestStepItem;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.knowledge_graph.model.node.Procedure.TimingProfile;
+import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 import org.tarik.ta.knowledge_graph.service.KnowledgeIngestionService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
-import org.tarik.ta.knowledge_graph.model.node.Procedure.TimingProfile;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.model.VisualState;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem;
 import org.tarik.ta.tools.VerificationTools;
 import org.tarik.ta.user_dialogs.*;
-import org.tarik.ta.user_dialogs.knowledge.ProcedureExecutionConfirmationPopup;
 import org.tarik.ta.user_dialogs.knowledge.ExecutionItemContext;
+import org.tarik.ta.user_dialogs.knowledge.ProcedureExecutionConfirmationPopup;
+import org.tarik.ta.user_dialogs.knowledge.UserChoiceDialog;
 
 import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 
 import static java.time.Instant.now;
 import static java.util.stream.Collectors.joining;
-import static org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator.triggerEditProcedureFlow;
-import static org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator.triggerNewProcedureFlow;
-import static org.tarik.ta.knowledge_graph.StepExecutionOrchestrator.RetryLoopOutcome.*;
-import static org.tarik.ta.UiTestAgentConfig.*;
+import static org.tarik.ta.knowledge_graph.UserDecisionOutcome.*;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.*;
-import static org.tarik.ta.core.manager.BudgetManager.resetToolCallUsage;
 import static org.tarik.ta.dto.ProcedureExecutionConfirmationResult.Decision.HALTED;
 import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
-import java.util.function.Supplier;
-
-class StepExecutionOrchestrator {
+@Singleton
+public class StepExecutionOrchestrator {
     private static final Logger LOG = LoggerFactory.getLogger(StepExecutionOrchestrator.class);
-    static final int ACTION_VERIFICATION_DELAY_MILLIS = getActionVerificationDelayMillis();
 
-    private StepExecutionOrchestrator() {
+    private final VerificationTools verificationTools;
+    private final BudgetManager budgetManager;
+    private final UiTestAgentConfig uiTestAgentConfig;
+    private final ProcedureKnowledgeCollectionService procedureKnowledgeCollectionService;
+    private final KnowledgeService knowledgeService;
+    private final KnowledgeIngestionService knowledgeIngestionService;
+    private final UiTestStepActionAgent testStepActionAgent;
+    private final UiPreconditionActionAgent preconditionActionAgent;
+    private final UiTestStepVerificationAgent testStepVerificationAgent;
+    private final UiPreconditionVerificationAgent preconditionVerificationAgent;
+    private final long actionVerificationDelayMillis;
+
+    public StepExecutionOrchestrator(VerificationTools verificationTools,
+                                     BudgetManager budgetManager,
+                                     UiTestAgentConfig uiTestAgentConfig,
+                                     ProcedureKnowledgeCollectionService procedureKnowledgeCollectionService,
+                                     KnowledgeService knowledgeService,
+                                     KnowledgeIngestionService knowledgeIngestionService,
+                                     UiTestStepActionAgent testStepActionAgent,
+                                     UiPreconditionActionAgent preconditionActionAgent,
+                                     UiTestStepVerificationAgent testStepVerificationAgent,
+                                     UiPreconditionVerificationAgent preconditionVerificationAgent) {
+        this.verificationTools = verificationTools;
+        this.budgetManager = budgetManager;
+        this.uiTestAgentConfig = uiTestAgentConfig;
+        this.procedureKnowledgeCollectionService = procedureKnowledgeCollectionService;
+        this.knowledgeService = knowledgeService;
+        this.knowledgeIngestionService = knowledgeIngestionService;
+        this.testStepActionAgent = testStepActionAgent;
+        this.preconditionActionAgent = preconditionActionAgent;
+        this.testStepVerificationAgent = testStepVerificationAgent;
+        this.preconditionVerificationAgent = preconditionVerificationAgent;
+        this.actionVerificationDelayMillis = uiTestAgentConfig.getActionVerificationDelayMillis();
     }
 
-    static AtomicStepResult executeAtomicStep(ExecutionItem item, Procedure atomicStep,
-                                              UiTestExecutionContext context, UiPreconditionActionAgent preconditionActionAgent,
-                                              UiPreconditionVerificationAgent preconditionVerificationAgent,
-                                              UiTestStepActionAgent actionAgent,
-                                              UiTestStepVerificationAgent testStepVerificationAgent,
-                                              List<UiTestStepResult> testStepResults,
-                                              List<UiPreconditionResult> preconditionResults,
-                                              AtomicStepExecutionContext execContext) {
+    AtomicStepResult executeAtomicStep(ExecutionItem item, Procedure atomicStep,
+                                       UiTestExecutionContext context,
+                                       List<UiTestStepResult> testStepResults,
+                                       List<UiPreconditionResult> preconditionResults,
+                                       AtomicStepExecutionContext stepExecutionContext) {
         try {
             return switch (item) {
                 case PreconditionItem ignored -> {
@@ -85,8 +115,7 @@ class StepExecutionOrchestrator {
                             ? atomicStep.testData().stream().map(Object::toString).collect(joining(", "))
                             : "";
                     var relevantData = atomicStep.expectedResults() != null ? atomicStep.expectedResults() : "";
-                    var result = executeSinglePrecondition(context, atomicStep, testData, relevantData,
-                            preconditionActionAgent, preconditionVerificationAgent, execContext);
+                    var result = executeSinglePrecondition(context, atomicStep, testData, relevantData, stepExecutionContext);
                     preconditionResults.add(result);
                     yield result.isSuccess()
                             ? new AtomicStepResult.Success()
@@ -99,13 +128,12 @@ class StepExecutionOrchestrator {
                     List<String> effectiveTestData = hasTestStepData ? testStep.testData()
                             : (atomicStep.testData() != null ? atomicStep.testData() : List.of());
                     var testDataString = effectiveTestData.stream().map(Object::toString).collect(joining(", "));
-                    var stepResult = executeSingleTestStep(context, testStep, atomicStep, testDataString,
-                            actionAgent, testStepVerificationAgent, execContext);
+                    var stepResult = executeSingleTestStep(context, testStep, atomicStep, testDataString, stepExecutionContext);
                     testStepResults.add(stepResult);
                     yield switch (stepResult.getExecutionStatus()) {
                         case SUCCESS -> new AtomicStepResult.Success();
                         case FAILURE -> new AtomicStepResult.VerificationFailure(testStep.stepDescription(),
-                                stepResult.getErrorMessage(), stepResult.getScreenshot());
+                                stepResult.getActualResult(), stepResult.getScreenshot());
                         case ERROR -> new AtomicStepResult.ExecutionError(stepResult.getErrorMessage(), null);
                     };
                 }
@@ -115,202 +143,249 @@ class StepExecutionOrchestrator {
             var errorScreenshot = captureScreen();
             context.setVisualState(new VisualState(errorScreenshot));
             switch (item) {
-                case PreconditionItem ignored ->
-                        preconditionResults.add(new UiPreconditionResult(atomicStep.description(), false, e.getMessage(), errorScreenshot, now(), now()));
-                case TestStepItem(TestStep testStep) ->
-                        testStepResults.add(new UiTestStepResult(testStep, TestStepResultStatus.ERROR, e.getMessage(), null, errorScreenshot, now(), now()));
+                case PreconditionItem ignored -> preconditionResults.add(
+                        new UiPreconditionResult(atomicStep.description(), false, e.getMessage(), errorScreenshot, now(), now()));
+                case TestStepItem(TestStep testStep) -> testStepResults.add(
+                        new UiTestStepResult(testStep, TestStepResultStatus.ERROR, e.getMessage(), null, errorScreenshot, now(), now()));
             }
             return new AtomicStepResult.ExecutionError(e.getMessage(), e);
         }
     }
 
-    static RetryLoopOutcome executeAtomicStepWithRetryLoop(ExecutionItem item, Procedure atomicStep,
-                                                           @Nullable Procedure parentProcedure, UiTestExecutionContext context,
-                                                           Supplier<UiPreconditionActionAgent> preconditionActionAgentFactory,
-                                                           UiPreconditionVerificationAgent preconditionVerificationAgent,
-                                                           Supplier<UiTestStepActionAgent> actionAgentFactory,
-                                                           UiTestStepVerificationAgent testStepVerificationAgent,
-                                                           List<UiTestStepResult> testStepResults,
-                                                           List<UiPreconditionResult> preconditionResults,
-                                                           KnowledgeServices knowledgeServices,
-                                                           List<Procedure> executedAtomics,
-                                                           AtomicStepExecutionContext execContext) {
+    UserDecisionOutcome executeAtomicStepWithRetryLoop(ExecutionItem item, Procedure atomicStep,
+                                                       TestCase testCase,
+                                                       @Nullable Procedure parentProcedure,
+                                                       UiTestExecutionContext context,
+                                                       List<UiTestStepResult> testStepResults,
+                                                       List<UiPreconditionResult> preconditionResults,
+                                                       List<Procedure> executedAtomics,
+                                                       AtomicStepExecutionContext stepExecutionContext,
+                                                       Function<Procedure, AtomicStepExecutionContext> contextFactory) {
         boolean isPreconditionItem = item instanceof PreconditionItem;
-        var actionAgent = actionAgentFactory.get();
-        var preconditionActionAgent = preconditionActionAgentFactory.get();
-        var knowledgeService = knowledgeServices.mainKnowledgeService();
-        var ingestionService = knowledgeServices.ingestionService();
-
         String itemDescription = item.getDescription();
         List<String> itemTestData = item.getTestData();
         String itemExpectedResults = item.getExpectedResults();
+        var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
+        // currentExecContext is rebuilt whenever atomicStep changes (e.g. after a supervised-mode halt+edit),
+        // ensuring the agent always sees the latest TARGETS relationship and element details.
+        var currentExecContext = stepExecutionContext;
 
+        // Step execution loop, automatically run only once, retry is invoked only if the user chooses to do so.
         while (true) {
-            if (!isFullyUnattended()) {
-                var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
-                var decision = ProcedureExecutionConfirmationPopup.displayAndGetUserDecision(
-                        atomicStep.description(),
-                        parentProcedure != null ? parentProcedure.description() : null, itemContext, getSupervisedCountdownSeconds(), true);
-                if (decision.decision() == HALTED) {
-                    LOG.info("User halted execution before step — prompting for next action");
-                    var haltResult = handleHaltDecision(
-                            "Execution is about to start but you chose to halt. What would you like to do?",
-                            atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem,
-                            knowledgeService, ingestionService, context, executedAtomics);
-                    switch (haltResult) {
-                        case HaltHandlerResult.ShouldReturn(var outcome) -> { return outcome; }
-                        case HaltHandlerResult.ShouldRetry(var updated) -> {
-                            atomicStep = updated;
-                            context.setVisualState(new VisualState(captureScreen()));
-                            continue;
-                        }
+            // Pre-execution user notification (supervised mode only)
+            if (!uiTestAgentConfig.isFullyUnattended()) {
+                var preCheck = checkPreExecutionHalt(atomicStep, parentProcedure, itemContext, itemTestData,
+                        itemExpectedResults, itemDescription, isPreconditionItem, testCase, context, executedAtomics);
+                switch (preCheck) {
+                    case PreExecutionCheckResult.TerminalOutcome r -> {
+                        return r.outcome();
+                    }
+                    case PreExecutionCheckResult.Proceed r -> {
+                        atomicStep = r.procedure();
+                        currentExecContext = contextFactory.apply(atomicStep);
+                        context.setVisualState(new VisualState(captureScreen()));
                     }
                 }
             }
 
-            var result = executeAtomicStep(item, atomicStep, context, preconditionActionAgent,
-                    preconditionVerificationAgent, actionAgent,
-                    testStepVerificationAgent, testStepResults, preconditionResults, execContext);
-            switch (result) {
-                case AtomicStepResult.Success _ -> {
-                    if (isFullyUnattended()) {
+            // Track result list sizes before execution so a retry can discard the failed attempt's result
+            int testResultsSizeBefore = testStepResults.size();
+            int preconditionResultsSizeBefore = preconditionResults.size();
+
+            // Execution
+            var result = executeAtomicStep(item, atomicStep, context, testStepResults, preconditionResults, currentExecContext);
+
+            // Handling result — short-circuit in unattended mode
+            if (uiTestAgentConfig.isFullyUnattended()) {
+                return result instanceof AtomicStepResult.Success ? CONTINUE_NEXT_STEP : TERMINATE_EXECUTION;
+            } else {
+                // Post-execution user notification (supervised mode only)
+                var postCheck = handleResultInSupervisedMode(result, atomicStep, parentProcedure, itemContext, itemTestData,
+                        itemExpectedResults, itemDescription, isPreconditionItem, testCase, context, executedAtomics);
+                switch (postCheck) {
+                    case PostExecutionCheckResult.ProceedToNext _ -> {
                         return CONTINUE_NEXT_STEP;
                     }
-                    var itemContext = new ExecutionItemContext(itemDescription, itemTestData, isPreconditionItem);
-                    var decision = ProcedureExecutionConfirmationPopup.displayAndGetUserDecision(
-                            atomicStep.description(),
-                            parentProcedure != null ? parentProcedure.description() : null, itemContext, getSupervisedCountdownSeconds(),
-                            false);
-                    if (decision.decision() == HALTED) {
-                        LOG.info("User halted execution after success — prompting for next action");
-                        var haltResult = handleHaltDecision(
-                                "Execution succeeded but you chose to halt. What would you like to do?",
-                                atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem,
-                                knowledgeService, ingestionService, context, executedAtomics);
-                        switch (haltResult) {
-                            case HaltHandlerResult.ShouldReturn(var outcome) -> { return outcome; }
-                            case HaltHandlerResult.ShouldRetry(var updated) -> {
-                                atomicStep = updated;
-                                context.setVisualState(new VisualState(captureScreen()));
-                                continue;
-                            }
-                        }
+                    case PostExecutionCheckResult.RetryStep r -> {
+                        // Discard this attempt's result so only the last retry is recorded
+                        testStepResults.subList(testResultsSizeBefore, testStepResults.size()).clear();
+                        preconditionResults.subList(preconditionResultsSizeBefore, preconditionResults.size()).clear();
+                        atomicStep = r.procedure();
+                        currentExecContext = contextFactory.apply(atomicStep);
+                        context.setVisualState(new VisualState(captureScreen()));
                     }
-                    return CONTINUE_NEXT_STEP;
-                }
-                case AtomicStepResult.VerificationFailure failure -> {
-                    if (isFullyUnattended()) {
-                        return TERMINATE_EXECUTION;
+                    case PostExecutionCheckResult.TerminalOutcome r -> {
+                        return r.outcome();
                     }
-                    var outcome = promptUserAndDispatch("Verification failed for '%s': %s"
-                                    .formatted(failure.description(), failure.reason()), atomicStep, itemTestData,
-                            itemExpectedResults, itemDescription, isPreconditionItem, knowledgeService, ingestionService,
-                            context, executedAtomics);
-                    if (outcome == TERMINATE_EXECUTION) {
-                        return TERMINATE_EXECUTION;
-                    }
-                    var updated = processOutcomeAndRefresh(outcome, atomicStep, knowledgeService, context);
-                    if (updated.isEmpty()) return RE_DECOMPOSE_AND_RETRY;
-                    atomicStep = updated.get();
-                }
-                case AtomicStepResult.ExecutionError error -> {
-                    if (isFullyUnattended()) {
-                        return TERMINATE_EXECUTION;
-                    }
-                    var errorMessage = error.details();
-                    var errorScreenshot = captureScreen();
-                    context.setVisualState(new VisualState(errorScreenshot));
-                    InformationalPopup.display("Error During Execution", errorMessage, errorScreenshot,
-                            PopupType.ERROR);
-                    var outcome = promptUserAndDispatch(errorMessage, atomicStep, itemTestData, itemExpectedResults,
-                            itemDescription, isPreconditionItem, knowledgeService, ingestionService, context, executedAtomics);
-                    if (outcome == TERMINATE_EXECUTION) {
-                        return TERMINATE_EXECUTION;
-                    }
-                    var updated = processOutcomeAndRefresh(outcome, atomicStep, knowledgeService, context);
-                    if (updated.isEmpty()) return RE_DECOMPOSE_AND_RETRY;
-                    atomicStep = updated.get();
                 }
             }
         }
+    }
+
+    private PreExecutionCheckResult checkPreExecutionHalt(Procedure atomicStep, @Nullable Procedure parentProcedure,
+                                                          ExecutionItemContext itemContext, List<String> itemTestData,
+                                                          String itemExpectedResults, String itemDescription,
+                                                          boolean isPreconditionItem, TestCase testCase,
+                                                          UiTestExecutionContext context, List<Procedure> executedAtomics) {
+        var decision = ProcedureExecutionConfirmationPopup.displayAndGetUserDecision(
+                atomicStep.description(), parentProcedure != null ? parentProcedure.description() : null,
+                itemContext, uiTestAgentConfig.getSupervisedCountdownSeconds(), true, uiTestAgentConfig);
+        if (decision.decision() != HALTED) {
+            return new PreExecutionCheckResult.Proceed(atomicStep);
+        }
+        LOG.info("User halted execution before step — prompting for next action");
+        var haltResult = handleHaltDecision("Execution is about to start but you chose to halt. What would you like to do?",
+                atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem, testCase,
+                context, executedAtomics);
+        return switch (haltResult) {
+            case HaltHandlerResult.ShouldProceed r -> new PreExecutionCheckResult.TerminalOutcome(r.outcome());
+            case HaltHandlerResult.ShouldRetry r -> new PreExecutionCheckResult.Proceed(r.updatedAtomicStep());
+        };
+    }
+
+    private PostExecutionCheckResult handleResultInSupervisedMode(AtomicStepResult result, Procedure atomicStep,
+                                                                  @Nullable Procedure parentProcedure,
+                                                                  ExecutionItemContext itemContext, List<String> itemTestData,
+                                                                  String itemExpectedResults, String itemDescription,
+                                                                  boolean isPreconditionItem, TestCase testCase,
+                                                                  UiTestExecutionContext context, List<Procedure> executedAtomics) {
+        return switch (result) {
+            case AtomicStepResult.Success _ -> handlePostSuccessHalt(atomicStep, parentProcedure, itemContext,
+                    itemTestData, itemExpectedResults, itemDescription, isPreconditionItem, testCase, context, executedAtomics);
+            case AtomicStepResult.VerificationFailure f -> handleFailureInSupervisedMode(
+                    "Verification failed for '%s': %s".formatted(f.description(), f.reason()),
+                    atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem, testCase, context, executedAtomics);
+            case AtomicStepResult.ExecutionError error -> {
+                var errorMessage = error.details();
+                var errorScreenshot = captureScreen();
+                context.setVisualState(new VisualState(errorScreenshot));
+                InformationalPopup.display("Error During Execution", errorMessage, errorScreenshot, PopupType.ERROR, uiTestAgentConfig);
+                yield handleFailureInSupervisedMode(errorMessage, atomicStep, itemTestData, itemExpectedResults,
+                        itemDescription, isPreconditionItem, testCase, context, executedAtomics);
+            }
+        };
+    }
+
+    private PostExecutionCheckResult handlePostSuccessHalt(Procedure atomicStep, @Nullable Procedure parentProcedure,
+                                                           ExecutionItemContext itemContext, List<String> itemTestData,
+                                                           String itemExpectedResults, String itemDescription,
+                                                           boolean isPreconditionItem, TestCase testCase,
+                                                           UiTestExecutionContext context, List<Procedure> executedAtomics) {
+        var decision = ProcedureExecutionConfirmationPopup.displayAndGetUserDecision(
+                atomicStep.description(), parentProcedure != null ? parentProcedure.description() : null,
+                itemContext, uiTestAgentConfig.getSupervisedCountdownSeconds(), false, uiTestAgentConfig);
+        if (decision.decision() != HALTED) {
+            return new PostExecutionCheckResult.ProceedToNext();
+        }
+        LOG.info("User halted execution after success — prompting for next action");
+        var haltResult = handleHaltDecision("Execution succeeded but you chose to halt. What would you like to do?",
+                atomicStep, itemTestData, itemExpectedResults, itemDescription, isPreconditionItem, testCase,
+                context, executedAtomics);
+        return switch (haltResult) {
+            case HaltHandlerResult.ShouldProceed r -> new PostExecutionCheckResult.TerminalOutcome(r.outcome());
+            case HaltHandlerResult.ShouldRetry r -> new PostExecutionCheckResult.RetryStep(r.updatedAtomicStep());
+        };
+    }
+
+    private PostExecutionCheckResult handleFailureInSupervisedMode(String message, Procedure atomicStep,
+                                                                   List<String> itemTestData, String itemExpectedResults,
+                                                                   String itemDescription, boolean isPreconditionItem,
+                                                                   TestCase testCase, UiTestExecutionContext context,
+                                                                   List<Procedure> executedAtomics) {
+        UserDecisionOutcome outcome;
+        // loop until the user commits to an action (null means they cancelled an edit/create flow mid-way)
+        do {
+            outcome = promptUserAndDispatch(message, atomicStep, itemTestData, itemExpectedResults,
+                    itemDescription, isPreconditionItem, testCase, context, executedAtomics);
+        } while (outcome == null);
+        if (outcome == TERMINATE_EXECUTION || outcome == RE_DECOMPOSE_AND_RETRY) {
+            return new PostExecutionCheckResult.TerminalOutcome(outcome);
+        }
+        Optional<PostExecutionCheckResult> retryStep = processOutcomeAndRefresh(outcome, atomicStep, context)
+                .map(PostExecutionCheckResult.RetryStep::new);
+        return retryStep.orElseGet(() -> new PostExecutionCheckResult.TerminalOutcome(RE_DECOMPOSE_AND_RETRY));
     }
 
     /**
-     * Prompts the user for the next action (Edit/Retry/Terminate) and dispatches accordingly.
-     * Returns {@code TERMINATE_EXECUTION} if the user chose Terminate or edited a parent procedure,
-     * {@code RE_FETCH_AND_RETRY} if the current atomic step was edited (caller must re-fetch before retrying),
-     * or {@code CONTINUE_NEXT_STEP} for a plain retry.
+     * Single-shot: shows {@link UserChoiceDialog} and maps the selection to a {@link UserDecisionOutcome}.
+     * Returns {@code null} when the user cancels an edit or create flow mid-way — the caller is
+     * responsible for re-showing the dialog in that case.
      */
-    private static RetryLoopOutcome promptUserAndDispatch(String message, Procedure atomicStep, List<String> testData,
-                                                          String expectedResults, String itemDescription,
-                                                          boolean isPreconditionItem, KnowledgeService knowledgeService,
-                                                          KnowledgeIngestionService ingestionService,
-                                                          UiTestExecutionContext executionContext,
-                                                          List<Procedure> executedAtomics) {
+    @Nullable
+    private UserDecisionOutcome promptUserAndDispatch(String message, Procedure atomicStep, List<String> testData,
+                                                      String expectedResults, String itemDescription,
+                                                      boolean isPreconditionItem,
+                                                      TestCase testCase,
+                                                      UiTestExecutionContext executionContext,
+                                                      List<Procedure> executedAtomics) {
         var itemContext = new ExecutionItemContext(itemDescription, testData, isPreconditionItem);
-        while (true) {
-            var decision = NextActionPopup.displayAndGetUserDecision(null, message);
-            switch (decision) {
-                case EDIT_CURRENT_PROCEDURE -> {
-                    LOG.info("User chose to edit procedure '{}'", atomicStep.description());
-                    var editResult = triggerEditProcedureFlow(atomicStep, testData, expectedResults,
-                            knowledgeService, ingestionService, !isPreconditionItem, itemContext, executionContext,
-                            executedAtomics);
-                    if (editResult.isSaved()) {
-                        ingestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
-                        knowledgeService.onKnowledgeIngested();
-                        if (editResult.savedProcedureId().filter(id -> id.equals(atomicStep.id())).isPresent()) {
-                            return RE_FETCH_AND_RETRY;
-                        }
-                        // A parent was saved — the execution graph has changed, continuing is unsafe
+        var allScoredMatches = knowledgeService.findTopRankedWithScores(atomicStep.description(), Set.of(), Set.of());
+        var selectionOpt = UserChoiceDialog.displayAndGetSelection(null, message, atomicStep.description(),
+                allScoredMatches, knowledgeService, Set.of(), Set.of(), uiTestAgentConfig);
+
+        if (selectionOpt.isEmpty()) {
+            LOG.info("User cancelled the dialog — terminating execution");
+            return TERMINATE_EXECUTION;
+        }
+
+        var selection = selectionOpt.get();
+        return switch (selection.action()) {
+            case RETRY -> {
+                LOG.info("User chose to retry procedure '{}'", atomicStep.description());
+                yield RE_FETCH_AND_RETRY;
+            }
+            case BROWSE -> {
+                LOG.info("User chose to edit procedure '{}'", atomicStep.description());
+                var editResult = procedureKnowledgeCollectionService.triggerEditProcedureFlow(
+                        selection.selectedProcedure(), testData, expectedResults, !isPreconditionItem,
+                        itemContext, testCase, executionContext, executedAtomics);
+                if (editResult.isSaved()) {
+                    knowledgeIngestionService.update(editResult.savedProcedureId().get(), editResult.updatedNode().get());
+                    knowledgeService.onKnowledgeIngested();
+                    if (editResult.savedProcedureId().filter(id -> id.equals(atomicStep.id())).isPresent()) {
+                        yield RE_FETCH_AND_RETRY;
+                    } else {
                         InformationalPopup.display("Execution Terminated",
                                 "A parent procedure was modified. Execution cannot continue with the current execution graph.",
-                                null, PopupType.INFO);
-                        return TERMINATE_EXECUTION;
+                                null, PopupType.INFO, uiTestAgentConfig);
+                        yield TERMINATE_EXECUTION;
                     }
                 }
-                case CREATE_NEW_PROCEDURE -> {
-                    LOG.info("User chose to create a new procedure for '{}'", atomicStep.description());
-                    var creationResult = triggerNewProcedureFlow(itemDescription, testData,
-                            expectedResults, knowledgeService, ingestionService, isPreconditionItem, executionContext,
-                            executedAtomics);
-                    if (creationResult.isPresent()) {
-                        ingestionService.ingest(creationResult.get());
-                        knowledgeService.onKnowledgeIngested();
-                        LOG.info("New procedure created and ingested for '{}'", atomicStep.description());
-                        return RE_FETCH_AND_RETRY;
-                    }
-                }
-                case RETRY -> {
-                    LOG.info("User chose to retry procedure '{}'", atomicStep.description());
-                    return CONTINUE_NEXT_STEP;
-                }
-                case TERMINATE -> {
-                    LOG.info("User chose to terminate execution");
-                    return TERMINATE_EXECUTION;
-                }
+                yield null; // user cancelled the edit flow — caller re-shows dialog
             }
-        }
+            case CREATE -> {
+                LOG.info("User chose to create a new procedure for '{}'", atomicStep.description());
+                var creationResult = procedureKnowledgeCollectionService.triggerNewProcedureFlow(itemDescription,
+                        testData, expectedResults, isPreconditionItem, testCase, executionContext, executedAtomics);
+                if (creationResult.isPresent()) {
+                    knowledgeIngestionService.ingest(creationResult.get());
+                    knowledgeService.onKnowledgeIngested();
+                    LOG.info("New procedure created and ingested for '{}'", atomicStep.description());
+                    yield RE_DECOMPOSE_AND_RETRY;
+                }
+                yield null; // user cancelled creation — caller re-shows dialog
+            }
+            case CANCEL -> TERMINATE_EXECUTION;
+        };
     }
 
-    static UiPreconditionResult executeSinglePrecondition(UiTestExecutionContext context,
-                                                          Procedure precondition,
-                                                          String testDataString,
-                                                          String relevantData,
-                                                          UiPreconditionActionAgent preconditionActionAgent,
-                                                          UiPreconditionVerificationAgent preconditionVerificationAgent,
-                                                          AtomicStepExecutionContext execContext) {
+    UiPreconditionResult executeSinglePrecondition(UiTestExecutionContext context,
+                                                   Procedure precondition,
+                                                   String testDataString,
+                                                   String relevantData,
+                                                   AtomicStepExecutionContext stepExecutionContext) {
         var executionStartTimestamp = now();
         LOG.info("Executing precondition: {}", precondition.description());
-        var actionScreenshot = captureScreen();
-        context.setVisualState(new VisualState(actionScreenshot));
+        var screenshot = captureScreen();
+        context.setVisualState(new VisualState(screenshot));
         var preconditionExecutionResult = preconditionActionAgent.executeAndGetResult(
                 () -> {
                     String userMessage = getPreconditionExecutionUserMessage(context, precondition, testDataString, relevantData,
-                            execContext.uiElementId(), execContext.failureHints());
-                    return preconditionActionAgent.execute(userMessage, singleImageContent(actionScreenshot));
+                            stepExecutionContext.uiElementId(), stepExecutionContext.failureHints(), stepExecutionContext.targetElement(),
+                            stepExecutionContext.locationHistory());
+                    return preconditionActionAgent.execute(userMessage, singleImageContent(screenshot));
                 });
-        resetToolCallUsage();
+        budgetManager.resetToolCallUsage();
 
         if (!preconditionExecutionResult.isSuccess()) {
             var errorMessage = "Failure while executing precondition '%s'. Root cause: %s"
@@ -322,9 +397,9 @@ class StepExecutionOrchestrator {
 
         long actionDurationMs = java.time.Duration.between(executionStartTimestamp, now()).toMillis();
         LOG.info("Verifying if precondition was successfully executed.");
-        var verificationResult = VerificationTools.verifyPrecondition(
-                precondition.description(), context, preconditionVerificationAgent, execContext.effectiveExpectedResults());
-        resetToolCallUsage();
+        var verificationResult = verificationTools.verifyPrecondition(
+                precondition.description(), context, preconditionVerificationAgent, stepExecutionContext.effectiveExpectedResults());
+        budgetManager.resetToolCallUsage();
 
         if (verificationResult == null) {
             var errorMessage = "Precondition verification failed. Got no verification result from the model.";
@@ -338,31 +413,37 @@ class StepExecutionOrchestrator {
                     context.getVisualState().screenshot(), executionStartTimestamp, now());
         }
         LOG.info("Precondition '{}' is met.", precondition.description());
-        execContext.timingRecorder().record(precondition.id(), actionDurationMs, 0);
+        stepExecutionContext.timingRecorder().record(precondition.id(), actionDurationMs, 0);
         return new UiPreconditionResult(precondition.description(), true, null, null, executionStartTimestamp, now());
     }
 
     /**
      * Handles a user halt decision by looping until the user chooses to retry or triggers a terminal outcome.
-     * Returns {@link HaltHandlerResult.ShouldReturn} if execution should terminate or re-decompose,
+     * Returns {@link HaltHandlerResult.ShouldProceed} if execution should terminate or re-decompose,
      * or {@link HaltHandlerResult.ShouldRetry} with the (possibly re-fetched) atomic step if execution should retry.
      */
-    private static HaltHandlerResult handleHaltDecision(String message, Procedure atomicStep, List<String> itemTestData,
-                                                        String itemExpectedResults, String itemDescription,
-                                                        boolean isPreconditionItem, KnowledgeService knowledgeService,
-                                                        KnowledgeIngestionService ingestionService,
-                                                        UiTestExecutionContext context, List<Procedure> executedAtomics) {
+    private HaltHandlerResult handleHaltDecision(String message, Procedure atomicStep, List<String> itemTestData,
+                                                 String itemExpectedResults, String itemDescription,
+                                                 boolean isPreconditionItem,
+                                                 TestCase testCase,
+                                                 UiTestExecutionContext context, List<Procedure> executedAtomics) {
         Procedure current = atomicStep;
         while (true) {
             var outcome = promptUserAndDispatch(message, current, itemTestData, itemExpectedResults, itemDescription,
-                    isPreconditionItem, knowledgeService, ingestionService, context, executedAtomics);
+                    isPreconditionItem, testCase, context, executedAtomics);
+            if (outcome == null) {
+                continue; // user cancelled an edit/create action — re-show dialog
+            }
             if (outcome == TERMINATE_EXECUTION) {
-                return new HaltHandlerResult.ShouldReturn(TERMINATE_EXECUTION);
+                return new HaltHandlerResult.ShouldProceed(TERMINATE_EXECUTION);
+            }
+            if (outcome == RE_DECOMPOSE_AND_RETRY) {
+                return new HaltHandlerResult.ShouldProceed(RE_DECOMPOSE_AND_RETRY);
             }
             if (outcome == RE_FETCH_AND_RETRY) {
                 current = knowledgeService.findById(current.id()).orElse(current);
                 if (!current.isAtomic()) {
-                    return new HaltHandlerResult.ShouldReturn(RE_DECOMPOSE_AND_RETRY);
+                    return new HaltHandlerResult.ShouldProceed(RE_DECOMPOSE_AND_RETRY);
                 }
                 continue;
             }
@@ -370,52 +451,94 @@ class StepExecutionOrchestrator {
         }
     }
 
-    private static String formatHintsSection(List<String> failureHints) {
-        return (failureHints != null && !failureHints.isEmpty())
-                ? "\nKnown issues with this procedure:\n- " + String.join("\n- ", failureHints) + "\n"
+    private static String additionalInfoBlock(@Nullable String additionalInfo) {
+        return (additionalInfo != null && !additionalInfo.isBlank())
+                ? "\nAdditional info: %s".formatted(additionalInfo)
                 : "";
     }
 
-    private static String buildExecutionContextSuffix(String elementId, List<String> failureHints) {
-        String elementHint = elementId != null
-                ? "\nTarget UI element ID: %s — locate this element on screen before interacting with it.\n".formatted(elementId)
+    private static String knownExecutionIssues(List<String> failureHints) {
+        return (failureHints != null && !failureHints.isEmpty())
+                ? "Known issues with this procedure:\n- " + String.join("\n- ", failureHints)
                 : "";
-        return elementHint + formatHintsSection(failureHints);
+    }
+
+    private static String buildExecutionContextString(UiTestExecutionContext context, String elementId, List<String> failureHints,
+                                                      String uiElementDetails, @Nullable ElementLocationHistory locationHistory) {
+        String uiElementIdInfo = elementId != null ? "Target UI element ID: %s".formatted(elementId) : "";
+        var knownIssues = knownExecutionIssues(failureHints);
+        var contextString = "Test execution context data:\n%s\n".formatted(context.getSharedData().toString()).trim();
+        var locationHistoryBlock = buildLocationHistoryBlock(locationHistory);
+        return "%s\n\n%s\n\n%s\n\n%s\n\n%s".formatted(contextString, uiElementIdInfo.trim(), uiElementDetails.trim(),
+                locationHistoryBlock.trim(), knownIssues.trim());
+    }
+
+    private static String buildLocationHistoryBlock(@Nullable ElementLocationHistory history) {
+        if (history == null) {
+            return "";
+        }
+        return """
+                Target UI element location history:
+                   - Stability score: %s
+                   - Average location time: %s ms
+                   - Average retries count: %s
+                """.formatted(history.stabilityScore(), history.avgLocationTimeMs(),
+                history.locationRetriesCount());
+    }
+
+    private static String buildTargetElementDetailBlock(UiElement targetElement) {
+        if (targetElement == null) {
+            return "";
+        }
+        return """                
+                Target UI element details:
+                   - Name: %s
+                   - Description: %s
+                   - Location details: %s
+                   - Parent UI element info: %s
+                """.formatted(
+                targetElement.name(),
+                targetElement.description(),
+                targetElement.locationDetails(),
+                targetElement.parentElementSummary());
     }
 
     private static @NonNull String getPreconditionExecutionUserMessage(UiTestExecutionContext context, Procedure precondition,
-                                                                       String testDataString, String relevantData, String elementId, List<String> failureHints) {
+                                                                       String testDataString, String relevantData,
+                                                                       String elementId, List<String> failureHints,
+                                                                       UiElement targetElement,
+                                                                       @Nullable ElementLocationHistory locationHistory) {
+        String elementDetailBlock = buildTargetElementDetailBlock(targetElement);
         return """
                 The precondition you need to execute: %s.
 
-                Relevant data for this precondition: %s
+                Data relevant to this precondition: %s%s
 
-                Test context data: %s.
-                %s
+                %s.
+
                 The screenshot follows.
                 """.formatted(
                 precondition.description(),
                 relevantData.isBlank() ? testDataString : relevantData,
-                context.getSharedData().toString(),
-                buildExecutionContextSuffix(elementId, failureHints));
+                additionalInfoBlock(precondition.additionalInfo()),
+                buildExecutionContextString(context, elementId, failureHints, elementDetailBlock, locationHistory).trim());
     }
 
-    static UiTestStepResult executeSingleTestStep(UiTestExecutionContext context, TestStep testStep, Procedure atomic,
-                                                  String testDataString, UiTestStepActionAgent actionAgent,
-                                                  UiTestStepVerificationAgent testStepVerificationAgent,
-                                                  AtomicStepExecutionContext execContext) {
+    UiTestStepResult executeSingleTestStep(UiTestExecutionContext context, TestStep testStep, Procedure atomic,
+                                           String testDataString, AtomicStepExecutionContext stepExecutionContext) {
         var actionInstruction = atomic.description();
         try {
             var executionStartTimestamp = now();
             LOG.info("Executing test step: {}", actionInstruction);
             var screenshot = captureScreen();
             context.setVisualState(new VisualState(screenshot));
-            var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) actionAgent.executeAndGetResult(() -> {
-                String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, execContext.uiElementId(), execContext.failureHints());
-                actionAgent.execute(userMessage, singleImageContent(screenshot));
-                return null;
+            var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) testStepActionAgent.executeAndGetResult(() -> {
+                String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, stepExecutionContext.uiElementId(),
+                        stepExecutionContext.failureHints(), stepExecutionContext.targetElement(), stepExecutionContext.locationHistory());
+                return testStepActionAgent.execute(userMessage, singleImageContent(screenshot));
             }));
-            resetToolCallUsage();
+            budgetManager.resetToolCallUsage();
+
             if (!actionResult.isSuccess()) {
                 var message = "There was an error while executing test step action '%s'. Please see agent logs for details"
                         .formatted(actionInstruction);
@@ -426,16 +549,17 @@ class StepExecutionOrchestrator {
             LOG.info("Action execution complete.");
             long actionDurationMs = java.time.Duration.between(executionStartTimestamp, now()).toMillis();
 
-            var verificationInstruction = execContext.effectiveExpectedResults() != null ? execContext.effectiveExpectedResults().trim() : "";
+            var verificationInstruction =
+                    stepExecutionContext.effectiveExpectedResults() != null ? stepExecutionContext.effectiveExpectedResults().trim() : "";
 
             boolean verificationNeeded = isNotBlank(verificationInstruction)
                     && !verificationInstruction.equalsIgnoreCase("null");
 
             if (verificationNeeded) {
-                return verifyTestStep(context, testStep, atomic, testStepVerificationAgent,
-                        actionInstruction, testDataString, executionStartTimestamp, actionDurationMs, execContext);
+                return verifyTestStep(context, testStep, atomic, actionInstruction, testDataString,
+                        executionStartTimestamp, actionDurationMs, stepExecutionContext);
             } else {
-                execContext.timingRecorder().record(atomic.id(), actionDurationMs, 0);
+                stepExecutionContext.timingRecorder().record(atomic.id(), actionDurationMs, 0);
                 return new UiTestStepResult(testStep, SUCCESS, null, "No verification required", null,
                         executionStartTimestamp, now());
             }
@@ -451,40 +575,43 @@ class StepExecutionOrchestrator {
     }
 
     private static @NonNull String getTestStepActionUserMessage(UiTestExecutionContext context, Procedure atomic, String testDataString,
-                                                                String elementId, List<String> failureHints) {
+                                                                String elementId, List<String> failureHints,
+                                                                UiElement targetElement,
+                                                                @Nullable ElementLocationHistory locationHistory) {
+        String elementDetailBlock = buildTargetElementDetailBlock(targetElement);
         return """
                 Execute the following action: %s
 
-                Data, related to the action: %s
+                Data relevant to this action: %s%s
 
-                Test context execution data: %s
                 %s
+
                 The screenshot follows.
                 """.formatted(
                 atomic.description(),
                 testDataString,
-                context.getSharedData().toString(),
-                buildExecutionContextSuffix(elementId, failureHints));
+                additionalInfoBlock(atomic.additionalInfo()),
+                buildExecutionContextString(context, elementId, failureHints, elementDetailBlock, locationHistory).trim());
     }
 
-    private static UiTestStepResult verifyTestStep(UiTestExecutionContext context, TestStep testStep, Procedure atomic,
-                                                   UiTestStepVerificationAgent testStepVerificationAgent,
-                                                   String actionInstruction, String testDataString,
-                                                   Instant executionStartTimestamp, long actionDurationMs,
-                                                   AtomicStepExecutionContext execContext) {
-        String verificationInstruction = execContext.effectiveExpectedResults() != null ? execContext.effectiveExpectedResults().trim() : "";
+    private UiTestStepResult verifyTestStep(UiTestExecutionContext context, TestStep testStep, Procedure atomic,
+                                            String actionInstruction, String testDataString,
+                                            Instant executionStartTimestamp, long actionDurationMs,
+                                            AtomicStepExecutionContext stepExecutionContext) {
+        String verificationInstruction =
+                stepExecutionContext.effectiveExpectedResults() != null ? stepExecutionContext.effectiveExpectedResults().trim() : "";
         LOG.info("Verifying that '{}'", verificationInstruction);
 
         long delayMs = TimingProfile.computeDelay(
-                execContext.timingProfile(), getTimingVerificationMinDelayMs(), getActionVerificationDelayMillis()
+                stepExecutionContext.timingProfile(), uiTestAgentConfig.getTimingVerificationMinDelayMs(), actionVerificationDelayMillis
         );
         LOG.debug("Verification delay for '{}': {}ms ({})", atomic.description(), delayMs,
-                execContext.timingProfile() != null ? "profile-driven" : "fallback default");
+                stepExecutionContext.timingProfile() != null ? "profile-driven" : "fallback default");
         sleepMillis(delayMs);
 
-        VerificationExecutionResult verificationResult = VerificationTools.verifyTestStep(
+        var verificationResult = verificationTools.verifyTestStep(
                 verificationInstruction, actionInstruction, testDataString, context, testStepVerificationAgent);
-        resetToolCallUsage();
+        budgetManager.resetToolCallUsage();
 
         if (verificationResult == null) {
             var message = "No verification result returned.";
@@ -501,7 +628,7 @@ class StepExecutionOrchestrator {
                     verificationResult.message(), context.getVisualState().screenshot(), executionStartTimestamp, now());
         } else {
             LOG.info("Verification succeeded.");
-            execContext.timingRecorder().record(atomic.id(), actionDurationMs, delayMs);
+            stepExecutionContext.timingRecorder().record(atomic.id(), actionDurationMs, delayMs);
             return new UiTestStepResult(testStep, SUCCESS, null, verificationResult.message(), null,
                     executionStartTimestamp, now());
         }
@@ -511,9 +638,8 @@ class StepExecutionOrchestrator {
      * Applies the retry outcome: re-fetches the procedure if needed and refreshes the visual state.
      * Returns empty if the procedure is no longer atomic and needs re-decomposition.
      */
-    private static Optional<Procedure> processOutcomeAndRefresh(RetryLoopOutcome outcome, Procedure atomicStep,
-                                                                 KnowledgeService knowledgeService,
-                                                                 UiTestExecutionContext context) {
+    private Optional<Procedure> processOutcomeAndRefresh(UserDecisionOutcome outcome, Procedure atomicStep,
+                                                         UiTestExecutionContext context) {
         if (outcome != RE_FETCH_AND_RETRY) {
             context.setVisualState(new VisualState(captureScreen()));
             return Optional.of(atomicStep);
@@ -526,66 +652,59 @@ class StepExecutionOrchestrator {
         return Optional.of(updated);
     }
 
-    private static void notifyVerificationFailure(String description, String failureMessage, BufferedImage screenshot) {
-        if (!isFullyUnattended()) {
-            VerificationFailurePopup.display(description, failureMessage, screenshot);
+    /**
+     * Surfaces the standard supervised-mode failure dialog for a decomposition error (composite procedure with no children).
+     * Maps the user's choice to a {@link UserDecisionOutcome} so the caller can decide the next {@code ExecutionFlow}.
+     */
+    UserDecisionOutcome handleDecompositionFailureInSupervisedMode(String message, Procedure procedure,
+                                                                   ExecutionItem item, TestCase testCase,
+                                                                   UiTestExecutionContext context) {
+        var result = handleFailureInSupervisedMode(message, procedure,
+                item.getTestData(), item.getExpectedResults(), item.getDescription(),
+                item instanceof PreconditionItem, testCase, context, List.of());
+        return switch (result) {
+            case PostExecutionCheckResult.ProceedToNext _ -> CONTINUE_NEXT_STEP;
+            // User edited the procedure — always re-decompose, regardless of whether it became atomic
+            case PostExecutionCheckResult.RetryStep _ -> RE_DECOMPOSE_AND_RETRY;
+            case PostExecutionCheckResult.TerminalOutcome(var outcome) -> outcome;
+        };
+    }
+
+    private void notifyVerificationFailure(String description, String failureMessage, BufferedImage screenshot) {
+        if (!uiTestAgentConfig.isFullyUnattended()) {
+            VerificationFailurePopup.display(description, failureMessage, screenshot, uiTestAgentConfig);
         } else {
             LOG.warn("Verification failed: {} — {}", description, failureMessage);
         }
     }
 
-    static UiTestStepResult mergeAtomicResults(TestStep testStep, List<UiTestStepResult> results) {
-        if (results.isEmpty()) {
-            var errorMessage = "Execution of test step '%s' was aborted.".formatted(testStep.stepDescription());
-            LOG.error(errorMessage);
-            return new UiTestStepResult(testStep, TestStepResultStatus.FAILURE, errorMessage, "No atomic steps executed", null, now(),
-                    now());
+    // Result of pre-execution confirmation popup: either proceed to execute the step, or a terminal outcome from the halt dialog.
+    private sealed interface PreExecutionCheckResult {
+        record Proceed(Procedure procedure) implements PreExecutionCheckResult {
         }
 
-        boolean allSuccess = results.stream().allMatch(r -> r.getExecutionStatus() == SUCCESS);
-        var finalStatus = allSuccess ? TestStepResultStatus.SUCCESS : results.getLast().getExecutionStatus();
-        var finalError = results.stream()
-                .map(TestStepResult::getErrorMessage)
-                .filter(CommonUtils::isNotBlank)
-                .collect(joining("\n"))
-                .trim();
-        if (isBlank(finalError)) {
-            finalError = "Execution of test step '%s' was aborted.".formatted(testStep.stepDescription());
+        record TerminalOutcome(UserDecisionOutcome outcome) implements PreExecutionCheckResult {
         }
-        var finalActualResult = results.stream()
-                .map(TestStepResult::getActualResult)
-                .filter(Objects::nonNull)
-                .collect(joining("\n"));
-        Instant start = results.getFirst().getExecutionStartTimestamp();
-        Instant end = results.getLast().getExecutionEndTimestamp();
-        BufferedImage screenshot = results.getLast().getScreenshot();
-        return new UiTestStepResult(testStep, finalStatus, finalError, finalActualResult, screenshot, start, end);
     }
 
-    static UiPreconditionResult mergePreconditionResults(String preconditionDescription,
-                                                         List<UiPreconditionResult> results, boolean allAtomicsSuccess) {
-        if (results.isEmpty()) {
-            var errorMessage = "Execution of precondition '%s' was aborted.".formatted(preconditionDescription);
-            LOG.error(errorMessage);
-            return new UiPreconditionResult(preconditionDescription, false, errorMessage, captureScreen(), now(), now());
+    // Result of post-execution handling in supervised mode: proceed to next step, retry, or a terminal outcome.
+    private sealed interface PostExecutionCheckResult {
+        record ProceedToNext() implements PostExecutionCheckResult {
         }
-        if (!allAtomicsSuccess) {
-            var last = results.getLast();
-            return new UiPreconditionResult(preconditionDescription, false, last.getErrorMessage(),
-                    last.getScreenshot(), results.getFirst().getExecutionStartTimestamp(), last.getExecutionEndTimestamp());
+
+        record RetryStep(Procedure procedure) implements PostExecutionCheckResult {
         }
-        return new UiPreconditionResult(preconditionDescription, true, null, null,
-                results.getFirst().getExecutionStartTimestamp(), results.getLast().getExecutionEndTimestamp());
-    }
 
-
-    enum RetryLoopOutcome {
-        CONTINUE_NEXT_STEP, TERMINATE_EXECUTION, RE_FETCH_AND_RETRY, RE_DECOMPOSE_AND_RETRY
+        record TerminalOutcome(UserDecisionOutcome outcome) implements PostExecutionCheckResult {
+        }
     }
 
     private sealed interface HaltHandlerResult {
-        record ShouldReturn(RetryLoopOutcome outcome) implements HaltHandlerResult {}
-        record ShouldRetry(Procedure updatedAtomicStep) implements HaltHandlerResult {}
+        record ShouldProceed(UserDecisionOutcome outcome) implements HaltHandlerResult {
+        }
+
+        record ShouldRetry(Procedure updatedAtomicStep) implements HaltHandlerResult {
+        }
     }
 
     sealed interface AtomicStepResult {

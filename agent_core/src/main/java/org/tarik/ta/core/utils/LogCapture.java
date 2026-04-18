@@ -19,6 +19,8 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.config.scopes.BaseAgentRequestScope;
+import jakarta.annotation.PreDestroy;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -27,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@BaseAgentRequestScope
 public class LogCapture {
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
             .withZone(ZoneId.systemDefault());
@@ -44,6 +47,7 @@ public class LogCapture {
         rootLogger.addAppender(listAppender);
     }
 
+    @PreDestroy
     public void stop() {
         if (listAppender != null) {
             rootLogger.detachAppender(listAppender);

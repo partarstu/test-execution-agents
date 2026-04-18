@@ -53,11 +53,32 @@
         <opencsv.version>5.12.0</opencsv.version>
         <swagger-request-validator.version>2.46.0</swagger-request-validator.version>
         <jacoco.version>0.8.14</jacoco.version>
+        <avaje.inject.version>12.5-RC1</avaje.inject.version>
+        <maven.compiler.proc>full</maven.compiler.proc>
 
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- Avaje Inject -->
+            <dependency>
+                <groupId>io.avaje</groupId>
+                <artifactId>avaje-inject</artifactId>
+                <version>${avaje.inject.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.avaje</groupId>
+                <artifactId>avaje-inject-generator</artifactId>
+                <version>${avaje.inject.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.avaje</groupId>
+                <artifactId>avaje-inject-test</artifactId>
+                <version>${avaje.inject.version}</version>
+                <scope>test</scope>
+            </dependency>
+
             <!-- LangChain4j -->
             <dependency>
                 <groupId>dev.langchain4j</groupId>
@@ -200,8 +221,20 @@
             <!-- Test -->
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter-engine</artifactId>
                 <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-core</artifactId>
+                <version>${mockito.version}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
@@ -250,7 +283,7 @@
                     <version>${maven.surefire.plugin.version}</version>
                      <configuration>
                         <argLine>
-                            @{argLine} -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
+                            @{argLine} -javaagent:${org.mockito:mockito-core:jar}
                         </argLine>
                     </configuration>
                 </plugin>
@@ -261,6 +294,13 @@
                     <configuration>
                         <source>${jdk.version}</source>
                         <target>${jdk.version}</target>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>io.avaje</groupId>
+                                <artifactId>avaje-inject-generator</artifactId>
+                                <version>${avaje.inject.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -320,6 +360,17 @@
                         <phase>test</phase>
                         <goals>
                             <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>properties</goal>
                         </goals>
                     </execution>
                 </executions>

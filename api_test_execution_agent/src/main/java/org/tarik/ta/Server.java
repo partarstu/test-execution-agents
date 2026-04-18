@@ -15,31 +15,14 @@
  */
 package org.tarik.ta;
 
-import io.a2a.spec.AgentCard;
-import org.tarik.ta.a2a.ApiAgentExecutor;
+import io.avaje.inject.BeanScope;
 import org.tarik.ta.core.AbstractServer;
-import org.tarik.ta.core.a2a.AgentExecutor;
 
-import static org.tarik.ta.a2a.AgentCardProducer.agentCard;
+public class Server {
 
-public class Server extends AbstractServer {
-
-    static void main() {
-        new Server().start();
-    }
-
-    @Override
-    protected AgentExecutor createAgentExecutor() {
-        return new ApiAgentExecutor();
-    }
-
-    @Override
-    protected AgentCard createAgentCard() {
-        return agentCard();
-    }
-
-    @Override
-    protected String getStartupLogMessage(String host, int port) {
-        return "Agent server started on host %s and port %d.".formatted(host, port);
+    public static void main() {
+        try (BeanScope scope = BeanScope.builder().shutdownHook(true).build()) {
+            scope.get(AbstractServer.class).start();
+        }
     }
 }

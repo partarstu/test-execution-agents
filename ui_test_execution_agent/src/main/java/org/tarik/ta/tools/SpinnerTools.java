@@ -19,6 +19,9 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.tarik.ta.user_dialogs.SpinnerManager;
 
+import jakarta.inject.Singleton;
+
+@Singleton
 public class SpinnerTools {
 
     @Tool("Displays a spinner with the given message.")

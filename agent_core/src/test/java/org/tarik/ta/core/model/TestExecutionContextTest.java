@@ -17,10 +17,7 @@ package org.tarik.ta.core.model;
 
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.core.dto.PreconditionResult;
-import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestStepResult;
-
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -29,10 +26,8 @@ class TestExecutionContextTest {
 
     @Test
     void shouldInitializeCorrectly() {
-        TestCase testCase = new TestCase("testName", List.of(), List.of());
-        TestExecutionContext context = new TestExecutionContext(testCase);
+        TestExecutionContext context = new TestExecutionContext();
 
-        assertThat(context.getTestCase()).isEqualTo(testCase);
         assertThat(context.getTestStepExecutionHistory()).isEmpty();
         assertThat(context.getPreconditionExecutionHistory()).isEmpty();
         assertThat(context.getSharedData()).isEmpty();
@@ -40,9 +35,8 @@ class TestExecutionContextTest {
 
     @Test
     void shouldAddStepResult() {
-        TestCase testCase = new TestCase("testName", List.of(), List.of());
-        TestExecutionContext context = new TestExecutionContext(testCase);
-        
+        TestExecutionContext context = new TestExecutionContext();
+
         TestStepResult result = mock(TestStepResult.class);
         context.addStepResult(result);
 
@@ -51,9 +45,8 @@ class TestExecutionContextTest {
 
     @Test
     void shouldAddPreconditionResult() {
-        TestCase testCase = new TestCase("testName", List.of(), List.of());
-        TestExecutionContext context = new TestExecutionContext(testCase);
-        
+        TestExecutionContext context = new TestExecutionContext();
+
         PreconditionResult result = mock(PreconditionResult.class);
         context.addPreconditionResult(result);
 
@@ -62,9 +55,8 @@ class TestExecutionContextTest {
 
     @Test
     void shouldAddSharedData() {
-        TestCase testCase = new TestCase("testName", List.of(), List.of());
-        TestExecutionContext context = new TestExecutionContext(testCase);
-        
+        TestExecutionContext context = new TestExecutionContext();
+
         context.addSharedData("key1", "value1");
         context.addSharedData("key2", 123);
 

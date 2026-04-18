@@ -47,9 +47,10 @@ public class SpinnerManager {
 
     private static void initIfNeeded() {
         if (dialog == null) {
-            dialog = new JDialog((Frame) null, "Please Wait", false);
+            dialog = new JDialog((Frame) null, false);
+            dialog.setUndecorated(true);
             dialog.setAlwaysOnTop(true);
-            dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            dialog.setFocusableWindowState(false);
             var panel = new JPanel(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
             panel.setBorder(BorderFactory.createEmptyBorder(SPINNER_VERTICAL_PADDING, SPINNER_HORIZONTAL_PADDING,
                     SPINNER_VERTICAL_PADDING, SPINNER_HORIZONTAL_PADDING));
@@ -84,16 +85,6 @@ public class SpinnerManager {
         dialog.setLocation((screenSize.width - dialog.getWidth()) / 2, (screenSize.height - dialog.getHeight()) / 2);
         dialog.setVisible(true);
         isVisible = true;
-    }
-
-    public static void updateMessage(String message) {
-        SwingUtilities.invokeLater(() -> {
-            if (isVisible && messageLabel != null) {
-                currentMessage = message;
-                messageLabel.setText(message);
-                dialog.pack();
-            }
-        });
     }
 
     public static void hide() {

@@ -28,6 +28,7 @@ import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository;
+import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository.UnsatisfiedPrerequisite;
 
 import java.util.List;
 import java.util.UUID;
@@ -37,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class SatisfiesEdgeServiceTest {
@@ -48,19 +50,19 @@ class SatisfiesEdgeServiceTest {
     @Mock
     private PhraseEmbeddingRepository mockPhraseEmbeddingRepository;
 
-    private MockedStatic<UiTestAgentConfig> configMock;
+    @Mock
+    private UiTestAgentConfig configMock;
 
     @BeforeEach
     void setUp() {
-        configMock = mockStatic(UiTestAgentConfig.class);
-        configMock.when(UiTestAgentConfig::getSatisfiesSimilarityThreshold).thenReturn(0.85);
+        
+        lenient().when(configMock.getSatisfiesSimilarityThreshold()).thenReturn(0.85);
 
-        satisfiesEdgeService = new SatisfiesEdgeService(mockSatisfiesEdgeRepository, mockPhraseEmbeddingRepository);
+        satisfiesEdgeService = new SatisfiesEdgeService(mockSatisfiesEdgeRepository, mockPhraseEmbeddingRepository, configMock);
     }
 
     @AfterEach
     void tearDown() {
-        configMock.close();
     }
 
     @Test
@@ -69,7 +71,8 @@ class SatisfiesEdgeServiceTest {
         UUID producerId = UUID.randomUUID();
         UUID consumerId = UUID.randomUUID();
 
-        var match = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "user logged in", "user logged in", 0.95);
+        UUID prereqNodeId = UUID.randomUUID();
+        var match = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "user logged in", "user logged in", prereqNodeId, 0.95);
         when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfiedByProducer(eq(producerId), anyDouble(), anyInt()))
                 .thenReturn(List.of(match));
 
@@ -116,9 +119,10 @@ class SatisfiesEdgeServiceTest {
         UUID producerId = UUID.randomUUID();
         UUID consumerId = UUID.randomUUID();
 
-        // Two matches for the same consumer — the higher-scored one should win
-        var match1 = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "effect 1", "prereq 1", 0.90);
-        var match2 = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "effect 2", "prereq 1", 0.95);
+        // Two matches for the same (consumer, prerequisiteNodeId) — the higher-scored one should win
+        UUID prereqNodeId = UUID.randomUUID();
+        var match1 = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "effect 1", "prereq 1", prereqNodeId, 0.90);
+        var match2 = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "effect 2", "prereq 1", prereqNodeId, 0.95);
         when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfiedByProducer(eq(producerId), anyDouble(), anyInt()))
                 .thenReturn(List.of(match1, match2));
 
@@ -138,5 +142,21 @@ class SatisfiesEdgeServiceTest {
         List<SatisfiesEdge> edges = captor.getValue();
         assertThat(edges).hasSize(1);
         assertThat(edges.get(0).score()).isEqualTo(0.95);
+    }
+
+    @Test
+    @DisplayName("findUnsatisfiedPrerequisites should delegate to repository")
+    void findUnsatisfiedPrerequisites_shouldDelegateToRepository() {
+        UUID stepId = UUID.randomUUID();
+        java.util.Set<UUID> effectIds = java.util.Set.of(UUID.randomUUID(), UUID.randomUUID());
+        var repoResult = List.of(new UnsatisfiedPrerequisite("missing prereq 1", 0.0, null));
+
+        when(mockSatisfiesEdgeRepository.findUnsatisfiedPrerequisites(eq(stepId), eq(effectIds), anyDouble()))
+                .thenReturn(repoResult);
+
+        List<UnsatisfiedPrerequisite> actualMissing = satisfiesEdgeService.findUnsatisfiedPrerequisites(stepId, effectIds);
+
+        assertThat(actualMissing).isEqualTo(repoResult);
+        verify(mockSatisfiesEdgeRepository).findUnsatisfiedPrerequisites(eq(stepId), eq(effectIds), anyDouble());
     }
 }

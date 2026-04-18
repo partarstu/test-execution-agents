@@ -42,7 +42,7 @@ public interface BaseUiAgent<T extends FinalResult> extends GenericAiAgent<T> {
 
     @Override
     default OperationExecutionResult<T> createErrorResult(ExecutionStatus status, String message, T result) {
-        return new UiOperationExecutionResult<>(status, message,  result, captureErrorScreenshot());
+        return new UiOperationExecutionResult<>(status, message, result, captureErrorScreenshot());
     }
 
     @Override

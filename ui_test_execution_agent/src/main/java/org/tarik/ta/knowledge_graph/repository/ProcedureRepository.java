@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph.repository;
 
+import jakarta.inject.Singleton;
 import org.jspecify.annotations.NonNull;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.TransactionContext;
@@ -25,7 +26,6 @@ import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PhraseType;
-import org.tarik.ta.knowledge_graph.location_history.LocationStrategy;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 import org.tarik.ta.knowledge_graph.model.node.Procedure.TimingProfile;
 
@@ -39,14 +39,12 @@ import static org.tarik.ta.knowledge_graph.model.node.Embeddable.PROP_EMBEDDING;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.*;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_STABILITY_SCORE;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_AVG_LOCATION_TIME_MS;
-import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_LOCATION_STRATEGY;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_FAILED_LOCATION_COUNT;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_LAST_LOCATED_AT;
 import static org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PROP_PHRASE;
 import static org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PROP_TYPE;
 import static org.tarik.ta.knowledge_graph.repository.ProcedureRepository.QueryAliases.*;
 import static org.tarik.ta.knowledge_graph.repository.ProcedureRepository.QueryParams.*;
-import static org.tarik.ta.knowledge_graph.repository.Neo4jRepositorySupport.*;
 
 /**
  * Repository for {@link Procedure} persistence using direct Neo4j Cypher queries.
@@ -56,7 +54,147 @@ import static org.tarik.ta.knowledge_graph.repository.Neo4jRepositorySupport.*;
  * pattern as {@link PhraseEmbeddingRepository}. The vector index is created by
  * {@link org.tarik.ta.knowledge_graph.schema.SchemaMigrationManager}.</p>
  */
+@Singleton
 public class ProcedureRepository {
+    private final Neo4jRepositorySupport repositorySupport;
+    private final UiTestAgentConfig config;
+
+    public ProcedureRepository(Neo4jRepositorySupport repositorySupport, UiTestAgentConfig config) {
+        this.repositorySupport = repositorySupport;
+        this.config = config;
+        this.FIND_BY_ID = repositorySupport.cypher("MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id}) RETURN n");
+        this.FIND_BY_ID_WITH_PHRASES = buildFindByIdWithPhrases();
+        this.FIND_CHILDREN_ORDERED = repositorySupport.cypher("""
+            MATCH (parent:${LABEL_PROCEDURE} {${PROP_ID}: $parentId})-[r:${REL_CONTAINS}]->(child:${LABEL_PROCEDURE})
+            RETURN child AS n
+            ORDER BY r.${PROP_SEQUENCE} ASC
+            """);
+        this.FIND_PARENTS = repositorySupport.cypher("""
+            MATCH (parent:${LABEL_PROCEDURE})-[:${REL_CONTAINS}]->(child:${LABEL_PROCEDURE} {${PROP_ID}: $childId})
+            RETURN parent AS n
+            """);
+        this.FIND_ALL_TOP_LEVEL = repositorySupport.cypher("""
+            MATCH (n:${LABEL_PROCEDURE})
+            WHERE NOT ()-[:${REL_CONTAINS}]->(n)
+            RETURN n
+            ORDER BY n.${PROP_DESCRIPTION} ASC
+            """);
+        this.LINK_TO_PARENT = repositorySupport.cypher("""
+            MATCH (parent:${LABEL_PROCEDURE} {${PROP_ID}: $parentId})
+            MATCH (child:${LABEL_PROCEDURE} {${PROP_ID}: $childId})
+            MERGE (parent)-[r:${REL_CONTAINS}]->(child)
+            SET r.${PROP_SEQUENCE} = $sequence
+            """);
+        this.SAVE_PROCEDURE = repositorySupport.cypher("""
+            MERGE (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
+            SET n.${PROP_DESCRIPTION} = $description,
+                n.${PROP_EMBEDDING} = $embedding,
+                n.${PROP_TEST_DATA} = $testData,
+                n.${PROP_EXPECTED_RESULTS} = $expectedResults,
+                n.${PROP_IS_ATOMIC} = $isAtomic,
+                n.${PROP_IS_PRECONDITION} = $isPrecondition,
+                n.${PROP_OPTIONAL} = $optional,
+                n.${PROP_PREREQUISITES} = $prerequisites,
+                n.${PROP_EFFECTS} = $effects,
+                n.${PROP_ADDITIONAL_INFO} = $additionalInfo,
+                n.${PROP_CREATED_AT} = $createdAt,
+                n.${PROP_UPDATED_AT} = $updatedAt
+            """);
+        this.SAVE_PROCEDURE_BATCH = repositorySupport.cypher("""
+            UNWIND $nodes AS node
+            MERGE (n:${LABEL_PROCEDURE} {${PROP_ID}: node.${PROP_ID}})
+            SET n.${PROP_DESCRIPTION} = node.${PROP_DESCRIPTION},
+                n.${PROP_EMBEDDING} = node.${PROP_EMBEDDING},
+                n.${PROP_TEST_DATA} = node.${PROP_TEST_DATA},
+                n.${PROP_EXPECTED_RESULTS} = node.${PROP_EXPECTED_RESULTS},
+                n.${PROP_IS_ATOMIC} = node.${PROP_IS_ATOMIC},
+                n.${PROP_IS_PRECONDITION} = node.${PROP_IS_PRECONDITION},
+                n.${PROP_OPTIONAL} = node.${PROP_OPTIONAL},
+                n.${PROP_PREREQUISITES} = node.${PROP_PREREQUISITES},
+                n.${PROP_EFFECTS} = node.${PROP_EFFECTS},
+                n.${PROP_ADDITIONAL_INFO} = node.${PROP_ADDITIONAL_INFO},
+                n.${PROP_CREATED_AT} = node.${PROP_CREATED_AT},
+                n.${PROP_UPDATED_AT} = node.${PROP_UPDATED_AT}
+            """);
+        this.UPDATE_PROCEDURE = repositorySupport.cypher("""
+            MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
+            SET n.${PROP_DESCRIPTION} = $description,
+                n.${PROP_EMBEDDING} = $embedding,
+                n.${PROP_TEST_DATA} = $testData,
+                n.${PROP_EXPECTED_RESULTS} = $expectedResults,
+                n.${PROP_IS_ATOMIC} = $isAtomic,
+                n.${PROP_IS_PRECONDITION} = $isPrecondition,
+                n.${PROP_OPTIONAL} = $optional,
+                n.${PROP_PREREQUISITES} = $prerequisites,
+                n.${PROP_EFFECTS} = $effects,
+                n.${PROP_ADDITIONAL_INFO} = $additionalInfo,
+                n.${PROP_CREATED_AT} = $createdAt,
+                n.${PROP_UPDATED_AT} = $updatedAt
+            """);
+        this.REMOVE_REMAINING_CONTAINS = repositorySupport.cypher("""
+            MATCH (root:${LABEL_PROCEDURE} {${PROP_ID}: $rootId})-[r:${REL_CONTAINS}]->()
+            DELETE r
+            """);
+        this.LINK_TO_UI_ELEMENT = repositorySupport.cypher("""
+            MATCH (sp:${LABEL_PROCEDURE} {${PROP_ID}: $spId})
+            MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elId})
+            MERGE (sp)-[:${REL_TARGETS}]->(el)
+            """);
+        this.FIND_TARGETED_UI_ELEMENT_ID = repositorySupport.cypher("""
+            MATCH (sp:${LABEL_PROCEDURE} {${PROP_ID}: $spId})-[:${REL_TARGETS}]->(el:${LABEL_UI_ELEMENT})
+            RETURN el.${PROP_ID} AS elementId
+            """);
+        this.DELETE_TARGETS = repositorySupport.cypher("""
+            MATCH (sp:${LABEL_PROCEDURE} {${PROP_ID}: $spId})-[r:${REL_TARGETS}]->()
+            DELETE r
+            """);
+        this.FIND_SHARED_PARENT_COUNT = repositorySupport.cypher("""
+            MATCH (candidate:${LABEL_PROCEDURE} {${PROP_ID}: $candidateId})<-[:${REL_CONTAINS}]-(parent:${LABEL_PROCEDURE})
+            WHERE parent.${PROP_ID} IN $recentParentIds
+            RETURN count(parent) AS sharedCount
+            """);
+        this.UPDATE_ELEMENT_STABILITY = repositorySupport.cypher("""
+            MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elementId})
+            SET el.${PROP_STABILITY_SCORE} = $score,
+                el.${PROP_AVG_LOCATION_TIME_MS} = $avgTime,
+                el.${PROP_FAILED_LOCATION_COUNT} = $failedCount,
+                el.${PROP_LAST_LOCATED_AT} = $lastLocatedAt
+            """);
+        this.UPDATE_TIMING_PROFILE = repositorySupport.cypher("""
+            MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
+            SET n.${PROP_AVG_EXECUTION_MS} = $avgExecutionMs,
+                n.${PROP_AVG_VERIFICATION_DELAY_MS} = $avgVerificationDelayMs,
+                n.${PROP_MAX_VERIFICATION_DELAY_MS} = $maxVerificationDelayMs,
+                n.${PROP_LAST_TIMING_UPDATE} = $lastTimingUpdate
+            """);
+        this.GET_TIMING_PROFILE = repositorySupport.cypher("""
+            MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
+            RETURN n.${PROP_AVG_EXECUTION_MS} AS avgExecMs,
+                   n.${PROP_AVG_VERIFICATION_DELAY_MS} AS avgDelayMs,
+                   n.${PROP_MAX_VERIFICATION_DELAY_MS} AS maxDelayMs,
+                   n.${PROP_LAST_TIMING_UPDATE} AS lastUpdate
+            """);
+        this.FIND_ALL = repositorySupport.cypher("MATCH (n:${LABEL_PROCEDURE}) RETURN n");
+        this.FIND_WITH_MISSING_PHRASE_NODES = repositorySupport.cypher("""
+            MATCH (p:${LABEL_PROCEDURE})
+            WHERE (size(p.${PROP_EFFECTS}) > 0 AND NOT (p)-[:${REL_HAS_EFFECT}]->(:${LABEL_PHRASE_EMBEDDING}))
+               OR (size(p.${PROP_PREREQUISITES}) > 0 AND NOT (p)-[:${REL_HAS_PREREQUISITE}]->(:${LABEL_PHRASE_EMBEDDING}))
+            RETURN p AS n
+            """);
+        this.FIND_CANDIDATE_CONTEXT_BATCH = buildFindCandidateContextBatch();
+        this.GET_ELEMENT_STABILITY = repositorySupport.cypher("MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elementId}) RETURN el");
+        this.FIND_BY_SEMANTIC_SEARCH = repositorySupport.cypher("""
+            CALL db.index.vector.queryNodes($indexName, $topN, $queryVector)
+            YIELD node, score
+            WHERE score >= $minScore
+            RETURN node AS n, score
+            """);
+        this.DELETE_PROCEDURE = repositorySupport.cypher("""
+            MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
+            DETACH DELETE n
+            """);
+    }
+
     private static final Logger LOG = LoggerFactory.getLogger(ProcedureRepository.class);
     private static final String VECTOR_INDEX_NAME = "procedure_embedding_index";
 
@@ -101,7 +239,6 @@ public class ProcedureRepository {
         static final String PARAM_ELEMENT_ID = "elementId";
         static final String PARAM_SCORE = "score";
         static final String PARAM_AVG_TIME = "avgTime";
-        static final String PARAM_STRATEGY = "strategy";
         static final String PARAM_FAILED_COUNT = "failedCount";
         static final String PARAM_LAST_LOCATED_AT = "lastLocatedAt";
 
@@ -109,167 +246,52 @@ public class ProcedureRepository {
         }
     }
 
-    private static final String FIND_BY_ID = cypher("MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id}) RETURN n");
+    private final String FIND_BY_ID;
 
-    private static final String FIND_BY_ID_WITH_PHRASES = buildFindByIdWithPhrases();
+    private final String FIND_BY_ID_WITH_PHRASES;
 
-    private static final String FIND_CHILDREN_ORDERED = cypher("""
-            MATCH (parent:${LABEL_PROCEDURE} {${PROP_ID}: $parentId})-[r:${REL_CONTAINS}]->(child:${LABEL_PROCEDURE})
-            RETURN child AS n
-            ORDER BY r.${PROP_SEQUENCE} ASC
-            """);
+    private final String FIND_CHILDREN_ORDERED;
 
-    private static final String FIND_PARENTS = cypher("""
-            MATCH (parent:${LABEL_PROCEDURE})-[:${REL_CONTAINS}]->(child:${LABEL_PROCEDURE} {${PROP_ID}: $childId})
-            RETURN parent AS n
-            """);
+    private final String FIND_PARENTS;
 
-    private static final String FIND_ALL_TOP_LEVEL = cypher("""
-            MATCH (n:${LABEL_PROCEDURE})
-            WHERE NOT ()-[:${REL_CONTAINS}]->(n)
-            RETURN n
-            ORDER BY n.${PROP_DESCRIPTION} ASC
-            """);
+    private final String FIND_ALL_TOP_LEVEL;
 
-    private static final String LINK_TO_PARENT = cypher("""
-            MATCH (parent:${LABEL_PROCEDURE} {${PROP_ID}: $parentId})
-            MATCH (child:${LABEL_PROCEDURE} {${PROP_ID}: $childId})
-            MERGE (parent)-[r:${REL_CONTAINS}]->(child)
-            SET r.${PROP_SEQUENCE} = $sequence
-            """);
+    private final String LINK_TO_PARENT;
 
-    private static final String SAVE_PROCEDURE = cypher("""
-            MERGE (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
-            SET n.${PROP_DESCRIPTION} = $description,
-                n.${PROP_EMBEDDING} = $embedding,
-                n.${PROP_TEST_DATA} = $testData,
-                n.${PROP_EXPECTED_RESULTS} = $expectedResults,
-                n.${PROP_IS_ATOMIC} = $isAtomic,
-                n.${PROP_IS_PRECONDITION} = $isPrecondition,
-                n.${PROP_PREREQUISITES} = $prerequisites,
-                n.${PROP_EFFECTS} = $effects,
-                n.${PROP_CREATED_AT} = $createdAt,
-                n.${PROP_UPDATED_AT} = $updatedAt
-            """);
+    private final String SAVE_PROCEDURE;
 
-    private static final String SAVE_PROCEDURE_BATCH = cypher("""
-            UNWIND $nodes AS node
-            MERGE (n:${LABEL_PROCEDURE} {${PROP_ID}: node.${PROP_ID}})
-            SET n.${PROP_DESCRIPTION} = node.${PROP_DESCRIPTION},
-                n.${PROP_EMBEDDING} = node.${PROP_EMBEDDING},
-                n.${PROP_TEST_DATA} = node.${PROP_TEST_DATA},
-                n.${PROP_EXPECTED_RESULTS} = node.${PROP_EXPECTED_RESULTS},
-                n.${PROP_IS_ATOMIC} = node.${PROP_IS_ATOMIC},
-                n.${PROP_IS_PRECONDITION} = node.${PROP_IS_PRECONDITION},
-                n.${PROP_PREREQUISITES} = node.${PROP_PREREQUISITES},
-                n.${PROP_EFFECTS} = node.${PROP_EFFECTS},
-                n.${PROP_CREATED_AT} = node.${PROP_CREATED_AT},
-                n.${PROP_UPDATED_AT} = node.${PROP_UPDATED_AT}
-            """);
+    private final String SAVE_PROCEDURE_BATCH;
 
-    private static final String UPDATE_PROCEDURE = cypher("""
-            MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
-            SET n.${PROP_DESCRIPTION} = $description,
-                n.${PROP_EMBEDDING} = $embedding,
-                n.${PROP_TEST_DATA} = $testData,
-                n.${PROP_EXPECTED_RESULTS} = $expectedResults,
-                n.${PROP_IS_ATOMIC} = $isAtomic,
-                n.${PROP_IS_PRECONDITION} = $isPrecondition,
-                n.${PROP_PREREQUISITES} = $prerequisites,
-                n.${PROP_EFFECTS} = $effects,
-                n.${PROP_CREATED_AT} = $createdAt,
-                n.${PROP_UPDATED_AT} = $updatedAt
-            """);
+    private final String UPDATE_PROCEDURE;
 
-    private static final String DELETE_ORPHAN_DESCENDANTS = cypher("""
-            MATCH (root:${LABEL_PROCEDURE} {${PROP_ID}: $rootId})-[:${REL_CONTAINS}*1..]->(desc:${LABEL_PROCEDURE})
-            WITH root, collect(desc) AS subtree
-            UNWIND subtree AS desc
-            WITH desc, root, subtree,
-                 size([(extP:${LABEL_PROCEDURE})-[:${REL_CONTAINS}]->(desc)
-                       WHERE NOT extP IN subtree AND extP <> root | extP]) AS extParentCount
-            WHERE extParentCount = 0
-            DETACH DELETE desc
-            """);
+    private final String REMOVE_REMAINING_CONTAINS;
 
-    private static final String REMOVE_REMAINING_CONTAINS = cypher("""
-            MATCH (root:${LABEL_PROCEDURE} {${PROP_ID}: $rootId})-[r:${REL_CONTAINS}]->()
-            DELETE r
-            """);
+    private final String LINK_TO_UI_ELEMENT;
 
-    private static final String LINK_TO_UI_ELEMENT = cypher("""
-            MATCH (sp:${LABEL_PROCEDURE} {${PROP_ID}: $spId})
-            MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elId})
-            MERGE (sp)-[:${REL_TARGETS}]->(el)
-            """);
+    private final String FIND_TARGETED_UI_ELEMENT_ID;
 
-    private static final String FIND_TARGETED_UI_ELEMENT_ID = cypher("""
-            MATCH (sp:${LABEL_PROCEDURE} {${PROP_ID}: $spId})-[:${REL_TARGETS}]->(el:${LABEL_UI_ELEMENT})
-            RETURN el.${PROP_ID} AS elementId
-            """);
+    private final String DELETE_TARGETS;
 
-    private static final String DELETE_TARGETS = cypher("""
-            MATCH (sp:${LABEL_PROCEDURE} {${PROP_ID}: $spId})-[r:${REL_TARGETS}]->()
-            DELETE r
-            """);
+    private final String FIND_SHARED_PARENT_COUNT;
 
-    private static final String FIND_ALL_TARGETED_UI_ELEMENT_IDS = cypher("""
-            MATCH (sp:${LABEL_PROCEDURE} {${PROP_ID}: $spId})-[:${REL_CONTAINS}*0..]->(desc:${LABEL_PROCEDURE})
-                  -[:${REL_TARGETS}]->(el:${LABEL_UI_ELEMENT})
-            RETURN DISTINCT el.${PROP_ID} AS elementId
-            """);
+    private final String UPDATE_ELEMENT_STABILITY;
 
-    private static final String DELETE_ORPHANED_UI_ELEMENTS = cypher("""
-            UNWIND $ids AS id
-            MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: id})
-            WHERE NOT ()-[:${REL_TARGETS}]->(el)
-            DELETE el
-            """);
+    private final String UPDATE_TIMING_PROFILE;
 
-    private static final String FIND_SHARED_PARENT_COUNT = cypher("""
-            MATCH (candidate:${LABEL_PROCEDURE} {${PROP_ID}: $candidateId})<-[:${REL_CONTAINS}]-(parent:${LABEL_PROCEDURE})
-            WHERE parent.${PROP_ID} IN $recentParentIds
-            RETURN count(parent) AS sharedCount
-            """);
+    private final String GET_TIMING_PROFILE;
 
-    private static final String UPDATE_ELEMENT_STABILITY = cypher("""
-            MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elementId})
-            SET el.${PROP_STABILITY_SCORE} = $score,
-                el.${PROP_AVG_LOCATION_TIME_MS} = $avgTime,
-                el.${PROP_LOCATION_STRATEGY} = $strategy,
-                el.${PROP_FAILED_LOCATION_COUNT} = $failedCount,
-                el.${PROP_LAST_LOCATED_AT} = $lastLocatedAt
-            """);
+    private final String FIND_ALL;
 
-    private static final String UPDATE_TIMING_PROFILE = cypher("""
-            MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
-            SET n.${PROP_AVG_EXECUTION_MS} = $avgExecutionMs,
-                n.${PROP_AVG_VERIFICATION_DELAY_MS} = $avgVerificationDelayMs,
-                n.${PROP_MAX_VERIFICATION_DELAY_MS} = $maxVerificationDelayMs,
-                n.${PROP_LAST_TIMING_UPDATE} = $lastTimingUpdate
-            """);
+    private final String FIND_WITH_MISSING_PHRASE_NODES;
 
-    private static final String GET_TIMING_PROFILE = cypher("""
-            MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
-            RETURN n.${PROP_AVG_EXECUTION_MS} AS avgExecMs,
-                   n.${PROP_AVG_VERIFICATION_DELAY_MS} AS avgDelayMs,
-                   n.${PROP_MAX_VERIFICATION_DELAY_MS} AS maxDelayMs,
-                   n.${PROP_LAST_TIMING_UPDATE} AS lastUpdate
-            """);
+    private final String FIND_CANDIDATE_CONTEXT_BATCH;
 
-    private static final String FIND_ALL = cypher("MATCH (n:${LABEL_PROCEDURE}) RETURN n");
-
-    private static final String FIND_CANDIDATE_CONTEXT_BATCH = buildFindCandidateContextBatch();
-
-    private static final String GET_ELEMENT_STABILITY = cypher("MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elementId}) RETURN el");
+    private final String GET_ELEMENT_STABILITY;
 
     // No-arg vector search — index name and params supplied at call time
-    private static final String FIND_BY_SEMANTIC_SEARCH = cypher("""
-            CALL db.index.vector.queryNodes($indexName, $topN, $queryVector)
-            YIELD node, score
-            WHERE score >= $minScore
-            RETURN node AS n, score
-            """);
+    private final String FIND_BY_SEMANTIC_SEARCH;
+
+    private final String DELETE_PROCEDURE;
 
     /**
      * Persists a {@link Procedure} as a Neo4j node with all its fields as flat properties.
@@ -280,7 +302,7 @@ public class ProcedureRepository {
         requireNonNull(procedure, "procedure");
         requireNonNull(embedding, "embedding");
         var id = procedure.id().toString();
-        executeSingleWriteQuery(SAVE_PROCEDURE, buildParams(procedure, embedding));
+        repositorySupport.executeSingleWriteQuery(SAVE_PROCEDURE, buildParams(procedure, embedding));
         LOG.info("Saved Procedure '{}' (id={}, atomic={})", procedure.description(), id, procedure.isAtomic());
         return id;
     }
@@ -295,7 +317,7 @@ public class ProcedureRepository {
         for (int i = 0; i < procedures.size(); i++) {
             nodes.add(buildParams(procedures.get(i), embeddings.get(i)));
         }
-        executeSingleWriteQuery(SAVE_PROCEDURE_BATCH, Map.of(PARAM_NODES, nodes));
+        repositorySupport.executeSingleWriteQuery(SAVE_PROCEDURE_BATCH, Map.of(PARAM_NODES, nodes));
         LOG.info("Batch-saved {} Procedure node(s)", procedures.size());
     }
 
@@ -317,7 +339,7 @@ public class ProcedureRepository {
     public void linkToParent(UUID childId, UUID parentId, int sequence) {
         requireNonNull(childId, "childId");
         requireNonNull(parentId, "parentId");
-        executeSingleWriteQuery(LINK_TO_PARENT, getLinkToParentParams(childId, parentId, sequence));
+        repositorySupport.executeSingleWriteQuery(LINK_TO_PARENT, getLinkToParentParams(childId, parentId, sequence));
         LOG.debug("Created CONTAINS relationship: parent={} -> child={} (sequence={})", parentId, childId, sequence);
     }
 
@@ -341,7 +363,7 @@ public class ProcedureRepository {
      */
     public Optional<Procedure> findById(UUID id) {
         requireNonNull(id, "id");
-        var records = executeSingleReadQuery(FIND_BY_ID, Map.of(PROP_ID, id.toString()));
+        var records = repositorySupport.executeSingleReadQuery(FIND_BY_ID, Map.of(PROP_ID, id.toString()));
         if (!records.isEmpty()) {
             return Optional.of(fromDbRecord(records.getFirst()));
         }
@@ -354,7 +376,7 @@ public class ProcedureRepository {
      */
     public Optional<ProcedureWithPhrases> findByIdWithPhrases(UUID id) {
         requireNonNull(id, "id");
-        var records = executeSingleReadQuery(FIND_BY_ID_WITH_PHRASES, Map.of(PROP_ID, id.toString()));
+        var records = repositorySupport.executeSingleReadQuery(FIND_BY_ID_WITH_PHRASES, Map.of(PROP_ID, id.toString()));
         if (records.isEmpty()) {
             return Optional.empty();
         }
@@ -375,7 +397,7 @@ public class ProcedureRepository {
      */
     public List<ProcedureMatch> findBySemanticSearch(float[] queryVector, int topN, double minScore) {
         requireNonNull(queryVector, "queryVector");
-        return executeSingleReadQuery(FIND_BY_SEMANTIC_SEARCH, Map.of(
+        return repositorySupport.executeSingleReadQuery(FIND_BY_SEMANTIC_SEARCH, Map.of(
                 PARAM_INDEX_NAME, VECTOR_INDEX_NAME,
                 PARAM_TOP_N, topN,
                 PARAM_QUERY_VECTOR, queryVector,
@@ -425,6 +447,15 @@ public class ProcedureRepository {
     }
 
     /**
+     * Returns procedures that have non-empty {@code effects} or {@code prerequisites} node properties
+     * but are missing the corresponding {@code HAS_EFFECT} or {@code HAS_PREREQUISITE} phrase nodes.
+     * Used by the startup phrase-node migration to backfill legacy procedures ingested without phrase edges.
+     */
+    public List<Procedure> findWithMissingPhraseNodes() {
+        return queryProcedures(FIND_WITH_MISSING_PHRASE_NODES, Map.of());
+    }
+
+    /**
      * Returns element ID, element stability, and shared-parent count for all given candidate procedure IDs
      * in a single DB round-trip — replaces N×3 individual queries in re-ranking.
      */
@@ -434,7 +465,7 @@ public class ProcedureRepository {
         }
         var ids = candidateIds.stream().map(UUID::toString).toList();
         var parentIds = recentParentIds.stream().map(UUID::toString).toList();
-        return executeSingleReadQuery(FIND_CANDIDATE_CONTEXT_BATCH, Map.of(
+        return repositorySupport.executeSingleReadQuery(FIND_CANDIDATE_CONTEXT_BATCH, Map.of(
                 PARAM_CANDIDATE_IDS, ids,
                 PARAM_RECENT_PARENT_IDS, parentIds
         )).stream()
@@ -448,7 +479,6 @@ public class ProcedureRepository {
                         stability = Optional.of(new ElementLocationHistory(
                                 r.get(PROP_STABILITY_SCORE).asDouble(),
                                 r.get(PROP_AVG_LOCATION_TIME_MS).asLong(),
-                                LocationStrategy.fromString(r.get(PROP_LOCATION_STRATEGY).asString()),
                                 r.get(PROP_FAILED_LOCATION_COUNT).asDouble(),
                                 Instant.parse(r.get(PROP_LAST_LOCATED_AT).asString())
                         ));
@@ -472,7 +502,7 @@ public class ProcedureRepository {
     public void linkToUiElement(UUID procedureId, UUID uiElementId) {
         requireNonNull(procedureId, "procedureId");
         requireNonNull(uiElementId, "uiElementId");
-        executeSingleWriteQuery(LINK_TO_UI_ELEMENT, Map.of(
+        repositorySupport.executeSingleWriteQuery(LINK_TO_UI_ELEMENT, Map.of(
                 PARAM_SP_ID, procedureId.toString(),
                 PARAM_EL_ID, uiElementId.toString()
         ));
@@ -494,7 +524,7 @@ public class ProcedureRepository {
      */
     public Optional<UUID> findTargetedUiElementId(UUID atomicProcedureId) {
         requireNonNull(atomicProcedureId, "atomicProcedureId");
-        var records = executeSingleReadQuery(FIND_TARGETED_UI_ELEMENT_ID, Map.of(PARAM_SP_ID, atomicProcedureId.toString()));
+        var records = repositorySupport.executeSingleReadQuery(FIND_TARGETED_UI_ELEMENT_ID, Map.of(PARAM_SP_ID, atomicProcedureId.toString()));
         if (!records.isEmpty()) {
             return Optional.of(UUID.fromString(records.getFirst().get(ALIAS_ELEMENT_ID).asString()));
         }
@@ -507,67 +537,42 @@ public class ProcedureRepository {
     public void update(Procedure procedure, float[] embedding) {
         requireNonNull(procedure, "procedure");
         requireNonNull(embedding, "embedding");
-        executeSingleWriteQuery(UPDATE_PROCEDURE, buildParams(procedure, embedding));
+        repositorySupport.executeSingleWriteQuery(UPDATE_PROCEDURE, buildParams(procedure, embedding));
         LOG.info("Updated Procedure '{}' (id={})", procedure.description(), procedure.id());
     }
 
     /**
-     * Orphan-aware descendant deletion. Deletes all descendants reachable only via this root
-     * (i.e. those with no parents outside the subtree), then removes any remaining {@code CONTAINS}
-     * edges from the root to preserved (multi-parented) children.
-     *
-     * <p>Replaces a recursive O(n) multi-session Java algorithm with 2 Cypher queries in a single transaction.</p>
+     * Removes any existing {@code CONTAINS} edges from the root procedure to its children.
+     * Child procedures are preserved per the requirement that they may be reused.
      */
-    public void deleteDescendants(UUID procedureId, TransactionContext tx) {
+    public void removeContainsRelationships(UUID procedureId, TransactionContext tx) {
         requireNonNull(procedureId, "procedureId");
-        tx.run(DELETE_ORPHAN_DESCENDANTS, Map.of(PARAM_ROOT_ID, procedureId.toString())).consume();
         tx.run(REMOVE_REMAINING_CONTAINS, Map.of(PARAM_ROOT_ID, procedureId.toString())).consume();
     }
 
     public void deleteTargets(UUID procedureId) {
-        executeSingleWriteQuery(DELETE_TARGETS, Map.of(PARAM_SP_ID, procedureId.toString()));
+        repositorySupport.executeSingleWriteQuery(DELETE_TARGETS, Map.of(PARAM_SP_ID, procedureId.toString()));
     }
 
-    /**
-     * Returns all UI element IDs targeted by the given procedure itself or by any of its atomic descendants
-     * via {@code TARGETS} relationships. Used to collect candidates for orphan cleanup before deletion.
-     */
-    public Set<UUID> findAllTargetedUiElementIds(UUID procedureId) {
-        requireNonNull(procedureId, "procedureId");
-        return executeSingleReadQuery(FIND_ALL_TARGETED_UI_ELEMENT_IDS, Map.of(PARAM_SP_ID, procedureId.toString()))
-                .stream()
-                .map(r -> r.get(ALIAS_ELEMENT_ID))
-                .filter(v -> !v.isNull())
-                .map(v -> UUID.fromString(v.asString()))
-                .collect(Collectors.toSet());
-    }
-
-    /**
-     * Deletes any UI element node from {@code candidateIds} that is no longer targeted by any atomic
-     * procedure. Safe to call after deleting {@code TARGETS} relationships or procedure nodes.
-     */
-    public void deleteUiElementsIfOrphaned(Collection<UUID> candidateIds) {
-        if (candidateIds.isEmpty()) {
-            return;
-        }
-        var ids = candidateIds.stream().map(UUID::toString).toList();
-        executeSingleWriteQuery(DELETE_ORPHANED_UI_ELEMENTS, Map.of(PARAM_IDS, ids));
-        LOG.debug("Checked and cleaned orphan UI elements from candidates: {}", candidateIds);
+    public void deleteProcedure(UUID id) {
+        requireNonNull(id, "id");
+        repositorySupport.executeSingleWriteQuery(DELETE_PROCEDURE, Map.of(PROP_ID, id.toString()));
+        LOG.info("Deleted Procedure with id={}", id);
     }
 
     public int findSharedParentCount(UUID candidateId, Set<UUID> recentParentIds) {
         if (recentParentIds.isEmpty()) {
             return 0;
         }
-        var records = executeSingleReadQuery(FIND_SHARED_PARENT_COUNT, Map.of(
+        var records = repositorySupport.executeSingleReadQuery(FIND_SHARED_PARENT_COUNT, Map.of(
                 PARAM_CANDIDATE_ID, candidateId.toString(),
                 PARAM_RECENT_PARENT_IDS, recentParentIds.stream().map(UUID::toString).toList()
         ));
         return records.isEmpty() ? 0 : records.getFirst().get(ALIAS_SHARED_COUNT).asInt();
     }
 
-    public Optional<ElementLocationHistory> getElementStability(UUID elementId) {
-        var records = executeSingleReadQuery(GET_ELEMENT_STABILITY, Map.of(PARAM_ELEMENT_ID, elementId.toString()));
+    public Optional<ElementLocationHistory> getElementLocationHistory(UUID elementId) {
+        var records = repositorySupport.executeSingleReadQuery(GET_ELEMENT_STABILITY, Map.of(PARAM_ELEMENT_ID, elementId.toString()));
         if (records.isEmpty()) {
             return Optional.empty();
         }
@@ -578,13 +583,12 @@ public class ProcedureRepository {
         return Optional.of(new ElementLocationHistory(
                 node.get(PROP_STABILITY_SCORE).asDouble(),
                 node.get(PROP_AVG_LOCATION_TIME_MS).asLong(),
-                LocationStrategy.fromString(node.get(PROP_LOCATION_STRATEGY).asString()),
                 node.get(PROP_FAILED_LOCATION_COUNT).asDouble(),
                 Instant.parse(node.get(PROP_LAST_LOCATED_AT).asString())
         ));
     }
 
-    private Optional<ElementLocationHistory> getElementStability(UUID elementId, TransactionContext tx) {
+    private Optional<ElementLocationHistory> getElementLocationHistory(UUID elementId, TransactionContext tx) {
         var result = tx.run(GET_ELEMENT_STABILITY, Map.of(PARAM_ELEMENT_ID, elementId.toString()));
         if (result.hasNext()) {
             var node = result.next().get(ALIAS_EL).asNode();
@@ -592,7 +596,6 @@ public class ProcedureRepository {
                 return Optional.of(new ElementLocationHistory(
                         node.get(PROP_STABILITY_SCORE).asDouble(),
                         node.get(PROP_AVG_LOCATION_TIME_MS).asLong(),
-                        LocationStrategy.fromString(node.get(PROP_LOCATION_STRATEGY).asString()),
                         node.get(PROP_FAILED_LOCATION_COUNT).asDouble(),
                         Instant.parse(node.get(PROP_LAST_LOCATED_AT).asString())
                 ));
@@ -601,10 +604,10 @@ public class ProcedureRepository {
         return Optional.empty();
     }
 
-    public void updateElementStability(UUID elementId, boolean located, long locationTimeMs, LocationStrategy strategy) {
-        executeComplexWriteQuery(tx -> {
-            var elOpt = getElementStability(elementId, tx);
-            double alpha = UiTestAgentConfig.getStabilityEwmaAlpha();
+    public void updateElementStability(UUID elementId, boolean located, long locationTimeMs) {
+        repositorySupport.executeComplexWriteQuery(tx -> {
+            var elOpt = getElementLocationHistory(elementId, tx);
+            double alpha = config.getStabilityEwmaAlpha();
             double newScore;
             long newAvgTime;
             double failedCount;
@@ -623,7 +626,6 @@ public class ProcedureRepository {
                     PARAM_ELEMENT_ID, elementId.toString(),
                     PARAM_SCORE, newScore,
                     PARAM_AVG_TIME, newAvgTime,
-                    PARAM_STRATEGY, strategy.name(),
                     PARAM_FAILED_COUNT, failedCount,
                     PARAM_LAST_LOCATED_AT, Instant.now().toString()
             ));
@@ -647,9 +649,9 @@ public class ProcedureRepository {
     }
 
     public void updateTimingProfile(UUID id, long actualExecutionMs, long actualVerificationDelayMs) {
-        executeComplexWriteQuery(tx -> {
+        repositorySupport.executeComplexWriteQuery(tx -> {
             var profileOpt = getTimingProfile(id, tx);
-            double alpha = UiTestAgentConfig.getTimingEwmaAlpha();
+            double alpha = config.getTimingEwmaAlpha();
             long newAvgExec;
             long newAvgDelay;
             long newMaxDelay;
@@ -701,8 +703,8 @@ public class ProcedureRepository {
                 .toList();
     }
 
-    private static String buildFindByIdWithPhrases() {
-        return cypher("""
+    private String buildFindByIdWithPhrases() {
+        return repositorySupport.cypher("""
                 MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $id})
                 OPTIONAL MATCH (p)-[rp:${REL_HAS_PREREQUISITE}]->(prereq:${LABEL_PHRASE_EMBEDDING})
                 OPTIONAL MATCH (p)-[re:${REL_HAS_EFFECT}]->(eff:${LABEL_PHRASE_EMBEDDING})
@@ -720,8 +722,8 @@ public class ProcedureRepository {
                 """);
     }
 
-    private static String buildFindCandidateContextBatch() {
-        return cypher("""
+    private String buildFindCandidateContextBatch() {
+        return repositorySupport.cypher("""
                 UNWIND $candidateIds AS cId
                 MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: cId})
                 OPTIONAL MATCH (p)-[:${REL_TARGETS}]->(el:${LABEL_UI_ELEMENT})
@@ -730,7 +732,6 @@ public class ProcedureRepository {
                        el.${PROP_ID} AS elementId,
                        el.${PROP_STABILITY_SCORE} AS ${PROP_STABILITY_SCORE},
                        el.${PROP_AVG_LOCATION_TIME_MS} AS ${PROP_AVG_LOCATION_TIME_MS},
-                       el.${PROP_LOCATION_STRATEGY} AS ${PROP_LOCATION_STRATEGY},
                        el.${PROP_FAILED_LOCATION_COUNT} AS ${PROP_FAILED_LOCATION_COUNT},
                        el.${PROP_LAST_LOCATED_AT} AS ${PROP_LAST_LOCATED_AT},
                        count(DISTINCT parent) AS sharedCount
@@ -738,7 +739,7 @@ public class ProcedureRepository {
     }
 
     private List<Procedure> queryProcedures(String cypher, Map<String, Object> params) {
-        return executeSingleReadQuery(cypher, params).stream()
+        return repositorySupport.executeSingleReadQuery(cypher, params).stream()
                 .map(this::fromDbRecord)
                 .toList();
     }
@@ -751,8 +752,12 @@ public class ProcedureRepository {
         var expectedResults = node.containsKey(PROP_EXPECTED_RESULTS) ? node.get(PROP_EXPECTED_RESULTS).asString() : "";
         var isAtomic = node.get(PROP_IS_ATOMIC).asBoolean();
         var isPrecondition = node.containsKey(PROP_IS_PRECONDITION) && node.get(PROP_IS_PRECONDITION).asBoolean();
+        var optional = node.containsKey(PROP_OPTIONAL) && node.get(PROP_OPTIONAL).asBoolean();
         var prerequisites = node.containsKey(PROP_PREREQUISITES) ? node.get(PROP_PREREQUISITES).asList(Value::asString) : List.<String>of();
         var effects = node.containsKey(PROP_EFFECTS) ? node.get(PROP_EFFECTS).asList(Value::asString) : List.<String>of();
+        var additionalInfoValue = node.get(PROP_ADDITIONAL_INFO);
+        var additionalInfo = (!additionalInfoValue.isNull() && !additionalInfoValue.asString().isBlank())
+                ? additionalInfoValue.asString() : null;
         var createdAt = node.containsKey(PROP_CREATED_AT) ? Instant.parse(node.get(PROP_CREATED_AT).asString()) : Instant.now();
         var updatedAt = node.containsKey(PROP_UPDATED_AT) ? Instant.parse(node.get(PROP_UPDATED_AT).asString()) : Instant.now();
 
@@ -776,8 +781,8 @@ public class ProcedureRepository {
             );
         }
 
-        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition,
-                prerequisites, effects, createdAt, updatedAt, embedding, timing);
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
+                prerequisites, effects, additionalInfo, createdAt, updatedAt, embedding, timing);
     }
 
     private static Map<String, Object> buildParams(Procedure procedure, float[] embedding) {
@@ -789,8 +794,10 @@ public class ProcedureRepository {
         params.put(PROP_EXPECTED_RESULTS, procedure.expectedResults());
         params.put(PROP_IS_ATOMIC, procedure.isAtomic());
         params.put(PROP_IS_PRECONDITION, procedure.isPrecondition());
+        params.put(PROP_OPTIONAL, procedure.optional());
         params.put(PROP_PREREQUISITES, procedure.prerequisites());
         params.put(PROP_EFFECTS, procedure.effects());
+        params.put(PROP_ADDITIONAL_INFO, procedure.additionalInfo());
         params.put(PROP_CREATED_AT, procedure.createdAt().toString());
         params.put(PROP_UPDATED_AT, procedure.updatedAt().toString());
         return params;

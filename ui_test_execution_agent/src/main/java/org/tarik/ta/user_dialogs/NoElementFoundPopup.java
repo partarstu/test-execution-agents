@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.user_dialogs;
 
+import org.tarik.ta.UiTestAgentConfig;
+
 import javax.swing.*;
 import java.awt.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -29,8 +31,9 @@ public class NoElementFoundPopup extends AbstractDialog {
 
     private final AtomicReference<UserDecision> userDecision = new AtomicReference<>(UserDecision.TERMINATE);
 
-    private NoElementFoundPopup(Window owner, String message) {
-        super(owner, "UI element not found");
+    private NoElementFoundPopup(Window owner, String message, UiTestAgentConfig config) {
+        super(owner, "UI element not found", config);
+        setFocusableWindowState(false);
         var userMessageArea = getUserMessageArea(message);
         var continueButton = new JButton("Continue");
         setHoverAsClick(continueButton);
@@ -58,8 +61,8 @@ public class NoElementFoundPopup extends AbstractDialog {
         userDecision.set(UserDecision.TERMINATE);
     }
 
-    public static UserDecision displayAndGetUserDecision(Window owner, String message) {
-        var popup = new NoElementFoundPopup(owner, message);
+    public static UserDecision displayAndGetUserDecision(Window owner, String message, UiTestAgentConfig config) {
+        var popup = new NoElementFoundPopup(owner, message, config);
         return popup.userDecision.get();
     }
 }

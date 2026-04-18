@@ -17,17 +17,18 @@ package org.tarik.ta.knowledge_graph.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PhraseType;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 class ExecutionStateTrackerTest {
 
@@ -35,131 +36,95 @@ class ExecutionStateTrackerTest {
 
     @BeforeEach
     void setUp() {
-        stateTracker = new ExecutionStateTracker();
+        UiTestAgentConfig config = mock(UiTestAgentConfig.class);
+        org.mockito.Mockito.when(config.getAncestryWindowSize()).thenReturn(5);
+        stateTracker = new ExecutionStateTracker(config);
     }
 
-    private static PhraseEmbedding pe(String phrase) {
-        return new PhraseEmbedding(UUID.randomUUID(), phrase, new float[0], PhraseType.EFFECT);
+    private static PhraseEmbedding pe() {
+        return new PhraseEmbedding(UUID.randomUUID(), "test effect", new float[0], PhraseType.EFFECT);
     }
 
-    private static List<PhraseEmbedding> phrases(String... values) {
-        return Arrays.stream(values).map(ExecutionStateTrackerTest::pe).toList();
-    }
-
-    @Test
-    void addEffects_shouldAddEffectsToCurrentState() {
-        stateTracker.addEffects(phrases("user logged in", "page loaded"));
-
-        Set<String> currentState = stateTracker.getCurrentState();
-        assertThat(currentState).contains("user logged in", "page loaded");
-        assertThat(currentState).hasSize(2);
+    private static Procedure compositeProc() {
+        return Procedure.createComposite("composite", List.of(), "", List.of(), List.of(), false);
     }
 
     @Test
-    void addEffects_shouldNormalizeEffectsToLowercase() {
-        stateTracker.addEffects(phrases("USER LOGGED IN", "Page Loaded"));
+    void directAtomicAtRootLevel_effectsPersistedForever() {
+        PhraseEmbedding effect1 = pe();
+        PhraseEmbedding effect2 = pe();
+        stateTracker.addEffects(List.of(effect1, effect2));
 
-        Set<String> currentState = stateTracker.getCurrentState();
-        assertThat(currentState).contains("user logged in", "page loaded");
+        Set<UUID> ids = stateTracker.getEffectNodeIds();
+        assertThat(ids).containsExactlyInAnyOrder(effect1.id(), effect2.id());
     }
 
     @Test
-    void addEffects_shouldTrimAndNormalizeWhitespace() {
-        stateTracker.addEffects(phrases("  user   logged   in  ", "\tpage\tloaded\t"));
+    void enterCompositeScope_addEffects_closeCompositeScope() {
+        PhraseEmbedding atomicEffect = pe();
+        PhraseEmbedding compositeEffect = pe();
 
-        Set<String> currentState = stateTracker.getCurrentState();
-        assertThat(currentState).contains("user logged in", "page loaded");
+        stateTracker.enterCompositeScope(compositeProc());
+        stateTracker.addEffects(List.of(atomicEffect));
+
+        // Atomic effect is in the child frame — visible because all open frames are included.
+        assertThat(stateTracker.getEffectNodeIds()).containsExactly(atomicEffect.id());
+
+        stateTracker.closeCompositeScope(List.of(compositeEffect));
+
+        // After closing, atomic effect is gone, composite effect promoted to root
+        assertThat(stateTracker.getEffectNodeIds()).containsExactly(compositeEffect.id());
     }
 
     @Test
-    void addEffects_shouldIgnoreBlankEffects() {
-        stateTracker.addEffects(Arrays.asList(pe("valid effect"), pe(""), pe("  "), null));
+    void getEffectNodeIds_returnsAllOpenScopeFrames() {
+        PhraseEmbedding rootEffect = pe();
+        PhraseEmbedding aEffect = pe();
+        PhraseEmbedding bEffect = pe();
 
-        Set<String> currentState = stateTracker.getCurrentState();
-        assertThat(currentState).containsExactly("valid effect");
+        // Root
+        stateTracker.addEffects(List.of(rootEffect));
+
+        // Frame A
+        stateTracker.enterCompositeScope(compositeProc());
+        stateTracker.addEffects(List.of(aEffect));
+
+        // Frame B
+        stateTracker.enterCompositeScope(compositeProc());
+        stateTracker.addEffects(List.of(bEffect));
+
+        // All open frames (root, A, B) must be visible
+        assertThat(stateTracker.getEffectNodeIds()).containsExactlyInAnyOrder(rootEffect.id(), aEffect.id(), bEffect.id());
     }
 
     @Test
-    void addEffects_shouldNotDuplicateEffects() {
-        stateTracker.addEffects(phrases("user logged in"));
-        stateTracker.addEffects(phrases("USER LOGGED IN")); // Same effect, different case
+    void abandonCompositeScope_discardsAccumulatedEffects() {
+        PhraseEmbedding rootEffect = pe();
+        PhraseEmbedding abandonedEffect = pe();
 
-        Set<String> currentState = stateTracker.getCurrentState();
-        assertThat(currentState).hasSize(1);
-        assertThat(currentState).contains("user logged in");
+        stateTracker.addEffects(List.of(rootEffect));
+
+        stateTracker.enterCompositeScope(compositeProc());
+        stateTracker.addEffects(List.of(abandonedEffect));
+        assertThat(stateTracker.getEffectNodeIds()).containsExactlyInAnyOrder(rootEffect.id(), abandonedEffect.id());
+
+        stateTracker.abandonCompositeScope();
+
+        // Abandoned effects should be gone
+        assertThat(stateTracker.getEffectNodeIds()).containsExactly(rootEffect.id());
     }
 
     @Test
-    void findMissingPrerequisites_shouldReturnEmptyWhenAllMet() {
-        stateTracker.addEffects(phrases("user logged in", "page loaded"));
+    void reset_clearsAllScopeFrames() {
+        stateTracker.addEffects(List.of(pe()));
+        stateTracker.enterCompositeScope(compositeProc());
+        stateTracker.addEffects(List.of(pe()));
 
-        List<String> missing = stateTracker.findMissingPrerequisites(List.of("user logged in", "page loaded"));
+        assertThat(stateTracker.getEffectNodeIds()).hasSize(2);
 
-        assertThat(missing).isEmpty();
-    }
+        stateTracker.reset();
 
-    @Test
-    void findMissingPrerequisites_shouldReturnMissingPreconditions() {
-        stateTracker.addEffects(phrases("user logged in"));
-
-        List<String> missing = stateTracker.findMissingPrerequisites(List.of("user logged in", "page loaded", "data available"));
-
-        assertThat(missing).containsExactly("page loaded", "data available");
-    }
-
-    @Test
-    void findMissingPrerequisites_shouldBeCaseInsensitive() {
-        stateTracker.addEffects(phrases("User Logged In"));
-
-        List<String> missing = stateTracker.findMissingPrerequisites(List.of("USER LOGGED IN"));
-
-        assertThat(missing).isEmpty();
-    }
-
-    @Test
-    void findMissingPrerequisites_shouldNormalizeWhitespace() {
-        stateTracker.addEffects(phrases("user   logged   in"));
-
-        List<String> missing = stateTracker.findMissingPrerequisites(List.of("  user logged in  "));
-
-        assertThat(missing).isEmpty();
-    }
-
-    @Test
-    void findMissingPrerequisites_shouldIgnoreNullOrBlankPreconditions() {
-        stateTracker.addEffects(phrases("user logged in"));
-
-        List<String> missing = stateTracker.findMissingPrerequisites(
-                Arrays.asList("user logged in", "", "  ", null));
-
-        assertThat(missing).isEmpty();
-    }
-
-    @Test
-    void arePrerequisitesMet_shouldReturnTrueWhenAllMet() {
-        stateTracker.addEffects(phrases("user logged in", "page loaded"));
-
-        boolean result = stateTracker.arePrerequisitesMet(List.of("user logged in", "page loaded"));
-
-        assertThat(result).isTrue();
-    }
-
-    @Test
-    void arePrerequisitesMet_shouldReturnFalseWhenSomeMissing() {
-        stateTracker.addEffects(phrases("user logged in"));
-
-        boolean result = stateTracker.arePrerequisitesMet(List.of("user logged in", "page loaded"));
-
-        assertThat(result).isFalse();
-    }
-
-    @Test
-    void arePrerequisitesMet_shouldReturnTrueForEmptyPreconditions() {
-        stateTracker.addEffects(phrases("user logged in"));
-
-        boolean result = stateTracker.arePrerequisitesMet(List.of());
-
-        assertThat(result).isTrue();
+        assertThat(stateTracker.getEffectNodeIds()).isEmpty();
     }
 
     @Test
@@ -191,16 +156,6 @@ class ExecutionStateTrackerTest {
     }
 
     @Test
-    void reset_shouldClearCurrentState() {
-        stateTracker.addEffects(phrases("user logged in", "page loaded"));
-        assertThat(stateTracker.getCurrentState()).hasSize(2);
-
-        stateTracker.reset();
-
-        assertThat(stateTracker.getCurrentState()).isEmpty();
-    }
-
-    @Test
     void reset_shouldClearExecutedAtomicProcedures() {
         stateTracker.addExecutedAtomicProcedure(Procedure.createAtomic("step", List.of(), "", List.of(), List.of(), false));
         assertThat(stateTracker.getExecutedAtomicProcedures()).hasSize(1);
@@ -208,24 +163,6 @@ class ExecutionStateTrackerTest {
         stateTracker.reset();
 
         assertThat(stateTracker.getExecutedAtomicProcedures()).isEmpty();
-    }
-
-    @Test
-    void getCurrentState_shouldReturnUnmodifiableCopy() {
-        stateTracker.addEffects(phrases("user logged in"));
-        Set<String> currentState = stateTracker.getCurrentState();
-
-        assertThatThrownBy(() -> currentState.add("new effect"))
-                .isInstanceOf(UnsupportedOperationException.class);
-    }
-
-    @Test
-    void getCurrentState_shouldReturnDefensiveCopy() {
-        stateTracker.addEffects(phrases("user logged in"));
-        Set<String> state1 = stateTracker.getCurrentState();
-        Set<String> state2 = stateTracker.getCurrentState();
-
-        assertThat(state1).isNotSameAs(state2);
     }
 
     @Test

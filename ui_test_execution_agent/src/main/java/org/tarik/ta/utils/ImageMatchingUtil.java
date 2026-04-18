@@ -97,7 +97,7 @@ public class ImageMatchingUtil {
     }
 
     public static List<Rectangle> findMatchingRegionsWithTemplateMatching(BufferedImage wholeScreenshot,
-            BufferedImage elementScreenshot) {
+            BufferedImage elementScreenshot, UiTestAgentConfig config) {
         initializeOpenCv();
         if (!initialized) {
             return List.of();
@@ -107,9 +107,9 @@ public class ImageMatchingUtil {
         Mat result = new Mat();
         matchTemplate(source, template, result, Imgproc.TM_CCOEFF_NORMED);
         List<MatchResult> matches = new ArrayList<>();
-        while (matches.size() < UiTestAgentConfig.getElementLocatorTopVisualMatches()) {
+        while (matches.size() < config.getElementLocatorTopVisualMatches()) {
             var res = Core.minMaxLoc(result);
-            if (res.maxVal >= UiTestAgentConfig.getElementLocatorVisualSimilarityThreshold()) {
+            if (res.maxVal >= config.getElementLocatorVisualSimilarityThreshold()) {
                 var maxLocation = res.maxLoc;
                 matches.add(new MatchResult(new java.awt.Point((int) maxLocation.x, (int) maxLocation.y), res.maxVal));
                 floodFill(result, new Mat(), maxLocation, new Scalar(0));
@@ -120,7 +120,7 @@ public class ImageMatchingUtil {
 
         var boundingBoxes = matches.stream()
                 .sorted(comparingDouble(MatchResult::score).reversed())
-                .limit(UiTestAgentConfig.getElementLocatorTopVisualMatches())
+                .limit(config.getElementLocatorTopVisualMatches())
                 .map(match -> new Rectangle(match.point(),
                         new Dimension(elementScreenshot.getWidth(), elementScreenshot.getHeight())))
                 .toList();
@@ -129,13 +129,14 @@ public class ImageMatchingUtil {
     }
 
     public static List<Rectangle> findMatchingRegionsWithORB(BufferedImage wholeScreenshot,
-            BufferedImage elementScreenshot) {
-        return findMatchingRegionsWithORB(wholeScreenshot, elementScreenshot,
-                UiTestAgentConfig.getFoundMatchesDimensionDeviationRatio());
+            BufferedImage elementScreenshot, UiTestAgentConfig config) {
+        return findMatchingRegionsWithORB(wholeScreenshot, elementScreenshot, config,
+                config.getFoundMatchesDimensionDeviationRatio());
     }
 
     public static List<Rectangle> findMatchingRegionsWithORB(BufferedImage wholeScreenshot,
             BufferedImage elementScreenshot,
+            UiTestAgentConfig config,
             double deviationRatio) {
         initializeOpenCv();
         if (!initialized) {
@@ -184,7 +185,7 @@ public class ImageMatchingUtil {
 
         var boundingBoxes = foundMatches.stream()
                 .sorted(comparingDouble(MatchResultWithRectangle::score).reversed())
-                .limit(UiTestAgentConfig.getElementLocatorTopVisualMatches())
+                .limit(config.getElementLocatorTopVisualMatches())
                 .map(MatchResultWithRectangle::rectangle)
                 .toList();
         LOG.debug("Found {} matching regions using ORB (Oriented FAST and Rotated BRIEF) algorithm.",

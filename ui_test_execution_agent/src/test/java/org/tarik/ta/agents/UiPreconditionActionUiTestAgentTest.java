@@ -20,6 +20,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
 import org.tarik.ta.core.dto.OperationExecutionResult;
@@ -30,6 +32,7 @@ import java.awt.image.BufferedImage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 import org.tarik.ta.dto.UiOperationExecutionResult;
@@ -37,22 +40,25 @@ import org.tarik.ta.dto.UiOperationExecutionResult;
 class UiPreconditionActionUiTestAgentTest {
 
     private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
-    private MockedStatic<UiTestAgentConfig> configMockedStatic;
+    @Mock
+    private UiTestAgentConfig configMock;
+    private AutoCloseable closeable;
 
     @BeforeEach
     void setUp() {
+        closeable = MockitoAnnotations.openMocks(this);
         commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS);
         commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
         commonUtilsMockedStatic.when(() -> UiCommonUtils.captureScreen(anyBoolean())).thenReturn(mock(BufferedImage.class));
 
-        configMockedStatic = mockStatic(UiTestAgentConfig.class);
-        configMockedStatic.when(UiTestAgentConfig::isFullyUnattended).thenReturn(false);
+        
+        lenient().when(configMock.isFullyUnattended()).thenReturn(false);
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws Exception {
         commonUtilsMockedStatic.close();
-        configMockedStatic.close();
+        closeable.close();
     }
 
     @Test

@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.tools;
 
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
@@ -36,38 +37,47 @@ import java.util.UUID;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.Screenshot.fromBufferedImage;
 
+@Singleton
 public class UiElementRefinementHelper {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementRefinementHelper.class);
     protected static final int USER_DIALOG_DISMISS_DELAY_MILLIS = 2000;
 
-    public static Optional<UiElement> updateElementScreenshot(UiElementRepository repository, UUID elementId) {
+    private final AgentConfig agentConfig;
+    private final UiTestAgentConfig uiTestAgentConfig;
+
+    public UiElementRefinementHelper(AgentConfig agentConfig, UiTestAgentConfig uiTestAgentConfig) {
+        this.agentConfig = agentConfig;
+        this.uiTestAgentConfig = uiTestAgentConfig;
+    }
+
+    public Optional<UiElement> promptUserToUpdateElementScreenshot(UiElementRepository repository, UUID elementId) {
         return findElementById(repository, elementId).flatMap(elementToUpdate -> {
             LOG.info("User chose to update screenshot for element: {}", elementToUpdate.name());
 
-            BoundingBoxCaptureNeededPopup.display(null);
+            BoundingBoxCaptureNeededPopup.display(null, uiTestAgentConfig);
             sleepMillis(USER_DIALOG_DISMISS_DELAY_MILLIS);
 
-            return UiElementScreenshotCaptureWindow.displayAndGetResult(null, Color.GREEN)
+            return UiElementScreenshotCaptureWindow.displayAndGetResult(null, Color.GREEN, uiTestAgentConfig)
                     .filter(UiElementCaptureResult::success)
                     .map(captureResult -> {
                         var newScreenshot = fromBufferedImage(captureResult.elementScreenshot(), "png");
                         var elementWithNewScreenshot = new UiElement(elementToUpdate.id(), elementToUpdate.name(),
                                 elementToUpdate.description(), elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(),
                                 newScreenshot, elementToUpdate.isDataDependent());
-                        repository.update(elementWithNewScreenshot);
+                        repository.update(elementWithNewScreenshot, false);
                         LOG.debug("Persisted updated screenshot for element: {}", elementToUpdate.name());
                         return elementWithNewScreenshot;
                     });
         });
     }
 
-    public static Optional<UiElement> updateElementInfo(UiElementRepository repository, UUID elementId) {
+    public Optional<UiElement> promptUserToUpdateElementInfo(UiElementRepository repository, UUID elementId) {
         LOG.info("User chose to update info for element with ID {}", elementId);
         return findElementById(repository, elementId)
                 .flatMap(elementToUpdate -> {
                     var currentInfo = new UiElementInfo(elementToUpdate.name(), elementToUpdate.description(),
                             elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(), elementToUpdate.isDataDependent());
-                    return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, currentInfo)
+                    return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, currentInfo, uiTestAgentConfig)
                             .map(newInfo -> {
                                 var updatedElement = new UiElement(elementToUpdate.id(), newInfo.name(), newInfo.description(),
                                         newInfo.locationDetails(), newInfo.pageSummary(), elementToUpdate.screenshot(),
@@ -79,23 +89,17 @@ public class UiElementRefinementHelper {
                 });
     }
 
-    public static void deleteElement(UiElementRepository repository, UUID elementId) {
-        Optional<UiElement> elementOpt = findElementById(repository, elementId);
-        LOG.info("User chose to delete element with ID {}", elementId);
-        if (elementOpt.isPresent()) {
-            UiElement elementToDelete = elementOpt.get();
-            repository.remove(elementToDelete);
-        } else {
-            LOG.warn("Element with ID {} not found", elementId);
-        }
+    public List<UiElementMatch> retrieveUiElementsWithMinimumSimilarity(UiElementRepository repository, String query) {
+        return repository.findBySemanticSearch(query, agentConfig.getRetrieverTopN(),
+                uiTestAgentConfig.getElementRetrievalMinGeneralScore());
     }
 
-    public static Optional<UiElement> findElementById(UiElementRepository repository, UUID elementId) {
+    public List<UiElementMatch> retrieveUiElementsWithTargetSimilarity(UiElementRepository repository, String query) {
+        return repository.findBySemanticSearch(query, agentConfig.getRetrieverTopN(),
+                uiTestAgentConfig.getElementRetrievalMinTargetScore());
+    }
+
+    private Optional<UiElement> findElementById(UiElementRepository repository, UUID elementId) {
         return repository.findById(elementId);
-    }
-
-    public static List<UiElementMatch> retrieveUiElements(UiElementRepository repository, String query) {
-        return repository.findBySemanticSearch(query, AgentConfig.getRetrieverTopN(),
-                UiTestAgentConfig.getElementRetrievalMinGeneralScore());
     }
 }

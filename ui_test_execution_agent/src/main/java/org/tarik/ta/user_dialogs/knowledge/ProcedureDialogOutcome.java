@@ -21,5 +21,5 @@ import org.tarik.ta.dto.IngestionNode;
 import java.awt.image.BufferedImage;
 
 public record ProcedureDialogOutcome(@Nullable IngestionNode result, boolean editParentRequested, boolean cancelled,
-                                     @Nullable BufferedImage elementScreenshot) {
+                                     boolean deleted, @Nullable BufferedImage elementScreenshot) {
 }

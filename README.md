@@ -40,6 +40,7 @@ D:\Projects\test-execution-agents\
     * **`GenericAiAgent`**: Core interface for all AI agents with retry logic and budget management.
     * **`TestCaseExtractor`**: Utility class that provides shared test case extraction functionality using an AI model.
     * **`TestContextDataTools`**: Shared tools for loading and managing test data (JSON, CSV).
+    * **`TestExecutionContext`**: Shared request-scoped execution state for step history, precondition history, and shared data; test case data is passed explicitly by the agents instead of being stored in the context.
     * **`DefaultToolErrorHandler`**: Centralized tool error handling with configurable retry policies.
     * **`InheritanceAwareToolProvider`**: Enhanced tool provider that supports tool inheritance and discovery.
     * **`LogCapture`**: Utility for capturing execution logs to include in test results.
@@ -69,6 +70,7 @@ D:\Projects\test-execution-agents\
 
 ### Core Architecture
 
+The project uses **[Avaje Inject](https://avaje.io/inject/)** for dependency injection across all modules.
 The core module provides shared abstractions that both UI and API agents extend:
 
 ```
@@ -129,7 +131,7 @@ The core module provides shared abstractions that both UI and API agents extend:
 - **Visual Grounding**: AI-powered element location using screenshots and descriptions.
 - **Screen Recording**: Captures video of test execution for debugging.
 - **Knowledge Graph**: Neo4j-backed persistent storage for UI elements and reusable procedures with vector search.
-- **Attended/Supervised/Unattended Modes**: Interactive, semi-interactive, or fully automated execution.
+- **Supervised/Unattended Modes**: Interactive or fully automated execution.
 
 ### API Test Agent Specific
 
@@ -335,8 +337,8 @@ remember procedures (reusable test action sequences) across sessions.
 - **PDDL-Lite Planning**: Prerequisite/effect state tracking enables automatic prerequisite resolution during test execution.
 - **Queue-Based Execution**: Replaces the sequential for-loop with a dynamic execution queue that injects prerequisite steps when
   prerequisites are unmet.
-- **Human-in-the-Loop Collecting knowledge**: In ATTENDED and SUPERVISED modes, the agent triggers a Swing dialog for operators to collect knowledge new
-  procedures when an unknown action is encountered. AI suggests prerequisites, effects, and decomposition.
+- **Human-in-the-Loop Collecting knowledge**: In SUPERVISED mode, the agent triggers a Swing dialog for operators to collect new
+  procedures when an unknown action is encountered. AI suggests all info which a new procedure must contain.
 - **Unified Vector Store**: UI element storage migrated from Chroma/Qdrant to Neo4j using `langchain4j-community-neo4j`, providing both
   graph relationships and vector search in a single database.
 
@@ -421,15 +423,51 @@ gcloud secrets versions access latest --secret=VECTOR_DB_KEY
 | `knowledge.query.timeout.seconds` | `KNOWLEDGE_QUERY_TIMEOUT_SECONDS` | `60`                    | Neo4j query timeout in seconds                                    |
 
 Knowledge persistence is automatically enabled when `vector.db.key` (or `VECTOR_DB_KEY`) is set to a non-blank value. Both
-`NEO4J_USERNAME` and `VECTOR_DB_KEY` are stored as secrets in Secret Manager for cloud deployments. Schema migrations run automatically on
-startup.
+`NEO4J_USERNAME` and `VECTOR_DB_KEY` are stored as secrets in Secret Manager for cloud deployments.
+
+**Resilient DB connection:** The Neo4j driver does not verify connectivity on startup. Schema migration runs in a background virtual thread
+at startup (the server waits for it to finish but is not blocked from starting if the DB is unreachable). If migration fails due to
+connection issues, the error is logged and the server starts normally. Migration is automatically retried on the first incoming DB
+operation. If migration still fails during request processing, the entire request fails with a `DatabaseConnectionException`. The driver
+is configured with `withMaxTransactionRetryTime(120s)` so managed-transaction retries (~10 × 10s connection-timeout cycles) are handled
+transparently by the driver without any custom retry loop.
+
+### UiElementCache
+
+The UI Test Execution Agent uses a session-scoped `UiElementCache` singleton to avoid redundant Neo4j fetches for the same `UiElement`
+across tools, dialogs, and orchestrators.
+
+#### Cache Operations
+
+| Operation | Triggered By |
+|-----------|--------------|
+| **put** (populate) | `UiElementDbTools.searchElementInDb()`, `UiElementDbTools.createElementInDb()` |
+| **update** | `UiElementRefinementHelper.updateElementInfo()`, `UiElementRefinementHelper.updateElementScreenshot()`, `UiElementDialogHelper` inline screenshot update |
+| **remove** | `UiElementRefinementHelper.deleteElement()` |
+| **get** | `UiElementRefinementHelper.findElementById()` (also used by `UiElementDialogHelper`) |
+
+#### Element Details in Agent Messages
+
+When the execution orchestrator resolves a target UI element for an atomic step, it retrieves the full `UiElement` from the cache and
+passes its screenshot and description to the action/precondition agents alongside the current screen screenshot. The user message includes:
+
+```
+Target UI element details:
+  Name: {element.name}
+  Description: {element.description}
+  Location details: {element.locationDetails}
+  Parent element context: {element.parentElementSummary}
+The element screenshot is attached as the last image.
+```
+
+This allows the agent to see both the current screen and the reference screenshot of the target element for more accurate interaction.
 
 ### Collecting knowledge Workflow
 
 1. During test execution, the agent encounters an unknown action (no matching procedure in the knowledge graph).
 2. The AI suggestion agent analyzes the action and proposes preconditions, effects, and child steps.
 3. A Swing collecting knowledge dialog (`ProcedureKnowledgeCollectionDialog`) presents the suggestions for the operator to review, modify, or accept. Child steps are listed with screenshot thumbnails; double-clicking or clicking the ✏ affordance on any row opens a recursive `ProcedureKnowledgeCollectionDialog` for that child (bidirectional navigation with "Edit Parent" button). The dialog tracks unsaved changes and warns before discarding them.
-4. For atomic steps, the operator can: (a) run the agent-driven element search ("Select Target Element..."), (b) manually define a new element via `UiElementInfoPopup` ("Create Element..."), or (c) refine existing elements via `UiElementRefinementPopup` ("Refine Elements...") — all from within the dialog.
+4. For atomic steps, the operator can: (a) run the agent-driven element search ("Locate UI Element..."), or (b) open `UiElementLookupDialog` ("Select UI element") to search for an existing element by description and link it, or create a new one directly (agent skips DB search and creates the element, then captures its screenshot).
 5. The completed procedure tree is persisted to Neo4j with all relationships and embeddings.
 6. On subsequent executions, the agent recognizes the action and executes the learned procedure automatically.
 

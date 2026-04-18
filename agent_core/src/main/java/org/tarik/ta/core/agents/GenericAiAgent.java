@@ -34,14 +34,14 @@ import static java.lang.System.currentTimeMillis;
 
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.*;
 import static org.tarik.ta.core.error.ErrorCategory.TERMINATION_BY_USER;
-import static org.tarik.ta.core.manager.BudgetManager.checkAllBudgets;
+import org.tarik.ta.core.manager.BudgetManager;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 
 public interface GenericAiAgent<T extends FinalResult> {
     Logger LOG = LoggerFactory.getLogger(GenericAiAgent.class);
 
     default void checkBudget() {
-        checkAllBudgets();
+        BudgetManager.getInstance().checkAllBudgets();
     }
 
     default OperationExecutionResult<T> createSuccessResult(T result) {
@@ -51,8 +51,6 @@ public interface GenericAiAgent<T extends FinalResult> {
     default OperationExecutionResult<T> createErrorResult(ExecutionStatus status, String message, T result) {
         return new OperationExecutionResult<>(status, message, result);
     }
-
-    RetryPolicy getRetryPolicy();
 
     String getAgentTaskDescription();
 
@@ -101,13 +99,12 @@ public interface GenericAiAgent<T extends FinalResult> {
      * retry, none of those two exceptions need a retry.
      */
     @NotNull
-    default OperationExecutionResult<T> executeWithRetry(Supplier<Result<?>> action, @NotNull Predicate<T> shouldRetry) {
-        RetryPolicy policy = getRetryPolicy();
+    default OperationExecutionResult<T> executeWithRetry(Supplier<Result<?>> action, @NotNull Predicate<T> shouldRetry, RetryPolicy policy) {
         int attempts = 0;
         long startTime = currentTimeMillis();
         String taskDescription = getAgentTaskDescription();
 
-        long elapsedTime = currentTimeMillis() - startTime;
+        long elapsedTime;
         OperationExecutionResult<T> operationResult;
         do {
             operationResult = executeAndGetResult(action);

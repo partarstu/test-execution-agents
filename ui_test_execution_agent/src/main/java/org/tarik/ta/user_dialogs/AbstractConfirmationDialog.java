@@ -15,12 +15,13 @@
  */
 package org.tarik.ta.user_dialogs;
 
-import javax.swing.*;
+import org.tarik.ta.UiTestAgentConfig;
 import java.awt.*;
+import javax.swing.*;
 
 public abstract class AbstractConfirmationDialog extends AbstractDialog {
-    public AbstractConfirmationDialog(Window owner, String title) throws HeadlessException {
-        super(owner, title);
+    public AbstractConfirmationDialog(Window owner, String title, UiTestAgentConfig config) throws HeadlessException {
+        super(owner, title, config);
     }
 
     @Override

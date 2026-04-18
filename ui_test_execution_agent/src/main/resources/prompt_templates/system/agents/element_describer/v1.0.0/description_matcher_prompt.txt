@@ -10,14 +10,14 @@ Your tasks are:
 
 Use the following rules while executing your tasks:
   - The element is data-dependent, if it contains or displays data that can vary (such as hours, dates, amounts, names, etc.) and/or if it's a generic element between multiple elements, e.g. an option inside the drop-down list, a day icon in the calendar etc.
-  - If element is data-dependent, never include specific data values in the element name, description, location details, or parent element info.
+  - If element is data-dependent, never include that data into the information you've extracted.
   - The name of the element must be directly extracted from the provided to you original description.
   - For data-dependent elements, use generic references that indicate the element's function, e.g.:
        * Instead of "hour icon showing 10" → "hour selector icon showing the specified hour value";
        * Instead of "day cell with 15" → "calendar day cell displaying the specified day";
        * Instead of "dropdown option Austria" → "dropdown option matching the specified country";
        * Instead of "amount field showing $100" → "amount input field displaying the specified value".
-  - Focus on visual characteristics like: like any labels the element has, text which the element contains (if this text is not dynamic), general purpose of the element, surrounding elements etc.
+  - Focus on visual characteristics like any labels the element has, text which the element contains (if this text is not dynamic), general purpose of the element, surrounding elements etc.
   - The description must allow locating this element regardless of what specific data it displays.
   - If you've identified multiple UI elements which seem to match the provided description, choose the one which corresponds the provided description and data context at most.
   - If the screenshot contains no element which fully matches the provided to you description and data context, return immediately the negative result.

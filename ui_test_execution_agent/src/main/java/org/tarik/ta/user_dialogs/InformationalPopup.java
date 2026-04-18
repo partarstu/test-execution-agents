@@ -17,18 +17,20 @@ package org.tarik.ta.user_dialogs;
 
 import org.tarik.ta.utils.ImageUtils;
 
-import javax.swing.*;
+import org.tarik.ta.UiTestAgentConfig;
 import java.awt.*;
+import javax.swing.*;
 import java.awt.image.BufferedImage;
 
 public class InformationalPopup extends AbstractConfirmationDialog {
 
-    public InformationalPopup(Window owner, String title) {
-        super(owner, title);
+    public InformationalPopup(Window owner, String title, UiTestAgentConfig config) {
+        super(owner, title, config);
+        setFocusableWindowState(false);
     }
 
-    public static void display(String title, String message, BufferedImage screenshot, PopupType popupType) {
-        new InformationalPopup(null, title).initialize(message, screenshot, popupType);
+    public static void display(String title, String message, BufferedImage screenshot, PopupType popupType, UiTestAgentConfig config) {
+        new InformationalPopup(null, title, config).initialize(message, screenshot, popupType);
     }
 
     private void initialize(String message, BufferedImage screenshot, PopupType popupType) {
@@ -65,8 +67,8 @@ public class InformationalPopup extends AbstractConfirmationDialog {
         displayPopup();
     }
 
-    private static JPanel createMessageWithIconPanel(JTextPane messageArea, Icon icon) {
-        JPanel panel = new JPanel(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, 0));
+    private JPanel createMessageWithIconPanel(JTextPane messageArea, Icon icon) {
+        JPanel panel = new JPanel(new BorderLayout(dialogDefaultHorizontalGap, 0));
         panel.setOpaque(false);
         panel.add(new JLabel(icon), BorderLayout.WEST);
         panel.add(messageArea, BorderLayout.CENTER);

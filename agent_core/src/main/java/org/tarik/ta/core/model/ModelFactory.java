@@ -18,7 +18,6 @@ package org.tarik.ta.core.model;
 import dev.langchain4j.model.azure.AzureOpenAiChatModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ToolChoice;
-import dev.langchain4j.model.googleai.GeminiMediaResolutionLevel;
 import dev.langchain4j.model.googleai.GeminiMode;
 import dev.langchain4j.model.googleai.GeminiThinkingConfig;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
@@ -26,24 +25,29 @@ import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.vertexai.gemini.VertexAiGeminiChatModel;
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.vertexai.anthropic.VertexAiAnthropicChatModel;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
+import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.core.AgentConfig.ModelProvider;
 
 import java.util.List;
-import static org.tarik.ta.core.AgentConfig.*;
 
+@Singleton
 public class ModelFactory {
-    private static final int MAX_RETRIES = getMaxRetries();
-    private static final int MAX_OUTPUT_TOKENS = getMaxOutputTokens();
-    private static final double TEMPERATURE = getTemperature();
-    private static final double TOP_P = getTopP();
-    private static final boolean LOG_MODEL_OUTPUTS = isModelLoggingEnabled();
-    private static final boolean OUTPUT_THOUGHTS = isThinkingOutputEnabled();
-    private static final int GEMINI_THINKING_BUDGET = getGeminiThinkingBudget();
+    private final AgentConfig agentConfig;
+    private final ChatModelEventListener chatModelEventListener;
 
-    public static GenAiModel getModel(String modelName, ModelProvider modelProvider) {
-        return getModel(modelName, modelProvider, MAX_RETRIES);
+    @Inject
+    public ModelFactory(AgentConfig agentConfig, ChatModelEventListener chatModelEventListener) {
+        this.agentConfig = agentConfig;
+        this.chatModelEventListener = chatModelEventListener;
     }
 
-    public static GenAiModel getModel(String modelName, ModelProvider modelProvider, int maxRetries) {
+    public GenAiModel getModel(String modelName, ModelProvider modelProvider) {
+        return getModel(modelName, modelProvider, agentConfig.getMaxRetries());
+    }
+
+    public GenAiModel getModel(String modelName, ModelProvider modelProvider, int maxRetries) {
         return switch (modelProvider) {
             case GOOGLE -> new GenAiModel(getGeminiModel(modelName, maxRetries));
             case OPENAI -> new GenAiModel(getOpenAiModel(modelName, maxRetries));
@@ -52,100 +56,100 @@ public class ModelFactory {
         };
     }
 
-    private static ChatModel getGeminiModel(String modelName, int maxRetries) {
-        var provider = getGoogleApiProvider();
+    private ChatModel getGeminiModel(String modelName, int maxRetries) {
+        var provider = agentConfig.getGoogleApiProvider();
         return switch (provider) {
             case STUDIO_AI -> GoogleAiGeminiChatModel.builder()
-                    .apiKey(getGoogleApiToken())
+                    .apiKey(agentConfig.getGoogleApiToken())
                     .modelName(modelName)
                     .maxRetries(maxRetries)
-                    .maxOutputTokens(MAX_OUTPUT_TOKENS)
-                    .temperature(TEMPERATURE)
-                    .topP(TOP_P)
+                    .maxOutputTokens(agentConfig.getMaxOutputTokens())
+                    .temperature(agentConfig.getTemperature())
+                    .topP(agentConfig.getTopP())
                     .toolConfig(GeminiMode.ANY)
-                    .logRequestsAndResponses(LOG_MODEL_OUTPUTS)
+                    .logRequestsAndResponses(agentConfig.isModelLoggingEnabled())
                     .thinkingConfig(GeminiThinkingConfig.builder()
-                            .includeThoughts(OUTPUT_THOUGHTS)
-                            .thinkingLevel(GeminiThinkingConfig.GeminiThinkingLevel.valueOf(getGeminiThinkingLevel().toUpperCase()))
+                            .includeThoughts(agentConfig.isThinkingOutputEnabled())
+                            .thinkingLevel(GeminiThinkingConfig.GeminiThinkingLevel.valueOf(agentConfig.getGeminiThinkingLevel().toUpperCase()))
                             .build())
                     .returnThinking(true)
                     .sendThinking(true)
                     .mediaResolutionPerPartEnabled(true)
-                    .listeners(List.of(new ChatModelEventListener()))
+                    .listeners(List.of(chatModelEventListener))
                     .build();
 
             case VERTEX_AI -> VertexAiGeminiChatModel.builder()
-                    .project(getGoogleProject())
-                    .location(getGoogleLocation())
+                    .project(agentConfig.getGoogleProject())
+                    .location(agentConfig.getGoogleLocation())
                     .modelName(modelName)
                     .maxRetries(maxRetries)
-                    .maxOutputTokens(MAX_OUTPUT_TOKENS)
-                    .temperature((float) TEMPERATURE)
-                    .topP((float) TOP_P)
-                    .logResponses(LOG_MODEL_OUTPUTS)
-                    .listeners(List.of(new ChatModelEventListener()))
+                    .maxOutputTokens(agentConfig.getMaxOutputTokens())
+                    .temperature((float) agentConfig.getTemperature())
+                    .topP((float) agentConfig.getTopP())
+                    .logResponses(agentConfig.isModelLoggingEnabled())
+                    .listeners(List.of(chatModelEventListener))
                     .build();
         };
     }
 
-    private static ChatModel getOpenAiModel(String modelName, int maxRetries) {
+    private ChatModel getOpenAiModel(String modelName, int maxRetries) {
         return AzureOpenAiChatModel.builder()
                 .maxRetries(maxRetries)
-                .apiKey(getOpenAiApiKey())
+                .apiKey(agentConfig.getOpenAiApiKey())
                 .deploymentName(modelName)
-                .maxTokens(MAX_OUTPUT_TOKENS)
-                .endpoint(getOpenAiEndpoint())
-                .temperature(TEMPERATURE)
-                .topP(TOP_P)
-                .listeners(List.of(new ChatModelEventListener()))
+                .maxTokens(agentConfig.getMaxOutputTokens())
+                .endpoint(agentConfig.getOpenAiEndpoint())
+                .temperature(agentConfig.getTemperature())
+                .topP(agentConfig.getTopP())
+                .listeners(List.of(chatModelEventListener))
                 .build();
     }
 
-    private static ChatModel getGroqModel(String modelName, int maxRetries) {
+    private ChatModel getGroqModel(String modelName, int maxRetries) {
         return OpenAiChatModel.builder()
-                .baseUrl(getGroqEndpoint())
+                .baseUrl(agentConfig.getGroqEndpoint())
                 .modelName(modelName)
                 .maxRetries(maxRetries)
-                .apiKey(getGroqApiKey())
-                .maxTokens(MAX_OUTPUT_TOKENS)
-                .temperature(TEMPERATURE)
-                .topP(TOP_P)
-                .listeners(List.of(new ChatModelEventListener()))
+                .apiKey(agentConfig.getGroqApiKey())
+                .maxTokens(agentConfig.getMaxOutputTokens())
+                .temperature(agentConfig.getTemperature())
+                .topP(agentConfig.getTopP())
+                .listeners(List.of(chatModelEventListener))
                 .build();
     }
 
-    private static ChatModel getAnthropicModel(String modelName, int maxRetries) {
-        var provider = getAnthropicApiProvider();
+    private ChatModel getAnthropicModel(String modelName, int maxRetries) {
+        var provider = agentConfig.getAnthropicApiProvider();
         return switch (provider) {
             case ANTHROPIC_API -> {
-                String apiKey = getAnthropicApiKey();
+                String apiKey = agentConfig.getAnthropicApiKey();
                 if (apiKey.isBlank()) {
                     throw new IllegalArgumentException("Anthropic API Key is missing for ANTHROPIC_API provider");
                 }
                 yield AnthropicChatModel.builder()
-                        .baseUrl(getAnthropicEndpoint())
+                        .baseUrl(agentConfig.getAnthropicEndpoint())
                         .thinkingType("disabled")
                         .returnThinking(false)
                         .sendThinking(false)
                         .apiKey(apiKey)
                         .modelName(modelName)
                         .maxRetries(maxRetries)
-                        .maxTokens(MAX_OUTPUT_TOKENS)
-                        .temperature(TEMPERATURE)
+                        .maxTokens(agentConfig.getMaxOutputTokens())
+                        .temperature(agentConfig.getTemperature())
                         .toolChoice(ToolChoice.REQUIRED)
                         // .topP(TOP_P)
-                        .listeners(List.of(new ChatModelEventListener()))
+                        .listeners(List.of(chatModelEventListener))
                         .build();
             }
             case VERTEX_AI -> VertexAiAnthropicChatModel.builder()
-                    .project(getGoogleProject())
-                    .location(getGoogleLocation())
+                    .project(agentConfig.getGoogleProject())
+                    .location(agentConfig.getGoogleLocation())
                     .modelName(modelName)
-                    .maxTokens(MAX_OUTPUT_TOKENS)
-                    .temperature(TEMPERATURE)
-                    .topP(TOP_P)
-                    .logResponses(LOG_MODEL_OUTPUTS)
-                    .listeners(List.of(new ChatModelEventListener()))
+                    .maxTokens(agentConfig.getMaxOutputTokens())
+                    .temperature(agentConfig.getTemperature())
+                    .topP(agentConfig.getTopP())
+                    .logResponses(agentConfig.isModelLoggingEnabled())
+                    .listeners(List.of(chatModelEventListener))
                     .build();
         };
     }

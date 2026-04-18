@@ -28,6 +28,10 @@ import io.a2a.spec.*;
 import io.a2a.spec.InternalError;
 import io.a2a.transport.jsonrpc.handler.JSONRPCHandler;
 import io.javalin.http.Context;
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
+import jakarta.inject.Provider;
+import jakarta.inject.Singleton;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,21 +42,31 @@ import java.util.Set;
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import java.util.Map;
 
+@Singleton
 public class AgentExecutionResource {
     private static final Logger LOG = LoggerFactory.getLogger(AgentExecutionResource.class);
     private static final PushNotificationConfigStore pushNotificationConfigStore = new InMemoryPushNotificationConfigStore();
-    private final JSONRPCHandler jsonRpcHandler;
+    private final Provider<AgentExecutor> agentExecutorProvider;
+    private final Provider<AgentCard> agentCardProvider;
     private final ObjectMapper objectMapper;
+    private JSONRPCHandler jsonRpcHandler;
 
-    public AgentExecutionResource(AgentExecutor agentExecutor, AgentCard agentCard) {
+    @Inject
+    public AgentExecutionResource(Provider<AgentExecutor> agentExecutorProvider, Provider<AgentCard> agentCardProvider) {
+        this.agentExecutorProvider = agentExecutorProvider;
+        this.agentCardProvider = agentCardProvider;
+        this.objectMapper = new ObjectMapper().findAndRegisterModules();
+    }
+
+    @PostConstruct
+    void init() {
         var executor = newSingleThreadExecutor();
         var taskStore = new InMemoryTaskStore();
         var queueManager = new InMemoryQueueManager(taskStore);
-        DefaultRequestHandler httpRequestHandler = DefaultRequestHandler.create(agentExecutor,
+        DefaultRequestHandler httpRequestHandler = DefaultRequestHandler.create(agentExecutorProvider.get(),
                 taskStore, queueManager, pushNotificationConfigStore,
                 new BasePushNotificationSender(pushNotificationConfigStore), executor);
-        this.jsonRpcHandler = new JSONRPCHandler(agentCard, httpRequestHandler, executor);
-        this.objectMapper = new ObjectMapper().findAndRegisterModules();
+        this.jsonRpcHandler = new JSONRPCHandler(agentCardProvider.get(), httpRequestHandler, executor);
     }
 
     /**

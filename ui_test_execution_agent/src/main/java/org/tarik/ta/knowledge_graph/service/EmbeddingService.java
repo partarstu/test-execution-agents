@@ -19,6 +19,9 @@ import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.embedding.onnx.bgesmallenv15.BgeSmallEnV15EmbeddingModel;
+import io.avaje.inject.Bean;
+import io.avaje.inject.Factory;
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Objects.requireNonNull;
-import static org.tarik.ta.UiTestAgentConfig.getKnowledgeEmbeddingBatchSize;
+import org.tarik.ta.UiTestAgentConfig;
 
 /**
  * Centralized embedding service for batch embedding during knowledge ingestion
@@ -35,10 +38,16 @@ import static org.tarik.ta.UiTestAgentConfig.getKnowledgeEmbeddingBatchSize;
  * <p>Reuses the shared {@link BgeSmallEnV15EmbeddingModel} instance (384-dimension, ONNX-based,
  * thread-safe). Configurable batch size via {@code knowledge.embedding.batch.size} property.</p>
  */
+@Factory
 public class EmbeddingService {
     private static final Logger LOG = LoggerFactory.getLogger(EmbeddingService.class);
 
-    private static final EmbeddingModel MODEL = new BgeSmallEnV15EmbeddingModel();
+    private final EmbeddingModel MODEL = new BgeSmallEnV15EmbeddingModel();
+    private final UiTestAgentConfig config;
+
+    public EmbeddingService(UiTestAgentConfig config) {
+        this.config = config;
+    }
 
     /**
      * Embeds a single text string and returns the resulting {@link Embedding}.
@@ -61,7 +70,7 @@ public class EmbeddingService {
             return List.of();
         }
 
-        var batchSize = getKnowledgeEmbeddingBatchSize();
+        var batchSize = config.getKnowledgeEmbeddingBatchSize();
         var segments = texts.stream().map(TextSegment::from).toList();
         var allEmbeddings = new ArrayList<Embedding>(segments.size());
 
@@ -79,9 +88,12 @@ public class EmbeddingService {
     }
 
     /**
-     * Returns the shared embedding model instance.
+     * Exposes the shared embedding model as an injectable bean so that avaje can inject it into
+     * repositories that need it (e.g. {@link org.tarik.ta.knowledge_graph.repository.UiElementRepository}).
      */
-    public static EmbeddingModel getModel() {
+    @Bean
+    @Singleton
+    public EmbeddingModel getModel() {
         return MODEL;
     }
 }

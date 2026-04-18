@@ -38,13 +38,25 @@ import static javax.swing.text.StyleConstants.setAlignment;
 
 public abstract class AbstractDialog extends JDialog {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractDialog.class);
-    public static final int DIALOG_DEFAULT_VERTICAL_GAP = UiTestAgentConfig.getDialogDefaultVerticalGap();
-    public static final int DIALOG_DEFAULT_HORIZONTAL_GAP = UiTestAgentConfig.getDialogDefaultHorizontalGap();
     public static final int SCREENSHOT_DISPLAY_MAX_WIDTH = 600;
     public static final int SCREENSHOT_DISPLAY_MAX_HEIGHT = 400;
+    public static final int DIALOG_DEFAULT_HORIZONTAL_GAP = 10;
+    public static final int DIALOG_DEFAULT_VERTICAL_GAP = 10;
+    protected final UiTestAgentConfig uiTestAgentConfig;
+    protected final int dialogDefaultVerticalGap;
+    protected final int dialogDefaultHorizontalGap;
+    protected final String dialogDefaultFontType;
+    protected final int dialogDefaultFontSize;
+    protected final int procedureLookupDelayMs;
 
-    public AbstractDialog(Window owner, String title) throws HeadlessException {
+    public AbstractDialog(Window owner, String title, UiTestAgentConfig uiTestAgentConfig) throws HeadlessException {
         super(owner, title, ModalityType.APPLICATION_MODAL);
+        this.uiTestAgentConfig = uiTestAgentConfig;
+        this.dialogDefaultVerticalGap = uiTestAgentConfig.getDialogDefaultVerticalGap();
+        this.dialogDefaultHorizontalGap = uiTestAgentConfig.getDialogDefaultHorizontalGap();
+        this.dialogDefaultFontType = uiTestAgentConfig.getDialogDefaultFontType();
+        this.dialogDefaultFontSize = uiTestAgentConfig.getDialogDefaultFontSize();
+        this.procedureLookupDelayMs = uiTestAgentConfig.getProcedureLookupDelayMs();
         setAlwaysOnTop(true);
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
@@ -69,45 +81,34 @@ public abstract class AbstractDialog extends JDialog {
         }
     }
 
+    public int getDialogDefaultVerticalGap() {
+        return dialogDefaultVerticalGap;
+    }
+
+    public int getDialogDefaultHorizontalGap() {
+        return dialogDefaultHorizontalGap;
+    }
+
+    public String getDialogDefaultFontType() {
+        return dialogDefaultFontType;
+    }
+
+    public int getDialogDefaultFontSize() {
+        return dialogDefaultFontSize;
+    }
+
     protected abstract void onDialogClosing();
 
     @NotNull
-    protected static JPanel getDefaultMainPanel() {
-        // Use AgentConfig to get values
-        JPanel mainPanel = new JPanel(new BorderLayout(DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP,
-                DIALOG_DEFAULT_VERTICAL_GAP, DIALOG_DEFAULT_HORIZONTAL_GAP));
+    protected JPanel getDefaultMainPanel() {
+        JPanel mainPanel = new JPanel(new BorderLayout(dialogDefaultHorizontalGap, dialogDefaultVerticalGap));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(dialogDefaultVerticalGap, dialogDefaultHorizontalGap,
+                dialogDefaultVerticalGap, dialogDefaultHorizontalGap));
         return mainPanel;
     }
 
-    @NotNull
-    public static JTextPane getUserMessageArea(String message, int fontSize) {
-        JTextPane messageArea = new JTextPane(); // Use JTextPane for StyledDocument
-        messageArea.setEditable(false);
-        messageArea.setOpaque(false);
-        // Use AgentConfig to get font type
-        messageArea.setFont(new Font(UiTestAgentConfig.getDialogDefaultFontType(), Font.PLAIN, fontSize));
-        var styledDocument = messageArea.getStyledDocument();
-        SimpleAttributeSet center = new SimpleAttributeSet();
-        setAlignment(center, StyleConstants.ALIGN_CENTER);
-        try {
-            styledDocument.insertString(0, message, null);
-            styledDocument.setParagraphAttributes(0, styledDocument.getLength(), center, false);
-        } catch (BadLocationException e) {
-            LOG.error("Couldn't display the popup user message", e);
-        }
-
-        return messageArea;
-    }
-
-    @NotNull
-    public static JTextPane getUserMessageArea(String message) {
-        // Use AgentConfig to get default font size
-        return getUserMessageArea(message, UiTestAgentConfig.getDialogDefaultFontSize());
-    }
-
-    public static void setHoverAsClick(JComponent component, Runnable actionAfterClick) {
-        if (UiTestAgentConfig.isDialogHoverAsClick()) {
+    public void setHoverAsClick(JComponent component, Runnable actionAfterClick) {
+        if (uiTestAgentConfig.isDialogHoverAsClick()) {
             component.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent e) {
@@ -131,20 +132,38 @@ public abstract class AbstractDialog extends JDialog {
         }
     }
 
-    public static void setHoverAsClick(JComponent component) {
+    public void setHoverAsClick(JComponent component) {
         setHoverAsClick(component, () -> {
         });
     }
 
     @NotNull
-    public static JPanel getButtonsPanel(JButton... buttons) {
-        // Use AgentConfig to get gaps
+    public JPanel getButtonsPanel(JButton... buttons) {
         var panel = new JPanel(
-                new FlowLayout(FlowLayout.CENTER, DIALOG_DEFAULT_HORIZONTAL_GAP, DIALOG_DEFAULT_VERTICAL_GAP));
+                new FlowLayout(FlowLayout.CENTER, dialogDefaultHorizontalGap, dialogDefaultVerticalGap));
         for (JButton button : buttons) {
             panel.add(button);
         }
         return panel;
+    }
+
+    @NotNull
+    public JTextPane getUserMessageArea(String message) {
+        JTextPane messageArea = new JTextPane();
+        messageArea.setEditable(false);
+        messageArea.setOpaque(false);
+        messageArea.setFont(new Font(uiTestAgentConfig.getDialogDefaultFontType(), Font.PLAIN,
+                uiTestAgentConfig.getDialogDefaultFontSize()));
+        var styledDocument = messageArea.getStyledDocument();
+        SimpleAttributeSet center = new SimpleAttributeSet();
+        setAlignment(center, StyleConstants.ALIGN_CENTER);
+        try {
+            styledDocument.insertString(0, message, null);
+            styledDocument.setParagraphAttributes(0, styledDocument.getLength(), center, false);
+        } catch (BadLocationException e) {
+            LOG.error("Couldn't display the popup user message", e);
+        }
+        return messageArea;
     }
 
     public void displayPopup() {

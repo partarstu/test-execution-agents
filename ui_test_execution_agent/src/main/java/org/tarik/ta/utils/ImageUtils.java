@@ -18,8 +18,6 @@ package org.tarik.ta.utils;
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.ImageContent;
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -30,27 +28,15 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 
-import static dev.langchain4j.data.message.ImageContent.DetailLevel.HIGH;
 import static dev.langchain4j.data.message.ImageContent.DetailLevel.ULTRA_HIGH;
 import static java.awt.Image.SCALE_AREA_AVERAGING;
 import static java.awt.Image.SCALE_SMOOTH;
-import static java.awt.RenderingHints.KEY_INTERPOLATION;
-import static java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR;
 import static java.lang.Math.min;
-import static java.nio.file.Files.createDirectories;
-import static java.time.LocalDateTime.now;
-import static java.time.format.DateTimeFormatter.ofPattern;
 import static javax.imageio.ImageIO.write;
-import static org.tarik.ta.UiTestAgentConfig.getScreenshotsSaveFolder;
-
 
 public class ImageUtils {
-    private static final Logger LOG = LoggerFactory.getLogger(ImageUtils.class);
     private static final String DEFAULT_IMAGE_FORMAT = "png";
 
     public static Image getImage(@NotNull String base64Image, @NotNull String format) {
@@ -132,25 +118,7 @@ public class ImageUtils {
         return paddedImage;
     }
 
-    public static boolean saveImage(BufferedImage resultingScreenshot, String postfix) {
-        LocalDateTime now = now();
-        DateTimeFormatter formatter = ofPattern("yyyy_MM_dd_HH_mm_ss_SSS");
-        String timestamp = now.format(formatter);
-        var filePath = Paths.get(getScreenshotsSaveFolder())
-                .resolve("%s_%s.png".formatted(timestamp, postfix)).toAbsolutePath();
-        try {
-            createDirectories(filePath.getParent());
-            write(resultingScreenshot, "png", filePath.toFile());
-            LOG.info("Saved image {}", filePath.toAbsolutePath());
-            return true;
-        } catch (IOException e) {
-            String message = "Couldn't save screenshot %s.".formatted(filePath);
-            LOG.error(message, e);
-            return false;
-        }
-    }
-
-    public static java.awt.Image scaleToFitBox(BufferedImage src, int maxW, int maxH) {
+    public static java.awt.Image scaleToFitBox(@NotNull BufferedImage src, int maxW, int maxH) {
         double ratio = min((double) maxW / src.getWidth(), (double) maxH / src.getHeight());
         int w = Math.max(1, (int) (src.getWidth() * ratio));
         int h = Math.max(1, (int) (src.getHeight() * ratio));
@@ -165,6 +133,6 @@ public class ImageUtils {
     }
 
     public static ImageContent singleImageContent(BufferedImage image) {
-        return ImageContent.from(ImageUtils.getImage(image, DEFAULT_IMAGE_FORMAT), ULTRA_HIGH);
+        return ImageContent.from(getImage(image, DEFAULT_IMAGE_FORMAT), ULTRA_HIGH);
     }
 }

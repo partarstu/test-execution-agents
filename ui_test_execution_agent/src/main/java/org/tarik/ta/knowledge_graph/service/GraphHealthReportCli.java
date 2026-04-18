@@ -31,10 +31,10 @@ import java.nio.file.Path;
 public class GraphHealthReportCli {
 
     public static void main(String[] args) {
-        var outputPath = parseOutputPath(args);
-        try {
-            var repository = new GraphHealthRepository();
-            var service = new GraphHealthService(repository);
+        try (io.avaje.inject.BeanScope scope = io.avaje.inject.BeanScope.builder().build()) {
+            var config = scope.get(org.tarik.ta.UiTestAgentConfig.class);
+            var outputPath = parseOutputPath(args, config);
+            var service = scope.get(GraphHealthService.class);
             var reportPath = service.generateHtmlReport(outputPath);
             System.out.println("Health report generated: " + reportPath.toAbsolutePath());
         } catch (IllegalStateException e) {
@@ -46,12 +46,12 @@ public class GraphHealthReportCli {
         }
     }
 
-    private static Path parseOutputPath(String[] args) {
+    private static Path parseOutputPath(String[] args, org.tarik.ta.UiTestAgentConfig config) {
         for (int i = 0; i < args.length - 1; i++) {
             if ("--output".equals(args[i])) {
                 return Path.of(args[i + 1]);
             }
         }
-        return Path.of(UiTestAgentConfig.getHealthReportOutputPath());
+        return Path.of(config.getHealthReportOutputPath());
     }
 }

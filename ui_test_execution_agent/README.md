@@ -34,7 +34,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * **[BestUiElementMatchSelectionAgent](src/main/java/org/tarik/ta/agents/BestUiElementMatchSelectionAgent.java):** Selects the best and correct
           element from multiple candidates (visual grounding).
         * **[UiElementDescriptionAgent](src/main/java/org/tarik/ta/agents/UiElementDescriptionAgent.java):** Generates new UI element info
-          suggestions in order accelerate the execution in attended mode.
+          suggestions in order accelerate the execution in supervised mode.
         * **[UiStateCheckAgent](src/main/java/org/tarik/ta/agents/UiStateCheckAgent.java):** Checks the current state of the UI against
           an expected one.
         * **[DbUiElementSelectionAgent](src/main/java/org/tarik/ta/agents/DbUiElementSelectionAgent.java):** When
@@ -149,24 +149,14 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java ) provides the whole logic for locating a specific
       UI element on the screen based on its description.
     * [CommonUserInteractionTools](src/main/java/org/tarik/ta/tools/CommonUserInteractionTools.java) facilitates user interactions via dialogs for
-      element creation, refinement, and verification. **Note:** These tools are only available when running in attended or supervised
-      modes (`execution.mode=ATTENDED` or `execution.mode=SUPERVISED`).
+      element creation, refinement, and verification. **Note:** These tools are only available when running in supervised
+      mode.
     * [KnowledgeElementTools](src/main/java/org/tarik/ta/tools/KnowledgeElementTools.java) provides mode-aware UI element handling for
       the knowledge persistence feature. Supports collecting knowledge flow (searches for or creates elements by description) and execution flow
       (locates known elements directly by UUID, bypassing vector DB search).
 
 * **Execution Modes:**
-    * Supports three execution modes controlled by the `execution.mode` property in `config.properties`.
-    * **Attended ("Trainee") Mode (`execution.mode=ATTENDED`):** Designed for initial test case runs or when execution in unattended mode
-      fails for debugging/fixing purposes. In this mode the agent behaves as a trainee, who needs assistance from the human tutor/mentor
-      in order to identify all the information which is required for the unattended (without supervision) execution of the test case. Key
-      features:
-        * Agent asks for confirmation after locating elements.
-        * User can create new elements or refine existing ones.
-        * User can manually select the next action at any point.
-        * **Verification Failure Notification:** When a verification fails, the user is notified with details about the failure and the
-          retry timeout, and can choose to continue or terminate.
-        * Tool call limits are significantly relaxed.
+    * Supports three execution modes controlled by the `execution.mode` property in `config.properties`.    
     * **Supervised Mode (`execution.mode=SUPERVISED`):** The agent operates autonomously but allows the operator to intervene.
         * **Countdown Halt:** Displays a countdown popup (configurable duration) after test step actions, allowing the operator to click "
           Halt".
@@ -175,7 +165,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * **Element Selection Confirmation:** Displays a popup with a countdown when an element is automatically selected. The operator can
           see the selected element, intended action, and the agent's assessment of whether the located element matches the description, and
           choose to "Proceed" (default), "Create new element", or take "Other action" (prompting the agent).
-        * **Operator Intervention:** On halt or error, the operator can choose the next action (Retry, Refine, Terminate, etc.).
+        * **Operator Intervention:** On halt or failure, the system reuses `UserChoiceDialog` — the same dialog used for ambiguous match resolution — giving the operator the full set of actions: Retry the step, Edit or Browse the current atomic procedure, Create a new procedure, or Cancel (terminates execution).
         * Suitable for monitoring execution without constant clicking, while retaining control to fix issues on the fly.
     * **Unattended Mode (`execution.mode=UNATTENDED`):** The agent executes the test case without any human assistance. It relies entirely
       on the information stored in the RAG database and the AI models' ability to interpret instructions and locate elements based on stored
@@ -189,6 +179,12 @@ a part of this framework for executing a sample test case inside Google Cloud.
       port configured via `port` in `config.properties`). The server accepts only one test case execution at a time (the agent has been
       designed as a static utility for simplicity purposes). Upon receiving a valid request when idle, it returns `200 OK` and starts the
       test case execution. If busy, it returns `429 Too Many Requests`.
+    * The runtime request lifecycle now mirrors the API agent: [UiAgentExecutor](src/main/java/org/tarik/ta/a2a/UiAgentExecutor.java)
+      opens a child request `BeanScope` through [UiAgentRequestScopeFactory](src/main/java/org/tarik/ta/UiAgentRequestScopeFactory.java)
+      and resolves a request-scoped [UiTestAgent](src/main/java/org/tarik/ta/UiTestAgent.java) from that scope.
+    * The UI request scope now explicitly depends on the shared base request scope, so `LogCapture`, shared test-context tooling, and the
+      UI-only runtime `VisualState` are all assembled in the same child `BeanScope` without duplicate default `@InjectModule`
+      declarations.
 
 * **Knowledge Persistence (Neo4j):**
     * Optional knowledge persistence layer backed by Neo4j 5.x that enables the agent to learn and remember procedures (reusable
@@ -197,23 +193,28 @@ a part of this framework for executing a sample test case inside Google Cloud.
       TARGETS (step-to-UI-element) relationships.
     * **PDDL-Lite Planning:** Prerequisite/effect state tracking enables automatic prerequisite resolution and procedure branching during test execution.
     * **Procedure Branching:** When multiple semantically similar procedures exist with different prerequisites, the execution engine automatically selects the one whose prerequisites are satisfied by the current execution state. This allows defining alternative procedure variants (branches) that execute conditionally based on accumulated effects.
-    * **State-Aware Candidate Re-Ranking:** Before selecting the best match, candidates are re-ranked by state compatibility using semantic matching between each procedure's prerequisites and the accumulated execution effects. Prerequisite satisfaction is checked via Cypher vector index queries against native `PhraseEmbedding` nodes (see below), replacing the previous O(N×M) in-memory cosine loop. Procedures with no prerequisites always score `1.0` (universally applicable). Among prerequisite-bearing procedures, the score is the proportion of prerequisites semantically met (similarity ≥ high-confidence threshold). Within equal scores, candidates with more satisfied prerequisites rank higher; semantic similarity order breaks remaining ties.
-    * **Native Phrase Embedding Nodes:** Prerequisites and effects are stored as first-class `PhraseEmbeddingNode` Neo4j nodes (`label: PhraseEmbedding`, properties: `id`, `phrase`, `embedding: float[384]`, `type: PREREQUISITE|EFFECT`) connected to their parent `Procedure` via `HAS_PREREQUISITE {sequence}` and `HAS_EFFECT {sequence}` relationships. A dedicated vector index (`phrase_embedding_vector_index`, cosine similarity, dimension 384) and a phrase-text index enable efficient Cypher-native similarity queries without any Java-side vector arithmetic. Embeddings are computed once at ingestion time by `KnowledgeIngestionService` and batch-created via `PhraseEmbeddingRepository`. `ExecutionStateTracker` tracks accumulated effects as `Map<String, UUID>` (phrase → node ID); precondition satisfaction is resolved by querying the vector index directly in Cypher rather than loading float arrays into memory.
+    * **State-Aware Candidate Re-Ranking:** Before selecting the best match, candidates are re-ranked by state compatibility using semantic matching between each procedure's prerequisites and the accumulated execution effects. Prerequisite satisfaction is checked via Cypher vector index queries against native `PhraseEmbedding` nodes (see below), replacing the previous O(N×M) in-memory cosine loop. Procedures with no prerequisites always score `1.0` (universally applicable). Among prerequisite-bearing procedures, the score is the proportion of prerequisites semantically met (similarity ≥ high-confidence threshold). Within equal scores, candidates with more satisfied prerequisites rank higher; semantic similarity order breaks remaining ties. When the top semantic match is demoted by re-ranking, a DEBUG log entry is emitted showing the original semantic score, how many prerequisites were met vs. total, which prerequisites were unmet, whether `effectNodeIds` was empty, and which procedure was selected instead — enabling diagnosis of re-ranking decisions.
+    * **Native Phrase Embedding Nodes:** Prerequisites and effects are stored as first-class `PhraseEmbeddingNode` Neo4j nodes (`label: PhraseEmbedding`, properties: `id`, `phrase`, `embedding: float[384]`, `type: PREREQUISITE|EFFECT`) connected to their parent `Procedure` via `HAS_PREREQUISITE {sequence}` and `HAS_EFFECT {sequence}` relationships. A dedicated vector index (`phrase_embedding_vector_index`, cosine similarity, dimension 384) and a phrase-text index enable efficient Cypher-native similarity queries without any Java-side vector arithmetic. Embeddings are computed once at ingestion time by `KnowledgeIngestionService` and batch-created via `PhraseEmbeddingRepository`. `ExecutionStateTracker` tracks accumulated effects as `Map<String, UUID>` (phrase → node ID); precondition satisfaction is resolved by querying the vector index directly in Cypher rather than loading float arrays into memory. If a procedure's `HAS_EFFECT` phrase nodes are missing at execution time (legacy data), a WARN log is emitted and state tracking falls back to string-only mode, which degrades prerequisite semantic matching for subsequent steps.
+    * **Startup Phrase Node Migration:** On startup, `PhraseNodeMigrationService` scans for procedures that have non-empty `effects` or `prerequisites` node properties but are missing the corresponding `HAS_EFFECT` or `HAS_PREREQUISITE` phrase embedding edges (a symptom of data ingested before phrase-node creation was part of the pipeline). For each such procedure it deletes any partial phrase nodes and recreates them atomically via `KnowledgeIngestionService`. This ensures `SATISFIES` edge computation and prerequisite semantic matching work correctly for all procedures on first use.
     * **Jackson JSON Node Storage:** Each `Procedure` Neo4j node stores its scalar properties (name, description, prerequisites/effects as plain phrase strings, timing/stability metadata, etc.) as a single Jackson-serialized JSON string in a `data` property. The `id`, `description`, and `embedding` properties are kept as dedicated Neo4j properties for vector index use. Phrase embedding vectors are stored separately as `PhraseEmbeddingNode` nodes — not inside the Procedure JSON — keeping the Procedure payload lightweight and enabling selective loading.
     * **Queue-Based Execution:** Replaces the sequential for-loop with a dynamic execution queue that injects prerequisite steps when
       prerequisites are unmet.
-    * **Human-in-the-Loop Collecting knowledge:** In ATTENDED and SUPERVISED modes, the agent triggers a Swing dialog for operators to collect knowledge new
+    * **Human-in-the-Loop Collecting knowledge:** In SUPERVISED mode, the agent triggers a Swing dialog for operators to collect knowledge new
       procedures when an unknown action is encountered. The dialog is shown **immediately** without waiting for AI suggestions — AI
       suggestions are loaded concurrently on a background virtual thread and injected into the still-open dialog once ready.
-        * **Low-Confidence Match Selection:** If the agent finds existing procedures that match the action description with low
-          confidence, it presents a selection dialog (`ProcedureLowConfidenceSelectionPopup`) allowing the operator to choose an existing
-          procedure to edit, or proceed with creating a new one.
+        * **Ambiguous Match Resolution:** If the agent cannot automatically resolve the procedure — due to low confidence, unmet
+          prerequisites, or no match at all — it presents a `UserChoiceDialog` allowing the operator to choose an existing
+          procedure to edit, retry the search, create a new one, or **Browse All...** to open a scored lookup of all semantically
+          matching procedures. The browse lookup (`MatchingProcedureBrowseDialog`) and the existing-procedure lookup
+          (`ExistingProcedureLookupDialog`) share a common abstract base (`ProcedureLookupDialog`) that handles the search field,
+          debounced search, scored results list (showing prerequisite satisfaction as `satisfied/total` badges colored green/orange/red),
+          and spinner overlay. Selecting a procedure from the browse dialog opens it for editing; cancelling returns to `UserChoiceDialog`.
+          The three previous `ProcedureLookup` variants (`LowConfidenceMatch`, `NoProcedureWithFulfilledPrerequisites`, `NoMatchFound`)
+          are collapsed into a single `NeedsUserResolution` record carrying an optional `MatchResult` and missing-prerequisite list,
+          from which a precise reason message is derived.
         * **Element Selection During Collecting knowledge:** When collecting knowledge an atomic procedure that targets a UI element, the operator is prompted
           to describe the target element. The system performs a semantic search against the vector DB to find a matching element. If found,
-          its UUID is linked to the step being collected. If not found, the element will be created during knowledge ingestion.
-        * **Browse Existing Elements (Attended Mode):** The collecting knowledge dialog includes a "Browse Elements..." button (Attended mode only) that
-          retrieves existing UI elements ranked by similarity to the procedure description and presents them in a selection popup
-          (`UiElementBrowsePopup`). This lets operators quickly reuse known elements instead of running an agent-driven search.
+          its UUID is linked to the step being collected. If not found, the element will be created during knowledge ingestion.        
         * **Auto-Select Element (Supervised Mode):** When the collecting knowledge dialog opens in Supervised mode, the system automatically
           queries the vector store for a high-score element match (above `element.retrieval.min.target.score`). If found, the element is
           selected automatically and its screenshot is shown in the dialog. The operator can override via the "Refine Elements..." popup.
@@ -221,7 +222,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * **Confirmation Popup Scoping:** The post-execution confirmation popup (`ProcedureExecutionConfirmationPopup`) is only shown for
           **pre-existing** procedures. Newly collected procedures skip the popup because the operator just interacted with the collecting knowledge
           dialog and there is nothing additional to confirm.
-        * **Prerequisite Failure Handling:** If no procedure branch has its prerequisites satisfied by the current execution state, the test execution fails with a descriptive error listing which prerequisites are missing. In SUPERVISED/ATTENDED mode the operator is prompted with the standard EDIT/CREATE/RETRY selection; in UNATTENDED mode the test terminates immediately.
+        * **Prerequisite Failure Handling:** If no procedure branch has its prerequisites satisfied by the current execution state, the test execution fails with a descriptive error listing which prerequisites are missing. In SUPERVISED mode the operator is prompted with the standard EDIT/CREATE/RETRY selection; in UNATTENDED mode the test terminates immediately.
         * **Procedure Usage Tracking:** The agent automatically tracks which test cases use which procedures using `USES_PROCEDURE` edges in the graph. When an operator edits a procedure that is used by multiple test cases, a warning popup is displayed to highlight the potential impact across the test suite. Stale usage edges are automatically cleaned up in the `finally` block at the end of each test case execution.
     * **SATISFIES Edges — Pre-Computed Precondition Satisfaction:** Persists `SATISFIES` relationships directly between Procedure nodes to record that an effect of one procedure satisfies a precondition of another. Each edge carries a cosine similarity `score`, matched `effectPhrase`/`precondPhrase` texts, and lifecycle timestamps (`createdAt`, `lastVerifiedAt`). Computed asynchronously by `SatisfiesEdgeService` after each successful step: a virtual thread fires N parallel similarity comparisons (one per effect embedding), deduplicates by maximum score per consumer procedure, filters by `satisfies.similarity.threshold` (default `0.85`), and batch-persists the results. This replaces the previous O(N×M) per-step cosine loop with a single graph traversal during re-ranking and enables cross-run caching — a match is never recomputed until the procedure is edited. Edges are deleted transactionally when a procedure is modified. Stale edges (not verified within `satisfies.stale.days`) are flagged during health checks and cleaned up via `GraphHealthService.runStaleSatisfiesEdgeCleanup()`.
     * **Ordering Conflict Detection:** At the start of execution in supervised mode only, the engine queries the `SATISFIES` graph to detect when a test step B appears before step A but B's preconditions require an effect that A produces — a test authoring error. Conflicts are displayed as a warning `InformationalPopup` and do not block execution. Skipped entirely when no `SATISFIES` edges exist yet (cold graph).
@@ -249,13 +250,13 @@ The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/
    `preconditions` (natural language description of the required state before execution), and a list of `TestStep`s. Each `TestStep`
    includes a `stepDescription` (natural language instruction), optional `testData` (inputs for the step), and `expectedResults`
    (natural language description of the expected state after the step).
-2. **Starting Step Selection:** In Attended and Supervised modes, the operator can choose to start execution from a specific test step.
+2. **Starting Step Selection:** In Supervised mode, the operator can choose to start execution from a specific test step.
    In Unattended mode, execution always starts from the first step.
 3. **Queue Creation:** Both test case preconditions (if any) and test steps are combined into a single unified `ExecutionQueue`. The `ExecutionStateTracker` is initialized to track accumulated effects throughout the test run.
 4. **Knowledge-Based Iteration:** For each item in the queue (precondition or test step):
     * **Procedure Matching:** The agent queries the knowledge base for a matching procedure based on the item's description.
     * **State-Aware Resolution:** If candidates are found, the agent evaluates their prerequisites against the current execution state to select a feasible procedure.
-    * **Human-in-the-Loop Fallback:** If no match is found, or if no candidate's prerequisites are met, the agent triggers a knowledge collection flow (in Attended/Supervised modes) for the operator to create or refine a procedure. In Unattended mode, the execution fails.
+    * **Human-in-the-Loop Fallback:** If no match is found, or if no candidate's prerequisites are met, the agent triggers a knowledge collection flow (in Supervised mode) for the operator to create or refine a procedure. In Unattended mode, the execution fails.
     * **Decomposition:** Composite procedures are decomposed into their constituent atomic child steps.
 5. **Atomic Step Execution:** For each resolved atomic step:
     * **Screenshot Capture:** A screenshot of the current screen is captured to provide visual context.
@@ -270,7 +271,7 @@ The test execution process, orchestrated by the [UiTestAgent](src/main/java/org/
 
 The [ElementLocatorTools](src/main/java/org/tarik/ta/tools/ElementLocatorTools.java ) class is responsible for finding the coordinates
 of a target UI element based on its natural language description provided by the instruction model during an action step. This involves a
-combination of RAG, computer vision, analysis, and potentially user interaction (if run in attended mode):
+combination of RAG, computer vision, analysis, and potentially user interaction (if run in a supervised mode):
 
 1. **RAG Retrieval:** The provided UI element's description is used to query the vector database, where the top N (`retriever.top.n`) most
    semantically similar `UiElement` records are retrieved based on their stored names, using embeddings generated by
@@ -292,7 +293,7 @@ combination of RAG, computer vision, analysis, and potentially user interaction 
           screenshot showing all candidate bounding boxes highlighted with specific color and having unique ID labels.
     * **Low-Confidence/No Match(es) Found:** If no elements meet the `MIN_TARGET_RETRIEVAL_SCORE` or `MIN_PAGE_RELEVANCE_SCORE`, but some
       meet the `MIN_GENERAL_RETRIEVAL_SCORE`:
-        * **Attended Mode:** The agent displays a popup showing a list of the low-scoring potential UI element candidates. The user can
+        * **Supervised Mode:** The agent displays a popup showing a list of the low-scoring potential UI element candidates. The user can
           choose to:
             * **Update** one of the candidates by refining its name, description, anchors, or parent element info and save the updated
               information to the vector DB.
@@ -302,7 +303,7 @@ combination of RAG, computer vision, analysis, and potentially user interaction 
             * **Terminate** the test execution (e.g., due to an AUT bug).
         * **Unattended Mode:** The location process fails.
     * **No Matches Found:** If no elements meet even the `MIN_GENERAL_RETRIEVAL_SCORE`:
-        * **Attended Mode:** The user is guided through the new element creation flow:
+        * **Supervised Mode:** The user is guided through the new element creation flow:
             1. The user draws a bounding box around the target element on a full-screen capture.
             2. The captured element screenshot with its description are sent to the vision model to generate a suggested detailed name,
                self-description, surrounding elements (anchors) description, and parent element info.
@@ -374,7 +375,7 @@ override properties file settings.**
 
 **Basic Agent Configuration:**
 
-* `execution.mode` (Env: `EXECUTION_MODE`): Mode of execution (`ATTENDED`, `SUPERVISED`, `UNATTENDED`). Default: `UNATTENDED`.
+* `execution.mode` (Env: `EXECUTION_MODE`): Mode of execution (`SUPERVISED`, `UNATTENDED`). Default: `UNATTENDED`.
 * `supervised.countdown.seconds` (Env: `SUPERVISED_COUNTDOWN_SECONDS`): Duration in seconds for the countdown popup in supervised
   mode. Default: `5`.
 * `debug.mode` (Env: `DEBUG_MODE`): `true` enables debug mode, which saves intermediate screenshots (e.g., with bounding boxes drawn)
@@ -487,7 +488,7 @@ override properties file settings.**
 **Element Location Configuration:**
 
 * `element.bounding.box.color` (Env: `BOUNDING_BOX_COLOR`): Required color name (e.g., `green`) for the bounding box drawn during element
-  capture in attended mode. This value should be tuned so that the color contrasts as much as possible with the average UI element color.
+  capture in supervised mode. This value should be tuned so that the color contrasts as much as possible with the average UI element color.
 * `element.retrieval.min.target.score` (Env: `ELEMENT_RETRIEVAL_MIN_TARGET_SCORE`): Minimum semantic similarity score for vector DB UI
   element retrieval. Elements reaching this score are treated as target element candidates. Default: `0.8`.
 * `element.retrieval.min.general.score` (Env: `ELEMENT_RETRIEVAL_MIN_GENERAL_SCORE`): Minimum semantic similarity score for vector DB UI

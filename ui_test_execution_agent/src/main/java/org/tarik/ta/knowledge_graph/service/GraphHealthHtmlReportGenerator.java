@@ -15,6 +15,8 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import jakarta.inject.Singleton;
+
 import org.tarik.ta.knowledge_graph.health.GraphHealthReport;
 import org.tarik.ta.knowledge_graph.health.HealthCheckCategory;
 
@@ -28,6 +30,7 @@ import static org.tarik.ta.utils.HtmlUtils.escapeHtml;
  * Generates a self-contained HTML health report from a {@link GraphHealthReport}.
  * No external templating library — uses {@code String.formatted()} and inline CSS only.
  */
+@Singleton
 class GraphHealthHtmlReportGenerator {
 
     private static final DateTimeFormatter TIMESTAMP_FMT =

@@ -13,25 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.core.agents;
+package org.tarik.ta;
 
+import io.a2a.spec.AgentCard;
+import io.avaje.inject.Bean;
+import io.avaje.inject.Factory;
+import jakarta.inject.Singleton;
+import org.tarik.ta.a2a.AgentCardProducer;
 import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.error.RetryPolicy;
-import org.tarik.ta.core.dto.VerificationExecutionResult;
 
-/**
- * Agent responsible for verifying executed test case preconditions.
- */
-public interface PreconditionVerificationAgent extends GenericAiAgent<VerificationExecutionResult> {
-    RetryPolicy RETRY_POLICY = AgentConfig.getVerificationRetryPolicy();
+@Factory
+public class ApiAgentCardFactory {
 
-    @Override
-    default String getAgentTaskDescription() {
-        return "Verifying precondition";
+    private final AgentConfig agentConfig;
+
+    public ApiAgentCardFactory(AgentConfig agentConfig) {
+        this.agentConfig = agentConfig;
     }
 
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
+    @Bean
+    @Singleton
+    AgentCard agentCard() {
+        return new AgentCardProducer().agentCard(agentConfig.getExternalUrl());
     }
 }

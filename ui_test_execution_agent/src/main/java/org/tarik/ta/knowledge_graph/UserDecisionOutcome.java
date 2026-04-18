@@ -13,25 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tarik.ta.core.agents;
+package org.tarik.ta.knowledge_graph;
 
-import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.dto.EmptyExecutionResult;
-import org.tarik.ta.core.error.RetryPolicy;
-
-/**
- * Agent responsible for executing test steps.
- */
-public interface TestStepActionAgent extends GenericAiAgent<EmptyExecutionResult> {
-    RetryPolicy RETRY_POLICY = AgentConfig.getActionRetryPolicy();
-
-    @Override
-    default String getAgentTaskDescription() {
-        return "Executing test step action";
-    }
-
-    @Override
-    default RetryPolicy getRetryPolicy() {
-        return RETRY_POLICY;
-    }
+enum UserDecisionOutcome {
+    CONTINUE_NEXT_STEP, TERMINATE_EXECUTION, RE_FETCH_AND_RETRY, RE_DECOMPOSE_AND_RETRY
 }

@@ -17,7 +17,7 @@ This skill provides comprehensive instructions for creating new AI agents in the
 
 ## Project Architecture Overview
 
-The project follows a modular architecture with these key components:
+The project follows a modular architecture using **Avaje Inject** for dependency injection:
 
 ```
 agent_core/                  (Shared Library)
@@ -47,15 +47,17 @@ new_agent/
 └── src/
     ├── main/
     │   ├── java/org/tarik/ta/
-    │   │   ├── NewTestAgent.java           (Main entry point)
+    │   │   ├── Server.java                 (Main entry point with BeanScope)
+    │   │   ├── NewTestAgent.java           (Orchestration agent)
     │   │   ├── NewTestAgentConfig.java     (Agent-specific config)
+    │   │   ├── NewAgentsBeanFactory.java   (DI Factory for agents)
     │   │   ├── a2a/
     │   │   │   ├── NewAgentExecutor.java   (Extends AbstractAgentExecutor)
     │   │   │   └── AgentCardProducer.java  (A2A card definition)
     │   │   ├── agents/
-    │   │   │   └── ...Agent.java           (Specialized agents)
+    │   │   │   └── NewActionAgent.java     (Specialized LangChain4j agent)
     │   │   └── tools/
-    │   │       └── ...Tools.java           (Agent tools)
+    │   │       └── NewAgentTools.java      (Agent tools)
     │   └── resources/
     │       ├── config.properties
     │       └── prompts/                    (Prompt templates)
@@ -66,7 +68,7 @@ new_agent/
 
 ### Step 2: Create the Maven POM
 
-Add dependency to `agent_core` in your `pom.xml`.
+Add dependency to `agent_core` in your `pom.xml`. Ensure `avaje-inject-generator` annotation processor is configured.
 
 ### 3. Implement Core Components
 
@@ -81,24 +83,23 @@ Extend `GenericAiAgent<T>` where `T` is your result type.
 - See: [`examples/NewActionAgent.java`](examples/NewActionAgent.java)
 
 #### 3.3 Create Tools Classes
-Tools provide capabilities to the agent. Extend `AbstractTools` if shared functionality is needed.
+Tools provide capabilities to the agent. Annotate with `@Singleton`.
 - See: [`examples/NewAgentTools.java`](examples/NewAgentTools.java)
 
-#### 3.4 Create Tools Classes
-Create the corresponding prompts needed for the agent. Follow the prompting style in other agents in order to identify the structure and 
-instruction style for the agent you are implementing. 
-Prompt design criteria:
-  - each prompt must be short and concise;
-  - don't use markup in the prompt;
-  - don't hardcode tool names in the prompt, always use the abstraction - description or purpose of the tool;
-  - don't hardcode any classes names or any data in the prompt.
+#### 3.4 Create DI Factory
+Use `@Factory` to produce specialized agent beans using `AiServices.builder()`.
+- See: [`examples/NewAgentsBeanFactory.java`](examples/NewAgentsBeanFactory.java)
 
-#### 3.5 Create Agent Executor
-Extend `AbstractAgentExecutor` to handle A2A task execution.
+#### 3.5 Create Orchestration Agent
+Annotate with `@Singleton`. Inject specialized agents.
+- See: [`examples/NewTestAgent.java`](examples/NewTestAgent.java)
+
+#### 3.6 Create Agent Executor
+Extend `AbstractAgentExecutor`. Annotate with `@Singleton`.
 - See: [`examples/NewAgentExecutor.java`](examples/NewAgentExecutor.java)
 
-#### 3.6 Create Server Implementation
-Extend `AbstractServer` for the HTTP server.
+#### 3.7 Create Server Main Class
+Initialize `BeanScope` and start the server.
 - See: [`examples/NewTestAgentServer.java`](examples/NewTestAgentServer.java)
 
 ### 4. Wire Up the Agent with LangChain4j
