@@ -204,4 +204,25 @@ class ExecutionStateTrackerTest {
 
         assertThat(stateTracker.getRecentParentIds()).isEmpty();
     }
+
+    @Test
+    void snapshot_producesConsistentView() {
+        PhraseEmbedding rootEffect = pe();
+        PhraseEmbedding scopeEffect = pe();
+        var p1 = Procedure.createAtomic("step 1", List.of(), "", List.of(), List.of(), false);
+        UUID parentId = UUID.randomUUID();
+
+        stateTracker.addEffects(List.of(rootEffect));
+        stateTracker.addExecutedAtomicProcedure(p1);
+        stateTracker.addRecentParent(parentId);
+        
+        stateTracker.enterCompositeScope(compositeProc());
+        stateTracker.addEffects(List.of(scopeEffect));
+
+        var snapshot = stateTracker.snapshot();
+
+        assertThat(snapshot.effectNodeIds()).containsExactlyInAnyOrder(rootEffect.id(), scopeEffect.id());
+        assertThat(snapshot.executedAtomicProcedures()).containsExactly(p1);
+        assertThat(snapshot.recentParentIds()).containsExactly(parentId);
+    }
 }

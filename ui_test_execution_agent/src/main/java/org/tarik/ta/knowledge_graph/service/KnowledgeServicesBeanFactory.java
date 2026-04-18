@@ -32,8 +32,8 @@ public class KnowledgeServicesBeanFactory {
 
     @Bean
     @Singleton
-    public LocationHistoryRecorder locationHistoryRecorder() {
-        return procedureRepository::updateElementStability;
+    public LocationHistoryRecorder locationHistoryRecorder(AsyncExecutionPersistenceService asyncExecutionPersistenceService) {
+        return asyncExecutionPersistenceService::updateElementStability;
     }
 
     @Bean

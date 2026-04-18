@@ -74,6 +74,9 @@ public class UiTestAgentConfig extends AgentConfig {
         this.algorithmicSearchEnabled = loadProperty(
                 "element.locator.algorithmic.search.enabled", "ALGORITHMIC_SEARCH_ENABLED", "true", Boolean::parseBoolean,
                 false);
+        this.atomicVerificationEnabled = loadProperty(
+                "execution.verification.atomic.enabled", "EXECUTION_VERIFICATION_ATOMIC_ENABLED", "true", Boolean::parseBoolean,
+                false);
         this.verificationModelMaxRetries = loadProperty(
                 "verification.model.max.retries", "VERIFICATION_MODEL_MAX_RETRIES", "3", Integer::parseInt, false);
         this.skipUiElementSelectionForVision = loadProperty(
@@ -375,6 +378,12 @@ public class UiTestAgentConfig extends AgentConfig {
     }
 
     private final ConfigProperty<Boolean> algorithmicSearchEnabled;
+
+    private final ConfigProperty<Boolean> atomicVerificationEnabled;
+
+    public boolean isAtomicVerificationEnabled() {
+        return atomicVerificationEnabled.value();
+    }
 
     private final ConfigProperty<Integer> verificationModelMaxRetries;
 

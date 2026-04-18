@@ -47,33 +47,31 @@ public class SatisfiesEdgeService {
     }
 
     /**
-     * Asynchronously finds consumer procedures whose prerequisites are semantically satisfied by the
+     * Finds consumer procedures whose prerequisites are semantically satisfied by the
      * executed procedure's effects (via Neo4j vector index) and persists SATISFIES edges.
      * Deduplication keeps only the highest-scoring edge per consumer.
      */
-    public void persistSatisfiesEdgesAsync(UUID executedProcedureId) {
-        Thread.ofVirtual().start(() -> {
-            try {
-                double threshold = config.getSatisfiesSimilarityThreshold();
-                var matches = phraseEmbeddingRepository.findPrerequisitesSatisfiedByProducer(executedProcedureId, threshold, SATISFIES_TOP_N);
-                if (matches.isEmpty()) {
-                    LOG.debug("No SATISFIES edges matched for procedure {} (threshold={})", executedProcedureId, threshold);
-                    return;
-                }
-                // Deduplication key: one SATISFIES edge per (consumer, prerequisiteNodeId) pair,
-                // keeping the highest-scoring match when multiple effects satisfy the same prerequisite.
-                Map<String, SatisfiesEdge> merged = new HashMap<>();
-                for (var match : matches) {
-                    var edge = new SatisfiesEdge(executedProcedureId, match.consumerId(), match.score(), match.effectPhrase(), match.prerequisitePhrase(), match.prereqNodeId());
-                    var key = "%s:%s".formatted(match.consumerId(), match.prereqNodeId());
-                    merged.merge(key, edge, (e1, e2) -> e1.score() >= e2.score() ? e1 : e2);
-                }
-                LOG.debug("Persisting {} SATISFIES edge(s) for procedure {}", merged.size(), executedProcedureId);
-                satisfiesEdgeRepository.persistSatisfiesEdges(new ArrayList<>(merged.values()));
-            } catch (Exception e) {
-                LOG.error("Failed to persist SATISFIES edges async for procedure: {}", executedProcedureId, e);
+    public void persistSatisfiesEdges(UUID executedProcedureId) {
+        try {
+            double threshold = config.getSatisfiesSimilarityThreshold();
+            var matches = phraseEmbeddingRepository.findPrerequisitesSatisfiedByProducer(executedProcedureId, threshold, SATISFIES_TOP_N);
+            if (matches.isEmpty()) {
+                LOG.debug("No SATISFIES edges matched for procedure {} (threshold={})", executedProcedureId, threshold);
+                return;
             }
-        });
+            // Deduplication key: one SATISFIES edge per (consumer, prerequisiteNodeId) pair,
+            // keeping the highest-scoring match when multiple effects satisfy the same prerequisite.
+            Map<String, SatisfiesEdge> merged = new HashMap<>();
+            for (var match : matches) {
+                var edge = new SatisfiesEdge(executedProcedureId, match.consumerId(), match.score(), match.effectPhrase(), match.prerequisitePhrase(), match.prereqNodeId());
+                var key = "%s:%s".formatted(match.consumerId(), match.prereqNodeId());
+                merged.merge(key, edge, (e1, e2) -> e1.score() >= e2.score() ? e1 : e2);
+            }
+            LOG.debug("Persisting {} SATISFIES edge(s) for procedure {}", merged.size(), executedProcedureId);
+            satisfiesEdgeRepository.persistSatisfiesEdges(new ArrayList<>(merged.values()));
+        } catch (Exception e) {
+            LOG.error("Failed to persist SATISFIES edges for procedure: {}", executedProcedureId, e);
+        }
     }
 
     /**
