@@ -70,6 +70,7 @@ D:\Projects\test-execution-agents\
 
 ### Core Architecture
 
+The project uses **[Avaje Inject](https://avaje.io/inject/)** for dependency injection across all modules.
 The core module provides shared abstractions that both UI and API agents extend:
 
 ```

@@ -16,6 +16,7 @@
 package org.tarik.ta.a2a;
 
 import io.a2a.spec.Part;
+import jakarta.inject.Singleton;
 import org.tarik.ta.NewTestAgent;
 import org.tarik.ta.core.a2a.AbstractAgentExecutor;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -23,11 +24,17 @@ import org.tarik.ta.core.dto.TestExecutionResult;
 import java.util.List;
 import java.util.Optional;
 
+@Singleton
 public class NewAgentExecutor extends AbstractAgentExecutor {
+    private final NewTestAgent agent;
+
+    public NewAgentExecutor(NewTestAgent agent) {
+        this.agent = agent;
+    }
 
     @Override
     protected TestExecutionResult executeTestCase(String message) {
-        return NewTestAgent.executeTestCase(message);
+        return agent.executeTestCase(message);
     }
 
     @Override

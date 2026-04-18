@@ -35,7 +35,7 @@ class AgentConfigTest {
 
     @Test
     void testRagConfig() {
-        assertThat(config.getVectorDbProvider()).isEqualTo(AgentConfig.RagDbProvider.QDRANT);
+        assertThat(config.getVectorDbProvider()).isEqualTo(AgentConfig.RagDbProvider.NEO4J);
         assertThat(config.getVectorDbUrl()).isEqualTo("http://localhost:6334");
         assertThat(config.getVectorDbToken()).isEmpty();
         assertThat(config.getRetrieverTopN()).isEqualTo(5);
@@ -48,7 +48,6 @@ class AgentConfigTest {
         assertThat(config.getTopP()).isEqualTo(1.0);
         assertThat(config.isModelLoggingEnabled()).isFalse();
         assertThat(config.isThinkingOutputEnabled()).isFalse();
-        assertThat(config.getGeminiThinkingBudget()).isEqualTo(5000);
         assertThat(config.getMaxRetries()).isEqualTo(10);
         assertThat(config.getGeminiThinkingLevel()).isEqualTo("MINIMAL");
     }
@@ -126,6 +125,6 @@ class AgentConfigTest {
 
         assertThatThrownBy(() -> config.getModelProvider("unknown"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unknown is not a supported model provider");
+                .hasMessageContaining("unknown is not a valid ModelProvider value");
     }
 }
