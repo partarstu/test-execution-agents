@@ -68,9 +68,13 @@ public class AgentConfig {
     private final ConfigProperty<String> googleProject;
     private final ConfigProperty<String> googleLocation;
 
-    // OpenAI API Config
+    // OpenAI API Config (Direct)
     private final ConfigProperty<String> openaiApiKey;
     private final ConfigProperty<String> openaiApiEndpoint;
+
+    // Moonshot API Config
+    private final ConfigProperty<String> moonshotApiKey;
+    private final ConfigProperty<String> moonshotApiEndpoint;
 
     // Groq API Config
     private final ConfigProperty<String> groqApiKey;
@@ -112,7 +116,7 @@ public class AgentConfig {
     }
 
     public enum ModelProvider {
-        GOOGLE, OPENAI, GROQ, ANTHROPIC
+        GOOGLE, OPENAI, KIMI, GROQ, ANTHROPIC
     }
 
     public enum GoogleApiProvider {
@@ -159,9 +163,13 @@ public class AgentConfig {
         this.googleProject = getRequiredProperty("google.project", "GOOGLE_PROJECT", false);
         this.googleLocation = getRequiredProperty("google.location", "GOOGLE_LOCATION", false);
 
-        // OpenAI API Config
-        this.openaiApiKey = getRequiredProperty("azure.openai.api.key", "OPENAI_API_KEY", true);
-        this.openaiApiEndpoint = getRequiredProperty("azure.openai.endpoint", "OPENAI_API_ENDPOINT", false);
+        // OpenAI API Config (Direct)
+        this.openaiApiKey = loadProperty("openai.api.key", "OPENAI_API_KEY", "", s -> s, true);
+        this.openaiApiEndpoint = loadProperty("openai.endpoint", "OPENAI_ENDPOINT", "https://api.openai.com/v1/", s -> s, false);
+
+        // Moonshot API Config
+        this.moonshotApiKey = loadProperty("moonshot.api.key", "MOONSHOT_API_KEY", "", s -> s, true);
+        this.moonshotApiEndpoint = loadProperty("moonshot.endpoint", "MOONSHOT_ENDPOINT", "https://api.moonshot.cn/v1/", s -> s, false);
 
         // Groq API Config
         this.groqApiKey = getRequiredProperty("groq.api.key", "GROQ_API_KEY", true);
@@ -319,13 +327,23 @@ public class AgentConfig {
     }
 
     // -----------------------------------------------------
-    // OpenAI API Config
+    // OpenAI API Config (Direct)
     public String getOpenAiApiKey() {
         return openaiApiKey.value();
     }
 
     public String getOpenAiEndpoint() {
         return openaiApiEndpoint.value();
+    }
+
+    // -----------------------------------------------------
+    // Moonshot API Config
+    public String getMoonshotApiKey() {
+        return moonshotApiKey.value();
+    }
+
+    public String getMoonshotEndpoint() {
+        return moonshotApiEndpoint.value();
     }
 
     // -----------------------------------------------------

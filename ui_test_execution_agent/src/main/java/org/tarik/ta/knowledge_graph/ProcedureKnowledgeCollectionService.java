@@ -185,7 +185,7 @@ public class ProcedureKnowledgeCollectionService {
                                                                     String expectedResults, String agentContext) {
         var suggestionsRef = new AtomicReference<>(KnowledgeSuggestionResult.empty());
         // Capture screen before showing the spinner so no dialog/spinner overlays appear in the screenshot
-        var screenshot = ImageUtils.singleImageContent(captureScreen());
+        var screenshot = ImageUtils.singleImageContent(captureScreen(), uiTestAgentConfig.getKnowledgeSuggestionAgentModelProvider());
         UiElementDialogHelper.showSpinnerUntilDone(() -> {
             try {
                 var result = knowledgeSuggestionAgent.executeAndGetResult(

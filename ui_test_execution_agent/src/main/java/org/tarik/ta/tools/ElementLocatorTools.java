@@ -412,7 +412,7 @@ public class ElementLocatorTools extends UiAbstractTools {
                 List<Callable<List<BoundingBox>>> tasks = range(0, voteCount)
                         .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> Objects.requireNonNull(
                                 uiElementBoundingBoxAgent.executeAndGetResult(
-                                        () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend))
+                                        () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend, uiTestAgentConfig.getElementBoundingBoxAgentModelProvider()))
                                 ).getResultPayload()).boundingBoxes())
                         .toList();
                 List<Rectangle> allBoundingBoxes = executor.invokeAll(tasks).stream()
@@ -554,7 +554,7 @@ public class ElementLocatorTools extends UiAbstractTools {
             List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, uiTestAgentConfig.getElementLocatorValidationVoteCount())
                     .mapToObj(_ -> (Callable<BestUiElementVisualMatchResult>) () -> bestUiElementMatchSelectionAgent.executeAndGetResult(
                             () -> bestUiElementMatchSelectionAgent.selectBestElement(prompt,
-                                    singleImageContent(resultingScreenshot), boundingBoxColorName)
+                                    singleImageContent(resultingScreenshot, uiTestAgentConfig.getUiElementVisualMatchAgentModelProvider()), boundingBoxColorName)
                     ).getResultPayload())
                     .toList();
             return executor.invokeAll(tasks).stream()

@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.BaseUiAgent;
 import org.tarik.ta.agents.UiPreconditionVerificationAgent;
 import org.tarik.ta.agents.UiTestStepVerificationAgent;
-import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.manager.BudgetManager;
@@ -46,12 +46,12 @@ public class VerificationTools {
     private static final Logger LOG = LoggerFactory.getLogger(VerificationTools.class);
 
     private final BudgetManager budgetManager;
-    private final AgentConfig agentConfig;
+    private final UiTestAgentConfig uiTestAgentConfig;
 
     @Inject
-    public VerificationTools(BudgetManager budgetManager, AgentConfig agentConfig) {
+    public VerificationTools(BudgetManager budgetManager, UiTestAgentConfig uiTestAgentConfig) {
         this.budgetManager = requireNonNull(budgetManager, "budgetManager");
-        this.agentConfig = requireNonNull(agentConfig, "agentConfig");
+        this.uiTestAgentConfig = requireNonNull(uiTestAgentConfig, "uiTestAgentConfig");
     }
 
     public VerificationExecutionResult verifyTestStep(String verificationDescription, String actionDescription,
@@ -63,7 +63,7 @@ public class VerificationTools {
             var screenshot = captureScreen();
             context.setVisualState(new VisualState(screenshot));
             return verificationAgent.verify(verificationDescription, actionDescription, actionTestData,
-                    context.getSharedData().toString(), singleImageContent(screenshot));
+                    context.getSharedData().toString(), singleImageContent(screenshot, uiTestAgentConfig.getTestStepVerificationAgentModelProvider()));
         };
         return executeVerificationWithRetry(verificationAgent, operation, "Verification");
     }
@@ -77,7 +77,7 @@ public class VerificationTools {
             var screenshot = captureScreen();
             context.setVisualState(new VisualState(screenshot));
             var message = buildPreconditionVerificationMessage(preconditionDescription, context.getSharedData().toString(), relevantData);
-            return preconditionVerificationAgent.verify(message, singleImageContent(screenshot));
+            return preconditionVerificationAgent.verify(message, singleImageContent(screenshot, uiTestAgentConfig.getPreconditionVerificationAgentModelProvider()));
         };
         return executeVerificationWithRetry(preconditionVerificationAgent, operation, "Precondition verification");
     }
@@ -97,7 +97,7 @@ public class VerificationTools {
             Supplier<Result<?>> operation,
             String label) {
 
-        RetryPolicy retryPolicy = agentConfig.getVerificationRetryPolicy();
+        RetryPolicy retryPolicy = uiTestAgentConfig.getVerificationRetryPolicy();
         int attempts = 0;
         Instant start = now();
 

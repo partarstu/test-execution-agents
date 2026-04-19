@@ -27,7 +27,10 @@ import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.manager.BudgetManager;
+
+import java.util.Comparator;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static java.util.Optional.ofNullable;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
@@ -94,8 +97,15 @@ public class ChatModelEventListener implements ChatModelListener {
 
         LOG.debug("Sending {} messages to the model", messages.size());
         if (messages.size() > 2) {
-            // The system and user messages have already been through, i.e. already logged - let's log the latest message
-            logMessage(messages.getLast());
+            // System and user messages were already logged on the first request. Log only the messages which were sent,
+            // i.e. every message that follows the last AiMessage (which may be multiple when the model issued
+            // several tool calls in one response).
+            var lastMessageToSkipIndex = IntStream.range(0, messages.size()).boxed()
+                    .sorted(Comparator.reverseOrder())
+                    .filter(i -> messages.get(i) instanceof AiMessage)
+                    .findFirst()
+                    .orElse(1);
+            messages.subList(lastMessageToSkipIndex + 1, messages.size()).forEach(ChatModelEventListener::logMessage);
         } else {
             // That's the first request to the model, we log both user and system messages
             messages.forEach(ChatModelEventListener::logMessage);
