@@ -62,8 +62,8 @@ class AgentConfigTest {
 
     @Test
     void testOpenAiConfig() {
-        assertThat(config.getOpenAiApiKey()).isEqualTo("dummy_openai_key");
-        assertThat(config.getOpenAiEndpoint()).isEqualTo("http://dummy-openai-endpoint");
+        assertThat(config.getOpenAiApiKey()).isEqualTo("dummy_direct_openai_key");
+        assertThat(config.getOpenAiEndpoint()).isEqualTo("https://api.openai.com/v1/");
     }
 
     @Test

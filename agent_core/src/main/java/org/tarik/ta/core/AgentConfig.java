@@ -72,10 +72,6 @@ public class AgentConfig {
     private final ConfigProperty<String> openaiApiKey;
     private final ConfigProperty<String> openaiApiEndpoint;
 
-    // Moonshot API Config
-    private final ConfigProperty<String> moonshotApiKey;
-    private final ConfigProperty<String> moonshotApiEndpoint;
-
     // Groq API Config
     private final ConfigProperty<String> groqApiKey;
     private final ConfigProperty<String> groqApiEndpoint;
@@ -116,7 +112,7 @@ public class AgentConfig {
     }
 
     public enum ModelProvider {
-        GOOGLE, OPENAI, KIMI, GROQ, ANTHROPIC
+        GOOGLE, OPENAI, GROQ, ANTHROPIC
     }
 
     public enum GoogleApiProvider {
@@ -166,10 +162,6 @@ public class AgentConfig {
         // OpenAI API Config (Direct)
         this.openaiApiKey = loadProperty("openai.api.key", "OPENAI_API_KEY", "", s -> s, true);
         this.openaiApiEndpoint = loadProperty("openai.endpoint", "OPENAI_ENDPOINT", "https://api.openai.com/v1/", s -> s, false);
-
-        // Moonshot API Config
-        this.moonshotApiKey = loadProperty("moonshot.api.key", "MOONSHOT_API_KEY", "", s -> s, true);
-        this.moonshotApiEndpoint = loadProperty("moonshot.endpoint", "MOONSHOT_ENDPOINT", "https://api.moonshot.cn/v1/", s -> s, false);
 
         // Groq API Config
         this.groqApiKey = getRequiredProperty("groq.api.key", "GROQ_API_KEY", true);
@@ -334,16 +326,6 @@ public class AgentConfig {
 
     public String getOpenAiEndpoint() {
         return openaiApiEndpoint.value();
-    }
-
-    // -----------------------------------------------------
-    // Moonshot API Config
-    public String getMoonshotApiKey() {
-        return moonshotApiKey.value();
-    }
-
-    public String getMoonshotEndpoint() {
-        return moonshotApiEndpoint.value();
     }
 
     // -----------------------------------------------------

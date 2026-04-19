@@ -18,21 +18,30 @@ package org.tarik.ta.knowledge_graph.service;
 import io.avaje.inject.Bean;
 import io.avaje.inject.Factory;
 import jakarta.inject.Singleton;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
 
+import java.util.Optional;
+
 @Factory
 public class KnowledgeServicesBeanFactory {
     private final ProcedureRepository procedureRepository;
+    private final UiTestAgentConfig config;
 
-    public KnowledgeServicesBeanFactory(ProcedureRepository procedureRepository) {
+    public KnowledgeServicesBeanFactory(ProcedureRepository procedureRepository, UiTestAgentConfig config) {
         this.procedureRepository = procedureRepository;
+        this.config = config;
     }
 
     @Bean
     @Singleton
     public LocationHistoryRecorder locationHistoryRecorder(AsyncExecutionPersistenceService asyncExecutionPersistenceService) {
+        if (!config.isLocationHistoryAndFailureHintsCollectionEnabled()) {
+            return (elementId, located, locationTimeMs) -> {
+            };
+        }
         return asyncExecutionPersistenceService::updateElementStability;
     }
 

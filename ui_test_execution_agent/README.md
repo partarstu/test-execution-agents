@@ -239,6 +239,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * **Unified Vector Store:** UI element storage can use Neo4j (via `langchain4j-community-neo4j`), providing both graph relationships
       and vector search in a single database.
     * `neo4j.password` (or `NEO4J_PASSWORD`) must be set to a non-blank value.
+    * `location.history.and.failure.hints.collection.enabled` (or `LOCATION_HISTORY_AND_FAILURE_HINTS_COLLECTION_ENABLED`) - disable location history and failure hints collection by default (recommended for local or supervised mode). Set to `true` to enable collection (recommended for CI/CD pipelines). Retrieval of existing hints and history remains enabled regardless of this setting.
 
 ## Test Case Execution Workflow
 

@@ -19,6 +19,7 @@ import jakarta.inject.Singleton;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
 import org.tarik.ta.knowledge_graph.repository.FailureContextRepository;
 
@@ -32,12 +33,17 @@ public class FailureContextService {
     private static final Logger LOG = LoggerFactory.getLogger(FailureContextService.class);
 
     private final FailureContextRepository failureContextRepository;
+    private final UiTestAgentConfig config;
 
-    public FailureContextService(FailureContextRepository failureContextRepository) {
+    public FailureContextService(FailureContextRepository failureContextRepository, UiTestAgentConfig config) {
         this.failureContextRepository = requireNonNull(failureContextRepository, "failureContextRepository");
+        this.config = config;
     }
 
     public void captureFailureContext(UUID procedureId, FailureContext failureContext) {
+        if (!config.isLocationHistoryAndFailureHintsCollectionEnabled()) {
+            return;
+        }
         failureContextRepository.persistFailureContext(procedureId, failureContext);
         LOG.info("Captured failure context for procedure '{}': [{}] {}", 
                 procedureId, failureContext.category(), failureContext.symptom());

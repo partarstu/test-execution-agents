@@ -224,6 +224,9 @@ public class UiTestAgentConfig extends AgentConfig {
                 "health.warning.threshold", "HEALTH_WARNING_THRESHOLD", "3", false);
         this.healthCriticalThreshold = loadPropertyAsInteger(
                 "health.critical.threshold", "HEALTH_CRITICAL_THRESHOLD", "10", false);
+        this.locationHistoryAndFailureHintsCollectionEnabled = loadProperty(
+                "location.history.and.failure.hints.collection.enabled", "LOCATION_HISTORY_AND_FAILURE_HINTS_COLLECTION_ENABLED", "false",
+                Boolean::parseBoolean, false);
     }
 
 
@@ -756,5 +759,11 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public int getHealthCriticalThreshold() {
         return healthCriticalThreshold.value();
+    }
+
+    private final ConfigProperty<Boolean> locationHistoryAndFailureHintsCollectionEnabled;
+
+    public boolean isLocationHistoryAndFailureHintsCollectionEnabled() {
+        return locationHistoryAndFailureHintsCollectionEnabled.value();
     }
 }
