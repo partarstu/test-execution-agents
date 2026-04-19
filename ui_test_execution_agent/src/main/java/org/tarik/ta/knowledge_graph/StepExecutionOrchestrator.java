@@ -383,7 +383,7 @@ public class StepExecutionOrchestrator {
                     String userMessage = getPreconditionExecutionUserMessage(context, precondition, testDataString, relevantData,
                             stepExecutionContext.uiElementId(), stepExecutionContext.failureHints(), stepExecutionContext.targetElement(),
                             stepExecutionContext.locationHistory());
-                    return preconditionActionAgent.execute(userMessage, singleImageContent(screenshot, uiTestAgentConfig.getPreconditionActionAgentModelProvider()));
+                    return preconditionActionAgent.execute(userMessage, singleImageContent(screenshot, uiTestAgentConfig.getPreconditionActionAgentImageDetailLevel()));
                 });
         budgetManager.resetToolCallUsage();
 
@@ -535,7 +535,7 @@ public class StepExecutionOrchestrator {
             var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) testStepActionAgent.executeAndGetResult(() -> {
                 String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, stepExecutionContext.uiElementId(),
                         stepExecutionContext.failureHints(), stepExecutionContext.targetElement(), stepExecutionContext.locationHistory());
-                return testStepActionAgent.execute(userMessage, singleImageContent(screenshot, uiTestAgentConfig.getTestStepActionAgentModelProvider()));
+                return testStepActionAgent.execute(userMessage, singleImageContent(screenshot, uiTestAgentConfig.getTestStepActionAgentImageDetailLevel()));
             }));
             budgetManager.resetToolCallUsage();
 

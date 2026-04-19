@@ -138,7 +138,7 @@ public class UiElementDbTools extends UiAbstractTools {
 
     private UiElementIdentificationResult getElementIdentification(String elementDescription, String relevantTestData,
                                                                    BufferedImage screenshot) {
-        var imageContent = ImageUtils.singleImageContent(screenshot, uiTestAgentConfig.getUiElementDescriptionMatcherAgentModelProvider());
+        var imageContent = ImageUtils.singleImageContent(screenshot, uiTestAgentConfig.getUiElementDescriptionMatcherAgentImageDetailLevel());
         var relevantDataString = relevantTestData == null ? "" : relevantTestData;
         return uiElementExtendedDescriptionAgent
                 .executeAndGetResult(() -> uiElementExtendedDescriptionAgent.describeUiElement(elementDescription,
@@ -162,7 +162,7 @@ public class UiElementDbTools extends UiAbstractTools {
         BufferedImage screenshot = getScreenshotTogglingSpinner();
         try {
             var result = dbUiElementSelectionAgent.executeAndGetResult(() ->
-                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, ImageUtils.singleImageContent(screenshot, uiTestAgentConfig.getDbElementCandidateSelectionAgentModelProvider())))
+                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, ImageUtils.singleImageContent(screenshot, uiTestAgentConfig.getDbElementCandidateSelectionAgentImageDetailLevel())))
                     .getResultPayload();
             if (result == null) {
                 LOG.warn("Model returned null result. Returning empty.");

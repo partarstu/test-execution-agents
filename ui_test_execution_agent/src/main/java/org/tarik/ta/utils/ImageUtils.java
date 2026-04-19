@@ -18,7 +18,6 @@ package org.tarik.ta.utils;
 import dev.langchain4j.data.image.Image;
 import dev.langchain4j.data.message.ImageContent;
 import org.jetbrains.annotations.NotNull;
-import org.tarik.ta.core.AgentConfig.ModelProvider;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -32,9 +31,7 @@ import java.io.UncheckedIOException;
 import java.util.Base64;
 
 import static dev.langchain4j.data.message.ImageContent.DetailLevel.HIGH;
-import static dev.langchain4j.data.message.ImageContent.DetailLevel.ULTRA_HIGH;
 import static java.awt.Image.SCALE_AREA_AVERAGING;
-import static org.tarik.ta.core.AgentConfig.ModelProvider.GOOGLE;
 import static java.awt.Image.SCALE_SMOOTH;
 import static java.lang.Math.min;
 import static javax.imageio.ImageIO.write;
@@ -135,11 +132,7 @@ public class ImageUtils {
         return toBufferedImage(scaledImage, newWidth, newHeight);
     }
 
-    public static ImageContent singleImageContent(@NotNull BufferedImage image, @NotNull ModelProvider modelProvider) {
-        return ImageContent.from(getImage(image, DEFAULT_IMAGE_FORMAT), detailLevelFor(modelProvider));
-    }
-
-    private static ImageContent.DetailLevel detailLevelFor(@NotNull ModelProvider modelProvider) {
-        return modelProvider == GOOGLE ? HIGH : HIGH;
+    public static ImageContent singleImageContent(@NotNull BufferedImage image, @NotNull ImageContent.DetailLevel detailLevel) {
+        return ImageContent.from(getImage(image, DEFAULT_IMAGE_FORMAT), detailLevel);
     }
 }

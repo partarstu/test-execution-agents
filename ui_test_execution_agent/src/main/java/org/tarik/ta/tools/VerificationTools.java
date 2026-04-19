@@ -63,7 +63,7 @@ public class VerificationTools {
             var screenshot = captureScreen();
             context.setVisualState(new VisualState(screenshot));
             return verificationAgent.verify(verificationDescription, actionDescription, actionTestData,
-                    context.getSharedData().toString(), singleImageContent(screenshot, uiTestAgentConfig.getTestStepVerificationAgentModelProvider()));
+                    context.getSharedData().toString(), singleImageContent(screenshot, uiTestAgentConfig.getTestStepVerificationAgentImageDetailLevel()));
         };
         return executeVerificationWithRetry(verificationAgent, operation, "Verification");
     }
@@ -77,7 +77,7 @@ public class VerificationTools {
             var screenshot = captureScreen();
             context.setVisualState(new VisualState(screenshot));
             var message = buildPreconditionVerificationMessage(preconditionDescription, context.getSharedData().toString(), relevantData);
-            return preconditionVerificationAgent.verify(message, singleImageContent(screenshot, uiTestAgentConfig.getPreconditionVerificationAgentModelProvider()));
+            return preconditionVerificationAgent.verify(message, singleImageContent(screenshot, uiTestAgentConfig.getPreconditionVerificationAgentImageDetailLevel()));
         };
         return executeVerificationWithRetry(preconditionVerificationAgent, operation, "Precondition verification");
     }
