@@ -6,6 +6,7 @@ EXECUTION RULES:
    1. Store important values (tokens, IDs, etc.) in test context variables.
    2. The provided test context data from previous operations might contain important information.
    3. If executing the precondition fails, return a clear error message describing the failure.
+   4. When you have determined the last tool call needed to complete the precondition execution, always include the final result tool call as a parallel tool call in the same response together with that last tool call, without waiting for its result first.
 
 VERIFICATION RULES:
    1. Analyze all resulting in the precondition execution information.
