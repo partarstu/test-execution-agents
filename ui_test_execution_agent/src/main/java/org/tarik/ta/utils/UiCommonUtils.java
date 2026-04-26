@@ -31,11 +31,17 @@ import java.util.Comparator;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment;
 import static java.util.Comparator.comparingInt;
+import static org.tarik.ta.utils.ImageUtils.applyHdrCorrection;
 import static org.tarik.ta.utils.ImageUtils.toBufferedImage;
 
 public class UiCommonUtils {
     private static final Logger LOG = LoggerFactory.getLogger(UiCommonUtils.class);
     private static Robot robot;
+    private static boolean hdrCorrectionEnabled = false;
+
+    public static void setHdrCorrectionEnabled(boolean enabled) {
+        hdrCorrectionEnabled = enabled;
+    }
 
     public static Object getStaticFieldValue(Field field) {
         try {
@@ -87,10 +93,11 @@ public class UiCommonUtils {
             comparator = comparator.reversed();
         }
 
-        return screenShots.getResolutionVariants().stream()
+        var captured = screenShots.getResolutionVariants().stream()
                 .map(i -> toBufferedImage(i, target.width, target.height))
                 .min(comparator)
                 .orElseThrow();
+        return hdrCorrectionEnabled ? applyHdrCorrection(captured) : captured;
     }
 
     public static synchronized Robot getRobot() {

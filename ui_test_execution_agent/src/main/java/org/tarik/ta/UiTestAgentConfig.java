@@ -32,6 +32,8 @@ public class UiTestAgentConfig extends AgentConfig {
                 s -> parseEnum(ExecutionMode.class, s), false);
         this.supervisedCountdownSeconds = loadPropertyAsInteger(
                 "supervised.countdown.seconds", "SUPERVISED_COUNTDOWN_SECONDS", "5", false);
+        this.hdrCorrectionEnabled = loadProperty("hdr.color.correction.enabled",
+                "HDR_COLOR_CORRECTION_ENABLED", "false", Boolean::parseBoolean, false);
         this.screenRecordingEnabled = loadProperty("screen.recording.active",
                 "SCREEN_RECORDING_ENABLED", "false", Boolean::parseBoolean, false);
         this.screenRecordingFolder = loadProperty("screen.recording.output.dir",
@@ -368,6 +370,14 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public int getAgentToolCallsBudget() {
         return super.getAgentToolCallsBudget();
+    }
+
+    // -----------------------------------------------------
+    // Screenshot Configuration
+    private final ConfigProperty<Boolean> hdrCorrectionEnabled;
+
+    public boolean isHdrCorrectionEnabled() {
+        return hdrCorrectionEnabled.value();
     }
 
     // -----------------------------------------------------

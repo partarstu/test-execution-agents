@@ -25,6 +25,7 @@ import org.tarik.ta.core.model.ModelFactory;
 import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 import org.tarik.ta.dto.*;
 import org.tarik.ta.tools.*;
+import org.tarik.ta.utils.UiCommonUtils;
 
 import java.util.List;
 
@@ -43,6 +44,7 @@ class UiAgentsBeanFactory {
     UiAgentsBeanFactory(ModelFactory modelFactory, UiTestAgentConfig uiTestAgentConfig) {
         this.modelFactory = modelFactory;
         this.uiTestAgentConfig = uiTestAgentConfig;
+        UiCommonUtils.setHdrCorrectionEnabled(uiTestAgentConfig.isHdrCorrectionEnabled());
     }
 
     // Knowledge Collection - used by UiElementDialogHelper

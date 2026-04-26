@@ -129,6 +129,7 @@ The core module provides shared abstractions that both UI and API agents extend:
 ### UI Test Agent Specific
 
 - **Visual Grounding**: AI-powered element location using screenshots and descriptions.
+- **HDR Color Correction**: Optional sRGB gamma correction for screenshots captured on HDR-enabled monitors (enabled via `hdr.color.correction.enabled=true`).
 - **Screen Recording**: Captures video of test execution for debugging.
 - **Knowledge Graph**: Neo4j-backed persistent storage for UI elements and reusable procedures with vector search.
 - **Supervised/Unattended Modes**: Interactive or fully automated execution.
