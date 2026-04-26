@@ -90,6 +90,11 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * `recording.file.format`: Output format (default: mp4).
         * `recording.fps`: Frames per second for recording.
 
+* **HDR Screenshot Correction:**
+    * Optional sRGB gamma correction for screenshots captured on HDR-enabled monitors.
+    * Controlled by `hdr.color.correction.enabled` or `HDR_COLOR_CORRECTION_ENABLED`.
+    * Keeps Windows HDR enabled while avoiding washed-out screenshot colors in model inputs and saved captures.
+
 * **AI Model Integration:**
     * Utilizes the [LangChain4j](https://github.com/langchain4j/langchain4j) library to seamlessly interact with various Generative AI
       models.
@@ -518,6 +523,8 @@ override properties file settings.**
   dimension. Default: `1568`.
 * `bbox.screenshot.max.size.megapixels` (Env: `BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS`): Maximum screenshot size in megapixels. Default:
   `1.15`.
+* `hdr.color.correction.enabled` (Env: `HDR_COLOR_CORRECTION_ENABLED`): Apply sRGB gamma correction to screenshots captured on HDR-enabled
+  monitors so saved screenshots and model inputs do not look washed out. Default: `false`.
 
 **Agent-Specific Model Configuration:**
 
