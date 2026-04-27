@@ -15,7 +15,6 @@
  */
 package org.tarik.ta.core.model;
 
-import dev.langchain4j.model.azure.AzureOpenAiChatModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ToolChoice;
 import dev.langchain4j.model.googleai.GeminiMode;
@@ -93,12 +92,12 @@ public class ModelFactory {
     }
 
     private ChatModel getOpenAiModel(String modelName, int maxRetries) {
-        return AzureOpenAiChatModel.builder()
+        return OpenAiChatModel.builder()
+                .baseUrl(agentConfig.getOpenAiEndpoint())
+                .modelName(modelName)
                 .maxRetries(maxRetries)
                 .apiKey(agentConfig.getOpenAiApiKey())
-                .deploymentName(modelName)
-                .maxTokens(agentConfig.getMaxOutputTokens())
-                .endpoint(agentConfig.getOpenAiEndpoint())
+                .maxCompletionTokens(agentConfig.getMaxOutputTokens())
                 .temperature(agentConfig.getTemperature())
                 .topP(agentConfig.getTopP())
                 .listeners(List.of(chatModelEventListener))
@@ -111,7 +110,7 @@ public class ModelFactory {
                 .modelName(modelName)
                 .maxRetries(maxRetries)
                 .apiKey(agentConfig.getGroqApiKey())
-                .maxTokens(agentConfig.getMaxOutputTokens())
+                .maxCompletionTokens(agentConfig.getMaxOutputTokens())
                 .temperature(agentConfig.getTemperature())
                 .topP(agentConfig.getTopP())
                 .listeners(List.of(chatModelEventListener))

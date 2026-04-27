@@ -41,8 +41,9 @@ class ModelFactoryTest {
 
     @Test
     void shouldGetOpenAiModel() {
-        GenAiModel model = modelFactory.getModel("gpt-4", AgentConfig.ModelProvider.OPENAI);
+        GenAiModel model = modelFactory.getModel("gpt-5.4", AgentConfig.ModelProvider.OPENAI);
         assertThat(model).isNotNull();
+        assertThat(model.chatModel()).isNotNull();
     }
 
     @Test

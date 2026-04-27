@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.utils.ImageUtils;
+
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 /**
@@ -185,7 +186,7 @@ public class ProcedureKnowledgeCollectionService {
                                                                     String expectedResults, String agentContext) {
         var suggestionsRef = new AtomicReference<>(KnowledgeSuggestionResult.empty());
         // Capture screen before showing the spinner so no dialog/spinner overlays appear in the screenshot
-        var screenshot = ImageUtils.singleImageContent(captureScreen());
+        var screenshot = ImageUtils.singleImageContent(captureScreen(), uiTestAgentConfig.getKnowledgeSuggestionAgentImageDetailLevel());
         UiElementDialogHelper.showSpinnerUntilDone(() -> {
             try {
                 var result = knowledgeSuggestionAgent.executeAndGetResult(

@@ -136,30 +136,26 @@ public class MouseTools extends UiAbstractTools {
         }
 
         try {
-            var actionDescription = "Clicked at location (%s, %s)".formatted(x, y);
-            var checkResult = uiStateCheckAgent.executeAndGetResult(() ->
-                    uiStateCheckAgent.check(expectedStateDescription, actionDescription, "",
-                            singleImageContent(captureScreen()))).getResultPayload();
-            if (checkResult == null || !checkResult.success()) {
-                var waitDuration = uiTestAgentConfig.getMaxActionExecutionDurationMillis();
-                long retryDelayMillis = uiTestAgentConfig.getActionRetryPolicy().delayMillis();
-                long deadline = currentTimeMillis() + waitDuration;
-                AtomicReference<BufferedImage> latestScreenshot = new AtomicReference<>();
-                Point clickLocation = new Point(x, y);
-                do {
-                    leftMouseClick(clickLocation);
-                    sleepMillis(retryDelayMillis);
-                    var screenshot = latestScreenshot.updateAndGet(_ -> captureScreen());
-                    var result = uiStateCheckAgent.executeAndGetResult(() ->
-                            uiStateCheckAgent.check(expectedStateDescription, actionDescription, "",
-                                    singleImageContent(screenshot))).getResultPayload();
-                    if (result != null && result.success()) {
-                        return;
-                    }
-                } while (currentTimeMillis() < deadline);
-                throw new ToolExecutionException(("Failed to reach expected state '%s' after clicking at location (%s, %s) within " +
-                        "the timeout of %s millis").formatted(expectedStateDescription, x, y, waitDuration), TIMEOUT);
-            }
+            var actionDescription = "Clicking left mouse button until %s".formatted(expectedStateDescription);
+            var waitDuration = uiTestAgentConfig.getMaxActionExecutionDurationMillis();
+            long retryDelayMillis = uiTestAgentConfig.getActionRetryPolicy().delayMillis();
+            long deadline = currentTimeMillis() + waitDuration;
+            AtomicReference<BufferedImage> latestScreenshot = new AtomicReference<>();
+            Point clickLocation = new Point(x, y);
+            do {
+                var screenshot = latestScreenshot.updateAndGet(_ -> captureScreen());
+                var image = singleImageContent(screenshot, uiTestAgentConfig.getUiStateCheckAgentImageDetailLevel());
+                var result = uiStateCheckAgent.executeAndGetResult(() ->
+                                uiStateCheckAgent.check(expectedStateDescription, actionDescription, "", image))
+                        .getResultPayload();
+                if (result != null && result.success()) {
+                    return;
+                }
+                leftMouseClick(clickLocation);
+                sleepMillis(retryDelayMillis);
+            } while (currentTimeMillis() < deadline);
+            throw new ToolExecutionException(("Failed to reach expected state '%s' after clicking at location (%s, %s) within " +
+                    "the timeout of %s millis").formatted(expectedStateDescription, x, y, waitDuration), TIMEOUT);
         } catch (Exception e) {
             throw rethrowAsToolException(e, "clicking at (%s, %s) until state '%s' achieved".formatted(x, y, expectedStateDescription));
         }
@@ -180,6 +176,3 @@ public class MouseTools extends UiAbstractTools {
         }
     }
 }
-
-
-

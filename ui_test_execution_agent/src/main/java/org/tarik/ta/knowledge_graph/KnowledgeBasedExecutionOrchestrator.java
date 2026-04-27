@@ -16,6 +16,7 @@
 package org.tarik.ta.knowledge_graph;
 
 import jakarta.inject.Singleton;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
@@ -33,12 +34,17 @@ import org.tarik.ta.knowledge_graph.execution.AtomicStepExecutionContext;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.PreconditionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.TestStepItem;
+import org.tarik.ta.knowledge_graph.execution.ExecutionStateSnapshot;
+import org.tarik.ta.knowledge_graph.execution.NextAtomicPrefetchCoordinator;
+import org.tarik.ta.knowledge_graph.execution.PrefetchedAtomicContext;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
+import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository.UnsatisfiedPrerequisite;
+import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.*;
 import org.tarik.ta.model.UiTestExecutionContext;
 import org.tarik.ta.user_dialogs.*;
@@ -55,6 +61,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.time.Instant.now;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
@@ -79,7 +86,9 @@ public class KnowledgeBasedExecutionOrchestrator {
     private final FailureContextService failureContextService;
     private final UiTestAgentConfig uiTestAgentConfig;
     private final UiElementCache uiElementCache;
+    private final UiElementRepository uiElementRepository;
     private final ElementLocationHistoryLookup elementLocationHistoryLookup;
+    private final AsyncExecutionPersistenceService asyncExecutionPersistenceService;
 
     public KnowledgeBasedExecutionOrchestrator(KnowledgeService knowledgeService,
                                                KnowledgeIngestionService knowledgeIngestionService,
@@ -90,7 +99,9 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                FailureContextService failureContextService,
                                                UiTestAgentConfig uiTestAgentConfig,
                                                UiElementCache uiElementCache,
-                                               ElementLocationHistoryLookup elementLocationHistoryLookup) {
+                                               UiElementRepository uiElementRepository,
+                                               ElementLocationHistoryLookup elementLocationHistoryLookup,
+                                               AsyncExecutionPersistenceService asyncExecutionPersistenceService) {
         this.knowledgeService = knowledgeService;
         this.knowledgeIngestionService = knowledgeIngestionService;
         this.stepExecutionOrchestrator = stepExecutionOrchestrator;
@@ -100,53 +111,62 @@ public class KnowledgeBasedExecutionOrchestrator {
         this.failureContextService = failureContextService;
         this.uiTestAgentConfig = uiTestAgentConfig;
         this.uiElementCache = uiElementCache;
+        this.uiElementRepository = uiElementRepository;
         this.elementLocationHistoryLookup = elementLocationHistoryLookup;
+        this.asyncExecutionPersistenceService = asyncExecutionPersistenceService;
     }
 
     public void executeBasedOnKnowledge(UiTestExecutionContext context,
                                         TestCase testCase,
                                         int startingStepIndex,
                                         ExecutionStateTracker stateTracker) {
-        var queue = ExecutionQueue.fromTestCase(testCase, startingStepIndex);
-        LOG.info("Created preconditions and test steps executions queue with {} item(s)", queue.remainingCount());
-        var usedProcedureIds = new ArrayList<UUID>();
-        detectAndWarnOrderingConflicts(testCase);
-        try {
-            while (queue.hasNext()) {
-                ExecutionItem item = queue.next();
-                LOG.info("Processing execution item: {} (remaining in queue: {})", item.getClass().getSimpleName(),
-                        queue.remainingCount());
-                var nextStep = switch (findProcedureInDb(item, stateTracker)) {
-                    case ProcedureLookup.DirectMatch(var procedure, var hasLowStability) -> {
-                        LOG.info("Direct high-confidence match found for '{}'", item.getDescription());
-                        yield processFoundProcedure(procedure, hasLowStability, item, testCase, context, stateTracker, usedProcedureIds, queue);
-                    }
-                    case ProcedureLookup.NeedsUserResolution res -> {
-                        if (uiTestAgentConfig.isFullyUnattended()) {
-                            throw new MissingProcedureException(buildSelectionReason(item.getDescription(), res, item instanceof ExecutionItem.PreconditionItem));
-                        }
-                        var reason = buildSelectionReason(item.getDescription(), res, item instanceof ExecutionItem.PreconditionItem);
-                        LOG.info("No direct match for '{}' — prompting user. Reason: {}", item.getDescription(), reason);
-                        var userDecision = resolveWithUserInput(item, res.match(), reason, stateTracker, testCase, context);
-                        yield processUserFeedback(userDecision, item, testCase, context, stateTracker, usedProcedureIds, queue);
-                    }
-                };
-                if (nextStep instanceof ExecutionFlow.Stop) {
-                    return;
-                }
-            }
-        } catch (DatabaseConnectionException e) {
-            LOG.error("DB connection error during execution of test case '{}'", testCase.name(), e);
-            if (!uiTestAgentConfig.isFullyUnattended()) {
-                InformationalPopup.display("Database Connection Error",
-                        "Lost connection to the knowledge graph DB: " + e.getMessage(), null, ERROR, uiTestAgentConfig);
-            }
-            throw e;
-        } finally {
+        try (var prefetchCoordinator = new NextAtomicPrefetchCoordinator(
+                uiTestAgentConfig.getExecutionMode(),
+                knowledgeService, satisfiesEdgeService, uiElementCache, uiElementRepository, elementLocationHistoryLookup, failureContextService)) {
+            var queue = ExecutionQueue.fromTestCase(testCase, startingStepIndex);
+            LOG.info("Created preconditions and test steps executions queue with {} item(s)", queue.remainingCount());
+            var usedProcedureIds = new ArrayList<UUID>();
+            detectAndWarnOrderingConflicts(testCase);
             try {
-                procedureUsageByTestCaseTrackingService.cleanupStaleUsesProcedure(testCase.name(), usedProcedureIds);
-            } catch (Exception e) {
-                LOG.error("Failed to clean up stale USES_PROCEDURE edges for test case '{}'", testCase.name(), e);
+                while (queue.hasNext()) {
+                    ExecutionItem item = queue.next();
+                    LOG.info("Processing execution item: {} (remaining in queue: {})", item.getClass().getSimpleName(),
+                            queue.remainingCount());
+                    var lookup = prefetchCoordinator.takeMatchResultIfValid(item)
+                            .map(m -> toProcedureLookup(m, stateTracker))
+                            .orElseGet(() -> findProcedureInDb(item, stateTracker));
+                    var nextStep = switch (lookup) {
+                        case ProcedureLookup.DirectMatch(var procedure, var hasLowStability) -> {
+                            LOG.info("Direct high-confidence match found for '{}'", item.getDescription());
+                            yield processFoundProcedure(procedure, hasLowStability, item, testCase, context, stateTracker, usedProcedureIds, queue, prefetchCoordinator);
+                        }
+                        case ProcedureLookup.NeedsUserResolution res -> {
+                            if (uiTestAgentConfig.isFullyUnattended()) {
+                                throw new MissingProcedureException(buildSelectionReason(item.getDescription(), res, item instanceof ExecutionItem.PreconditionItem));
+                            }
+                            var reason = buildSelectionReason(item.getDescription(), res, item instanceof ExecutionItem.PreconditionItem);
+                            LOG.info("No direct match for '{}' — prompting user. Reason: {}", item.getDescription(), reason);
+                            var userDecision = resolveWithUserInput(item, res.match(), reason, stateTracker, testCase, context);
+                            yield processUserFeedback(userDecision, item, testCase, context, stateTracker, usedProcedureIds, queue, prefetchCoordinator);
+                        }
+                    };
+                    if (nextStep instanceof ExecutionFlow.Stop) {
+                        return;
+                    }
+                }
+            } catch (DatabaseConnectionException e) {
+                LOG.error("DB connection error during execution of test case '{}'", testCase.name(), e);
+                if (!uiTestAgentConfig.isFullyUnattended()) {
+                    InformationalPopup.display("Database Connection Error",
+                            "Lost connection to the knowledge graph DB: " + e.getMessage(), null, ERROR, uiTestAgentConfig);
+                }
+                throw e;
+            } finally {
+                try {
+                    procedureUsageByTestCaseTrackingService.cleanupStaleUsesProcedure(testCase.name(), usedProcedureIds);
+                } catch (Exception e) {
+                    LOG.error("Failed to clean up stale USES_PROCEDURE edges for test case '{}'", testCase.name(), e);
+                }
             }
         }
     }
@@ -154,7 +174,8 @@ public class KnowledgeBasedExecutionOrchestrator {
     private ExecutionFlow processFoundProcedure(Procedure procedure, boolean hasLowStability, ExecutionItem item,
                                                 TestCase testCase, UiTestExecutionContext context,
                                                 ExecutionStateTracker stateTracker,
-                                                List<UUID> usedProcedureIds, ExecutionQueue queue) {
+                                                List<UUID> usedProcedureIds, ExecutionQueue queue,
+                                                NextAtomicPrefetchCoordinator prefetchCoordinator) {
         stateTracker.addRecentParent(procedure.id());
         LOG.info("Found matching procedure '{}' ({}) for '{}'", procedure.description(), procedure.id(), item.getDescription());
         if (hasLowStability && !uiTestAgentConfig.isFullyUnattended()) {
@@ -188,8 +209,8 @@ public class KnowledgeBasedExecutionOrchestrator {
         showTestDataOverrideWarningIfNeeded(item, item.getTestData(), atomicSteps);
         var testStepResults = new ArrayList<UiTestStepResult>();
         var preconditionResults = new ArrayList<UiPreconditionResult>();
-        var loopOutcome = executeHierarchically(procedure, item, testCase, context, stateTracker, testStepResults, preconditionResults,
-                new AtomicInteger(0), atomicSteps.size(), atomicSteps.size() == 1, null, 0);
+        var loopOutcome = executeHierarchically(procedure, procedure, item, testCase, context, stateTracker, testStepResults, preconditionResults,
+                new AtomicInteger(0), atomicSteps, atomicSteps.size() == 1, null, 0, prefetchCoordinator, queue);
         if (loopOutcome == AtomicLoopOutcome.TERMINATE) {
             if (item instanceof TestStepItem(TestStep testStep)) {
                 context.addStepResult(mergeAtomicResults(testStep, testStepResults));
@@ -222,7 +243,8 @@ public class KnowledgeBasedExecutionOrchestrator {
 
     private ExecutionFlow processUserFeedback(UserFeedback resolution, ExecutionItem item, TestCase testCase,
                                               UiTestExecutionContext context, ExecutionStateTracker stateTracker,
-                                              List<UUID> usedProcedureIds, ExecutionQueue queue) {
+                                              List<UUID> usedProcedureIds, ExecutionQueue queue,
+                                              NextAtomicPrefetchCoordinator prefetchCoordinator) {
         return switch (resolution) {
             case UserFeedback.ManualTermination(var reason) -> {
                 LOG.warn("Execution was interrupted by user for item '{}': {}", item.getDescription(), reason);
@@ -230,17 +252,18 @@ public class KnowledgeBasedExecutionOrchestrator {
                 yield new ExecutionFlow.Stop();
             }
             case UserFeedback.Found(var procedure) ->
-                    processFoundProcedure(procedure, false, item, testCase, context, stateTracker, usedProcedureIds, queue);
+                    processFoundProcedure(procedure, false, item, testCase, context, stateTracker, usedProcedureIds, queue, prefetchCoordinator);
         };
     }
 
     private ProcedureLookup findProcedureInDb(ExecutionItem item, ExecutionStateTracker stateTracker) {
-        var matchResult = knowledgeService.findBestMatch(item.getDescription(), stateTracker.getEffectNodeIds(),
-                stateTracker.getRecentParentIds());
-        if (matchResult.isEmpty()) {
-            return new ProcedureLookup.NeedsUserResolution(null, List.of());
-        }
-        var match = matchResult.get();
+        return knowledgeService.findBestMatch(item.getDescription(), stateTracker.getEffectNodeIds(),
+                        stateTracker.getRecentParentIds())
+                .map(m -> toProcedureLookup(m, stateTracker))
+                .orElseGet(() -> new ProcedureLookup.NeedsUserResolution(null, List.of()));
+    }
+
+    private ProcedureLookup toProcedureLookup(@NotNull KnowledgeService.MatchResult match, @NotNull ExecutionStateTracker stateTracker) {
         var feasible = selectFeasibleProcedure(match.allMatches());
         if (feasible.isPresent() && match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
             return new ProcedureLookup.DirectMatch(feasible.get(), match.selectedHasLowStability());
@@ -286,15 +309,22 @@ public class KnowledgeBasedExecutionOrchestrator {
         }
     }
 
-    private AtomicLoopOutcome executeAtomicLeaf(ExecutionItem item, Procedure atomicStep, @Nullable Procedure directParent,
+    private AtomicLoopOutcome executeAtomicLeaf(ExecutionItem item, Procedure atomicStep, Procedure rootProcedure, @Nullable Procedure directParent,
                                                 TestCase testCase, UiTestExecutionContext context,
                                                 ExecutionStateTracker stateTracker,
                                                 List<UiTestStepResult> testStepResults,
                                                 List<UiPreconditionResult> preconditionResults,
-                                                boolean isSingle, boolean isLast) {
-        var missing = satisfiesEdgeService.findUnsatisfiedPrerequisites(
-                atomicStep.id(),
-                stateTracker.getEffectNodeIds());
+                                                boolean isSingle, boolean isLast,
+                                                NextAtomicPrefetchCoordinator prefetchCoordinator,
+                                                List<Procedure> atomicSteps, int currentIndex, ExecutionQueue queue) {
+        // Consume the prefetch scheduled during the previous atomic's execution (single-use).
+        // Retries always fall back to the synchronous contextFactory.
+        Optional<PrefetchedAtomicContext> prefetchedOpt = prefetchCoordinator.takeIfValid(atomicStep, item);
+
+        List<UnsatisfiedPrerequisite> missing = prefetchedOpt
+                .map(PrefetchedAtomicContext::unsatisfiedPrerequisites)
+                .orElseGet(() -> satisfiesEdgeService.findUnsatisfiedPrerequisites(
+                        atomicStep.id(), stateTracker.getEffectNodeIds()));
         if (!missing.isEmpty()) {
             var reason = "prerequisites not satisfied: %s".formatted(missing);
             if (atomicStep.optional()) {
@@ -320,8 +350,27 @@ public class KnowledgeBasedExecutionOrchestrator {
             return AtomicLoopOutcome.TERMINATE;
         }
 
+        List<PhraseEmbedding> declaredEffects = prefetchedOpt
+                .map(PrefetchedAtomicContext::declaredEffects)
+                .orElseGet(() -> knowledgeService.findEffectsForProcedure(atomicStep.id()));
+
+        Procedure nextAtomicInDecomposition = (currentIndex + 1 < atomicSteps.size()) ? atomicSteps.get(currentIndex + 1) : null;
+        ExecutionItem nextQueueItem = queue.peek();
+
+        var effectIds = declaredEffects.stream()
+                .filter(e -> e != null && e.id() != null)
+                .map(PhraseEmbedding::id)
+                .collect(Collectors.toSet());
+        ExecutionStateSnapshot snapshot = stateTracker.snapshot().withPredictedEffects(effectIds);
+
+        asyncExecutionPersistenceService.persistSatisfiesEdges(atomicStep.id());
+
+        AtomicStepExecutionContext execContext = prefetchedOpt
+                .map(ctx -> buildExecContextFromPrefetch(ctx, item, atomicStep, isSingle, isLast))
+                .orElseGet(() -> buildExecContext(atomicStep, item, isSingle, isLast));
         Function<Procedure, AtomicStepExecutionContext> contextFactory = p -> buildExecContext(p, item, isSingle, isLast);
-        var execContext = contextFactory.apply(atomicStep);
+
+        prefetchCoordinator.scheduleSuccessPathPrefetch(atomicStep, item, nextAtomicInDecomposition, nextQueueItem, snapshot);
 
         var loopOutcome = stepExecutionOrchestrator.executeAtomicStepWithRetryLoop(item, atomicStep,
                 testCase, directParent, context,
@@ -330,18 +379,18 @@ public class KnowledgeBasedExecutionOrchestrator {
 
         if (loopOutcome == UserDecisionOutcome.TERMINATE_EXECUTION) {
             LOG.error("Terminating execution after failure of atomic procedure '{}'", atomicStep.description());
-            captureFailureContext(atomicStep, testStepResults, preconditionResults);
+            captureFailureContext(atomicStep, rootProcedure, testStepResults, preconditionResults);
+            prefetchCoordinator.invalidate("atomic procedure failed");
             return AtomicLoopOutcome.TERMINATE;
         }
         if (loopOutcome == UserDecisionOutcome.RE_DECOMPOSE_AND_RETRY) {
             LOG.info("Atomic step '{}' was edited to composite — re-injecting item for re-decomposition",
                     atomicStep.description());
+            prefetchCoordinator.invalidate("re-decomposition");
             return AtomicLoopOutcome.RE_DECOMPOSE;
         }
 
-        var graphEffects = knowledgeService.findEffectsForProcedure(atomicStep.id());
-        stateTracker.addEffects(graphEffects);
-        satisfiesEdgeService.persistSatisfiesEdgesAsync(atomicStep.id());
+        stateTracker.addEffects(declaredEffects);
         stateTracker.addExecutedAtomicProcedure(atomicStep);
 
         return AtomicLoopOutcome.COMPLETED;
@@ -361,36 +410,60 @@ public class KnowledgeBasedExecutionOrchestrator {
             LOG.debug("No target UI element linked to procedure '{}' — proceeding without element hint",
                     atomicStep.description());
         }
+        String effectiveExpectedResults = computeEffectiveExpectedResults(item, atomicStep, isSingle, isLast);
+        if (!uiTestAgentConfig.isAtomicVerificationEnabled() && !isLast) {
+            effectiveExpectedResults = null;
+        }
+
         return new AtomicStepExecutionContext(
                 atomicStep.timingProfile(),
-                knowledgeService::updateTimingProfile,
+                asyncExecutionPersistenceService::updateTimingProfile,
                 failureContextService.findFailureHints(atomicStep.id()),
                 targetElementId,
-                computeEffectiveExpectedResults(item, atomicStep, isSingle, isLast),
+                effectiveExpectedResults,
                 targetElement,
                 locationHistory
         );
     }
 
-    private AtomicLoopOutcome executeHierarchically(Procedure procedure, ExecutionItem item, TestCase testCase,
+    private AtomicStepExecutionContext buildExecContextFromPrefetch(org.tarik.ta.knowledge_graph.execution.PrefetchedAtomicContext ctx,
+                                                                    ExecutionItem item, Procedure atomicStep,
+                                                                    boolean isSingle, boolean isLast) {
+        String effectiveExpectedResults = computeEffectiveExpectedResults(item, atomicStep, isSingle, isLast);
+        if (!uiTestAgentConfig.isAtomicVerificationEnabled() && !isLast) {
+            effectiveExpectedResults = null;
+        }
+        return new AtomicStepExecutionContext(
+                atomicStep.timingProfile(),
+                asyncExecutionPersistenceService::updateTimingProfile,
+                ctx.failureHints(),
+                ctx.targetElementId(),
+                effectiveExpectedResults,
+                ctx.targetElement(),
+                ctx.locationHistory()
+        );
+    }
+
+    private AtomicLoopOutcome executeHierarchically(Procedure procedure, Procedure rootProcedure, ExecutionItem item, TestCase testCase,
                                                     UiTestExecutionContext context, ExecutionStateTracker stateTracker,
                                                     List<UiTestStepResult> testStepResults,
                                                     List<UiPreconditionResult> preconditionResults,
                                                     AtomicInteger atomicCounter,
-                                                    int totalAtomics, boolean isSingle, @Nullable Procedure directParent, int depth) {
+                                                    List<Procedure> atomicSteps, boolean isSingle, @Nullable Procedure directParent, int depth,
+                                                    NextAtomicPrefetchCoordinator prefetchCoordinator, ExecutionQueue queue) {
         String indent = "  ".repeat(depth);
         if (procedure.isAtomic()) {
-            LOG.info("{}→ Executing atomic: '{}' ({}/{})", indent, procedure.description(), atomicCounter.get() + 1, totalAtomics);
-            boolean isLast = atomicCounter.getAndIncrement() == totalAtomics - 1;
-            return executeAtomicLeaf(item, procedure, directParent, testCase, context, stateTracker,
-                    testStepResults, preconditionResults, isSingle, isLast);
+            LOG.info("{}→ Executing atomic: '{}' ({}/{})", indent, procedure.description(), atomicCounter.get() + 1, atomicSteps.size());
+            boolean isLast = atomicCounter.getAndIncrement() == atomicSteps.size() - 1;
+            return executeAtomicLeaf(item, procedure, rootProcedure, directParent, testCase, context, stateTracker,
+                    testStepResults, preconditionResults, isSingle, isLast, prefetchCoordinator, atomicSteps, atomicCounter.get() - 1, queue);
         } else {
             LOG.info("{}→ Entering composite: '{}'", indent, procedure.description());
             stateTracker.enterCompositeScope(procedure);
             var children = knowledgeService.getChildren(procedure.id());
             for (Procedure child : children) {
-                var outcome = executeHierarchically(child, item, testCase, context, stateTracker,
-                        testStepResults, preconditionResults, atomicCounter, totalAtomics, isSingle, procedure, depth + 1);
+                var outcome = executeHierarchically(child, rootProcedure, item, testCase, context, stateTracker,
+                        testStepResults, preconditionResults, atomicCounter, atomicSteps, isSingle, procedure, depth + 1, prefetchCoordinator, queue);
                 if (outcome == AtomicLoopOutcome.TERMINATE || outcome == AtomicLoopOutcome.RE_DECOMPOSE) {
                     stateTracker.abandonCompositeScope();
                     LOG.info("{}← Abandoned composite scope: '{}'", indent, procedure.description());
@@ -658,7 +731,7 @@ public class KnowledgeBasedExecutionOrchestrator {
         return result;
     }
 
-    private void captureFailureContext(Procedure atomicStep, List<UiTestStepResult> testStepResults,
+    private void captureFailureContext(Procedure atomicStep, Procedure rootProcedure, List<UiTestStepResult> testStepResults,
                                        List<UiPreconditionResult> preconditionResults) {
         var preSelectedCategory = ErrorCategory.UNKNOWN;
         String defaultSymptom = "Unknown failure in procedure " + atomicStep.description();
@@ -669,7 +742,8 @@ public class KnowledgeBasedExecutionOrchestrator {
                 : FailureContextCaptureDialog.displayAndGetSelection(preSelectedCategory, preFilledSymptom, uiTestAgentConfig);
 
         if (failureContext != null) {
-            failureContextService.captureFailureContext(atomicStep.id(), failureContext);
+            Procedure targetProcedure = uiTestAgentConfig.isAtomicVerificationEnabled() ? atomicStep : rootProcedure;
+            asyncExecutionPersistenceService.captureFailureContext(targetProcedure.id(), failureContext);
         }
     }
 

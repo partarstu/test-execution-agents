@@ -18,6 +18,7 @@ package org.tarik.ta;
 
 import jakarta.inject.Singleton;
 import org.tarik.ta.core.AgentConfig;
+import dev.langchain4j.data.message.ImageContent.DetailLevel;
 
 @Singleton
 public class UiTestAgentConfig extends AgentConfig {
@@ -31,6 +32,8 @@ public class UiTestAgentConfig extends AgentConfig {
                 s -> parseEnum(ExecutionMode.class, s), false);
         this.supervisedCountdownSeconds = loadPropertyAsInteger(
                 "supervised.countdown.seconds", "SUPERVISED_COUNTDOWN_SECONDS", "5", false);
+        this.hdrCorrectionEnabled = loadProperty("hdr.color.correction.enabled",
+                "HDR_COLOR_CORRECTION_ENABLED", "false", Boolean::parseBoolean, false);
         this.screenRecordingEnabled = loadProperty("screen.recording.active",
                 "SCREEN_RECORDING_ENABLED", "false", Boolean::parseBoolean, false);
         this.screenRecordingFolder = loadProperty("screen.recording.output.dir",
@@ -73,6 +76,9 @@ public class UiTestAgentConfig extends AgentConfig {
                 false);
         this.algorithmicSearchEnabled = loadProperty(
                 "element.locator.algorithmic.search.enabled", "ALGORITHMIC_SEARCH_ENABLED", "true", Boolean::parseBoolean,
+                false);
+        this.atomicVerificationEnabled = loadProperty(
+                "execution.verification.atomic.enabled", "EXECUTION_VERIFICATION_ATOMIC_ENABLED", "true", Boolean::parseBoolean,
                 false);
         this.verificationModelMaxRetries = loadProperty(
                 "verification.model.max.retries", "VERIFICATION_MODEL_MAX_RETRIES", "3", Integer::parseInt, false);
@@ -221,6 +227,103 @@ public class UiTestAgentConfig extends AgentConfig {
                 "health.warning.threshold", "HEALTH_WARNING_THRESHOLD", "3", false);
         this.healthCriticalThreshold = loadPropertyAsInteger(
                 "health.critical.threshold", "HEALTH_CRITICAL_THRESHOLD", "10", false);
+        this.locationHistoryAndFailureHintsCollectionEnabled = loadProperty(
+                "location.history.and.failure.hints.collection.enabled", "LOCATION_HISTORY_AND_FAILURE_HINTS_COLLECTION_ENABLED", "false",
+                Boolean::parseBoolean, false);
+        this.uiElementDescriptionMatcherAgentImageDetailLevel = getProperty(
+                "ui.element.description.matcher.agent.image.detail.level", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                this::getDetailLevel, false);
+        this.uiStateCheckAgentImageDetailLevel = getProperty(
+                "ui.state.check.agent.image.detail.level", "UI_STATE_CHECK_AGENT_IMAGE_DETAIL_LEVEL", "medium",
+                this::getDetailLevel, false);
+        this.elementBoundingBoxAgentImageDetailLevel = getProperty(
+                "element.bounding.box.agent.image.detail.level", "ELEMENT_BOUNDING_BOX_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                this::getDetailLevel, false);
+        this.uiElementVisualMatchAgentImageDetailLevel = getProperty(
+                "element.selection.agent.image.detail.level", "ELEMENT_SELECTION_AGENT_IMAGE_DETAIL_LEVEL", "medium",
+                this::getDetailLevel, false);
+        this.dbElementCandidateSelectionAgentImageDetailLevel = getProperty(
+                "db.element.selection.agent.image.detail.level", "DB_ELEMENT_SELECTION_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                this::getDetailLevel, false);
+        this.preconditionVerificationAgentImageDetailLevel = getProperty(
+                "precondition.verification.agent.image.detail.level", "PRECONDITION_VERIFICATION_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                this::getDetailLevel, false);
+        this.testStepVerificationAgentImageDetailLevel = getProperty(
+                "test.step.verification.agent.image.detail.level", "TEST_STEP_VERIFICATION_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                this::getDetailLevel, false);
+        this.knowledgeSuggestionAgentImageDetailLevel = getProperty(
+                "knowledge.suggestion.agent.image.detail.level", "KNOWLEDGE_SUGGESTION_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                this::getDetailLevel, false);
+        this.preconditionActionAgentImageDetailLevel = getProperty(
+                "precondition.action.agent.image.detail.level", "PRECONDITION_ACTION_AGENT_IMAGE_DETAIL_LEVEL", "medium",
+                this::getDetailLevel, false);
+        this.testStepActionAgentImageDetailLevel = getProperty(
+                "test.step.action.agent.image.detail.level", "TEST_STEP_ACTION_AGENT_IMAGE_DETAIL_LEVEL", "medium",
+                this::getDetailLevel, false);
+    }
+
+    private DetailLevel getDetailLevel(String s) {
+        return parseEnum(DetailLevel.class, s);
+    }
+
+    private final ConfigProperty<DetailLevel> uiElementDescriptionMatcherAgentImageDetailLevel;
+
+    public DetailLevel getUiElementDescriptionMatcherAgentImageDetailLevel() {
+        return uiElementDescriptionMatcherAgentImageDetailLevel.value();
+    }
+
+    private final ConfigProperty<DetailLevel> uiStateCheckAgentImageDetailLevel;
+
+    public DetailLevel getUiStateCheckAgentImageDetailLevel() {
+        return uiStateCheckAgentImageDetailLevel.value();
+    }
+
+    private final ConfigProperty<DetailLevel> elementBoundingBoxAgentImageDetailLevel;
+
+    public DetailLevel getElementBoundingBoxAgentImageDetailLevel() {
+        return elementBoundingBoxAgentImageDetailLevel.value();
+    }
+
+    private final ConfigProperty<DetailLevel> uiElementVisualMatchAgentImageDetailLevel;
+
+    public DetailLevel getUiElementVisualMatchAgentImageDetailLevel() {
+        return uiElementVisualMatchAgentImageDetailLevel.value();
+    }
+
+    private final ConfigProperty<DetailLevel> dbElementCandidateSelectionAgentImageDetailLevel;
+
+    public DetailLevel getDbElementCandidateSelectionAgentImageDetailLevel() {
+        return dbElementCandidateSelectionAgentImageDetailLevel.value();
+    }
+
+    private final ConfigProperty<DetailLevel> preconditionVerificationAgentImageDetailLevel;
+
+    public DetailLevel getPreconditionVerificationAgentImageDetailLevel() {
+        return preconditionVerificationAgentImageDetailLevel.value();
+    }
+
+    private final ConfigProperty<DetailLevel> testStepVerificationAgentImageDetailLevel;
+
+    public DetailLevel getTestStepVerificationAgentImageDetailLevel() {
+        return testStepVerificationAgentImageDetailLevel.value();
+    }
+
+    private final ConfigProperty<DetailLevel> knowledgeSuggestionAgentImageDetailLevel;
+
+    public DetailLevel getKnowledgeSuggestionAgentImageDetailLevel() {
+        return knowledgeSuggestionAgentImageDetailLevel.value();
+    }
+
+    private final ConfigProperty<DetailLevel> preconditionActionAgentImageDetailLevel;
+
+    public DetailLevel getPreconditionActionAgentImageDetailLevel() {
+        return preconditionActionAgentImageDetailLevel.value();
+    }
+
+    private final ConfigProperty<DetailLevel> testStepActionAgentImageDetailLevel;
+
+    public DetailLevel getTestStepActionAgentImageDetailLevel() {
+        return testStepActionAgentImageDetailLevel.value();
     }
 
 
@@ -267,6 +370,14 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public int getAgentToolCallsBudget() {
         return super.getAgentToolCallsBudget();
+    }
+
+    // -----------------------------------------------------
+    // Screenshot Configuration
+    private final ConfigProperty<Boolean> hdrCorrectionEnabled;
+
+    public boolean isHdrCorrectionEnabled() {
+        return hdrCorrectionEnabled.value();
     }
 
     // -----------------------------------------------------
@@ -375,6 +486,12 @@ public class UiTestAgentConfig extends AgentConfig {
     }
 
     private final ConfigProperty<Boolean> algorithmicSearchEnabled;
+
+    private final ConfigProperty<Boolean> atomicVerificationEnabled;
+
+    public boolean isAtomicVerificationEnabled() {
+        return atomicVerificationEnabled.value();
+    }
 
     private final ConfigProperty<Integer> verificationModelMaxRetries;
 
@@ -747,5 +864,11 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public int getHealthCriticalThreshold() {
         return healthCriticalThreshold.value();
+    }
+
+    private final ConfigProperty<Boolean> locationHistoryAndFailureHintsCollectionEnabled;
+
+    public boolean isLocationHistoryAndFailureHintsCollectionEnabled() {
+        return locationHistoryAndFailureHintsCollectionEnabled.value();
     }
 }

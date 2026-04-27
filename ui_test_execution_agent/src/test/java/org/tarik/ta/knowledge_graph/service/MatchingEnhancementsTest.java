@@ -148,10 +148,10 @@ class MatchingEnhancementsTest {
                         new ProcedureRepository.CandidateContext(p2.id(), Optional.empty(), Optional.empty(), 1)
                 ));
 
-        when(mockPhraseEmbeddingRepository.findPrerequisitesForProcedure(p1.id())).thenReturn(List.of(precond));
-        when(mockPhraseEmbeddingRepository.findPrerequisitesForProcedure(p2.id())).thenReturn(List.of());
-        when(mockPhraseEmbeddingRepository.isPrerequisiteMetByEffects(eq(precond.id()), eq(effectNodeIds), anyDouble()))
-                .thenReturn(true);
+        when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfactionBatch(anyList(), eq(effectNodeIds), anyDouble()))
+                .thenReturn(List.of(
+                        new PhraseEmbeddingRepository.PrerequisiteSatisfaction(p1.id(), precond.id(), precond.phrase(), true)
+                ));
 
         var result = knowledgeService.findBestMatch("test", effectNodeIds, Set.of());
 

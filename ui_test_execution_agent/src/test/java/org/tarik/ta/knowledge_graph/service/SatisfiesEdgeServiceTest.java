@@ -15,14 +15,12 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge;
@@ -32,13 +30,16 @@ import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository.Unsatisfi
 
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class SatisfiesEdgeServiceTest {
@@ -49,42 +50,26 @@ class SatisfiesEdgeServiceTest {
     private SatisfiesEdgeRepository mockSatisfiesEdgeRepository;
     @Mock
     private PhraseEmbeddingRepository mockPhraseEmbeddingRepository;
-
     @Mock
     private UiTestAgentConfig configMock;
 
     @BeforeEach
     void setUp() {
-        
         lenient().when(configMock.getSatisfiesSimilarityThreshold()).thenReturn(0.85);
-
         satisfiesEdgeService = new SatisfiesEdgeService(mockSatisfiesEdgeRepository, mockPhraseEmbeddingRepository, configMock);
     }
 
-    @AfterEach
-    void tearDown() {
-    }
-
     @Test
-    @DisplayName("persistSatisfiesEdgesAsync should persist edges from repo matches")
-    void persistSatisfiesEdgesAsync_shouldPersistEdgesFromRepoMatches() throws InterruptedException {
+    @DisplayName("persistSatisfiesEdges should persist edges from repo matches")
+    void persistSatisfiesEdges_shouldPersistEdgesFromRepoMatches() {
         UUID producerId = UUID.randomUUID();
         UUID consumerId = UUID.randomUUID();
-
         UUID prereqNodeId = UUID.randomUUID();
         var match = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "user logged in", "user logged in", prereqNodeId, 0.95);
         when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfiedByProducer(eq(producerId), anyDouble(), anyInt()))
                 .thenReturn(List.of(match));
 
-        CountDownLatch latch = new CountDownLatch(1);
-        doAnswer(invocation -> {
-            latch.countDown();
-            return null;
-        }).when(mockSatisfiesEdgeRepository).persistSatisfiesEdges(anyList());
-
-        satisfiesEdgeService.persistSatisfiesEdgesAsync(producerId);
-
-        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        satisfiesEdgeService.persistSatisfiesEdges(producerId);
 
         ArgumentCaptor<List<SatisfiesEdge>> captor = ArgumentCaptor.forClass(List.class);
         verify(mockSatisfiesEdgeRepository).persistSatisfiesEdges(captor.capture());
@@ -97,44 +82,31 @@ class SatisfiesEdgeServiceTest {
     }
 
     @Test
-    @DisplayName("persistSatisfiesEdgesAsync should not call repo when no matches found")
-    void persistSatisfiesEdgesAsync_shouldNotPersistWhenNoMatches() throws InterruptedException {
+    @DisplayName("persistSatisfiesEdges should not call repo when no matches found")
+    void persistSatisfiesEdges_shouldNotPersistWhenNoMatches() {
         UUID producerId = UUID.randomUUID();
 
         when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfiedByProducer(eq(producerId), anyDouble(), anyInt()))
                 .thenReturn(List.of());
 
-        // Give the async thread time to complete
-        Thread.sleep(200);
-
-        satisfiesEdgeService.persistSatisfiesEdgesAsync(producerId);
-        Thread.sleep(200);
+        satisfiesEdgeService.persistSatisfiesEdges(producerId);
 
         verify(mockSatisfiesEdgeRepository, never()).persistSatisfiesEdges(anyList());
     }
 
     @Test
-    @DisplayName("persistSatisfiesEdgesAsync should deduplicate by max score per consumer")
-    void persistSatisfiesEdgesAsync_shouldDeduplicateByMaxScore() throws InterruptedException {
+    @DisplayName("persistSatisfiesEdges should deduplicate by max score per consumer")
+    void persistSatisfiesEdges_shouldDeduplicateByMaxScore() {
         UUID producerId = UUID.randomUUID();
         UUID consumerId = UUID.randomUUID();
-
-        // Two matches for the same (consumer, prerequisiteNodeId) — the higher-scored one should win
         UUID prereqNodeId = UUID.randomUUID();
+
         var match1 = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "effect 1", "prereq 1", prereqNodeId, 0.90);
         var match2 = new PhraseEmbeddingRepository.SatisfiesMatch(consumerId, "effect 2", "prereq 1", prereqNodeId, 0.95);
         when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfiedByProducer(eq(producerId), anyDouble(), anyInt()))
                 .thenReturn(List.of(match1, match2));
 
-        CountDownLatch latch = new CountDownLatch(1);
-        doAnswer(invocation -> {
-            latch.countDown();
-            return null;
-        }).when(mockSatisfiesEdgeRepository).persistSatisfiesEdges(anyList());
-
-        satisfiesEdgeService.persistSatisfiesEdgesAsync(producerId);
-
-        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        satisfiesEdgeService.persistSatisfiesEdges(producerId);
 
         ArgumentCaptor<List<SatisfiesEdge>> captor = ArgumentCaptor.forClass(List.class);
         verify(mockSatisfiesEdgeRepository).persistSatisfiesEdges(captor.capture());

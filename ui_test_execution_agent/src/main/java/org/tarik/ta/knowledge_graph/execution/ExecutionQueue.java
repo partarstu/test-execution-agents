@@ -94,6 +94,15 @@ public class ExecutionQueue {
     }
 
     /**
+     * Peeks and returns the item at the front of the queue without removing it.
+     *
+     * @return the next item, or null if the queue is empty
+     */
+    public ExecutionItem peek() {
+        return queue.peek();
+    }
+
+    /**
      * Injects items at the front of the queue for prerequisite injection.
      *
      * @param items the items to inject at the front

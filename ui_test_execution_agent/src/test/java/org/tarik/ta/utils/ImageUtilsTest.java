@@ -18,7 +18,9 @@ package org.tarik.ta.utils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.tarik.ta.utils.ImageUtils.*;
@@ -55,5 +57,40 @@ class ImageUtilsTest {
         String base64 = convertImageToBase64(image, "png");
         
         assertThat(base64).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("applyHdrCorrection should gamma encode linear RGB values")
+    void applyHdrCorrection_shouldGammaEncodeLinearRgbValues() {
+        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
+        image.setRGB(0, 0, new Color(128, 128, 128).getRGB());
+
+        BufferedImage corrected = applyHdrCorrection(image);
+        Color correctedColor = new Color(corrected.getRGB(0, 0));
+
+        assertThat(correctedColor.getRed()).isEqualTo(188);
+        assertThat(correctedColor.getGreen()).isEqualTo(188);
+        assertThat(correctedColor.getBlue()).isEqualTo(188);
+    }
+
+    @Test
+    @DisplayName("applyHdrCorrection should support custom buffered image types")
+    void applyHdrCorrection_shouldSupportCustomBufferedImageTypes() {
+        BufferedImage image = newCustomBufferedImage();
+        image.setRGB(0, 0, new Color(128, 128, 128, 255).getRGB());
+
+        BufferedImage corrected = applyHdrCorrection(image);
+        Color correctedColor = new Color(corrected.getRGB(0, 0), true);
+
+        assertThat(corrected.getType()).isEqualTo(BufferedImage.TYPE_INT_ARGB);
+        assertThat(correctedColor.getRed()).isEqualTo(188);
+        assertThat(correctedColor.getGreen()).isEqualTo(188);
+        assertThat(correctedColor.getBlue()).isEqualTo(188);
+        assertThat(correctedColor.getAlpha()).isEqualTo(255);
+    }
+
+    private static BufferedImage newCustomBufferedImage() {
+        ColorModel colorModel = ColorModel.getRGBdefault();
+        return new BufferedImage(colorModel, colorModel.createCompatibleWritableRaster(1, 1), colorModel.isAlphaPremultiplied(), null);
     }
 }

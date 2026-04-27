@@ -22,13 +22,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
-import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PhraseType;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
+import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository.PrerequisiteSatisfaction;
 import org.tarik.ta.knowledge_graph.repository.ProcedureMatch;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository.CandidateContext;
@@ -40,7 +38,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
@@ -84,7 +81,8 @@ class KnowledgeServiceTest {
                 .thenReturn(List.of(new ProcedureMatch(mockProcedure, 0.9)));
         when(mockRepository.findCandidateContextBatch(anyList(), anySet()))
                 .thenReturn(List.of(new CandidateContext(mockProcedure.id(), Optional.empty(), Optional.empty(), 0)));
-        when(mockPhraseEmbeddingRepository.findPrerequisitesForProcedure(mockProcedure.id())).thenReturn(List.of());
+        when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfactionBatch(anyList(), anySet(), anyDouble()))
+                .thenReturn(List.of());
 
         Optional<KnowledgeService.MatchResult> result = knowledgeService.findBestMatch(description, Set.of(), Set.of());
 
@@ -99,7 +97,6 @@ class KnowledgeServiceTest {
         Procedure topCandidate = Procedure.createAtomic("set the pick-up date", List.of(), "results", List.of(), List.of(), false);
         Procedure lowCandidate = Procedure.createAtomic("click the pick-up date field", List.of(), "results", List.of(), List.of(), false);
         UUID prereqNodeId = UUID.randomUUID();
-        PhraseEmbedding prereqNode = new PhraseEmbedding(prereqNodeId, "page is open", new float[]{0.1f}, PhraseType.PREREQUISITE);
         UUID effectNodeId = UUID.randomUUID();
 
         when(mockEmbeddingService.embed(anyString())).thenReturn(new Embedding(new float[]{0.1f}));
@@ -108,11 +105,10 @@ class KnowledgeServiceTest {
         when(mockRepository.findCandidateContextBatch(anyList(), anySet())).thenReturn(List.of(
                 new CandidateContext(topCandidate.id(), Optional.empty(), Optional.empty(), 0),
                 new CandidateContext(lowCandidate.id(), Optional.empty(), Optional.empty(), 0)));
-        // topCandidate has 1 prerequisite that is NOT met
-        when(mockPhraseEmbeddingRepository.findPrerequisitesForProcedure(topCandidate.id())).thenReturn(List.of(prereqNode));
-        when(mockPhraseEmbeddingRepository.isPrerequisiteMetByEffects(eq(prereqNodeId), anySet(), anyDouble())).thenReturn(false);
-        // lowCandidate has no prerequisites → proportion = 1.0, always feasible
-        when(mockPhraseEmbeddingRepository.findPrerequisitesForProcedure(lowCandidate.id())).thenReturn(List.of());
+
+        // topCandidate has 1 prerequisite that is NOT met; lowCandidate has no prerequisites (implicitly handled by empty results in batch)
+        when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfactionBatch(anyList(), anySet(), anyDouble()))
+                .thenReturn(List.of(new PrerequisiteSatisfaction(topCandidate.id(), prereqNodeId, "page is open", false)));
 
         var result = knowledgeService.findBestMatch("set the pick-up date", Set.of(effectNodeId), Set.of());
 
@@ -136,9 +132,10 @@ class KnowledgeServiceTest {
                 new CandidateContext(topCandidate.id(), Optional.empty(), Optional.empty(), 0),
                 // lowCandidate shares 1 parent → ancestry boost
                 new CandidateContext(lowCandidate.id(), Optional.empty(), Optional.empty(), 1)));
-        // Both have no prerequisites → proportion = 1.0 for both
-        when(mockPhraseEmbeddingRepository.findPrerequisitesForProcedure(topCandidate.id())).thenReturn(List.of());
-        when(mockPhraseEmbeddingRepository.findPrerequisitesForProcedure(lowCandidate.id())).thenReturn(List.of());
+
+        // Both have no prerequisites
+        when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfactionBatch(anyList(), anySet(), anyDouble()))
+                .thenReturn(List.of());
 
         var result = knowledgeService.findBestMatch("set the pick-up date", Set.of(), Set.of());
 

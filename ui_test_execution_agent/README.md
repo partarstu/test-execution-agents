@@ -90,6 +90,11 @@ a part of this framework for executing a sample test case inside Google Cloud.
         * `recording.file.format`: Output format (default: mp4).
         * `recording.fps`: Frames per second for recording.
 
+* **HDR Screenshot Correction:**
+    * Optional sRGB gamma correction for screenshots captured on HDR-enabled monitors.
+    * Controlled by `hdr.color.correction.enabled` or `HDR_COLOR_CORRECTION_ENABLED`.
+    * Keeps Windows HDR enabled while avoiding washed-out screenshot colors in model inputs and saved captures.
+
 * **AI Model Integration:**
     * Utilizes the [LangChain4j](https://github.com/langchain4j/langchain4j) library to seamlessly interact with various Generative AI
       models.
@@ -224,7 +229,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
           dialog and there is nothing additional to confirm.
         * **Prerequisite Failure Handling:** If no procedure branch has its prerequisites satisfied by the current execution state, the test execution fails with a descriptive error listing which prerequisites are missing. In SUPERVISED mode the operator is prompted with the standard EDIT/CREATE/RETRY selection; in UNATTENDED mode the test terminates immediately.
         * **Procedure Usage Tracking:** The agent automatically tracks which test cases use which procedures using `USES_PROCEDURE` edges in the graph. When an operator edits a procedure that is used by multiple test cases, a warning popup is displayed to highlight the potential impact across the test suite. Stale usage edges are automatically cleaned up in the `finally` block at the end of each test case execution.
-    * **SATISFIES Edges — Pre-Computed Precondition Satisfaction:** Persists `SATISFIES` relationships directly between Procedure nodes to record that an effect of one procedure satisfies a precondition of another. Each edge carries a cosine similarity `score`, matched `effectPhrase`/`precondPhrase` texts, and lifecycle timestamps (`createdAt`, `lastVerifiedAt`). Computed asynchronously by `SatisfiesEdgeService` after each successful step: a virtual thread fires N parallel similarity comparisons (one per effect embedding), deduplicates by maximum score per consumer procedure, filters by `satisfies.similarity.threshold` (default `0.85`), and batch-persists the results. This replaces the previous O(N×M) per-step cosine loop with a single graph traversal during re-ranking and enables cross-run caching — a match is never recomputed until the procedure is edited. Edges are deleted transactionally when a procedure is modified. Stale edges (not verified within `satisfies.stale.days`) are flagged during health checks and cleaned up via `GraphHealthService.runStaleSatisfiesEdgeCleanup()`.
+    * **SATISFIES Edges — Pre-Computed Precondition Satisfaction:** Persists `SATISFIES` relationships directly between Procedure nodes to record that an effect of one procedure satisfies a precondition of another. Each edge carries a cosine similarity `score`, matched `effectPhrase`/`precondPhrase` texts, and lifecycle timestamps (`createdAt`, `lastVerifiedAt`). Computed asynchronously by `SatisfiesEdgeService` after each successful step: a virtual thread fires N parallel similarity comparisons (one per effect embedding), deduplicates by maximum score per consumer procedure, filters by `satisfies.similarity.threshold` (default `0.85`), and batch-persists the results. This replaces the previous O(N×M) per-step cosine loop with a single graph traversal during re-ranking and enables cross-run caching — a match is never recomputed until the procedure is edited. Edges are deleted transactionally when a procedure is modified. Stale edges (not verified within `satisfies.stale.days`) are flagged during health checks and cleaned up via `GraphHealthService.runStaleSatisfiesEdgeCleanup()`. In unattended mode, persistence happens asynchronously before execution starts. In supervised mode, SATISFIES persistence is fully synchronous to ensure consistency when a user edits or retries procedures.
     * **Ordering Conflict Detection:** At the start of execution in supervised mode only, the engine queries the `SATISFIES` graph to detect when a test step B appears before step A but B's preconditions require an effect that A produces — a test authoring error. Conflicts are displayed as a warning `InformationalPopup` and do not block execution. Skipped entirely when no `SATISFIES` edges exist yet (cold graph).
     * **Knowledge-Driven Failure Recovery:** The system learns from past failures via `FailureContext` nodes linked to procedures via `HAS_FAILURE_CONTEXT` edges. Each node stores a failure `symptom`, `category` (using `ErrorCategory`), user-provided `resolution`, `occurrences` count, a `mode` (`SUPERVISED`, `SUPERVISED_TIMEOUT`, or `UNATTENDED`), and timestamps. Before executing a procedure, the agent retrieves failure hints via `FailureContextService.findFailureHints()` — hints with `mode == SUPERVISED_TIMEOUT` (auto-captured on dialog timeout, with no resolution) are excluded. Non-empty hints are injected into the agent's prompt as a "Known issues" section by `StepExecutionOrchestrator`. After retry exhaustion: in supervised mode a `FailureContextCaptureDialog` prompts the operator (countdown, default 60s) with error category pre-selected and symptom pre-filled; in unattended mode context is auto-captured from the error category. Deduplication via `MERGE` on `(procedureId, category, symptomNormalized)` increments `occurrences` on repeat failures. Orphaned `FailureContext` nodes are cleaned up by `FailureContextService.cleanupOrphanedFailureContexts()` after procedure deletion.
     * **Element Stability Index:** Reliability metrics stored on `UiElement` nodes: `stabilityScore` (EWMA α=0.3, initialised optimistically at `1.0`; first failure drops to `0.70`), `avgLocationTimeMs`, `locationStrategy`, `failedLocationCount`, and `lastLocatedAt`. `StabilityRecorder` is a `@FunctionalInterface` (`record(UUID elementId, boolean located, long locationTimeMs, String strategy)`) wired as a lambda delegating to `ProcedureRepository.updateElementStability()`. `ElementLocatorTools` calls it after every location attempt. Elements with `stabilityScore < stability.penalty.threshold` are deprioritized during candidate re-ranking; unstable elements use a try-first, wait-and-retry strategy instead of a proactive pre-sleep.
@@ -239,6 +244,7 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * **Unified Vector Store:** UI element storage can use Neo4j (via `langchain4j-community-neo4j`), providing both graph relationships
       and vector search in a single database.
     * `neo4j.password` (or `NEO4J_PASSWORD`) must be set to a non-blank value.
+    * `location.history.and.failure.hints.collection.enabled` (or `LOCATION_HISTORY_AND_FAILURE_HINTS_COLLECTION_ENABLED`) - disable location history and failure hints collection by default (recommended for local or supervised mode). Set to `true` to enable collection (recommended for CI/CD pipelines). Retrieval of existing hints and history remains enabled regardless of this setting.
 
 ## Test Case Execution Workflow
 
@@ -517,6 +523,8 @@ override properties file settings.**
   dimension. Default: `1568`.
 * `bbox.screenshot.max.size.megapixels` (Env: `BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS`): Maximum screenshot size in megapixels. Default:
   `1.15`.
+* `hdr.color.correction.enabled` (Env: `HDR_COLOR_CORRECTION_ENABLED`): Apply sRGB gamma correction to screenshots captured on HDR-enabled
+  monitors so saved screenshots and model inputs do not look washed out. Default: `false`.
 
 **Agent-Specific Model Configuration:**
 
@@ -783,6 +791,12 @@ Remember to use the VNC password you set in the Dockerfile when prompted.
   running on Linux, but there is no solution to those issues yet.
 * **Standalone Executable Size:** The standalone JAR file can be quite large (at least ~330 MB). This is primarily due to the automatic
   inclusion of the ONNX embedding model (`all-MiniLM-L6-v2`) as a dependency of LangChain4j, and the native OpenCV libraries required for
+  visual element location.
+* **Unit Tests:** The project now includes unit tests for many components including agents, DTOs, managers, and tools. All future
+  contributions and pull requests to the `main` branch **should** include relevant unit tests. Contributing by adding new unit tests
+  to existing code is, as always, welcome.
+ Contributing by adding new unit tests
+  to existing code is, as always, welcome.
   visual element location.
 * **Unit Tests:** The project now includes unit tests for many components including agents, DTOs, managers, and tools. All future
   contributions and pull requests to the `main` branch **should** include relevant unit tests. Contributing by adding new unit tests

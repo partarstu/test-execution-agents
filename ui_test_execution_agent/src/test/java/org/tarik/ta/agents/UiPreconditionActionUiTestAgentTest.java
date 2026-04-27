@@ -66,7 +66,7 @@ class UiPreconditionActionUiTestAgentTest {
         UiPreconditionActionAgent agent = (_, _) -> null;
 
         OperationExecutionResult<EmptyExecutionResult>
-                result = agent.executeAndGetResult(() -> Result.builder().content(new EmptyExecutionResult()).build());
+                result = agent.executeAndGetResult(() -> Result.builder().content(new EmptyExecutionResult(true, null)).build());
 
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
         assertThat(result.isSuccess()).isTrue();

@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.config.scopes.UiAgentRequestScope;
+import org.tarik.ta.knowledge_graph.execution.ExecutionStateSnapshot;
 import jakarta.annotation.PreDestroy;
 
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static java.util.Objects.requireNonNull;
 import org.tarik.ta.UiTestAgentConfig;
@@ -57,6 +59,7 @@ public class ExecutionStateTracker {
     private final Deque<UUID> recentParentIds = new ConcurrentLinkedDeque<>();
     private final UiTestAgentConfig config;
     private final AtomicInteger recentParentIdsSize = new AtomicInteger(0);
+    private final ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
 
     public ExecutionStateTracker(UiTestAgentConfig config) {
         this.config = config;
@@ -70,44 +73,64 @@ public class ExecutionStateTracker {
      */
     public void addEffects(List<PhraseEmbedding> effects) {
         requireNonNull(effects, "effects");
-        ScopeFrame currentFrame = scopeStack.getLast();
-        int addedCount = 0;
-        for (var effect : effects) {
-            if (effect != null && effect.id() != null) {
-                if (currentFrame.effectNodeIds.add(effect.id())) {
-                    addedCount++;
+        stateLock.writeLock().lock();
+        try {
+            ScopeFrame currentFrame = scopeStack.getLast();
+            int addedCount = 0;
+            for (var effect : effects) {
+                if (effect != null && effect.id() != null) {
+                    if (currentFrame.effectNodeIds.add(effect.id())) {
+                        addedCount++;
+                    }
                 }
             }
-        }
-        if (addedCount > 0) {
-            LOG.debug("Added {} effect(s) to current scope", addedCount);
+            if (addedCount > 0) {
+                LOG.debug("Added {} effect(s) to current scope", addedCount);
+            }
+        } finally {
+            stateLock.writeLock().unlock();
         }
     }
 
     public void enterCompositeScope(Procedure procedure) {
-        scopeStack.add(new ScopeFrame());
-        LOG.debug("Entered composite scope for procedure: '{}'", procedure.description());
+        stateLock.writeLock().lock();
+        try {
+            scopeStack.add(new ScopeFrame());
+            LOG.debug("Entered composite scope for procedure: '{}'", procedure.description());
+        } finally {
+            stateLock.writeLock().unlock();
+        }
     }
 
     public void closeCompositeScope(List<PhraseEmbedding> compositeEffects) {
-        scopeStack.removeLast();
-        ScopeFrame newTop = scopeStack.getLast();
-        int promotedCount = 0;
-        if (compositeEffects != null) {
-            for (PhraseEmbedding effect : compositeEffects) {
-                if (effect != null && effect.id() != null) {
-                    if (newTop.effectNodeIds.add(effect.id())) {
-                        promotedCount++;
+        stateLock.writeLock().lock();
+        try {
+            scopeStack.removeLast();
+            ScopeFrame newTop = scopeStack.getLast();
+            int promotedCount = 0;
+            if (compositeEffects != null) {
+                for (PhraseEmbedding effect : compositeEffects) {
+                    if (effect != null && effect.id() != null) {
+                        if (newTop.effectNodeIds.add(effect.id())) {
+                            promotedCount++;
+                        }
                     }
                 }
             }
+            LOG.debug("Closed composite scope, promoted {} effect(s) to parent scope", promotedCount);
+        } finally {
+            stateLock.writeLock().unlock();
         }
-        LOG.debug("Closed composite scope, promoted {} effect(s) to parent scope", promotedCount);
     }
 
     public void abandonCompositeScope() {
-        scopeStack.removeLast();
-        LOG.debug("Abandoned composite scope");
+        stateLock.writeLock().lock();
+        try {
+            scopeStack.removeLast();
+            LOG.debug("Abandoned composite scope");
+        } finally {
+            stateLock.writeLock().unlock();
+        }
     }
 
     /**
@@ -115,15 +138,25 @@ public class ExecutionStateTracker {
      */
     public void addExecutedAtomicProcedure(Procedure procedure) {
         requireNonNull(procedure, "procedure");
-        executedAtomicProcedures.add(procedure);
-        LOG.debug("Recorded executed atomic procedure: '{}'", procedure.description());
+        stateLock.writeLock().lock();
+        try {
+            executedAtomicProcedures.add(procedure);
+            LOG.debug("Recorded executed atomic procedure: '{}'", procedure.description());
+        } finally {
+            stateLock.writeLock().unlock();
+        }
     }
 
     /**
      * Returns an unmodifiable snapshot of atomic procedures executed so far, in execution order.
      */
     public List<Procedure> getExecutedAtomicProcedures() {
-        return List.copyOf(executedAtomicProcedures);
+        stateLock.readLock().lock();
+        try {
+            return List.copyOf(executedAtomicProcedures);
+        } finally {
+            stateLock.readLock().unlock();
+        }
     }
 
     /**
@@ -131,12 +164,17 @@ public class ExecutionStateTracker {
      */
     @PreDestroy
     public void reset() {
-        scopeStack.clear();
-        scopeStack.add(new ScopeFrame());
-        executedAtomicProcedures.clear();
-        recentParentIds.clear();
-        recentParentIdsSize.set(0);
-        LOG.info("Execution state reset - state is now empty");
+        stateLock.writeLock().lock();
+        try {
+            scopeStack.clear();
+            scopeStack.add(new ScopeFrame());
+            executedAtomicProcedures.clear();
+            recentParentIds.clear();
+            recentParentIdsSize.set(0);
+            LOG.info("Execution state reset - state is now empty");
+        } finally {
+            stateLock.writeLock().unlock();
+        }
     }
 
     /**
@@ -144,23 +182,33 @@ public class ExecutionStateTracker {
      */
     public void addRecentParent(UUID parentId) {
         if (parentId == null) return;
-        recentParentIds.addLast(parentId);
-        recentParentIdsSize.incrementAndGet();
-        while (recentParentIdsSize.get() > config.getAncestryWindowSize()) {
-            if (recentParentIds.pollFirst() != null) {
-                recentParentIdsSize.decrementAndGet();
-            } else {
-                break; // queue is empty
+        stateLock.writeLock().lock();
+        try {
+            recentParentIds.addLast(parentId);
+            recentParentIdsSize.incrementAndGet();
+            while (recentParentIdsSize.get() > config.getAncestryWindowSize()) {
+                if (recentParentIds.pollFirst() != null) {
+                    recentParentIdsSize.decrementAndGet();
+                } else {
+                    break; // queue is empty
+                }
             }
+            LOG.debug("Added recent parent {} to ancestry window (size: {})", parentId, recentParentIdsSize.get());
+        } finally {
+            stateLock.writeLock().unlock();
         }
-        LOG.debug("Added recent parent {} to ancestry window (size: {})", parentId, recentParentIdsSize.get());
     }
 
     /**
      * Returns an unmodifiable set of recently matched parent IDs.
      */
     public Set<UUID> getRecentParentIds() {
-        return Set.copyOf(recentParentIds);
+        stateLock.readLock().lock();
+        try {
+            return Set.copyOf(recentParentIds);
+        } finally {
+            stateLock.readLock().unlock();
+        }
     }
 
     /**
@@ -169,10 +217,35 @@ public class ExecutionStateTracker {
      * accumulated completed-children effects at each level of the currently-executing hierarchy.
      */
     public Set<UUID> getEffectNodeIds() {
-        Set<UUID> visibleEffects = new HashSet<>();
-        for (ScopeFrame frame : scopeStack) {
-            visibleEffects.addAll(frame.effectNodeIds);
+        stateLock.readLock().lock();
+        try {
+            Set<UUID> visibleEffects = new HashSet<>();
+            for (ScopeFrame frame : scopeStack) {
+                visibleEffects.addAll(frame.effectNodeIds);
+            }
+            return Set.copyOf(visibleEffects);
+        } finally {
+            stateLock.readLock().unlock();
         }
-        return Set.copyOf(visibleEffects);
+    }
+
+    /**
+     * Produces a consistent point-in-time snapshot of the execution state for prefetch evaluation.
+     */
+    public ExecutionStateSnapshot snapshot() {
+        stateLock.readLock().lock();
+        try {
+            Set<UUID> visibleEffects = new HashSet<>();
+            for (ScopeFrame frame : scopeStack) {
+                visibleEffects.addAll(frame.effectNodeIds);
+            }
+            return new ExecutionStateSnapshot(
+                visibleEffects,
+                new ArrayList<>(recentParentIds),
+                new ArrayList<>(executedAtomicProcedures)
+            );
+        } finally {
+            stateLock.readLock().unlock();
+        }
     }
 }

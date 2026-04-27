@@ -67,7 +67,7 @@ class UiTestStepActionAgentTest {
         UiTestStepActionAgent agent = mock(UiTestStepActionAgent.class, CALLS_REAL_METHODS);
 
         OperationExecutionResult<EmptyExecutionResult>
-                result = agent.executeAndGetResult(() -> Result.<EmptyExecutionResult>builder().content(new EmptyExecutionResult()).build());
+                result = agent.executeAndGetResult(() -> Result.<EmptyExecutionResult>builder().content(new EmptyExecutionResult(true, null)).build());
 
         assertThat(result.getExecutionStatus()).isEqualTo(SUCCESS);
         assertThat(result.isSuccess()).isTrue();

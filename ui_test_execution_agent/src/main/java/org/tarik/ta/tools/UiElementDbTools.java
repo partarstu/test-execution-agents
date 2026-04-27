@@ -22,6 +22,7 @@ import jakarta.inject.Singleton;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.DbUiElementSelectionAgent;
 import org.tarik.ta.agents.UiElementExtendedDescriptionAgent;
 import org.tarik.ta.agents.UiStateCheckAgent;
@@ -58,17 +59,20 @@ public class UiElementDbTools extends UiAbstractTools {
     private final UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
     private final DbUiElementSelectionAgent dbUiElementSelectionAgent;
     private final UiElementRefinementHelper uiElementRefinementHelper;
+    private final UiTestAgentConfig uiTestAgentConfig;
 
     @Inject
     public UiElementDbTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
                              UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent,
                              DbUiElementSelectionAgent dbUiElementSelectionAgent,
-                             UiElementRefinementHelper uiElementRefinementHelper) {
+                             UiElementRefinementHelper uiElementRefinementHelper,
+                             UiTestAgentConfig uiTestAgentConfig) {
         super(uiStateCheckAgent);
         this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
         this.uiElementExtendedDescriptionAgent = requireNonNull(uiElementExtendedDescriptionAgent, "uiElementExtendedDescriptionAgent");
         this.dbUiElementSelectionAgent = requireNonNull(dbUiElementSelectionAgent, "dbUiElementSelectionAgent");
         this.uiElementRefinementHelper = requireNonNull(uiElementRefinementHelper, "uiElementRefinementHelper");
+        this.uiTestAgentConfig = requireNonNull(uiTestAgentConfig, "uiTestAgentConfig");
     }
 
     @Tool("Searches for a UI element in the database using vector similarity and selects the best candidate.")
@@ -134,7 +138,7 @@ public class UiElementDbTools extends UiAbstractTools {
 
     private UiElementIdentificationResult getElementIdentification(String elementDescription, String relevantTestData,
                                                                    BufferedImage screenshot) {
-        var imageContent = ImageUtils.singleImageContent(screenshot);
+        var imageContent = ImageUtils.singleImageContent(screenshot, uiTestAgentConfig.getUiElementDescriptionMatcherAgentImageDetailLevel());
         var relevantDataString = relevantTestData == null ? "" : relevantTestData;
         return uiElementExtendedDescriptionAgent
                 .executeAndGetResult(() -> uiElementExtendedDescriptionAgent.describeUiElement(elementDescription,
@@ -158,7 +162,7 @@ public class UiElementDbTools extends UiAbstractTools {
         BufferedImage screenshot = getScreenshotTogglingSpinner();
         try {
             var result = dbUiElementSelectionAgent.executeAndGetResult(() ->
-                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, ImageUtils.singleImageContent(screenshot)))
+                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, ImageUtils.singleImageContent(screenshot, uiTestAgentConfig.getDbElementCandidateSelectionAgentImageDetailLevel())))
                     .getResultPayload();
             if (result == null) {
                 LOG.warn("Model returned null result. Returning empty.");

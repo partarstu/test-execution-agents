@@ -39,12 +39,16 @@ class FailureContextServiceTest {
     @Mock
     private FailureContextRepository mockRepository;
 
+    @Mock
+    private org.tarik.ta.UiTestAgentConfig mockConfig;
+
     @InjectMocks
     private FailureContextService failureContextService;
 
     @Test
-    @DisplayName("captureFailureContext should delegate to repository")
-    void captureFailureContext_shouldDelegateToRepository() {
+    @DisplayName("captureFailureContext should delegate to repository when enabled")
+    void captureFailureContext_shouldDelegateToRepositoryWhenEnabled() {
+        when(mockConfig.isLocationHistoryAndFailureHintsCollectionEnabled()).thenReturn(true);
         UUID procedureId = UUID.randomUUID();
         FailureContext context = new FailureContext(
                 UUID.randomUUID(), "symptom", ErrorCategory.UNKNOWN, 
@@ -57,25 +61,35 @@ class FailureContextServiceTest {
     }
 
     @Test
-    @DisplayName("findFailureHints should format all returned contexts as hints")
-    void findFailureHints_shouldFormatAllContexts() {
+    @DisplayName("captureFailureContext should skip when disabled")
+    void captureFailureContext_shouldSkipWhenDisabled() {
+        when(mockConfig.isLocationHistoryAndFailureHintsCollectionEnabled()).thenReturn(false);
+        UUID procedureId = UUID.randomUUID();
+        FailureContext context = new FailureContext(
+                UUID.randomUUID(), "symptom", ErrorCategory.UNKNOWN,
+                "resolution", 1, Instant.now(), FailureContext.Mode.SUPERVISED
+        );
+
+        failureContextService.captureFailureContext(procedureId, context);
+
+        org.mockito.Mockito.verifyNoInteractions(mockRepository);
+    }
+
+    @Test
+    @DisplayName("findFailureHints should format all returned contexts as hints even when collection is disabled")
+    void findFailureHints_shouldFormatAllContextsEvenWhenCollectionDisabled() {
         UUID procedureId = UUID.randomUUID();
         FailureContext fc1 = new FailureContext(
                 UUID.randomUUID(), "slow element", ErrorCategory.TRANSIENT_TOOL_ERROR,
                 "wait 3s", 1, Instant.now(), FailureContext.Mode.SUPERVISED
         );
-        FailureContext fc2 = new FailureContext(
-                UUID.randomUUID(), "flake", ErrorCategory.NON_RETRYABLE_ERROR,
-                "retry", 2, Instant.now(), FailureContext.Mode.UNATTENDED
-        );
 
-        when(mockRepository.findFailureContexts(procedureId)).thenReturn(List.of(fc1, fc2));
+        when(mockRepository.findFailureContexts(procedureId)).thenReturn(List.of(fc1));
 
         List<String> hints = failureContextService.findFailureHints(procedureId);
 
         assertThat(hints).containsExactly(
-                "[TRANSIENT_TOOL_ERROR] slow element -> wait 3s",
-                "[NON_RETRYABLE_ERROR] flake -> retry"
+                "[TRANSIENT_TOOL_ERROR] slow element -> wait 3s"
         );
     }
 

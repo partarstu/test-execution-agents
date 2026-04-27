@@ -68,7 +68,7 @@ public class AgentConfig {
     private final ConfigProperty<String> googleProject;
     private final ConfigProperty<String> googleLocation;
 
-    // OpenAI API Config
+    // OpenAI API Config (Direct)
     private final ConfigProperty<String> openaiApiKey;
     private final ConfigProperty<String> openaiApiEndpoint;
 
@@ -159,9 +159,9 @@ public class AgentConfig {
         this.googleProject = getRequiredProperty("google.project", "GOOGLE_PROJECT", false);
         this.googleLocation = getRequiredProperty("google.location", "GOOGLE_LOCATION", false);
 
-        // OpenAI API Config
-        this.openaiApiKey = getRequiredProperty("azure.openai.api.key", "OPENAI_API_KEY", true);
-        this.openaiApiEndpoint = getRequiredProperty("azure.openai.endpoint", "OPENAI_API_ENDPOINT", false);
+        // OpenAI API Config (Direct)
+        this.openaiApiKey = loadProperty("openai.api.key", "OPENAI_API_KEY", "", s -> s, true);
+        this.openaiApiEndpoint = loadProperty("openai.endpoint", "OPENAI_ENDPOINT", "https://api.openai.com/v1/", s -> s, false);
 
         // Groq API Config
         this.groqApiKey = getRequiredProperty("groq.api.key", "GROQ_API_KEY", true);
@@ -319,7 +319,7 @@ public class AgentConfig {
     }
 
     // -----------------------------------------------------
-    // OpenAI API Config
+    // OpenAI API Config (Direct)
     public String getOpenAiApiKey() {
         return openaiApiKey.value();
     }

@@ -378,20 +378,32 @@ public class StepExecutionOrchestrator {
         LOG.info("Executing precondition: {}", precondition.description());
         var screenshot = captureScreen();
         context.setVisualState(new VisualState(screenshot));
-        var preconditionExecutionResult = preconditionActionAgent.executeAndGetResult(
+        var preconditionOperationResult = preconditionActionAgent.executeAndGetResult(
                 () -> {
                     String userMessage = getPreconditionExecutionUserMessage(context, precondition, testDataString, relevantData,
                             stepExecutionContext.uiElementId(), stepExecutionContext.failureHints(), stepExecutionContext.targetElement(),
                             stepExecutionContext.locationHistory());
-                    return preconditionActionAgent.execute(userMessage, singleImageContent(screenshot));
+                    return preconditionActionAgent.execute(userMessage,
+                            singleImageContent(screenshot, uiTestAgentConfig.getPreconditionActionAgentImageDetailLevel()));
                 });
         budgetManager.resetToolCallUsage();
 
-        if (!preconditionExecutionResult.isSuccess()) {
+        if (!preconditionOperationResult.isSuccess()) {
             var errorMessage = "Failure while executing precondition '%s'. Root cause: %s"
-                    .formatted(precondition.description(), preconditionExecutionResult.getMessage());
+                    .formatted(precondition.description(), preconditionOperationResult.getMessage());
             return new UiPreconditionResult(precondition.description(), false, errorMessage, captureScreen(),
                     executionStartTimestamp, now());
+        }
+        var preconditionPayload = preconditionOperationResult.getResultPayload();
+        if (preconditionPayload != null && !preconditionPayload.executionSuccess()) {
+            var errorMessage = "Precondition '%s' execution reported failure. Root cause: %s"
+                    .formatted(precondition.description(), preconditionPayload.message());
+            LOG.warn("{}", errorMessage);
+            return new UiPreconditionResult(precondition.description(), false, errorMessage, captureScreen(),
+                    executionStartTimestamp, now());
+        }
+        if (preconditionPayload != null && isNotBlank(preconditionPayload.message())) {
+            LOG.info("Precondition agent note: {}", preconditionPayload.message());
         }
         LOG.info("Precondition execution complete.");
 
@@ -511,11 +523,11 @@ public class StepExecutionOrchestrator {
         String elementDetailBlock = buildTargetElementDetailBlock(targetElement);
         return """
                 The precondition you need to execute: %s.
-
+                
                 Data relevant to this precondition: %s%s
-
+                
                 %s.
-
+                
                 The screenshot follows.
                 """.formatted(
                 precondition.description(),
@@ -535,7 +547,8 @@ public class StepExecutionOrchestrator {
             var actionResult = ((UiOperationExecutionResult<EmptyExecutionResult>) testStepActionAgent.executeAndGetResult(() -> {
                 String userMessage = getTestStepActionUserMessage(context, atomic, testDataString, stepExecutionContext.uiElementId(),
                         stepExecutionContext.failureHints(), stepExecutionContext.targetElement(), stepExecutionContext.locationHistory());
-                return testStepActionAgent.execute(userMessage, singleImageContent(screenshot));
+                return testStepActionAgent.execute(userMessage,
+                        singleImageContent(screenshot, uiTestAgentConfig.getTestStepActionAgentImageDetailLevel()));
             }));
             budgetManager.resetToolCallUsage();
 
@@ -545,6 +558,17 @@ public class StepExecutionOrchestrator {
                 LOG.warn("Test step failed: {}", message);
                 return new UiTestStepResult(testStep, TestStepResultStatus.ERROR, message, null, captureScreen(),
                         executionStartTimestamp, now());
+            }
+            var actionPayload = actionResult.getResultPayload();
+            if (actionPayload != null && !actionPayload.executionSuccess()) {
+                var failureMessage = "Test step action '%s' reported failure. Root cause: %s"
+                        .formatted(actionInstruction, actionPayload.message());
+                LOG.warn("{}", failureMessage);
+                return new UiTestStepResult(testStep, TestStepResultStatus.ERROR, failureMessage, null, captureScreen(),
+                        executionStartTimestamp, now());
+            }
+            if (actionPayload != null && isNotBlank(actionPayload.message())) {
+                LOG.info("Action agent note: {}", actionPayload.message());
             }
             LOG.info("Action execution complete.");
             long actionDurationMs = java.time.Duration.between(executionStartTimestamp, now()).toMillis();
@@ -581,11 +605,11 @@ public class StepExecutionOrchestrator {
         String elementDetailBlock = buildTargetElementDetailBlock(targetElement);
         return """
                 Execute the following action: %s
-
+                
                 Data relevant to this action: %s%s
-
+                
                 %s
-
+                
                 The screenshot follows.
                 """.formatted(
                 atomic.description(),
