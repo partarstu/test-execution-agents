@@ -19,7 +19,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.awt.image.BufferedImage;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.*;
 import org.tarik.ta.core.dto.TestStep;
@@ -40,6 +43,8 @@ import org.tarik.ta.knowledge_graph.timing.TimingRecorder;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import org.tarik.ta.utils.UiCommonUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -94,14 +99,15 @@ class StepExecutionOrchestratorTest {
         // Use real instance for stepExecutionContext with null effectiveExpectedResults
         AtomicStepExecutionContext stepExecutionContext = new AtomicStepExecutionContext(null, mock(TimingRecorder.class), List.of(), "ui1", "", null, null);
         
-        // Act
-        StepExecutionOrchestrator.AtomicStepResult result = orchestrator.executeAtomicStep(
-                item, atomic, mockContext, testStepResults, preconditionResults, stepExecutionContext
-        );
-        
-        // Assert
-        assertThat(result).isInstanceOf(StepExecutionOrchestrator.AtomicStepResult.Success.class);
-        verify(mockVerificationTools, never()).verifyTestStep(any(), any(), any(), any(), any());
+        // Act & Assert
+        try (MockedStatic<UiCommonUtils> mockedUtils = mockStatic(UiCommonUtils.class)) {
+            mockedUtils.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
+            StepExecutionOrchestrator.AtomicStepResult result = orchestrator.executeAtomicStep(
+                    item, atomic, mockContext, testStepResults, preconditionResults, stepExecutionContext
+            );
+            assertThat(result).isInstanceOf(StepExecutionOrchestrator.AtomicStepResult.Success.class);
+            verify(mockVerificationTools, never()).verifyTestStep(any(), any(), any(), any(), any());
+        }
     }
 
     @Test
@@ -122,13 +128,14 @@ class StepExecutionOrchestratorTest {
         VerificationExecutionResult vResult = new VerificationExecutionResult(true, "verified");
         when(mockVerificationTools.verifyTestStep(anyString(), anyString(), anyString(), any(), any())).thenReturn(vResult);
         
-        // Act
-        StepExecutionOrchestrator.AtomicStepResult result = orchestrator.executeAtomicStep(
-                item, atomic, mockContext, testStepResults, preconditionResults, stepExecutionContext
-        );
-        
-        // Assert
-        assertThat(result).isInstanceOf(StepExecutionOrchestrator.AtomicStepResult.Success.class);
-        verify(mockVerificationTools).verifyTestStep(eq("expect this"), eq(atomic.description()), eq(""), eq(mockContext), eq(mockTestStepVerificationAgent));
+        // Act & Assert
+        try (MockedStatic<UiCommonUtils> mockedUtils = mockStatic(UiCommonUtils.class)) {
+            mockedUtils.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
+            StepExecutionOrchestrator.AtomicStepResult result = orchestrator.executeAtomicStep(
+                    item, atomic, mockContext, testStepResults, preconditionResults, stepExecutionContext
+            );
+            assertThat(result).isInstanceOf(StepExecutionOrchestrator.AtomicStepResult.Success.class);
+            verify(mockVerificationTools).verifyTestStep(eq("expect this"), eq(atomic.description()), eq(""), eq(mockContext), eq(mockTestStepVerificationAgent));
+        }
     }
 }
