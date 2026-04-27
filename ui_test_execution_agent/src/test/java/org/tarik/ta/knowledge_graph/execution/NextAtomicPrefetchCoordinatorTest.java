@@ -14,6 +14,7 @@ import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.FailureContextService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
+import org.tarik.ta.knowledge_graph.service.SatisfiesEdgeService;
 import org.tarik.ta.knowledge_graph.service.UiElementCache;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.when;
 class NextAtomicPrefetchCoordinatorTest {
 
     @Mock private KnowledgeService mockKnowledgeService;
+    @Mock private SatisfiesEdgeService mockSatisfiesEdgeService;
     @Mock private UiElementCache mockUiElementCache;
     @Mock private UiElementRepository mockUiElementRepository;
     @Mock private ElementLocationHistoryLookup mockElementLocationHistoryLookup;
@@ -44,10 +46,10 @@ class NextAtomicPrefetchCoordinatorTest {
     void setUp() {
         coordinatorUnattended = new NextAtomicPrefetchCoordinator(
                 ExecutionMode.UNATTENDED,
-                mockKnowledgeService, mockUiElementCache, mockUiElementRepository, mockElementLocationHistoryLookup, mockFailureContextService);
+                mockKnowledgeService, mockSatisfiesEdgeService, mockUiElementCache, mockUiElementRepository, mockElementLocationHistoryLookup, mockFailureContextService);
         coordinatorSupervised = new NextAtomicPrefetchCoordinator(
                 ExecutionMode.SUPERVISED,
-                mockKnowledgeService, mockUiElementCache, mockUiElementRepository, mockElementLocationHistoryLookup, mockFailureContextService);
+                mockKnowledgeService, mockSatisfiesEdgeService, mockUiElementCache, mockUiElementRepository, mockElementLocationHistoryLookup, mockFailureContextService);
     }
 
     @Test

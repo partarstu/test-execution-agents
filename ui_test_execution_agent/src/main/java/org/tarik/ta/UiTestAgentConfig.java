@@ -234,13 +234,13 @@ public class UiTestAgentConfig extends AgentConfig {
                 "ui.element.description.matcher.agent.image.detail.level", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_IMAGE_DETAIL_LEVEL", "high",
                 this::getDetailLevel, false);
         this.uiStateCheckAgentImageDetailLevel = getProperty(
-                "ui.state.check.agent.image.detail.level", "UI_STATE_CHECK_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                "ui.state.check.agent.image.detail.level", "UI_STATE_CHECK_AGENT_IMAGE_DETAIL_LEVEL", "medium",
                 this::getDetailLevel, false);
         this.elementBoundingBoxAgentImageDetailLevel = getProperty(
                 "element.bounding.box.agent.image.detail.level", "ELEMENT_BOUNDING_BOX_AGENT_IMAGE_DETAIL_LEVEL", "high",
                 this::getDetailLevel, false);
         this.uiElementVisualMatchAgentImageDetailLevel = getProperty(
-                "element.selection.agent.image.detail.level", "ELEMENT_SELECTION_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                "element.selection.agent.image.detail.level", "ELEMENT_SELECTION_AGENT_IMAGE_DETAIL_LEVEL", "medium",
                 this::getDetailLevel, false);
         this.dbElementCandidateSelectionAgentImageDetailLevel = getProperty(
                 "db.element.selection.agent.image.detail.level", "DB_ELEMENT_SELECTION_AGENT_IMAGE_DETAIL_LEVEL", "high",
@@ -255,10 +255,10 @@ public class UiTestAgentConfig extends AgentConfig {
                 "knowledge.suggestion.agent.image.detail.level", "KNOWLEDGE_SUGGESTION_AGENT_IMAGE_DETAIL_LEVEL", "high",
                 this::getDetailLevel, false);
         this.preconditionActionAgentImageDetailLevel = getProperty(
-                "precondition.action.agent.image.detail.level", "PRECONDITION_ACTION_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                "precondition.action.agent.image.detail.level", "PRECONDITION_ACTION_AGENT_IMAGE_DETAIL_LEVEL", "medium",
                 this::getDetailLevel, false);
         this.testStepActionAgentImageDetailLevel = getProperty(
-                "test.step.action.agent.image.detail.level", "TEST_STEP_ACTION_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                "test.step.action.agent.image.detail.level", "TEST_STEP_ACTION_AGENT_IMAGE_DETAIL_LEVEL", "medium",
                 this::getDetailLevel, false);
     }
 

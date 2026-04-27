@@ -1,9 +1,11 @@
 package org.tarik.ta.knowledge_graph.execution;
 
 import org.jetbrains.annotations.Nullable;
+import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
+import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository.UnsatisfiedPrerequisite;
 
 import java.util.List;
 
@@ -20,6 +22,8 @@ public record PrefetchedAtomicContext(
         @Nullable UiElement targetElement,
         @Nullable ElementLocationHistory locationHistory,
         List<String> failureHints,
+        List<PhraseEmbedding> declaredEffects,
+        List<UnsatisfiedPrerequisite> unsatisfiedPrerequisites,
         PrefetchMetadata metadata
 ) {
     /**
@@ -29,6 +33,7 @@ public record PrefetchedAtomicContext(
             boolean procedureMatched,
             boolean uiElementFound,
             boolean locationHistoryFound,
-            boolean failureHintsFound
+            boolean failureHintsFound,
+            boolean prerequisitesChecked
     ) {}
 }

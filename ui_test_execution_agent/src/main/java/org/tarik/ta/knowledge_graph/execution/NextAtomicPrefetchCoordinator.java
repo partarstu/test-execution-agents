@@ -5,12 +5,15 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.ExecutionMode;
+import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
+import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository.UnsatisfiedPrerequisite;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.service.FailureContextService;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
+import org.tarik.ta.knowledge_graph.service.SatisfiesEdgeService;
 import org.tarik.ta.knowledge_graph.service.UiElementCache;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 
@@ -48,6 +51,7 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
 
     private final ExecutionMode executionMode;
     private final KnowledgeService knowledgeService;
+    private final SatisfiesEdgeService satisfiesEdgeService;
     private final UiElementCache uiElementCache;
     private final UiElementRepository uiElementRepository;
     private final ElementLocationHistoryLookup elementLocationHistoryLookup;
@@ -61,12 +65,14 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
 
     public NextAtomicPrefetchCoordinator(@NotNull ExecutionMode executionMode,
                                          @NotNull KnowledgeService knowledgeService,
+                                         @NotNull SatisfiesEdgeService satisfiesEdgeService,
                                          @NotNull UiElementCache uiElementCache,
                                          @NotNull UiElementRepository uiElementRepository,
                                          @NotNull ElementLocationHistoryLookup elementLocationHistoryLookup,
                                          @NotNull FailureContextService failureContextService) {
         this.executionMode = executionMode;
         this.knowledgeService = knowledgeService;
+        this.satisfiesEdgeService = satisfiesEdgeService;
         this.uiElementCache = uiElementCache;
         this.uiElementRepository = uiElementRepository;
         this.elementLocationHistoryLookup = elementLocationHistoryLookup;
@@ -94,7 +100,7 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
         if (nextAtomicInDecomposition != null) {
             LOG.debug("Scheduling deterministic prefetch for next atomic '{}' in decomposition",
                     nextAtomicInDecomposition.description());
-            pendingFuture = startContextPrefetch(nextAtomicInDecomposition, currentExecutionItem);
+            pendingFuture = startContextPrefetch(nextAtomicInDecomposition, currentExecutionItem, currentSnapshot);
         } else if (nextQueueItem != null) {
             LOG.debug("Scheduling semantic-search prefetch for next queue item '{}'",
                     nextQueueItem.getDescription());
@@ -217,12 +223,24 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
 
     /**
      * Starts parallel prefetch tasks for a known next atomic (deterministic path).
-     * Element lookup, element cache, location history, and failure hints all run concurrently.
+     * Element lookup, element cache, location history, failure hints, declared effects, and
+     * unsatisfied prerequisites all run concurrently. The prerequisite check uses
+     * {@code snapshot.effectNodeIds()} which already includes the current atomic's predicted effects.
      */
     private CompletableFuture<PrefetchedAtomicContext> startContextPrefetch(@NotNull Procedure nextAtomic,
-                                                                             @NotNull ExecutionItem nextItem) {
+                                                                             @NotNull ExecutionItem nextItem,
+                                                                             @NotNull ExecutionStateSnapshot snapshot) {
         var hintsFuture = CompletableFuture.supplyAsync(
                 () -> safeGet(() -> failureContextService.findFailureHints(nextAtomic.id()), List.<String>of()),
+                prefetchExecutor);
+
+        var effectsFuture = CompletableFuture.supplyAsync(
+                () -> safeGet(() -> knowledgeService.findEffectsForProcedure(nextAtomic.id()), List.<PhraseEmbedding>of()),
+                prefetchExecutor);
+
+        var prerequisitesFuture = CompletableFuture.supplyAsync(
+                () -> safeGet(() -> satisfiesEdgeService.findUnsatisfiedPrerequisites(
+                        nextAtomic.id(), snapshot.effectNodeIds()), List.<UnsatisfiedPrerequisite>of()),
                 prefetchExecutor);
 
         // Element ID is required; if it fails the whole prefetch is discarded.
@@ -231,8 +249,10 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
                         .map(UUID::toString).orElse(null), prefetchExecutor)
                 .thenComposeAsync(this::buildElementContextFuture, prefetchExecutor);
 
-        return elementContextFuture
-                .thenCombine(hintsFuture, (elemCtx, hints) -> buildContext(nextAtomic, nextItem, elemCtx, hints));
+        return CompletableFuture.allOf(hintsFuture, effectsFuture, prerequisitesFuture, elementContextFuture)
+                .thenApply(_ -> buildContext(nextAtomic, nextItem,
+                        elementContextFuture.join(), hintsFuture.join(),
+                        effectsFuture.join(), prerequisitesFuture.join()));
     }
 
     /**
@@ -252,7 +272,7 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
             if (result == null || result.firstAtomic() == null) {
                 return CompletableFuture.completedFuture(null);
             }
-            return startContextPrefetch(result.firstAtomic(), nextQueueItem);
+            return startContextPrefetch(result.firstAtomic(), nextQueueItem, snapshot);
         }, prefetchExecutor);
     }
 
@@ -304,16 +324,19 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
     private static PrefetchedAtomicContext buildContext(@NotNull Procedure nextAtomic,
                                                         @NotNull ExecutionItem nextItem,
                                                         @NotNull ElementContext elemCtx,
-                                                        @NotNull List<String> hints) {
+                                                        @NotNull List<String> hints,
+                                                        @NotNull List<PhraseEmbedding> effects,
+                                                        @NotNull List<UnsatisfiedPrerequisite> unsatisfied) {
         var metadata = new PrefetchedAtomicContext.PrefetchMetadata(
                 true,
                 elemCtx.elementId() != null,
                 elemCtx.locationHistory() != null,
-                !hints.isEmpty());
+                !hints.isEmpty(),
+                true);
         return new PrefetchedAtomicContext(
                 nextAtomic, nextItem, null,
                 elemCtx.elementId(), elemCtx.element(), elemCtx.locationHistory(),
-                hints, metadata);
+                hints, effects, unsatisfied, metadata);
     }
 
     @Nullable

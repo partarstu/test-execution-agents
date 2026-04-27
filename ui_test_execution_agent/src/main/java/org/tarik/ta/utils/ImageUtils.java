@@ -56,7 +56,8 @@ public class ImageUtils {
     public static BufferedImage applyHdrCorrection(@NotNull BufferedImage image) {
         int width = image.getWidth();
         int height = image.getHeight();
-        int[] pixels = image.getRGB(0, 0, width, height, null, 0, width);
+        int[] pixels = new int[width * height];
+        image.getRGB(0, 0, width, height, pixels, 0, width);
         for (int i = 0; i < pixels.length; i++) {
             int argb = pixels[i];
             int r = SRGB_GAMMA_LUT[(argb >> 16) & 0xFF];

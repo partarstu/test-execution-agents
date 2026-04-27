@@ -36,8 +36,10 @@ import org.tarik.ta.knowledge_graph.execution.ExecutionItem.PreconditionItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem.TestStepItem;
 import org.tarik.ta.knowledge_graph.execution.ExecutionStateSnapshot;
 import org.tarik.ta.knowledge_graph.execution.NextAtomicPrefetchCoordinator;
+import org.tarik.ta.knowledge_graph.execution.PrefetchedAtomicContext;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
+import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
@@ -59,6 +61,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.time.Instant.now;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
@@ -119,7 +122,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                                         ExecutionStateTracker stateTracker) {
         try (var prefetchCoordinator = new NextAtomicPrefetchCoordinator(
                 uiTestAgentConfig.getExecutionMode(),
-                knowledgeService, uiElementCache, uiElementRepository, elementLocationHistoryLookup, failureContextService)) {
+                knowledgeService, satisfiesEdgeService, uiElementCache, uiElementRepository, elementLocationHistoryLookup, failureContextService)) {
             var queue = ExecutionQueue.fromTestCase(testCase, startingStepIndex);
             LOG.info("Created preconditions and test steps executions queue with {} item(s)", queue.remainingCount());
             var usedProcedureIds = new ArrayList<UUID>();
@@ -314,9 +317,14 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                 boolean isSingle, boolean isLast,
                                                 NextAtomicPrefetchCoordinator prefetchCoordinator,
                                                 List<Procedure> atomicSteps, int currentIndex, ExecutionQueue queue) {
-        var missing = satisfiesEdgeService.findUnsatisfiedPrerequisites(
-                atomicStep.id(),
-                stateTracker.getEffectNodeIds());
+        // Consume the prefetch scheduled during the previous atomic's execution (single-use).
+        // Retries always fall back to the synchronous contextFactory.
+        Optional<PrefetchedAtomicContext> prefetchedOpt = prefetchCoordinator.takeIfValid(atomicStep, item);
+
+        List<UnsatisfiedPrerequisite> missing = prefetchedOpt
+                .map(PrefetchedAtomicContext::unsatisfiedPrerequisites)
+                .orElseGet(() -> satisfiesEdgeService.findUnsatisfiedPrerequisites(
+                        atomicStep.id(), stateTracker.getEffectNodeIds()));
         if (!missing.isEmpty()) {
             var reason = "prerequisites not satisfied: %s".formatted(missing);
             if (atomicStep.optional()) {
@@ -342,23 +350,25 @@ public class KnowledgeBasedExecutionOrchestrator {
             return AtomicLoopOutcome.TERMINATE;
         }
 
-        var declaredEffects = knowledgeService.findEffectsForProcedure(atomicStep.id());
+        List<PhraseEmbedding> declaredEffects = prefetchedOpt
+                .map(PrefetchedAtomicContext::declaredEffects)
+                .orElseGet(() -> knowledgeService.findEffectsForProcedure(atomicStep.id()));
 
         Procedure nextAtomicInDecomposition = (currentIndex + 1 < atomicSteps.size()) ? atomicSteps.get(currentIndex + 1) : null;
         ExecutionItem nextQueueItem = queue.peek();
 
         var effectIds = declaredEffects.stream()
                 .filter(e -> e != null && e.id() != null)
-                .map(org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding::id)
-                .collect(java.util.stream.Collectors.toSet());
+                .map(PhraseEmbedding::id)
+                .collect(Collectors.toSet());
         ExecutionStateSnapshot snapshot = stateTracker.snapshot().withPredictedEffects(effectIds);
 
         asyncExecutionPersistenceService.persistSatisfiesEdges(atomicStep.id());
 
-        Function<Procedure, AtomicStepExecutionContext> contextFactory = p -> prefetchCoordinator.takeIfValid(p, item)
-                .map(ctx -> buildExecContextFromPrefetch(ctx, item, p, isSingle, isLast))
-                .orElseGet(() -> buildExecContext(p, item, isSingle, isLast));
-        var execContext = contextFactory.apply(atomicStep);
+        AtomicStepExecutionContext execContext = prefetchedOpt
+                .map(ctx -> buildExecContextFromPrefetch(ctx, item, atomicStep, isSingle, isLast))
+                .orElseGet(() -> buildExecContext(atomicStep, item, isSingle, isLast));
+        Function<Procedure, AtomicStepExecutionContext> contextFactory = p -> buildExecContext(p, item, isSingle, isLast);
 
         prefetchCoordinator.scheduleSuccessPathPrefetch(atomicStep, item, nextAtomicInDecomposition, nextQueueItem, snapshot);
 
