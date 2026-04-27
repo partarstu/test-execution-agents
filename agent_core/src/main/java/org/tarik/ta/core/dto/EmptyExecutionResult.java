@@ -16,14 +16,22 @@
 package org.tarik.ta.core.dto;
 
 import dev.langchain4j.model.output.structured.Description;
+import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import org.jetbrains.annotations.Nullable;
 
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
 
-@Description("Empty execution result")
-public record EmptyExecutionResult() implements FinalResult {
-    @Tool(value = "Ends the execution immediately.", returnBehavior = IMMEDIATE)
-    public static EmptyExecutionResult endExecutionAndGetFinalResult() {
-        return null;
+@Description("Result of executing any action which doesn't expect the return value")
+public record EmptyExecutionResult(
+        @Description("Indicates whether the execution was successful (true) or failed (false).")
+        boolean executionSuccess,
+        @Description("A message describing the outcome. Required only when execution failed — must explain the root cause.")
+        @Nullable String message)
+        implements FinalResult {
+    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
+    public static EmptyExecutionResult endExecutionAndGetFinalResult(
+            @P(FINAL_RESULT_PARAM_DESCRIPTION) EmptyExecutionResult result) {
+        return result;
     }
 }

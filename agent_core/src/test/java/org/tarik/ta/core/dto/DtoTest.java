@@ -25,9 +25,15 @@ class DtoTest {
 
     @Test
     void testEmptyExecutionResult() {
-        EmptyExecutionResult result = new EmptyExecutionResult();
-        assertThat(result).isNotNull();
-        assertThat(EmptyExecutionResult.endExecutionAndGetFinalResult()).isNull();
+        EmptyExecutionResult successResult = new EmptyExecutionResult(true, null);
+        assertThat(successResult.executionSuccess()).isTrue();
+        assertThat(successResult.message()).isNull();
+
+        EmptyExecutionResult failureResult = new EmptyExecutionResult(false, "something went wrong");
+        assertThat(failureResult.executionSuccess()).isFalse();
+        assertThat(failureResult.message()).isEqualTo("something went wrong");
+
+        assertThat(EmptyExecutionResult.endExecutionAndGetFinalResult(successResult)).isEqualTo(successResult);
     }
 
     @Test

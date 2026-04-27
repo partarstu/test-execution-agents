@@ -57,7 +57,11 @@ public class ImageUtils {
         int width = image.getWidth();
         int height = image.getHeight();
         int[] pixels = new int[width * height];
-        image.getRGB(0, 0, width, height, pixels, 0, width);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                pixels[y * width + x] = image.getRGB(x, y);
+            }
+        }
         for (int i = 0; i < pixels.length; i++) {
             int argb = pixels[i];
             int r = SRGB_GAMMA_LUT[(argb >> 16) & 0xFF];

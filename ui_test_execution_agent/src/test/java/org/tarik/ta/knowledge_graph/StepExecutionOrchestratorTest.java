@@ -73,7 +73,7 @@ class StepExecutionOrchestratorTest {
         List<org.tarik.ta.dto.UiPreconditionResult> preconditionResults = new ArrayList<>();
         
         // Mock action agent to return success
-        UiOperationExecutionResult<EmptyExecutionResult> successResult = new UiOperationExecutionResult<>(OperationExecutionResult.ExecutionStatus.SUCCESS, "done", new EmptyExecutionResult(), null);
+        UiOperationExecutionResult<EmptyExecutionResult> successResult = new UiOperationExecutionResult<>(OperationExecutionResult.ExecutionStatus.SUCCESS, "done", new EmptyExecutionResult(true, null), null);
         when(mockTestStepActionAgent.executeAndGetResult(any())).thenReturn(successResult);
         
         // Use real instance for stepExecutionContext with null effectiveExpectedResults
@@ -100,7 +100,7 @@ class StepExecutionOrchestratorTest {
         List<org.tarik.ta.dto.UiPreconditionResult> preconditionResults = new ArrayList<>();
         
         // Mock action agent to return success
-        UiOperationExecutionResult<EmptyExecutionResult> successResult = new UiOperationExecutionResult<>(OperationExecutionResult.ExecutionStatus.SUCCESS, "done", new EmptyExecutionResult(), null);
+        UiOperationExecutionResult<EmptyExecutionResult> successResult = new UiOperationExecutionResult<>(OperationExecutionResult.ExecutionStatus.SUCCESS, "done", new EmptyExecutionResult(true, null), null);
         when(mockTestStepActionAgent.executeAndGetResult(any())).thenReturn(successResult);
         
         AtomicStepExecutionContext stepExecutionContext = new AtomicStepExecutionContext(null, mock(TimingRecorder.class), List.of(), "ui1", "expect this", null, null);
