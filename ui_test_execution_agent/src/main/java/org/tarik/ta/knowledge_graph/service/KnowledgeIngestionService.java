@@ -80,6 +80,8 @@ public class KnowledgeIngestionService {
 
     /**
      * Ingests a complete procedure tree into the knowledge graph.
+     * All DB writes — procedure nodes, CONTAINS/TARGETS relationships, and phrase embedding nodes —
+     * are committed in a single Neo4j transaction so they are atomically visible or absent together.
      *
      * @param node the ingestion node tree from the dialog
      * @return the UUID of the root procedure created or referenced
@@ -102,19 +104,16 @@ public class KnowledgeIngestionService {
             var pendingPhraseTexts = new ArrayList<PendingPhraseTexts>();
             UUID rootId = ingestRecursive(node, null, 0, embeddingIterator, pendingNodes, pendingContains, pendingTargets, pendingPhraseTexts);
 
-            // Save all procedure nodes in a single batch before creating relationships
-            procedureRepository.saveAll(
-                    pendingNodes.stream().map(PendingNode::procedure).toList(),
-                    pendingNodes.stream().map(n -> n.embedding().vector()).toList()
-            );
+            // Embed all phrase texts before opening the tx so the external API call is outside the transaction
+            var pendingPhraseNodes = buildAllPhraseNodes(pendingPhraseTexts);
 
+            // Single transaction: procedure nodes + relationships + phrase nodes
             repositorySupport.executeComplexWriteQuery(tx -> {
+                pendingNodes.forEach(pn -> procedureRepository.save(pn.procedure(), pn.embedding().vector(), tx));
                 pendingContains.forEach(r -> procedureRepository.linkToParent(r.childId(), r.parentId(), r.sequence(), tx));
                 pendingTargets.forEach(r -> procedureRepository.linkToUiElement(r.spId(), r.elId(), tx));
+                pendingPhraseNodes.forEach(ppn -> phraseEmbeddingRepository.saveBatchForProcedure(ppn.procedureId(), ppn.prerequisites(), ppn.effects(), tx));
             });
-
-            // Batch-embed all phrase texts across the whole tree in one call, then create nodes
-            createPhraseNodesForTree(pendingPhraseTexts);
 
             decompositionService.invalidateCache();
             LOG.info("Successfully ingested procedure '{}' (id={}) and invalidated decomposition cache", description, rootId);
@@ -155,14 +154,16 @@ public class KnowledgeIngestionService {
     }
 
     /**
-     * Deletes a single procedure node and cleans up its phrase embeddings and any orphaned UI elements.
+     * Deletes a single procedure node and its phrase embeddings in one atomic transaction.
      * Child procedures linked via {@code CONTAINS} are preserved; only the node itself and its edges are removed.
      */
     public void deleteProcedure(UUID procedureId) {
         requireNonNull(procedureId, "procedureId");
         LOG.info("Deleting procedure with id={}", procedureId);
-        phraseEmbeddingRepository.deleteForProcedure(procedureId);
-        procedureRepository.deleteProcedure(procedureId);
+        repositorySupport.executeComplexWriteQuery(tx -> {
+            phraseEmbeddingRepository.deleteForProcedure(procedureId, tx);
+            procedureRepository.deleteProcedure(procedureId, tx);
+        });
         decompositionService.invalidateCache();
         LOG.info("Procedure deleted successfully: id={}", procedureId);
     }
@@ -239,33 +240,50 @@ public class KnowledgeIngestionService {
     }
 
     /**
-     * Batch-embeds all phrase texts across the whole procedure tree in one call, then creates
-     * {@code PhraseEmbedding} nodes and links them to their procedures.
+     * Batch-embeds all phrase texts across the whole procedure tree in one call and returns
+     * ready-to-persist {@link PhraseEmbedding} nodes without writing to the database.
+     * The caller is responsible for persisting them inside a transaction.
      */
-    private void createPhraseNodesForTree(List<PendingPhraseTexts> pendingPhraseTexts) {
-        // Collect all phrase strings in a single flat list for one batch embedding call
+    private List<PendingPhraseNodes> buildAllPhraseNodes(List<PendingPhraseTexts> pendingPhraseTexts) {
         var allPhrases = new ArrayList<String>();
         for (var pp : pendingPhraseTexts) {
             allPhrases.addAll(pp.prerequisites());
             allPhrases.addAll(pp.effects());
         }
         if (allPhrases.isEmpty()) {
-            return;
+            return List.of();
         }
         var phraseEmbeddings = embeddingService.embedBatch(allPhrases);
 
-        // Distribute embeddings back to each procedure's prerequisites and effects
+        var result = new ArrayList<PendingPhraseNodes>(pendingPhraseTexts.size());
         int offset = 0;
         for (var pp : pendingPhraseTexts) {
             var prereqNodes = buildPhraseNodes(pp.prerequisites(), phraseEmbeddings, offset, PhraseType.PREREQUISITE);
             offset += pp.prerequisites().size();
             var effectNodes = buildPhraseNodes(pp.effects(), phraseEmbeddings, offset, PhraseType.EFFECT);
             offset += pp.effects().size();
-
             if (!prereqNodes.isEmpty() || !effectNodes.isEmpty()) {
-                phraseEmbeddingRepository.saveBatchForProcedure(pp.procedureId(), prereqNodes, effectNodes);
+                result.add(new PendingPhraseNodes(pp.procedureId(), prereqNodes, effectNodes));
             }
         }
+        return result;
+    }
+
+    /**
+     * Embeds the prerequisites and effects of a single procedure and returns
+     * ready-to-persist {@link PhraseEmbedding} nodes without writing to the database.
+     */
+    private PendingPhraseNodes buildPhraseNodesForProcedure(Procedure procedure) {
+        var allPhrases = new ArrayList<String>(procedure.prerequisites().size() + procedure.effects().size());
+        allPhrases.addAll(procedure.prerequisites());
+        allPhrases.addAll(procedure.effects());
+        if (allPhrases.isEmpty()) {
+            return new PendingPhraseNodes(procedure.id(), List.of(), List.of());
+        }
+        var embeddings = embeddingService.embedBatch(allPhrases);
+        var prereqNodes = buildPhraseNodes(procedure.prerequisites(), embeddings, 0, PhraseType.PREREQUISITE);
+        var effectNodes = buildPhraseNodes(procedure.effects(), embeddings, procedure.prerequisites().size(), PhraseType.EFFECT);
+        return new PendingPhraseNodes(procedure.id(), prereqNodes, effectNodes);
     }
 
     private static List<PhraseEmbedding> buildPhraseNodes(List<String> phrases, List<Embedding> embeddings, int offset, PhraseType type) {
@@ -283,6 +301,8 @@ public class KnowledgeIngestionService {
     private record PendingTargets(UUID spId, UUID elId) {}
 
     private record PendingPhraseTexts(UUID procedureId, List<String> prerequisites, List<String> effects) {}
+
+    private record PendingPhraseNodes(UUID procedureId, List<PhraseEmbedding> prerequisites, List<PhraseEmbedding> effects) {}
 
     private void updateRecursive(UUID existingId, IngestionNode node, UUID parentId, int sequence,
                                  Iterator<Embedding> embeddingIterator) {
@@ -310,26 +330,30 @@ public class KnowledgeIngestionService {
                 }
 
                 Embedding embedding = embeddingIterator.next();
+                // Build phrase nodes outside the tx — embedding generation is an external API call
+                var phraseNodes = buildPhraseNodesForProcedure(procedure);
+                final UUID idForTx = currentId;
+                final Procedure finalProcedure = procedure;
+                final float[] embeddingVector = embedding.vector();
 
                 if (existingId != null) {
-                    procedureRepository.deleteTargets(currentId);
-                    final UUID idForTx = currentId;
                     repositorySupport.executeComplexWriteQuery(tx -> {
+                        procedureRepository.deleteTargets(idForTx, tx);
                         procedureRepository.removeContainsRelationships(idForTx, tx);
                         satisfiesEdgeRepository.deleteSatisfiesEdges(idForTx, tx);
+                        procedureRepository.update(finalProcedure, embeddingVector, tx);
+                        phraseEmbeddingRepository.deleteForProcedure(idForTx, tx);
+                        phraseEmbeddingRepository.saveBatchForProcedure(idForTx, phraseNodes.prerequisites(), phraseNodes.effects(), tx);
                     });
-                    procedureRepository.update(procedure, embedding.vector());
                 } else {
-                    if (parentId != null) {
-                        procedureRepository.saveWithParent(procedure, embedding.vector(), parentId, sequence);
-                    } else {
-                        procedureRepository.save(procedure, embedding.vector());
-                    }
+                    repositorySupport.executeComplexWriteQuery(tx -> {
+                        procedureRepository.save(finalProcedure, embeddingVector, tx);
+                        if (parentId != null) {
+                            procedureRepository.linkToParent(idForTx, parentId, sequence, tx);
+                        }
+                        phraseEmbeddingRepository.saveBatchForProcedure(idForTx, phraseNodes.prerequisites(), phraseNodes.effects(), tx);
+                    });
                 }
-
-                // Recreate phrase embedding nodes for the updated procedure
-                phraseEmbeddingRepository.deleteForProcedure(procedure.id());
-                createAndSavePhraseNodes(procedure);
 
                 if (np.procedure().isAtomic() && np.targetUiElementId() != null) {
                     procedureRepository.linkToUiElement(currentId, np.targetUiElementId());
@@ -344,16 +368,11 @@ public class KnowledgeIngestionService {
     }
 
     void createAndSavePhraseNodes(Procedure procedure) {
-        var allPhrases = new ArrayList<String>(procedure.prerequisites().size() + procedure.effects().size());
-        allPhrases.addAll(procedure.prerequisites());
-        allPhrases.addAll(procedure.effects());
-        if (allPhrases.isEmpty()) {
+        var phraseNodes = buildPhraseNodesForProcedure(procedure);
+        if (phraseNodes.prerequisites().isEmpty() && phraseNodes.effects().isEmpty()) {
             return;
         }
-        var embeddings = embeddingService.embedBatch(allPhrases);
-        var prereqNodes = buildPhraseNodes(procedure.prerequisites(), embeddings, 0, PhraseType.PREREQUISITE);
-        var effectNodes = buildPhraseNodes(procedure.effects(), embeddings, procedure.prerequisites().size(), PhraseType.EFFECT);
-        phraseEmbeddingRepository.saveBatchForProcedure(procedure.id(), prereqNodes, effectNodes);
+        phraseEmbeddingRepository.saveBatchForProcedure(procedure.id(), phraseNodes.prerequisites(), phraseNodes.effects());
     }
 
     private static String nodeDescription(IngestionNode node) {

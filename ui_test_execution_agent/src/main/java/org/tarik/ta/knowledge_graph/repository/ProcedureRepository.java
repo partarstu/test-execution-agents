@@ -181,6 +181,30 @@ public class ProcedureRepository {
                OR (size(p.${PROP_PREREQUISITES}) > 0 AND NOT (p)-[:${REL_HAS_PREREQUISITE}]->(:${LABEL_PHRASE_EMBEDDING}))
             RETURN p AS n
             """);
+        this.FIND_WITH_PHRASE_PROPERTY_MISMATCHES = repositorySupport.cypher("""
+            MATCH (p:${LABEL_PROCEDURE})
+            CALL {
+              WITH p
+              OPTIONAL MATCH (p)-[rp:${REL_HAS_PREREQUISITE}]->(prereq:${LABEL_PHRASE_EMBEDDING})
+              WITH prereq.${PROP_PHRASE} AS phrase, rp.${PROP_SEQUENCE} AS seq
+              ORDER BY seq ASC
+              RETURN collect(phrase) AS prereqPhrases
+            }
+            CALL {
+              WITH p
+              OPTIONAL MATCH (p)-[re:${REL_HAS_EFFECT}]->(eff:${LABEL_PHRASE_EMBEDDING})
+              WITH eff.${PROP_PHRASE} AS phrase, re.${PROP_SEQUENCE} AS seq
+              ORDER BY seq ASC
+              RETURN collect(phrase) AS effPhrases
+            }
+            WHERE (size(prereqPhrases) > 0 OR size(effPhrases) > 0)
+              AND (prereqPhrases <> p.${PROP_PREREQUISITES} OR effPhrases <> p.${PROP_EFFECTS})
+            RETURN p AS n, prereqPhrases, effPhrases
+            """);
+        this.UPDATE_PHRASE_PROPERTIES = repositorySupport.cypher("""
+            MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
+            SET n.${PROP_PREREQUISITES} = $prerequisites, n.${PROP_EFFECTS} = $effects
+            """);
         this.FIND_CANDIDATE_CONTEXT_BATCH = buildFindCandidateContextBatch();
         this.GET_ELEMENT_STABILITY = repositorySupport.cypher("MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elementId}) RETURN el");
         this.FIND_BY_SEMANTIC_SEARCH = repositorySupport.cypher("""
@@ -215,6 +239,8 @@ public class ProcedureRepository {
         static final String ALIAS_AVG_DELAY_MS = "avgDelayMs";
         static final String ALIAS_MAX_DELAY_MS = "maxDelayMs";
         static final String ALIAS_LAST_UPDATE = "lastUpdate";
+        static final String ALIAS_PHRASE_PREREQUISITES = "prereqPhrases";
+        static final String ALIAS_PHRASE_EFFECTS = "effPhrases";
 
         private QueryAliases() {
         }
@@ -284,6 +310,10 @@ public class ProcedureRepository {
 
     private final String FIND_WITH_MISSING_PHRASE_NODES;
 
+    private final String FIND_WITH_PHRASE_PROPERTY_MISMATCHES;
+
+    private final String UPDATE_PHRASE_PROPERTIES;
+
     private final String FIND_CANDIDATE_CONTEXT_BATCH;
 
     private final String GET_ELEMENT_STABILITY;
@@ -305,6 +335,14 @@ public class ProcedureRepository {
         repositorySupport.executeSingleWriteQuery(SAVE_PROCEDURE, buildParams(procedure, embedding));
         LOG.info("Saved Procedure '{}' (id={}, atomic={})", procedure.description(), id, procedure.isAtomic());
         return id;
+    }
+
+    /** Transaction-aware variant of {@link #save(Procedure, float[])} — runs inside the caller's tx. */
+    public void save(Procedure procedure, float[] embedding, TransactionContext tx) {
+        requireNonNull(procedure, "procedure");
+        requireNonNull(embedding, "embedding");
+        tx.run(SAVE_PROCEDURE, buildParams(procedure, embedding)).consume();
+        LOG.info("Saved Procedure '{}' (id={}, atomic={})", procedure.description(), procedure.id(), procedure.isAtomic());
     }
 
     /**
@@ -372,6 +410,8 @@ public class ProcedureRepository {
 
     /**
      * Finds a procedure by its UUID along with its prerequisite and effect phrase embedding nodes.
+     * When phrase nodes exist they are the authoritative source: the returned {@link Procedure}'s
+     * prerequisites/effects lists are rebuilt from the ordered phrase nodes so they can never be stale.
      * Prefer {@link #findById} when phrase embeddings are not needed to avoid the extra graph traversal.
      */
     public Optional<ProcedureWithPhrases> findByIdWithPhrases(UUID id) {
@@ -384,6 +424,11 @@ public class ProcedureRepository {
         var procedure = fromDbRecord(record);
         var prerequisites = parsePhraseNodes(record.get(ALIAS_PREREQUISITES).asList(v -> v), PhraseType.PREREQUISITE);
         var effects = parsePhraseNodes(record.get(ALIAS_EFFECTS).asList(v -> v), PhraseType.EFFECT);
+        if (!prerequisites.isEmpty() || !effects.isEmpty()) {
+            var prereqPhrases = prerequisites.stream().map(PhraseEmbedding::phrase).toList();
+            var effectPhrases = effects.stream().map(PhraseEmbedding::phrase).toList();
+            procedure = procedure.withPhrases(prereqPhrases, effectPhrases);
+        }
         return Optional.of(new ProcedureWithPhrases(procedure, prerequisites, effects));
     }
 
@@ -453,6 +498,40 @@ public class ProcedureRepository {
      */
     public List<Procedure> findWithMissingPhraseNodes() {
         return queryProcedures(FIND_WITH_MISSING_PHRASE_NODES, Map.of());
+    }
+
+    /**
+     * Returns procedures whose {@code prerequisites}/{@code effects} node properties differ from the ordered
+     * phrase strings of their linked {@code PhraseEmbedding} nodes.
+     * The phrase nodes are the authoritative source; the returned {@link ProcedureWithPhraseMismatch} carries
+     * the correct lists so the caller can repair the node properties via {@link #updatePhraseProperties}.
+     */
+    public List<ProcedureWithPhraseMismatch> findWithPhrasePropertyMismatches() {
+        return repositorySupport.executeSingleReadQuery(FIND_WITH_PHRASE_PROPERTY_MISMATCHES).stream()
+                .map(r -> new ProcedureWithPhraseMismatch(
+                        fromDbRecord(r),
+                        r.get(ALIAS_PHRASE_PREREQUISITES).asList(Value::asString),
+                        r.get(ALIAS_PHRASE_EFFECTS).asList(Value::asString)))
+                .toList();
+    }
+
+    public record ProcedureWithPhraseMismatch(Procedure procedure, List<String> phrasePrerequisites,
+                                              List<String> phraseEffects) {}
+
+    /**
+     * Updates only the {@code prerequisites} and {@code effects} node properties on an existing procedure,
+     * leaving all other properties unchanged. Used during startup repair when phrase nodes are authoritative.
+     */
+    public void updatePhraseProperties(UUID procedureId, List<String> prerequisites, List<String> effects) {
+        requireNonNull(procedureId, "procedureId");
+        requireNonNull(prerequisites, "prerequisites");
+        requireNonNull(effects, "effects");
+        repositorySupport.executeSingleWriteQuery(UPDATE_PHRASE_PROPERTIES, Map.of(
+                PROP_ID, procedureId.toString(),
+                PROP_PREREQUISITES, prerequisites,
+                PROP_EFFECTS, effects
+        ));
+        LOG.debug("Repaired phrase properties for procedure id={}", procedureId);
     }
 
     /**
@@ -541,6 +620,14 @@ public class ProcedureRepository {
         LOG.info("Updated Procedure '{}' (id={})", procedure.description(), procedure.id());
     }
 
+    /** Transaction-aware variant of {@link #update(Procedure, float[])} — runs inside the caller's tx. */
+    public void update(Procedure procedure, float[] embedding, TransactionContext tx) {
+        requireNonNull(procedure, "procedure");
+        requireNonNull(embedding, "embedding");
+        tx.run(UPDATE_PROCEDURE, buildParams(procedure, embedding)).consume();
+        LOG.info("Updated Procedure '{}' (id={})", procedure.description(), procedure.id());
+    }
+
     /**
      * Removes any existing {@code CONTAINS} edges from the root procedure to its children.
      * Child procedures are preserved per the requirement that they may be reused.
@@ -554,9 +641,21 @@ public class ProcedureRepository {
         repositorySupport.executeSingleWriteQuery(DELETE_TARGETS, Map.of(PARAM_SP_ID, procedureId.toString()));
     }
 
+    /** Transaction-aware variant of {@link #deleteTargets(UUID)} — runs inside the caller's tx. */
+    public void deleteTargets(UUID procedureId, TransactionContext tx) {
+        tx.run(DELETE_TARGETS, Map.of(PARAM_SP_ID, procedureId.toString())).consume();
+    }
+
     public void deleteProcedure(UUID id) {
         requireNonNull(id, "id");
         repositorySupport.executeSingleWriteQuery(DELETE_PROCEDURE, Map.of(PROP_ID, id.toString()));
+        LOG.info("Deleted Procedure with id={}", id);
+    }
+
+    /** Transaction-aware variant of {@link #deleteProcedure(UUID)} — runs inside the caller's tx. */
+    public void deleteProcedure(UUID id, TransactionContext tx) {
+        requireNonNull(id, "id");
+        tx.run(DELETE_PROCEDURE, Map.of(PROP_ID, id.toString())).consume();
         LOG.info("Deleted Procedure with id={}", id);
     }
 

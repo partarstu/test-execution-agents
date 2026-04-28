@@ -22,13 +22,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.neo4j.driver.EagerResult;
-import org.neo4j.driver.ExecutableQuery;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Result;
-import org.neo4j.driver.Session;
 import org.neo4j.driver.TransactionContext;
 import org.neo4j.driver.Value;
 import org.tarik.ta.UiTestAgentConfig;
@@ -120,11 +116,11 @@ class ProcedureRepositoryTest {
         TransactionContext mockTx = mock(TransactionContext.class);
         org.neo4j.driver.Result mockResult = mock(org.neo4j.driver.Result.class);
         org.neo4j.driver.Record mockRecord = mock(org.neo4j.driver.Record.class);
-        
+
         lenient().when(mockTx.run(anyString(), anyMap())).thenReturn(mockResult);
         lenient().when(mockResult.hasNext()).thenReturn(true);
         lenient().when(mockResult.next()).thenReturn(mockRecord);
-        
+
         lenient().when(mockRecord.get("avgExecMs")).thenReturn(org.neo4j.driver.Values.value(1000L));
         lenient().when(mockRecord.get("avgDelayMs")).thenReturn(org.neo4j.driver.Values.value(500L));
         lenient().when(mockRecord.get("maxDelayMs")).thenReturn(org.neo4j.driver.Values.value(2000L));
@@ -149,5 +145,88 @@ class ProcedureRepositoryTest {
 
         // alpha=0.2, existing=1000, actual=2000 → 1000*(0.8) + 2000*(0.2) = 1200
         assertThat(params.get("avgExecutionMs")).isEqualTo(1200L);
+    }
+
+    @Test
+    @DisplayName("save(tx) should delegate to TransactionContext.run without calling executeSingleWriteQuery")
+    void save_withTx_shouldRunInTransaction() {
+        TransactionContext tx = mock(TransactionContext.class);
+        Result mockResult = mock(Result.class);
+        when(tx.run(anyString(), anyMap())).thenReturn(mockResult);
+
+        Procedure procedure = Procedure.createAtomic("desc", List.of(), "res", List.of(), List.of(), false);
+        procedureRepository.save(procedure, new float[]{0.1f}, tx);
+
+        verify(tx).run(anyString(), anyMap());
+        verify(mockRepositorySupport, never()).executeSingleWriteQuery(anyString(), anyMap());
+    }
+
+    @Test
+    @DisplayName("update(tx) should delegate to TransactionContext.run without calling executeSingleWriteQuery")
+    void update_withTx_shouldRunInTransaction() {
+        TransactionContext tx = mock(TransactionContext.class);
+        Result mockResult = mock(Result.class);
+        when(tx.run(anyString(), anyMap())).thenReturn(mockResult);
+
+        Procedure procedure = Procedure.createAtomic("desc", List.of(), "res", List.of(), List.of(), false);
+        procedureRepository.update(procedure, new float[]{0.1f}, tx);
+
+        verify(tx).run(anyString(), anyMap());
+        verify(mockRepositorySupport, never()).executeSingleWriteQuery(anyString(), anyMap());
+    }
+
+    @Test
+    @DisplayName("deleteProcedure(tx) should delegate to TransactionContext.run without calling executeSingleWriteQuery")
+    void deleteProcedure_withTx_shouldRunInTransaction() {
+        TransactionContext tx = mock(TransactionContext.class);
+        Result mockResult = mock(Result.class);
+        when(tx.run(anyString(), anyMap())).thenReturn(mockResult);
+
+        procedureRepository.deleteProcedure(UUID.randomUUID(), tx);
+
+        verify(tx).run(anyString(), anyMap());
+        verify(mockRepositorySupport, never()).executeSingleWriteQuery(anyString(), anyMap());
+    }
+
+    @Test
+    @DisplayName("deleteTargets(tx) should delegate to TransactionContext.run without calling executeSingleWriteQuery")
+    void deleteTargets_withTx_shouldRunInTransaction() {
+        TransactionContext tx = mock(TransactionContext.class);
+        Result mockResult = mock(Result.class);
+        when(tx.run(anyString(), anyMap())).thenReturn(mockResult);
+
+        procedureRepository.deleteTargets(UUID.randomUUID(), tx);
+
+        verify(tx).run(anyString(), anyMap());
+        verify(mockRepositorySupport, never()).executeSingleWriteQuery(anyString(), anyMap());
+    }
+
+    @Test
+    @DisplayName("findWithPhrasePropertyMismatches should delegate to executeSingleReadQuery with no params")
+    void findWithPhrasePropertyMismatches_shouldQueryWithNoParams() {
+        when(mockRepositorySupport.executeSingleReadQuery(anyString())).thenReturn(List.of());
+
+        var result = procedureRepository.findWithPhrasePropertyMismatches();
+
+        assertThat(result).isEmpty();
+        verify(mockRepositorySupport).executeSingleReadQuery(anyString());
+    }
+
+    @Test
+    @DisplayName("updatePhraseProperties should call executeSingleWriteQuery with id, prerequisites, and effects")
+    void updatePhraseProperties_shouldPassCorrectParams() {
+        UUID id = UUID.randomUUID();
+        List<String> prereqs = List.of("prereq1");
+        List<String> effects = List.of("effect1", "effect2");
+
+        procedureRepository.updatePhraseProperties(id, prereqs, effects);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(mockRepositorySupport).executeSingleWriteQuery(anyString(), paramsCaptor.capture());
+        var params = paramsCaptor.getValue();
+        assertThat(params.get("id")).isEqualTo(id.toString());
+        assertThat(params.get("prerequisites")).isEqualTo(prereqs);
+        assertThat(params.get("effects")).isEqualTo(effects);
     }
 }

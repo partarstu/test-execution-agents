@@ -146,6 +146,12 @@ public record Procedure(
                 prerequisites, effects, newAdditionalInfo, createdAt, updatedAt, embedding, timingProfile);
     }
 
+    /** Returns a copy with prerequisites and effects rebuilt from the authoritative phrase nodes. */
+    public Procedure withPhrases(@NotNull List<String> newPrerequisites, @NotNull List<String> newEffects) {
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
+                newPrerequisites, newEffects, additionalInfo, createdAt, updatedAt, embedding, timingProfile);
+    }
+
     /**
      * Returns a copy of this procedure with a different {@code id} and {@code createdAt}, refreshing {@code updatedAt}.
      * Used when updating an existing procedure node to preserve its original identity and creation timestamp.
