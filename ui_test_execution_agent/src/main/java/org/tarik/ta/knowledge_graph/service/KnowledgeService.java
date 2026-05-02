@@ -185,11 +185,10 @@ public class KnowledgeService {
 
         var scoredById = scored.stream().collect(toMap(s -> s.procedure().id(), s -> s));
 
-        // Sort: prerequisite ratio first (gates feasibility), then satisfied count, then semantic score minus stability penalty, then ancestry.
+        // Sort: prerequisite ratio first (gates feasibility), then semantic score, then ancestry.
         var reRanked = scored.stream()
                 .sorted(Comparator.comparingDouble(Scored::proportion).reversed()
-                        .thenComparing(Comparator.comparingInt(Scored::satisfied).reversed())
-                        .thenComparing(Comparator.comparingDouble((Scored s) -> scoreById.get(s.procedure().id()) - s.stabilityPenalty()).reversed())
+                        .thenComparing(Comparator.comparingDouble((Scored s) -> scoreById.get(s.procedure().id())).reversed())
                         .thenComparing(Comparator.comparingInt(Scored::parentSharedCount).reversed()))
                 .map(s -> new ScoredProcedure(s.procedure(), s.satisfied(), s.totalPrereqs()))
                 .toList();

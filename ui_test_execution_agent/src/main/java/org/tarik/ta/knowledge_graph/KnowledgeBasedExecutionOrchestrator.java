@@ -178,11 +178,6 @@ public class KnowledgeBasedExecutionOrchestrator {
                                                 NextAtomicPrefetchCoordinator prefetchCoordinator) {
         stateTracker.addRecentParent(procedure.id());
         LOG.info("Found matching procedure '{}' ({}) for '{}'", procedure.description(), procedure.id(), item.getDescription());
-        if (hasLowStability && !uiTestAgentConfig.isFullyUnattended()) {
-            InformationalPopup.display("Unstable Procedure Warning",
-                    "Procedure '%s' has a low element-location stability score. It may be unreliable. Consider reviewing and updating it."
-                            .formatted(procedure.description()), null, WARNING, uiTestAgentConfig);
-        }
         List<Procedure> atomicSteps;
         try {
             atomicSteps = resolveToAtomicSteps(procedure);
@@ -207,6 +202,11 @@ public class KnowledgeBasedExecutionOrchestrator {
             };
         }
         showTestDataOverrideWarningIfNeeded(item, item.getTestData(), atomicSteps);
+        if (hasLowStability && !uiTestAgentConfig.isFullyUnattended()) {
+            InformationalPopup.display("Unstable Procedure Warning",
+                    "Procedure '%s' has a low element-location stability score. It may be unreliable. Consider reviewing and updating it."
+                            .formatted(procedure.description()), null, WARNING, uiTestAgentConfig);
+        }
         var testStepResults = new ArrayList<UiTestStepResult>();
         var preconditionResults = new ArrayList<UiPreconditionResult>();
         var loopOutcome = executeHierarchically(procedure, procedure, item, testCase, context, stateTracker, testStepResults, preconditionResults,
