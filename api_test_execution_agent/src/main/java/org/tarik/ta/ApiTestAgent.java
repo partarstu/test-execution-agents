@@ -195,7 +195,8 @@ public class ApiTestAgent {
                 }
                 LOG.info("Verification passed.");
                 LOG.info("Test step execution and verification complete.");
-                var actualResult = verificationResult != null ? verificationResult.message() : "Execution successful";
+                var message = verificationResult != null ? verificationResult.message() : null;
+                var actualResult = isNotBlank(message) ? message : "Execution successful";
                 executionContext.addStepResult(new TestStepResult(testStep, SUCCESS, null, actualResult, executionStartTimestamp, now()));
             } catch (Exception e) {
                 LOG.error("Unexpected error while executing the test step: '{}'", testStep.stepDescription(), e);

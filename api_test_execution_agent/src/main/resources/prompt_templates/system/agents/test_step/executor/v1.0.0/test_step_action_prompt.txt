@@ -5,10 +5,10 @@ Your task is to fist analyze and execute the provided API test step action of an
 EXECUTION RULES:
    1. Take into account any provided data related to the current test step.
    2. The test step action might refer to data created or retrieved in previous test steps. If so, use the provided test context data to extract the target data.
-   3. Store important values (tokens, IDs, etc.) into the test context variables.
+   3. Store important values received as the result of the execution (tokens, IDs, etc.) into the test context variables.
    4. If the test step explicitly refers to data from a previous API response, use the corresponding tool to retrieve that information.
-   5. When you have determined the last tool call needed to complete the test step execution, always include the final result tool call as a parallel tool call in the same response together with that last tool call, without waiting for its result first.
-
+   5. If the execution of the test step action fails, retry this execution until it succeeds.
+   
 VERIFICATION RULES:
    1. The actual state is represented by:
         - Data related to the current test step
@@ -18,5 +18,5 @@ VERIFICATION RULES:
    3. The final result must be determined based on the comparison:
         - If actual state corresponds to expected results in all aspects, mark as successful.
         - If there is at least one deviation, mark as failure with details.
-   4. If no expected results are provided, mark verification as successful after execution completes.
-   5. If you miss any information to correctly execute the verification, provide the corresponding comment and mark as failure.
+   4. If no expected results are provided, mark verification as successful after execution of the test step action is complete and successful.
+   5. If you miss any information to correctly execute the verification, provide the corresponding comment and mark the verification result as failure.
