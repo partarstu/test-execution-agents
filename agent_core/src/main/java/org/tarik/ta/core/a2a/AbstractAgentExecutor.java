@@ -70,8 +70,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                     extractTextFromMessage(context.getMessage())
                             .ifPresentOrElse(userMessage -> requestTestCaseExecution(userMessage, updater),
                                     () -> {
-                                        var message = "Request for test case execution failed either contained no valid test "
-                                                +
+                                        var message = "Request for test case execution failed either contained no valid test "                                                +
                                                 "case or insufficient information in order to execute it.";
                                         LOG.error(message);
                                         failTask(updater, message);

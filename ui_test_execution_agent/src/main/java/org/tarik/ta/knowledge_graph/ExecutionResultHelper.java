@@ -66,6 +66,7 @@ final class ExecutionResultHelper {
         var finalActualResult = results.stream()
                 .map(TestStepResult::getActualResult)
                 .filter(Objects::nonNull)
+                .filter(r -> !r.equals(StepExecutionOrchestrator.NO_VERIFICATION_REQUIRED))
                 .collect(joining("\n"));
         Instant start = results.getFirst().getExecutionStartTimestamp();
         Instant end = results.getLast().getExecutionEndTimestamp();

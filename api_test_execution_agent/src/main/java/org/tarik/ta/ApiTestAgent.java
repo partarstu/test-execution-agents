@@ -188,8 +188,9 @@ public class ApiTestAgent {
 
                 var verificationResult = executionResult.getResultPayload();
                 if (verificationResult != null && !verificationResult.success()) {
-                    var errorMessage = "Verification failed. %s".formatted(verificationResult.message());
-                    addFailedTestStep(executionContext, testStep, errorMessage, verificationResult.message(), executionStartTimestamp,
+                    var failureDetails = isNotBlank(verificationResult.message()) ? verificationResult.message() : "No failure details provided";
+                    var errorMessage = "Verification failed. %s".formatted(failureDetails);
+                    addFailedTestStep(executionContext, testStep, errorMessage, failureDetails, executionStartTimestamp,
                             now(), FAILURE);
                     return;
                 }

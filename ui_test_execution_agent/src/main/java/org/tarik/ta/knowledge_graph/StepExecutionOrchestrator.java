@@ -67,6 +67,7 @@ import static org.tarik.ta.core.utils.CommonUtils.*;
 @Singleton
 public class StepExecutionOrchestrator {
     private static final Logger LOG = LoggerFactory.getLogger(StepExecutionOrchestrator.class);
+    static final String NO_VERIFICATION_REQUIRED = "No verification required";
 
     private final VerificationTools verificationTools;
     private final BudgetManager budgetManager;
@@ -584,7 +585,7 @@ public class StepExecutionOrchestrator {
                         executionStartTimestamp, actionDurationMs, stepExecutionContext);
             } else {
                 stepExecutionContext.timingRecorder().record(atomic.id(), actionDurationMs, 0);
-                return new UiTestStepResult(testStep, SUCCESS, null, "No verification required", null,
+                return new UiTestStepResult(testStep, SUCCESS, null, NO_VERIFICATION_REQUIRED, null,
                         executionStartTimestamp, now());
             }
         } catch (ElementLocationException e) {
