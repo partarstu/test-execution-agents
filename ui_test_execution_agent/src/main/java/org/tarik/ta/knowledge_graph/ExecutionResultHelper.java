@@ -54,7 +54,7 @@ final class ExecutionResultHelper {
                 .filter(CommonUtils::isNotBlank)
                 .collect(joining("\n"))
                 .trim();
-        if (isBlank(finalError)) {
+        if (isBlank(finalError) && !allSuccess) {
             finalError = "Execution of test step '%s' was aborted.".formatted(testStep.stepDescription());
         }
         var finalActualResult = results.stream()

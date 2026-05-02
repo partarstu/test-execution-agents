@@ -95,7 +95,9 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
         getTestExecutionResult(message, updater).ifPresent(result -> {
             try {
                 List<Part<?>> parts = new LinkedList<>();
-                TextPart textPart = new TextPart(OBJECT_MAPPER.writeValueAsString(result), null);
+                String resultJson = OBJECT_MAPPER.writeValueAsString(result);
+                LOG.info("Sending test execution result back to caller: {}", resultJson);
+                TextPart textPart = new TextPart(resultJson, null);
                 parts.add(textPart);
                 addSpecificArtifacts(result, parts);
                 addLogsArtifact(result, parts);

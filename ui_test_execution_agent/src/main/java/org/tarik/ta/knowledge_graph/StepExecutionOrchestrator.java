@@ -553,8 +553,8 @@ public class StepExecutionOrchestrator {
             budgetManager.resetToolCallUsage();
 
             if (!actionResult.isSuccess()) {
-                var message = "There was an error while executing test step action '%s'. Please see agent logs for details"
-                        .formatted(actionInstruction);
+                var message = "There was an error while executing test step action '%s': %s"
+                        .formatted(actionInstruction, actionResult.getMessage());
                 LOG.warn("Test step failed: {}", message);
                 return new UiTestStepResult(testStep, TestStepResultStatus.ERROR, message, null, captureScreen(),
                         executionStartTimestamp, now());
