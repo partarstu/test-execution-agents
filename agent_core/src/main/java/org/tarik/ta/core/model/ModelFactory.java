@@ -16,7 +16,7 @@
 package org.tarik.ta.core.model;
 
 import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.request.ToolChoice;
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.googleai.GeminiMode;
 import dev.langchain4j.model.googleai.GeminiThinkingConfig;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
@@ -30,6 +30,8 @@ import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.AgentConfig.ModelProvider;
 
 import java.util.List;
+
+import static dev.langchain4j.model.chat.request.ToolChoice.REQUIRED;
 
 @Singleton
 public class ModelFactory {
@@ -69,7 +71,8 @@ public class ModelFactory {
                     .logRequestsAndResponses(agentConfig.isModelLoggingEnabled())
                     .thinkingConfig(GeminiThinkingConfig.builder()
                             .includeThoughts(agentConfig.isThinkingOutputEnabled())
-                            .thinkingLevel(GeminiThinkingConfig.GeminiThinkingLevel.valueOf(agentConfig.getGeminiThinkingLevel().toUpperCase()))
+                            .thinkingLevel(
+                                    GeminiThinkingConfig.GeminiThinkingLevel.valueOf(agentConfig.getGeminiThinkingLevel().toUpperCase()))
                             .build())
                     .returnThinking(true)
                     .sendThinking(true)
@@ -100,6 +103,7 @@ public class ModelFactory {
                 .maxCompletionTokens(agentConfig.getMaxOutputTokens())
                 .temperature(agentConfig.getTemperature())
                 .topP(agentConfig.getTopP())
+                .defaultRequestParameters(ChatRequestParameters.builder().toolChoice(REQUIRED).build())
                 .listeners(List.of(chatModelEventListener))
                 .build();
     }
@@ -113,6 +117,7 @@ public class ModelFactory {
                 .maxCompletionTokens(agentConfig.getMaxOutputTokens())
                 .temperature(agentConfig.getTemperature())
                 .topP(agentConfig.getTopP())
+                .defaultRequestParameters(ChatRequestParameters.builder().toolChoice(REQUIRED).build())
                 .listeners(List.of(chatModelEventListener))
                 .build();
     }
@@ -135,8 +140,7 @@ public class ModelFactory {
                         .maxRetries(maxRetries)
                         .maxTokens(agentConfig.getMaxOutputTokens())
                         .temperature(agentConfig.getTemperature())
-                        .toolChoice(ToolChoice.REQUIRED)
-                        // .topP(TOP_P)
+                        .toolChoice(REQUIRED)
                         .listeners(List.of(chatModelEventListener))
                         .build();
             }
