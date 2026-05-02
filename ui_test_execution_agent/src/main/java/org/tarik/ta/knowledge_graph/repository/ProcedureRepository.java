@@ -197,6 +197,7 @@ public class ProcedureRepository {
               ORDER BY seq ASC
               RETURN collect(phrase) AS effPhrases
             }
+            WITH p, prereqPhrases, effPhrases
             WHERE (size(prereqPhrases) > 0 OR size(effPhrases) > 0)
               AND (prereqPhrases <> p.${PROP_PREREQUISITES} OR effPhrases <> p.${PROP_EFFECTS})
             RETURN p AS n, prereqPhrases, effPhrases
