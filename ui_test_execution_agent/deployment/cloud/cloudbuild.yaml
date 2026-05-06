@@ -275,7 +275,7 @@ substitutions:
   _CONTAINER_VM_LABEL: 'cos-121-18867-90-106'
   _SECRET_ACCESSOR_ROLE: 'roles/secretmanager.secretAccessor'
   _CLOUD_PLATFORM_SCOPE: 'https://www.googleapis.com/auth/cloud-platform'
-  _PROVISIONING_MODEL: 'SPOT'
+  _PROVISIONING_MODEL: 'STANDARD'
   _INSTANCE_TERMINATION_ACTION: 'STOP'
   _STATIC_IP_ADDRESS_NAME: 'ui-agent-ip'
 
