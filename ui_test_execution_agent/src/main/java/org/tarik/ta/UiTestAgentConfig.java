@@ -237,7 +237,7 @@ public class UiTestAgentConfig extends AgentConfig {
                 "ui.state.check.agent.image.detail.level", "UI_STATE_CHECK_AGENT_IMAGE_DETAIL_LEVEL", "medium",
                 this::getDetailLevel, false);
         this.elementBoundingBoxAgentImageDetailLevel = getProperty(
-                "element.bounding.box.agent.image.detail.level", "ELEMENT_BOUNDING_BOX_AGENT_IMAGE_DETAIL_LEVEL", "high",
+                "element.bounding.box.agent.image.detail.level", "ELEMENT_BOUNDING_BOX_AGENT_IMAGE_DETAIL_LEVEL", "ultra_high",
                 this::getDetailLevel, false);
         this.uiElementVisualMatchAgentImageDetailLevel = getProperty(
                 "element.selection.agent.image.detail.level", "ELEMENT_SELECTION_AGENT_IMAGE_DETAIL_LEVEL", "medium",

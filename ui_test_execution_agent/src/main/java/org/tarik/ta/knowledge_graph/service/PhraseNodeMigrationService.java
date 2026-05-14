@@ -48,6 +48,14 @@ class PhraseNodeMigrationService {
 
     @PostConstruct
     void migrateMissingPhraseNodes() {
+        forwardMigration();
+        backwardRepair();
+    }
+
+    /**
+     * Forward pass: procedures with non-empty prerequisites/effects but no linked phrase nodes get phrase nodes created.
+     */
+    private void forwardMigration() {
         var orphans = procedureRepository.findWithMissingPhraseNodes();
         if (orphans.isEmpty()) {
             LOG.debug("Phrase node migration: all procedures have up-to-date phrase nodes");
@@ -57,7 +65,6 @@ class PhraseNodeMigrationService {
         int migrated = 0;
         for (var procedure : orphans) {
             try {
-                // Delete any partial phrase nodes first to avoid duplicates on re-create
                 phraseEmbeddingRepository.deleteForProcedure(procedure.id());
                 knowledgeIngestionService.createAndSavePhraseNodes(procedure);
                 migrated++;
@@ -68,5 +75,30 @@ class PhraseNodeMigrationService {
             }
         }
         LOG.info("Phrase node migration complete: {}/{} procedure(s) migrated", migrated, orphans.size());
+    }
+
+    /**
+     * Backward pass: procedures whose node-property lists differ from the ordered phrase nodes get their
+     * node properties repaired. Phrase nodes are the authoritative source.
+     */
+    private void backwardRepair() {
+        var mismatches = procedureRepository.findWithPhrasePropertyMismatches();
+        if (mismatches.isEmpty()) {
+            LOG.debug("Phrase property repair: all procedure node properties are in sync with phrase nodes");
+            return;
+        }
+        LOG.info("Phrase property repair: found {} procedure(s) with stale prerequisites/effects — repairing", mismatches.size());
+        int repaired = 0;
+        for (var mismatch : mismatches) {
+            try {
+                procedureRepository.updatePhraseProperties(mismatch.procedure().id(), mismatch.phrasePrerequisites(), mismatch.phraseEffects());
+                repaired++;
+                LOG.debug("Repaired phrase properties for procedure '{}' (id={})", mismatch.procedure().description(), mismatch.procedure().id());
+            } catch (Exception e) {
+                var msg = "Phrase property repair failed for procedure '%s' (id=%s)".formatted(mismatch.procedure().description(), mismatch.procedure().id());
+                LOG.error(msg, e);
+            }
+        }
+        LOG.info("Phrase property repair complete: {}/{} procedure(s) repaired", repaired, mismatches.size());
     }
 }

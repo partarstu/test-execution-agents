@@ -345,6 +345,15 @@ remember procedures (reusable test action sequences) across sessions.
   procedures when an unknown action is encountered. AI suggests all info which a new procedure must contain.
 - **Unified Vector Store**: UI element storage migrated from Chroma/Qdrant to Neo4j using `langchain4j-community-neo4j`, providing both
   graph relationships and vector search in a single database.
+- **Atomic Phrase-Node Writes**: Ingest, supervised update, and delete each update both the `Procedure` node properties
+  (`prerequisites`/`effects`) and the linked `PhraseEmbedding` nodes in a single Neo4j transaction, eliminating partial-write
+  inconsistencies.
+- **Phrase-Aware Reads**: `ProcedureRepository.findByIdWithPhrases` rebuilds the returned `Procedure`'s prerequisites/effects lists from
+  the ordered `PhraseEmbedding` nodes whenever they exist, so callers always see the authoritative phrase order rather than
+  potentially-stale node properties.
+- **Bidirectional Startup Sync**: `PhraseNodeMigrationService` runs two passes at startup — a forward pass that creates missing phrase
+  nodes from node-property lists (legacy backfill), and a backward pass that repairs stale node-property lists from the authoritative
+  phrase nodes (`ProcedureRepository.findWithPhrasePropertyMismatches` + `updatePhraseProperties`).
 
 ### Neo4j Setup
 

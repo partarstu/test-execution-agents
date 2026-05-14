@@ -22,6 +22,8 @@ import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PhraseType;
 
+import org.neo4j.driver.TransactionContext;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -247,6 +249,31 @@ public class PhraseEmbeddingRepository {
                 prerequisites.size(), effects.size(), procedureId);
     }
 
+    /** Transaction-aware variant of {@link #saveBatchForProcedure} — runs inside the caller's tx. */
+    public void saveBatchForProcedure(UUID procedureId, List<PhraseEmbedding> prerequisites,
+                                      List<PhraseEmbedding> effects, TransactionContext tx) {
+        requireNonNull(procedureId, "procedureId");
+        requireNonNull(prerequisites, "prerequisites");
+        requireNonNull(effects, "effects");
+        var idStr = procedureId.toString();
+        if (!prerequisites.isEmpty()) {
+            tx.run(BATCH_CREATE_PREREQUISITES, Map.of(
+                    PARAM_PROCEDURE_ID, idStr,
+                    PARAM_NODES, toNodeParams(prerequisites),
+                    PARAM_PHRASE_TYPE, PhraseType.PREREQUISITE.name()
+            )).consume();
+        }
+        if (!effects.isEmpty()) {
+            tx.run(BATCH_CREATE_EFFECTS, Map.of(
+                    PARAM_PROCEDURE_ID, idStr,
+                    PARAM_NODES, toNodeParams(effects),
+                    PARAM_PHRASE_TYPE, PhraseType.EFFECT.name()
+            )).consume();
+        }
+        LOG.debug("Saved {} prerequisite(s) and {} effect(s) for procedure id={}",
+                prerequisites.size(), effects.size(), procedureId);
+    }
+
     /**
      * Returns all prerequisite phrase nodes linked to the given procedure, ordered by sequence.
      */
@@ -289,6 +316,13 @@ public class PhraseEmbeddingRepository {
     public void deleteForProcedure(UUID procedureId) {
         requireNonNull(procedureId, "procedureId");
         repositorySupport.executeSingleWriteQuery(DELETE_FOR_PROCEDURE, Map.of(PARAM_PROCEDURE_ID, procedureId.toString()));
+        LOG.debug("Deleted phrase embedding nodes for procedure id={}", procedureId);
+    }
+
+    /** Transaction-aware variant of {@link #deleteForProcedure(UUID)} — runs inside the caller's tx. */
+    public void deleteForProcedure(UUID procedureId, TransactionContext tx) {
+        requireNonNull(procedureId, "procedureId");
+        tx.run(DELETE_FOR_PROCEDURE, Map.of(PARAM_PROCEDURE_ID, procedureId.toString())).consume();
         LOG.debug("Deleted phrase embedding nodes for procedure id={}", procedureId);
     }
 

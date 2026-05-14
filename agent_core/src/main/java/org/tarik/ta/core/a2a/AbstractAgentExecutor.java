@@ -70,8 +70,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                     extractTextFromMessage(context.getMessage())
                             .ifPresentOrElse(userMessage -> requestTestCaseExecution(userMessage, updater),
                                     () -> {
-                                        var message = "Request for test case execution failed either contained no valid test "
-                                                +
+                                        var message = "Request for test case execution failed either contained no valid test "                                                +
                                                 "case or insufficient information in order to execute it.";
                                         LOG.error(message);
                                         failTask(updater, message);
@@ -95,7 +94,9 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
         getTestExecutionResult(message, updater).ifPresent(result -> {
             try {
                 List<Part<?>> parts = new LinkedList<>();
-                TextPart textPart = new TextPart(OBJECT_MAPPER.writeValueAsString(result), null);
+                String resultJson = OBJECT_MAPPER.writeValueAsString(result);
+                LOG.info("Sending test execution result back to caller: {}", resultJson);
+                TextPart textPart = new TextPart(resultJson, null);
                 parts.add(textPart);
                 addSpecificArtifacts(result, parts);
                 addLogsArtifact(result, parts);

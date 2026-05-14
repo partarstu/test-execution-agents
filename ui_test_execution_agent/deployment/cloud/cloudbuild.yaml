@@ -265,7 +265,7 @@ substitutions:
   _BOOT_DISK_SIZE: '20GB'
   _BOOT_DISK_TYPE: 'pd-balanced'
   _GRACEFUL_SHUTDOWN_DURATION: '1m'
-  _MAX_VM_RUN_DURATION: '3600s'
+  _MAX_VM_RUN_DURATION: '18000s'
   _INSTANCE_STATUS_CHECK_INTERVAL: '5'
   _SECRET_REPLICATION_POLICY: 'automatic'
   _NETWORK_SUBNET_MODE: 'auto'
@@ -275,7 +275,7 @@ substitutions:
   _CONTAINER_VM_LABEL: 'cos-121-18867-90-106'
   _SECRET_ACCESSOR_ROLE: 'roles/secretmanager.secretAccessor'
   _CLOUD_PLATFORM_SCOPE: 'https://www.googleapis.com/auth/cloud-platform'
-  _PROVISIONING_MODEL: 'SPOT'
+  _PROVISIONING_MODEL: 'STANDARD'
   _INSTANCE_TERMINATION_ACTION: 'STOP'
   _STATIC_IP_ADDRESS_NAME: 'ui-agent-ip'
 

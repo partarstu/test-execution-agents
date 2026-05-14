@@ -123,7 +123,8 @@ class MatchingEnhancementsTest {
         var result = knowledgeService.findBestMatch("test", Set.of(), Set.of());
 
         assertThat(result).isPresent();
-        assertThat(result.get().procedure()).isEqualTo(p2);
+        assertThat(result.get().procedure()).isEqualTo(p1);
+        assertThat(result.get().selectedHasLowStability()).isTrue();
     }
 
     @Test
@@ -150,7 +151,8 @@ class MatchingEnhancementsTest {
 
         when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfactionBatch(anyList(), eq(effectNodeIds), anyDouble()))
                 .thenReturn(List.of(
-                        new PhraseEmbeddingRepository.PrerequisiteSatisfaction(p1.id(), precond.id(), precond.phrase(), true)
+                        new PhraseEmbeddingRepository.PrerequisiteSatisfaction(p1.id(), precond.id(), precond.phrase(), true),
+                        new PhraseEmbeddingRepository.PrerequisiteSatisfaction(p2.id(), UUID.randomUUID(), "unmet condition", false)
                 ));
 
         var result = knowledgeService.findBestMatch("test", effectNodeIds, Set.of());

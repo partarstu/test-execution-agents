@@ -33,12 +33,14 @@ import static java.util.stream.Collectors.joining;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
+import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
 final class ExecutionResultHelper {
     private static final Logger LOG = LoggerFactory.getLogger(ExecutionResultHelper.class);
 
-    private ExecutionResultHelper() {}
+    private ExecutionResultHelper() {
+    }
 
     static UiTestStepResult mergeAtomicResults(TestStep testStep, List<UiTestStepResult> results) {
         if (results.isEmpty()) {
@@ -48,18 +50,23 @@ final class ExecutionResultHelper {
         }
 
         boolean allSuccess = results.stream().allMatch(r -> r.getExecutionStatus() == SUCCESS);
-        var finalStatus = allSuccess ? SUCCESS : results.getLast().getExecutionStatus();
         var finalError = results.stream()
-                .map(TestStepResult::getErrorMessage)
+                .map(UiTestStepResult::getErrorMessage)
                 .filter(CommonUtils::isNotBlank)
                 .collect(joining("\n"))
                 .trim();
-        if (isBlank(finalError)) {
+        if (isBlank(finalError) && !allSuccess) {
             finalError = "Execution of test step '%s' was aborted.".formatted(testStep.stepDescription());
         }
+        if (allSuccess && !isNotBlank(finalError)) {
+            LOG.error("Got a situation when procedure results are OK, but one of them has error message. It means there's a bug in the " +
+                    "corresponding code. The steps affected:\n <{}>", results);
+        }
+        var finalStatus = isBlank(finalError) ? SUCCESS : FAILURE;
         var finalActualResult = results.stream()
                 .map(TestStepResult::getActualResult)
                 .filter(Objects::nonNull)
+                .filter(r -> !r.equals(StepExecutionOrchestrator.NO_VERIFICATION_REQUIRED))
                 .collect(joining("\n"));
         Instant start = results.getFirst().getExecutionStartTimestamp();
         Instant end = results.getLast().getExecutionEndTimestamp();

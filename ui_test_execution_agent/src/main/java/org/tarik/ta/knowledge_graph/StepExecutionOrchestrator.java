@@ -67,6 +67,7 @@ import static org.tarik.ta.core.utils.CommonUtils.*;
 @Singleton
 public class StepExecutionOrchestrator {
     private static final Logger LOG = LoggerFactory.getLogger(StepExecutionOrchestrator.class);
+    static final String NO_VERIFICATION_REQUIRED = "No verification required";
 
     private final VerificationTools verificationTools;
     private final BudgetManager budgetManager;
@@ -553,8 +554,8 @@ public class StepExecutionOrchestrator {
             budgetManager.resetToolCallUsage();
 
             if (!actionResult.isSuccess()) {
-                var message = "There was an error while executing test step action '%s'. Please see agent logs for details"
-                        .formatted(actionInstruction);
+                var message = "There was an error while executing test step action '%s': %s"
+                        .formatted(actionInstruction, actionResult.getMessage());
                 LOG.warn("Test step failed: {}", message);
                 return new UiTestStepResult(testStep, TestStepResultStatus.ERROR, message, null, captureScreen(),
                         executionStartTimestamp, now());
@@ -584,7 +585,7 @@ public class StepExecutionOrchestrator {
                         executionStartTimestamp, actionDurationMs, stepExecutionContext);
             } else {
                 stepExecutionContext.timingRecorder().record(atomic.id(), actionDurationMs, 0);
-                return new UiTestStepResult(testStep, SUCCESS, null, "No verification required", null,
+                return new UiTestStepResult(testStep, SUCCESS, null, NO_VERIFICATION_REQUIRED, null,
                         executionStartTimestamp, now());
             }
         } catch (ElementLocationException e) {
