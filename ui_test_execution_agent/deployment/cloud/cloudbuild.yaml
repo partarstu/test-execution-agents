@@ -21,7 +21,7 @@ steps:
   # ============================================
   # Stage 1: Build Maven modules
   # ============================================
-  - name: 'maven:3.9.11-eclipse-temurin-25'
+  - name: 'maven:3.9.15-eclipse-temurin-26'
     id: 'maven-build'
     dir: '/workspace'
     args: [ 'mvn', 'clean', 'install', '-DskipTests', '-P', 'linux' ]

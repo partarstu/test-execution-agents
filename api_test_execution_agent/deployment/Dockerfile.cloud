@@ -15,11 +15,11 @@
 #
 
 # Use Eclipse Temurin JRE as base image (lightweight)
-FROM eclipse-temurin:25-jre-alpine
+FROM eclipse-temurin:26-jre-alpine
 
 ARG APP_DIR=/app
 ARG APP_LOG_DIR=${APP_DIR}/log
-ARG SOURCE_JAR_PATH=api_test_execution_agent/target/api-test-execution-agent-1.0.0-SNAPSHOT.jar
+ARG SOURCE_JAR_PATH=api_test_execution_agent/target/api-test-execution-agent-2.0.0.jar
 ARG DESTINATION_JAR_PATH=${APP_DIR}/app.jar
 
 # Install curl for health checks and ca-certificates for HTTPS
