@@ -85,7 +85,7 @@ class KnowledgeIngestionServiceTest {
 
         knowledgeIngestionService.ingest(node);
 
-        verify(mockRepository).saveAll(anyList(), anyList());
+        verify(mockRepository).save(any(Procedure.class), any(float[].class), any(TransactionContext.class));
         verify(mockDecompositionService).invalidateCache();
     }
 }

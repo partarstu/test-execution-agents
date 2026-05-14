@@ -24,7 +24,7 @@
     </developers>
 
     <properties>
-        <jdk.version>25</jdk.version>
+        <jdk.version>26</jdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <langchain4j.version>1.11.0</langchain4j.version>
         <langchain4j.beta.version>1.11.0-beta19</langchain4j.beta.version>
