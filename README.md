@@ -336,8 +336,7 @@ remember procedures (reusable test action sequences) across sessions.
 
 ### Features
 
-- **Procedure Graph**: Stores hierarchical procedures (composite and atomic) as a Neo4j graph with CONTAINS (parent-child) and
-  TARGETS (step-to-UI-element) relationships.
+- **Procedure Graph**: Stores hierarchical procedures (composite and atomic) as a Neo4j graph with CONTAINS (parent-child) and TARGETS (step-to-UI-element) relationships. To ensure data integrity, each procedure is restricted to target at most/exactly one `UiElement` by automatically deleting any previous target relationship before linking a new one.
 - **PDDL-Lite Planning**: Prerequisite/effect state tracking enables automatic prerequisite resolution during test execution.
 - **Queue-Based Execution**: Replaces the sequential for-loop with a dynamic execution queue that injects prerequisite steps when
   prerequisites are unmet.
@@ -351,9 +350,7 @@ remember procedures (reusable test action sequences) across sessions.
 - **Phrase-Aware Reads**: `ProcedureRepository.findByIdWithPhrases` rebuilds the returned `Procedure`'s prerequisites/effects lists from
   the ordered `PhraseEmbedding` nodes whenever they exist, so callers always see the authoritative phrase order rather than
   potentially-stale node properties.
-- **Bidirectional Startup Sync**: `PhraseNodeMigrationService` runs two passes at startup — a forward pass that creates missing phrase
-  nodes from node-property lists (legacy backfill), and a backward pass that repairs stale node-property lists from the authoritative
-  phrase nodes (`ProcedureRepository.findWithPhrasePropertyMismatches` + `updatePhraseProperties`).
+- **Bidirectional Startup Sync**: `PhraseNodeMigrationService` runs two passes at startup — a forward pass that creates missing phrase nodes from node-property lists (legacy backfill), and a backward pass that repairs stale node-property lists from the authoritative phrase nodes (`ProcedureRepository.findWithPhrasePropertyMismatches` + `updatePhraseProperties`). Any forward migration or backward repair failure during this startup sequence triggers an `IllegalStateException` that immediately aborts startup with clear diagnostic logs.
 
 ### Neo4j Setup
 
@@ -428,7 +425,7 @@ gcloud secrets versions access latest --secret=VECTOR_DB_KEY
 |-----------------------------------|-----------------------------------|-------------------------|-------------------------------------------------------------------|
 | `neo4j.username`                  | `NEO4J_USERNAME`                  | `neo4j`                 | Neo4j username (from Secret Manager in cloud)                     |
 | `neo4j.database`                  | `NEO4J_DATABASE`                  | `neo4j`                 | Neo4j database name                                               |
-| `knowledge.embedding.model`       | `KNOWLEDGE_EMBEDDING_MODEL`       | `bge-small-en-v15`      | Embedding model for semantic search                               |
+| `knowledge.embedding.model`       | `KNOWLEDGE_EMBEDDING_MODEL`       | `multilingual-e5-small` | Embedding model for semantic search                               |
 | `knowledge.max.depth`             | `KNOWLEDGE_MAX_DEPTH`             | `3`                     | Maximum procedure decomposition depth                         |
 | `knowledge.embedding.batch.size`  | `KNOWLEDGE_EMBEDDING_BATCH_SIZE`  | `10`                    | Batch size for embedding generation                               |
 | `knowledge.match.confidence.high` | `KNOWLEDGE_MATCH_CONFIDENCE_HIGH` | `0.85`                  | High-confidence match threshold                                   |
@@ -479,7 +476,7 @@ This allows the agent to see both the current screen and the reference screensho
 
 1. During test execution, the agent encounters an unknown action (no matching procedure in the knowledge graph).
 2. The AI suggestion agent analyzes the action and proposes preconditions, effects, and child steps.
-3. A Swing collecting knowledge dialog (`ProcedureKnowledgeCollectionDialog`) presents the suggestions for the operator to review, modify, or accept. Child steps are listed with screenshot thumbnails; double-clicking or clicking the ✏ affordance on any row opens a recursive `ProcedureKnowledgeCollectionDialog` for that child (bidirectional navigation with "Edit Parent" button). The dialog tracks unsaved changes and warns before discarding them.
+3. A Swing collecting knowledge dialog (`ProcedureKnowledgeCollectionDialog`) presents the suggestions for the operator to review, modify, or accept. Child steps are listed with screenshot thumbnails; double-clicking or clicking the ✏ affordance on any row opens a recursive `ProcedureKnowledgeCollectionDialog` for that child (bidirectional navigation with "Edit Parent" button which returns back to the originating parent's dialog directly, bypassing the parent selection dialog even if the child is shared among multiple parent procedures). The dialog tracks unsaved changes and warns before discarding them.
 4. For atomic steps, the operator can: (a) run the agent-driven element search ("Locate UI Element..."), or (b) open `UiElementLookupDialog` ("Select UI element") to search for an existing element by description and link it, or create a new one directly (agent skips DB search and creates the element, then captures its screenshot).
 5. The completed procedure tree is persisted to Neo4j with all relationships and embeddings.
 6. On subsequent executions, the agent recognizes the action and executes the learned procedure automatically.
