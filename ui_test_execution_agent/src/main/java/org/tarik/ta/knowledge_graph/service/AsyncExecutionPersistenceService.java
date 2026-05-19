@@ -63,7 +63,13 @@ public class AsyncExecutionPersistenceService {
 
     public void persistSatisfiesEdges(UUID executedProcedureId) {
         if (isAsyncPersistenceEnabled()) {
-            Thread.ofVirtual().start(() -> satisfiesEdgeService.persistSatisfiesEdges(executedProcedureId));
+            Thread.ofVirtual().start(() -> {
+                try {
+                    satisfiesEdgeService.persistSatisfiesEdges(executedProcedureId);
+                } catch (Exception e) {
+                    LOG.error("Async persistence failed: persistSatisfiesEdges for id {}", executedProcedureId, e);
+                }
+            });
         } else {
             satisfiesEdgeService.persistSatisfiesEdges(executedProcedureId);
         }
@@ -71,7 +77,13 @@ public class AsyncExecutionPersistenceService {
 
     public void updateTimingProfile(UUID id, long actualExecutionMs, long actualVerificationDelayMs) {
         if (isAsyncPersistenceEnabled()) {
-            Thread.ofVirtual().start(() -> knowledgeService.updateTimingProfile(id, actualExecutionMs, actualVerificationDelayMs));
+            Thread.ofVirtual().start(() -> {
+                try {
+                    knowledgeService.updateTimingProfile(id, actualExecutionMs, actualVerificationDelayMs);
+                } catch (Exception e) {
+                    LOG.error("Async persistence failed: updateTimingProfile for id {}", id, e);
+                }
+            });
         } else {
             knowledgeService.updateTimingProfile(id, actualExecutionMs, actualVerificationDelayMs);
         }
@@ -79,7 +91,13 @@ public class AsyncExecutionPersistenceService {
 
     public void updateElementStability(UUID elementId, boolean located, long locationTimeMs) {
         if (isAsyncPersistenceEnabled()) {
-            Thread.ofVirtual().start(() -> procedureRepository.updateElementStability(elementId, located, locationTimeMs));
+            Thread.ofVirtual().start(() -> {
+                try {
+                    procedureRepository.updateElementStability(elementId, located, locationTimeMs);
+                } catch (Exception e) {
+                    LOG.error("Async persistence failed: updateElementStability for id {}", elementId, e);
+                }
+            });
         } else {
             procedureRepository.updateElementStability(elementId, located, locationTimeMs);
         }
@@ -87,7 +105,13 @@ public class AsyncExecutionPersistenceService {
 
     public void captureFailureContext(UUID procedureId, FailureContext failureContext) {
         if (isAsyncPersistenceEnabled()) {
-            Thread.ofVirtual().start(() -> failureContextService.captureFailureContext(procedureId, failureContext));
+            Thread.ofVirtual().start(() -> {
+                try {
+                    failureContextService.captureFailureContext(procedureId, failureContext);
+                } catch (Exception e) {
+                    LOG.error("Async persistence failed: captureFailureContext for id {}", procedureId, e);
+                }
+            });
         } else {
             failureContextService.captureFailureContext(procedureId, failureContext);
         }

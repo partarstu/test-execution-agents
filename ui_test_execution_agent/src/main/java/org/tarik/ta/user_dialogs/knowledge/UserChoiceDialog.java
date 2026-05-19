@@ -68,23 +68,19 @@ public class UserChoiceDialog extends AbstractDialog {
         cancelButton.addActionListener(_ -> dispose());
         setHoverAsClick(cancelButton);
 
-        if (!allScoredMatches.isEmpty()) {
-            JButton browseButton = new JButton("Browse All Procedures");
-            setHoverAsClick(browseButton);
-            browseButton.addActionListener(_ -> {
-                var selected = MatchingProcedureBrowseDialog.displayAndGetSelection(
-                        this, itemDescription, knowledgeService, effectNodeIds, recentParentIds, config);
-                if (selected.isPresent()) {
-                    this.action = SelectionAction.BROWSE;
-                    this.selectedProcedure = selected.get();
-                    dispose();
-                }
-                // cancelled browse → stay in this dialog
-            });
-            mainPanel.add(getButtonsPanel(retryButton, createNewButton, browseButton, cancelButton), BorderLayout.SOUTH);
-        } else {
-            mainPanel.add(getButtonsPanel(retryButton, createNewButton, cancelButton), BorderLayout.SOUTH);
-        }
+        JButton browseButton = new JButton("Browse All Procedures");
+        setHoverAsClick(browseButton);
+        browseButton.addActionListener(_ -> {
+            var selected = MatchingProcedureBrowseDialog.displayAndGetSelection(
+                    this, itemDescription, knowledgeService, effectNodeIds, recentParentIds, config);
+            if (selected.isPresent()) {
+                this.action = SelectionAction.BROWSE;
+                this.selectedProcedure = selected.get();
+                dispose();
+            }
+            // cancelled browse → stay in this dialog
+        });
+        mainPanel.add(getButtonsPanel(retryButton, createNewButton, browseButton, cancelButton), BorderLayout.SOUTH);
 
         add(mainPanel);
         setDefaultSizeAndPosition();
