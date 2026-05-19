@@ -154,6 +154,11 @@ public class KnowledgeBasedExecutionOrchestrator {
                         return;
                     }
                 }
+                try {
+                    procedureUsageByTestCaseTrackingService.cleanupStaleUsesProcedure(testCase.name(), usedProcedureIds);
+                } catch (Exception e) {
+                    LOG.error("Failed to clean up stale USES_PROCEDURE edges for test case '{}'", testCase.name(), e);
+                }
             } catch (DatabaseConnectionException e) {
                 LOG.error("DB connection error during execution of test case '{}'", testCase.name(), e);
                 if (!uiTestAgentConfig.isFullyUnattended()) {
@@ -161,12 +166,6 @@ public class KnowledgeBasedExecutionOrchestrator {
                             "Lost connection to the knowledge graph DB: " + e.getMessage(), null, ERROR, uiTestAgentConfig);
                 }
                 throw e;
-            } finally {
-                try {
-                    procedureUsageByTestCaseTrackingService.cleanupStaleUsesProcedure(testCase.name(), usedProcedureIds);
-                } catch (Exception e) {
-                    LOG.error("Failed to clean up stale USES_PROCEDURE edges for test case '{}'", testCase.name(), e);
-                }
             }
         }
     }

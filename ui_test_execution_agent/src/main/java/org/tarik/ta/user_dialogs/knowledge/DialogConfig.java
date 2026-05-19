@@ -51,4 +51,5 @@ record DialogConfig(
         @NotNull UiTestAgentConfig uiTestAgentConfig,
         @NotNull UiElementRepository uiElementRepository,
         @NotNull UiElementDialogHelper uiElementDialogHelper,
-        @Nullable ProcedureUsageByTestCaseTrackingService usageTrackingService) {}
+        @Nullable ProcedureUsageByTestCaseTrackingService usageTrackingService,
+        @Nullable UUID originatingParentId) {}

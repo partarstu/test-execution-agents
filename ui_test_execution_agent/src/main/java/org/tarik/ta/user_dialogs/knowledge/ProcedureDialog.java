@@ -118,6 +118,7 @@ public class ProcedureDialog extends AbstractDialog {
     private final ProcedureUsageByTestCaseTrackingService usageTrackingService;
     private final UUID currentProcedureId;
     private final SuggestionLoaderFactory childLoaderFactory;
+    private final @Nullable UUID originatingParentId;
     private final ExecutionItemContext itemContext;
     private final ChildStepRowBuilder rowBuilder;
     CardLayout childStepsCardLayout;
@@ -132,6 +133,7 @@ public class ProcedureDialog extends AbstractDialog {
         this.usageTrackingService = cfg.usageTrackingService();
         this.currentProcedureId = cfg.currentProcedureId();
         this.childLoaderFactory = cfg.childLoaderFactory();
+        this.originatingParentId = cfg.originatingParentId();
         this.itemContext = cfg.itemContext();
         this.uiElementRepository = cfg.uiElementRepository();
         this.uiElementDialogHelper = cfg.uiElementDialogHelper();
@@ -643,9 +645,9 @@ public class ProcedureDialog extends AbstractDialog {
                 : null;
         var children = knowledgeService.getChildren(procedure.id());
         var outcome = displayForEditing(this, procedure, targetElementId,
-                showTestDataAndExpectedResults, false, itemContext, knowledgeService, ingestionService,
+                showTestDataAndExpectedResults, true, itemContext, knowledgeService, ingestionService,
                 buildChildLoaderFactory(index), children.isEmpty() ? null : children,
-                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, usageTrackingService);
+                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, usageTrackingService, currentProcedureId);
         if (outcome.deleted()) {
             childStepsModel.remove(index);
             registerUnsavedChanges();
@@ -666,7 +668,7 @@ public class ProcedureDialog extends AbstractDialog {
                 existing.targetUiElementId(), showTestDataAndExpectedResults, true, existing.needsSave(),
                 itemContext, knowledgeService, ingestionService, null,
                 buildChildLoaderFactory(index), existing.elementScreenshot(),
-                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, null);
+                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, null, null);
         var outcome = openDialog(this, cfg);
         if (!outcome.cancelled() && !outcome.editParentRequested() && outcome.result() instanceof IngestionNode.NewProcedure np) {
             UUID newId = ingestionService.ingest(np);
@@ -818,13 +820,13 @@ public class ProcedureDialog extends AbstractDialog {
 
     private ProcedureDialogOutcome getDialogOutcome() {
         if (procedureDeleted) {
-            return new ProcedureDialogOutcome(null, false, false, true, null);
+            return new ProcedureDialogOutcome(null, false, false, true, null, null);
         }
         if (windowClosedByUser) {
-            return new ProcedureDialogOutcome(null, false, true, false, null);
+            return new ProcedureDialogOutcome(null, false, true, false, null, null);
         }
         if (editParentRequested) {
-            return new ProcedureDialogOutcome(null, true, false, false, null);
+            return new ProcedureDialogOutcome(null, true, false, false, null, originatingParentId);
         }
 
         String description = descriptionArea.getText().trim();
@@ -844,7 +846,7 @@ public class ProcedureDialog extends AbstractDialog {
         List<IngestionNode> childNodes = isAtomic ? List.of()
                 : Collections.list(childStepsModel.elements()).stream().map(ChildProcedureInDialog::toIngestionNode).toList();
         var result = new IngestionNode.NewProcedure(procedure, isAtomic ? targetUiElementId : null, childNodes);
-        return new ProcedureDialogOutcome(result, false, false, false, currentElementScreenshot);
+        return new ProcedureDialogOutcome(result, false, false, false, currentElementScreenshot, null);
     }
 
     private static ChildProcedureInDialog.New newBlankDialogStep(String description, boolean showTestDataAndExpectedResults) {
@@ -905,7 +907,7 @@ public class ProcedureDialog extends AbstractDialog {
                 buildTransientProcedure(initialDescription, aiSuggestions, showTestDataAndExpectedResults),
                 preloadedChildren, null, showTestDataAndExpectedResults, false, false,
                 itemContext, knowledgeService, ingestionService, null, childLoaderFactory, null,
-                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, null);
+                uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, null, null);
         var outcome = openDialog(owner, cfg);
         return (outcome.cancelled() || outcome.editParentRequested()) ? empty() : ofNullable(outcome.result());
     }
@@ -946,14 +948,15 @@ public class ProcedureDialog extends AbstractDialog {
                                                            @NotNull UiTestAgentConfig uiTestAgentConfig,
                                                            @NotNull UiElementRepository uiElementRepository,
                                                            @NotNull UiElementDialogHelper uiElementDialogHelper,
-                                                           @Nullable ProcedureUsageByTestCaseTrackingService usageTrackingService) {
+                                                           @Nullable ProcedureUsageByTestCaseTrackingService usageTrackingService,
+                                                           @Nullable UUID originatingParentId) {
         List<ChildProcedureInDialog> childSteps = preloadedChildren == null ? null
                 : preloadedChildren.stream().<ChildProcedureInDialog>map(c -> new ChildProcedureInDialog.Linked(c, null)).toList();
         var cfg = new DialogConfig("Edit Procedure", "Modify the existing procedure definition.",
                 existingProcedure, childSteps, targetUiElementId, showTestDataAndExpectedResults,
                 hasParent, false, itemContext, knowledgeService, ingestionService, existingProcedure.id(),
                 childLoaderFactory, null, uiTestAgentConfig,
-                uiElementRepository, uiElementDialogHelper, usageTrackingService);
+                uiElementRepository, uiElementDialogHelper, usageTrackingService, originatingParentId);
         return openDialog(owner, cfg);
     }
 

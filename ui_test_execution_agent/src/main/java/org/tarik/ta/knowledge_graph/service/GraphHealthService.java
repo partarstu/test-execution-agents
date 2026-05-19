@@ -73,7 +73,7 @@ class GraphHealthService {
                         "Procedure trees exceeding max depth of %d".formatted(maxDepth),
                         repository.findDeepHierarchies(maxDepth), warnThreshold, critThreshold),
                 HealthCheckCategory.of("Disconnected Procedures",
-                        "Non-atomic procedures with no parent or children",
+                        "Procedures with no parent in the hierarchy",
                         repository.findDisconnectedProcedures(), warnThreshold, critThreshold),
                 HealthCheckCategory.of("Missing Effects",
                         "Atomic procedures with no effect phrases",
