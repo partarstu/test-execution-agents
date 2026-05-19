@@ -28,7 +28,7 @@ class AgentCardProducerTest {
         AgentCard card = new AgentCardProducer().agentCard(agentUrl);
 
         assertThat(card.name()).isEqualTo("API Test Execution Agent");
-        assertThat(card.url()).isEqualTo(agentUrl);
-        assertThat(card.preferredTransport()).isEqualTo("JSONRPC");
+        assertThat(card.supportedInterfaces()).hasSize(1);
+        assertThat(card.supportedInterfaces().getFirst().url()).isEqualTo(agentUrl);
     }
 }

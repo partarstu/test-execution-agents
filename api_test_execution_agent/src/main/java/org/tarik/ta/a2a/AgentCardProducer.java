@@ -17,28 +17,28 @@ package org.tarik.ta.a2a;
 
 import io.a2a.spec.AgentCapabilities;
 import io.a2a.spec.AgentCard;
+import io.a2a.spec.AgentInterface;
 
 import java.util.List;
 
 import static io.a2a.spec.TransportProtocol.JSONRPC;
 
 public class AgentCardProducer {
-    
+
     public AgentCard agentCard(String agentUrl) {
-        return new AgentCard.Builder()
+        return AgentCard.builder()
                 .name("API Test Execution Agent")
                 .description("Can execute API tests in a fully automated mode")
-                .url(agentUrl)
-                .preferredTransport(JSONRPC.name())
                 .version("1.0.0")
-                .capabilities(new AgentCapabilities.Builder()
+                .capabilities(AgentCapabilities.builder()
                         .streaming(false)
                         .pushNotifications(false)
-                        .stateTransitionHistory(false)
+                        .extendedAgentCard(false)
                         .build())
                 .defaultInputModes(List.of("text"))
                 .defaultOutputModes(List.of("text"))
                 .skills(List.of())
+                .supportedInterfaces(List.of(new AgentInterface(JSONRPC.asString(), agentUrl)))
                 .build();
     }
 }

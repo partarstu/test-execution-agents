@@ -16,16 +16,25 @@
 package org.tarik.ta.core.a2a;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.a2a.jsonrpc.common.wrappers.A2AErrorResponse;
+import io.a2a.jsonrpc.common.wrappers.A2AResponse;
+import io.a2a.jsonrpc.common.wrappers.CancelTaskRequest;
+import io.a2a.jsonrpc.common.wrappers.GetTaskRequest;
+import io.a2a.jsonrpc.common.wrappers.SendMessageRequest;
 import io.a2a.server.ServerCallContext;
 import io.a2a.server.auth.UnauthenticatedUser;
 import io.a2a.server.events.InMemoryQueueManager;
+import io.a2a.server.events.MainEventBus;
+import io.a2a.server.events.MainEventBusProcessor;
 import io.a2a.server.requesthandlers.DefaultRequestHandler;
 import io.a2a.server.tasks.BasePushNotificationSender;
 import io.a2a.server.tasks.InMemoryPushNotificationConfigStore;
 import io.a2a.server.tasks.InMemoryTaskStore;
 import io.a2a.server.tasks.PushNotificationConfigStore;
-import io.a2a.spec.*;
+import io.a2a.spec.A2AMethods;
+import io.a2a.spec.AgentCard;
 import io.a2a.spec.InternalError;
+import io.a2a.spec.UnsupportedOperationError;
 import io.a2a.transport.jsonrpc.handler.JSONRPCHandler;
 import io.javalin.http.Context;
 import jakarta.annotation.PostConstruct;
@@ -37,10 +46,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
-import java.util.Map;
 
 @Singleton
 public class AgentExecutionResource {
@@ -60,13 +69,18 @@ public class AgentExecutionResource {
 
     @PostConstruct
     void init() {
-        var executor = newSingleThreadExecutor();
+        var taskExecutor = newSingleThreadExecutor();
+        var eventConsumerExecutor = newSingleThreadExecutor();
         var taskStore = new InMemoryTaskStore();
-        var queueManager = new InMemoryQueueManager(taskStore);
+        var mainEventBus = new MainEventBus();
+        var queueManager = new InMemoryQueueManager(taskStore, mainEventBus);
+        var pushNotificationSender = new BasePushNotificationSender(pushNotificationConfigStore);
+        var mainEventBusProcessor = new MainEventBusProcessor(mainEventBus, taskStore, pushNotificationSender, queueManager);
+        mainEventBusProcessor.ensureStarted();
         DefaultRequestHandler httpRequestHandler = DefaultRequestHandler.create(agentExecutorProvider.get(),
                 taskStore, queueManager, pushNotificationConfigStore,
-                new BasePushNotificationSender(pushNotificationConfigStore), executor);
-        this.jsonRpcHandler = new JSONRPCHandler(agentCardProvider.get(), httpRequestHandler, executor);
+                mainEventBusProcessor, taskExecutor, eventConsumerExecutor);
+        this.jsonRpcHandler = new JSONRPCHandler(agentCardProvider.get(), httpRequestHandler, taskExecutor);
     }
 
     /**
@@ -81,23 +95,23 @@ public class AgentExecutionResource {
             var method = (String) request.get("method");
             ServerCallContext serverCallContext = new ServerCallContext(UnauthenticatedUser.INSTANCE, new HashMap<>(),
                     Set.of());
-            JSONRPCResponse<?> response = switch (method) {
-                case GetTaskRequest.METHOD ->
+            A2AResponse<?> response = switch (method) {
+                case A2AMethods.GET_TASK_METHOD ->
                     jsonRpcHandler.onGetTask(objectMapper.readValue(body, GetTaskRequest.class), serverCallContext);
-                case CancelTaskRequest.METHOD ->
+                case A2AMethods.CANCEL_TASK_METHOD ->
                     jsonRpcHandler.onCancelTask(objectMapper.readValue(body, CancelTaskRequest.class),
                             serverCallContext);
-                case SendMessageRequest.METHOD ->
+                case A2AMethods.SEND_MESSAGE_METHOD ->
                     jsonRpcHandler.onMessageSend(objectMapper.readValue(body, SendMessageRequest.class),
                             serverCallContext);
-                default -> new JSONRPCErrorResponse(null, new UnsupportedOperationError());
+                default -> new A2AErrorResponse(null, new UnsupportedOperationError());
             };
             return objectMapper.writeValueAsString(response);
         } catch (Exception e) {
             try {
                 LOG.error("Got error while processing agent task request", e);
                 return objectMapper
-                        .writeValueAsString(new JSONRPCErrorResponse(null, new InternalError(e.getMessage())));
+                        .writeValueAsString(new A2AErrorResponse(null, new InternalError(e.getMessage())));
             } catch (Exception ex) {
                 return "{}";
             }

@@ -19,8 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.a2a.server.agentexecution.RequestContext;
-import io.a2a.server.events.EventQueue;
-import io.a2a.server.tasks.TaskUpdater;
+import io.a2a.server.tasks.AgentEmitter;
 import io.a2a.spec.*;
 
 import java.nio.charset.StandardCharsets;
@@ -53,10 +52,9 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
     private final ExecutorService taskExecutor = newSingleThreadExecutor();
 
     @Override
-    public void execute(RequestContext context, EventQueue eventQueue) throws JSONRPCError {
-        TaskUpdater updater = new TaskUpdater(context, eventQueue);
+    public void execute(RequestContext context, AgentEmitter emitter) throws A2AError {
         if (context.getTask() == null) {
-            updater.submit();
+            emitter.submit();
         }
 
         LOG.info("Received test case execution request. Submitting to the execution queue.");
@@ -66,32 +64,32 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                 var taskId = context.getTaskId();
                 LOG.info("Starting task {} from the queue.", taskId);
                 try {
-                    updater.startWork();
+                    emitter.startWork();
                     extractTextFromMessage(context.getMessage())
-                            .ifPresentOrElse(userMessage -> requestTestCaseExecution(userMessage, updater),
+                            .ifPresentOrElse(userMessage -> requestTestCaseExecution(userMessage, emitter),
                                     () -> {
                                         var message = "Request for test case execution failed either contained no valid test "                                                +
                                                 "case or insufficient information in order to execute it.";
                                         LOG.error(message);
-                                        failTask(updater, message);
+                                        failTask(emitter, message);
                                     });
                 } catch (Exception e) {
                     LOG.error("Error while processing test case execution request for task {}", taskId, e);
-                    failTask(updater, "Couldn't start the task %s".formatted(taskId));
+                    failTask(emitter, "Couldn't start the task %s".formatted(taskId));
                 }
             }).get();
         } catch (InterruptedException e) {
             currentThread().interrupt();
             LOG.error("Task execution was interrupted.", e);
-            failTask(updater, "Task execution was interrupted.");
+            failTask(emitter, "Task execution was interrupted.");
         } catch (ExecutionException e) {
             LOG.error("Error during task execution.", e.getCause());
-            failTask(updater, "Error during task execution: %s".formatted(e.getCause().getMessage()));
+            failTask(emitter, "Error during task execution: %s".formatted(e.getCause().getMessage()));
         }
     }
 
-    private void requestTestCaseExecution(String message, TaskUpdater updater) {
-        getTestExecutionResult(message, updater).ifPresent(result -> {
+    private void requestTestCaseExecution(String message, AgentEmitter emitter) {
+        getTestExecutionResult(message, emitter).ifPresent(result -> {
             try {
                 List<Part<?>> parts = new LinkedList<>();
                 String resultJson = OBJECT_MAPPER.writeValueAsString(result);
@@ -100,12 +98,12 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                 parts.add(textPart);
                 addSpecificArtifacts(result, parts);
                 addLogsArtifact(result, parts);
-                updater.addArtifact(parts, null, null, null);
-                updater.complete(updater.newAgentMessage(List.of(textPart), null));
+                emitter.addArtifact(parts, null, null, null);
+                emitter.complete(emitter.newAgentMessage(List.of(textPart), null));
             } catch (Exception e) {
                 LOG.error("Got exception while preparing the task artifacts for the test case '{}'",
                         result.getTestCaseName(), e);
-                failTask(updater, "Got exception while preparing the task artifacts for the test case. " +
+                failTask(emitter, "Got exception while preparing the task artifacts for the test case. " +
                         "Before re-sending please investigate the root cause based on the agent's logs.");
             }
         });
@@ -123,13 +121,13 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
         });
     }
 
-    private Optional<TestExecutionResult> getTestExecutionResult(String message, TaskUpdater updater) {
+    private Optional<TestExecutionResult> getTestExecutionResult(String message, AgentEmitter emitter) {
         try {
             TestExecutionResult result = executeTestCase(message);
             return ofNullable(result);
         } catch (Exception e) {
             LOG.error("Got exception during the execution of the test case.", e);
-            failTask(updater, "Got exception while executing the test case, no results available. " +
+            failTask(emitter, "Got exception while executing the test case, no results available. " +
                     "Before re-sending please investigate the root cause based on the agent's logs.");
             return empty();
         }
@@ -141,34 +139,33 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
 
     protected abstract Optional<List<String>> extractLogs(TestExecutionResult result);
 
-    protected void failTask(TaskUpdater updater, String message) {
+    protected void failTask(AgentEmitter emitter, String message) {
         TextPart errorPart = new TextPart(message, null);
         List<Part<?>> parts = List.of(errorPart);
-        updater.fail(updater.newAgentMessage(parts, null));
+        emitter.fail(emitter.newAgentMessage(parts, null));
     }
 
     @Override
-    public void cancel(RequestContext context, EventQueue eventQueue) throws JSONRPCError {
+    public void cancel(RequestContext context, AgentEmitter emitter) throws A2AError {
         Task task = context.getTask();
 
-        if (task.getStatus().state() == TaskState.CANCELED) {
+        if (task.status().state() == TaskState.TASK_STATE_CANCELED) {
             throw new TaskNotCancelableError();
         }
 
-        if (task.getStatus().state() == TaskState.COMPLETED) {
+        if (task.status().state() == TaskState.TASK_STATE_COMPLETED) {
             throw new TaskNotCancelableError();
         }
 
-        TaskUpdater updater = new TaskUpdater(context, eventQueue);
-        updater.cancel();
+        emitter.cancel();
     }
 
     protected Optional<String> extractTextFromMessage(Message message) {
-        String result = ofNullable(message.getParts())
+        String result = ofNullable(message.parts())
                 .stream()
                 .flatMap(Collection::stream)
                 .filter(TextPart.class::isInstance)
-                .map(part -> ((TextPart) part).getText())
+                .map(part -> ((TextPart) part).text())
                 .filter(CommonUtils::isNotBlank)
                 .map(String::trim)
                 .collect(joining("\n"))

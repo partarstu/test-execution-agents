@@ -47,7 +47,7 @@
         <javacv.version>${bytedeco.version}</javacv.version>
         <commons-math3.version>3.6.1</commons-math3.version>
         <commons-text.version>1.13.0</commons-text.version>
-        <a2a.sdk.version>0.3.3.Final</a2a.sdk.version>
+        <a2a.sdk.version>1.0.0.Alpha3</a2a.sdk.version>
         <jetbrains.annotations.version>24.1.0</jetbrains.annotations.version>
         <restassured.version>5.5.6</restassured.version>
         <opencsv.version>5.12.0</opencsv.version>
@@ -123,6 +123,11 @@
             <dependency>
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-qdrant</artifactId>
+                <version>${langchain4j.beta.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-embeddings</artifactId>
                 <version>${langchain4j.beta.version}</version>
             </dependency>
             <dependency>
@@ -204,6 +209,11 @@
                  <groupId>io.github.a2asdk</groupId>
                  <artifactId>a2a-java-sdk-transport-jsonrpc</artifactId>
                  <version>${a2a.sdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.a2asdk</groupId>
+                <artifactId>a2a-java-sdk-jsonrpc-common</artifactId>
+                <version>${a2a.sdk.version}</version>
             </dependency>
 
              <!-- Web Server -->

@@ -15,11 +15,15 @@
  */
 package org.tarik.ta.core.a2a;
 
+import io.a2a.spec.AgentCapabilities;
 import io.a2a.spec.AgentCard;
+import io.a2a.spec.AgentInterface;
 import io.javalin.http.Context;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -33,27 +37,21 @@ class AgentExecutionResourceTest {
     @BeforeEach
     void setUp() {
         agentExecutor = mock(AgentExecutor.class);
-        // AgentCard is a final record, and it has validation in constructor.
-        io.a2a.spec.AgentCapabilities capabilities = new io.a2a.spec.AgentCapabilities(false, false, false, java.util.List.of());
         agentCard = new AgentCard(
-                "test-agent", 
-                "desc", 
-                "url", 
-                null, 
-                "1.0", 
-                "doc", 
-                capabilities, 
-                java.util.List.of(), 
-                java.util.List.of(), 
-                java.util.List.of(), 
-                false, 
-                java.util.Map.of(), 
-                java.util.List.of(), 
-                "icon", 
-                java.util.List.of(), 
-                "JSONRPC", 
-                "1.0", 
-                java.util.List.of()
+                "test-agent",
+                "desc",
+                null,
+                "1.0",
+                null,
+                new AgentCapabilities(false, false, false, null),
+                List.of("text"),
+                List.of("text"),
+                List.of(),
+                null,
+                null,
+                null,
+                List.of(new AgentInterface("JSONRPC", "http://localhost")),
+                null
         );
         jakarta.inject.Provider<AgentExecutor> agentExecutorProvider = () -> agentExecutor;
         jakarta.inject.Provider<AgentCard> agentCardProvider = () -> agentCard;
