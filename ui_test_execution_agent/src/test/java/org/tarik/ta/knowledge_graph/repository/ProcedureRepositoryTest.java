@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.lenient;
+import static org.neo4j.driver.Values.value;
 
 @ExtendWith(MockitoExtension.class)
 class ProcedureRepositoryTest {
@@ -210,6 +211,32 @@ class ProcedureRepositoryTest {
 
         assertThat(result).isEmpty();
         verify(mockRepositorySupport).executeSingleReadQuery(anyString());
+    }
+
+    @Test
+    @DisplayName("linkToUiElement should delete old TARGETS edge and return only the new target element")
+    void linkToUiElement_shouldDeleteOldTargetsEdge_andReturnOnlyNewTarget() {
+        UUID procedureId = UUID.randomUUID();
+        UUID elementAId = UUID.randomUUID();
+        UUID elementBId = UUID.randomUUID();
+
+        procedureRepository.linkToUiElement(procedureId, elementAId);
+        procedureRepository.linkToUiElement(procedureId, elementBId);
+
+        ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockRepositorySupport, times(2)).executeSingleWriteQuery(queryCaptor.capture(), anyMap());
+        queryCaptor.getAllValues().forEach(query -> {
+            assertThat(query).contains("OPTIONAL MATCH");
+            assertThat(query).contains("DELETE old");
+        });
+
+        Record mockRecord = mock(Record.class);
+        when(mockRecord.get("elementId")).thenReturn(value(elementBId.toString()));
+        when(mockRepositorySupport.executeSingleReadQuery(anyString(), anyMap())).thenReturn(List.of(mockRecord));
+
+        var result = procedureRepository.findTargetedUiElementId(procedureId);
+
+        assertThat(result).isPresent().contains(elementBId);
     }
 
     @Test

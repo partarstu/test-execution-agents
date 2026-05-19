@@ -111,6 +111,8 @@ public class UiTestAgentConfig extends AgentConfig {
                 "KNOWLEDGE_MAX_DEPTH", "3", false);
         this.knowledgeEmbeddingBatchSize = loadPropertyAsInteger(
                 "knowledge.embedding.batch.size", "KNOWLEDGE_EMBEDDING_BATCH_SIZE", "10", false);
+        this.knowledgeEmbeddingModel = loadProperty(
+                "knowledge.embedding.model", "KNOWLEDGE_EMBEDDING_MODEL", "multilingual-e5-small", s -> s, false);
         this.knowledgeMatchConfidenceHigh = loadPropertyAsDouble(
                 "knowledge.match.confidence.high", "KNOWLEDGE_MATCH_CONFIDENCE_HIGH", "0.85", false);
         this.knowledgeMatchConfidenceLow = loadPropertyAsDouble(
@@ -551,6 +553,7 @@ public class UiTestAgentConfig extends AgentConfig {
     private final ConfigProperty<Integer> neo4jMaxTransactionRetryTimeSeconds;
     private final ConfigProperty<Integer> knowledgeMaxDepth;
     private final ConfigProperty<Integer> knowledgeEmbeddingBatchSize;
+    private final ConfigProperty<String> knowledgeEmbeddingModel;
     private final ConfigProperty<Double> knowledgeMatchConfidenceHigh;
     private final ConfigProperty<Double> knowledgeMatchConfidenceLow;
     private final ConfigProperty<Integer> knowledgeMatchTopN;
@@ -586,6 +589,10 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public int getKnowledgeEmbeddingBatchSize() {
         return knowledgeEmbeddingBatchSize.value();
+    }
+
+    public String getKnowledgeEmbeddingModel() {
+        return knowledgeEmbeddingModel.value();
     }
 
     public double getKnowledgeMatchConfidenceHigh() {

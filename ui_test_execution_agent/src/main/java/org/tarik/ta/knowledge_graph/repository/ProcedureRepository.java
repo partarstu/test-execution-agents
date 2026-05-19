@@ -137,6 +137,9 @@ public class ProcedureRepository {
             """);
         this.LINK_TO_UI_ELEMENT = repositorySupport.cypher("""
             MATCH (sp:${LABEL_PROCEDURE} {${PROP_ID}: $spId})
+            OPTIONAL MATCH (sp)-[old:${REL_TARGETS}]->()
+            DELETE old
+            WITH sp
             MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elId})
             MERGE (sp)-[:${REL_TARGETS}]->(el)
             """);

@@ -17,7 +17,9 @@ package org.tarik.ta.a2a;
 
 import io.a2a.spec.AgentCard;
 import io.a2a.spec.AgentCapabilities;
+import io.a2a.spec.AgentInterface;
 import io.a2a.spec.TransportProtocol;
+
 import java.util.List;
 
 public class AgentCardProducer {
@@ -28,20 +30,19 @@ public class AgentCardProducer {
     }
 
     public AgentCard agentCard() {
-        return new AgentCard.Builder()
+        return AgentCard.builder()
                 .name("UI Test Execution Agent")
                 .description("Can execute UI tests in a fully automated mode")
-                .url(agentUrl)
-                .preferredTransport(TransportProtocol.JSONRPC.name())
                 .version("1.0.0")
-                .capabilities(new AgentCapabilities.Builder()
+                .capabilities(AgentCapabilities.builder()
                         .streaming(false)
                         .pushNotifications(false)
-                        .stateTransitionHistory(false)
+                        .extendedAgentCard(false)
                         .build())
                 .defaultInputModes(List.of("text"))
                 .defaultOutputModes(List.of("text"))
                 .skills(List.of())
+                .supportedInterfaces(List.of(new AgentInterface(TransportProtocol.JSONRPC.asString(), agentUrl)))
                 .build();
     }
 }

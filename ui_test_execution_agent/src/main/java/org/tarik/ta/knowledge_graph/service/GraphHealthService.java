@@ -15,6 +15,7 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import io.avaje.inject.PostConstruct;
 import jakarta.inject.Singleton;
 
 import org.slf4j.Logger;
@@ -47,6 +48,11 @@ class GraphHealthService {
         this.repository = repository;
         this.reportGenerator = reportGenerator;
         this.config = config;
+    }
+
+    @PostConstruct
+    void runStartupCleanup() {
+        runStaleSatisfiesEdgeCleanup();
     }
 
     GraphHealthReport runFullHealthCheck() {

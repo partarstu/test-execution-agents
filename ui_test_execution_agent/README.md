@@ -404,7 +404,10 @@ override properties file settings.**
 
 **Knowledge Configuration:**
 
-* `knowledge.embedding.model` (Env: `KNOWLEDGE_EMBEDDING_MODEL`): Embedding model for semantic search. Default: `bge-small-en-v15`.
+* `knowledge.embedding.model` (Env: `KNOWLEDGE_EMBEDDING_MODEL`): Embedding model used for knowledge-graph semantic search and procedure matching. Default: `multilingual-e5-small`. Supported values:
+    * `multilingual-e5-small` (default) — 384-dimensional multilingual model. On first startup the ONNX model files (`model.onnx`, `tokenizer.json`) are automatically downloaded from Hugging Face (`intfloat/multilingual-e5-small`) to `~/.cache/test-execution-agents/models/multilingual-e5-small/`. Document embeddings (ingestion) use the `"passage: "` prefix; query embeddings (semantic search) use the `"query: "` prefix.
+    * `bge-small-en-v15` — 384-dimensional English-only model bundled in the JAR; no download required. Suitable for English-only test suites.
+    * **Note:** Both models produce 384-dimensional vectors, which is required by the knowledge-graph vector indexes. Switching models after data has been ingested requires re-embedding all stored procedures.
 * `knowledge.max.depth` (Env: `KNOWLEDGE_MAX_DEPTH`): Maximum procedure decomposition depth. Default: `3`.
 * `knowledge.embedding.batch.size` (Env: `KNOWLEDGE_EMBEDDING_BATCH_SIZE`): Batch size for embedding generation. Default: `10`.
 * `knowledge.match.confidence.high` (Env: `KNOWLEDGE_MATCH_CONFIDENCE_HIGH`): High-confidence match threshold. Default: `0.85`.

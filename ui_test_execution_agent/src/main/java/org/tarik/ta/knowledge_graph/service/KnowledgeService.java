@@ -300,7 +300,7 @@ public class KnowledgeService {
      * for multiple descriptions at once (e.g., ordering conflict detection at execution start).
      */
     public List<Embedding> embedBatch(List<String> texts) {
-        return embeddingService.embedBatch(texts);
+        return embeddingService.embedBatchForQuery(texts);
     }
 
     public void updateTimingProfile(UUID id, long actualExecutionMs, long actualVerificationDelayMs) {
