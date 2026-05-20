@@ -201,11 +201,9 @@ public class ElementLocatorTools extends UiAbstractTools {
     private LocatedElementInfo processSuccessfulMatchCase(UiElementLocationInternalResult locationResult, String elementDescription) {
         var boundingBox = locationResult.boundingBox();
         LOG.info("The best visual match for the description '{}' has been located at: {}", elementDescription, boundingBox);
-        var scaledBoundingBox = getScaledBoundingBox(boundingBox);
-        var center = new Point((int) scaledBoundingBox.getCenterX(), (int) scaledBoundingBox.getCenterY());
         var screenRegion = new ScreenRegion(boundingBox.x, boundingBox.y, boundingBox.width, boundingBox.height);
         return new LocatedElementInfo(locationResult.elementUsedForLocation().name(), locationResult.elementUsedForLocation().id(),
-                center.x, center.y, screenRegion);
+                (int) boundingBox.getCenterX(), (int) boundingBox.getCenterY(), screenRegion);
     }
 
     private ElementLocationException processNoVisualMatchCase(UiElementLocationInternalResult locationResult, String elementDescription) {
