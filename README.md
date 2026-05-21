@@ -502,3 +502,10 @@ The project includes AI assistant skills in `.agents/skills/` to help with commo
 * For detailed documentation on the UI Test Execution Agent, see **[UI Agent README](ui_test_execution_agent/README.md)**.
 * For detailed documentation on the API Test Execution Agent, see **[API Agent README](api_test_execution_agent/README.md)**.
 * For development guidelines, see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+## License
+
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+See the [LICENSE](LICENSE) file for the full license text.
+
+Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)

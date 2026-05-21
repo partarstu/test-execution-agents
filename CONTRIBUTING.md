@@ -16,5 +16,5 @@ Please add unit tests for the implemented feature or bug fix, unless you pull re
 
 We follow the [Contributor Covenant Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md).
 
-The code in this repository is released under the Apache Software Foundation License, 2.0, and by contributing to this repository, you
+The code in this repository is released under the GNU Affero General Public License v3.0 (AGPL-3.0), and by contributing to this repository, you
 agree to release that contribution under that same license.

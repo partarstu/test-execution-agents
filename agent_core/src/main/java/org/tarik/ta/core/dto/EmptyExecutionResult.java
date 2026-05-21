@@ -1,17 +1,19 @@
 /*
- * Copyright © 2026 Taras Paruta (partarstu@gmail.com)
+ * agent-core - Core execution engine, with common logic for all test execution agents.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package org.tarik.ta.core.dto;
 
@@ -20,7 +22,7 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import org.jetbrains.annotations.Nullable;
 
-import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE;
+import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE_IF_LAST;
 
 @Description("Result of executing any action which doesn't expect the return value")
 public record EmptyExecutionResult(
@@ -29,7 +31,7 @@ public record EmptyExecutionResult(
         @Description("A message describing the outcome. Required only when execution failed — must explain the root cause.")
         @Nullable String message)
         implements FinalResult {
-    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE)
+    @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE_IF_LAST)
     public static EmptyExecutionResult endExecutionAndGetFinalResult(
             @P(FINAL_RESULT_PARAM_DESCRIPTION) EmptyExecutionResult result) {
         return result;
