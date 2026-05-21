@@ -11,6 +11,7 @@
     </parent>
 
     <artifactId>ui-test-execution-agent</artifactId>
+    <description>Agent specializing in execution of UI tests.</description>
 
     <properties>
         <main.class>org.tarik.ta.Server</main.class>

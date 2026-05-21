@@ -1,1 +1,114 @@
-Copyright 2025, Taras Paruta
+AI-Powered Test Execution Agents
+Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+
+This product is licensed under the GNU Affero General Public License,
+Version 3.0 (AGPL-3.0). See the LICENSE file for the full license text,
+or visit <https://www.gnu.org/licenses/agpl-3.0.html>.
+
+Source code for this work is available at:
+    https://github.com/partarstu/test-execution-agents
+
+================================================================================
+THIRD-PARTY ATTRIBUTIONS
+================================================================================
+
+This project depends on, bundles, or redistributes the following third-party
+components. Each component is provided under its own license; the canonical
+license texts and upstream NOTICE files are obtainable from each component's
+project page listed below.
+
+--------------------------------------------------------------------------------
+Apache License, Version 2.0  -  <https://www.apache.org/licenses/LICENSE-2.0>
+--------------------------------------------------------------------------------
+
+  * Avaje Inject
+    io.avaje:avaje-inject, avaje-inject-generator
+    https://avaje.io/inject/
+
+  * LangChain4j family
+    dev.langchain4j:langchain4j, langchain4j-core, langchain4j-open-ai,
+    langchain4j-vertex-ai-gemini, langchain4j-vertex-ai-anthropic,
+    langchain4j-google-ai-gemini, langchain4j-anthropic, langchain4j-chroma,
+    langchain4j-qdrant, langchain4j-embeddings,
+    langchain4j-embeddings-bge-small-en-v15, langchain4j-community-neo4j
+    https://github.com/langchain4j/langchain4j
+
+  * A2A Java SDK
+    io.github.a2asdk:a2a-java-sdk-server-common,
+    a2a-java-sdk-transport-jsonrpc, a2a-java-sdk-jsonrpc-common
+    https://github.com/a2aproject/a2a-java
+
+  * Javalin
+    io.javalin:javalin
+    https://javalin.io/
+
+  * Jackson (databind, jsonSchema module, JSR-310 datatype)
+    com.fasterxml.jackson.core:jackson-databind,
+    com.fasterxml.jackson.module:jackson-module-jsonSchema,
+    com.fasterxml.jackson.datatype:jackson-datatype-jsr310
+    https://github.com/FasterXML/jackson
+
+  * Google Guava
+    com.google.guava:guava
+    https://github.com/google/guava
+
+  * Apache Commons (Math3, Text)
+    org.apache.commons:commons-math3, commons-text
+    https://commons.apache.org/
+
+  * JetBrains Java Annotations
+    org.jetbrains:annotations
+    https://github.com/JetBrains/java-annotations
+
+  * REST Assured
+    io.rest-assured:rest-assured, json-schema-validator
+    https://rest-assured.io/
+
+  * OpenCSV
+    com.opencsv:opencsv
+    https://opencsv.sourceforge.net/
+
+  * Atlassian Swagger Request Validator
+    com.atlassian.oai:swagger-request-validator-restassured
+    https://bitbucket.org/atlassian/swagger-request-validator/
+
+  * Bytedeco JavaCV and Java bindings for OpenCV, OpenBLAS and FFmpeg
+    org.bytedeco:javacv, opencv, openblas, ffmpeg
+    https://github.com/bytedeco/javacv
+
+  * AssertJ Core
+    org.assertj:assertj-core
+    https://assertj.github.io/doc/
+
+--------------------------------------------------------------------------------
+MIT License  -  <https://opensource.org/licenses/MIT>
+--------------------------------------------------------------------------------
+
+  * SLF4J API
+    org.slf4j:slf4j-api
+    https://www.slf4j.org/
+
+--------------------------------------------------------------------------------
+Dual License: Eclipse Public License 1.0 / GNU Lesser General Public License 2.1
+  <https://www.eclipse.org/legal/epl-v10.html>
+  <https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>
+--------------------------------------------------------------------------------
+
+  * Logback Classic
+    ch.qos.logback:logback-classic
+    https://logback.qos.ch/
+
+--------------------------------------------------------------------------------
+Bundled native libraries (distributed via Bytedeco artifacts)
+--------------------------------------------------------------------------------
+
+The Bytedeco artifacts above ship pre-built native binaries of the following
+upstream projects. Their compiled binaries remain subject to the licenses of
+the original projects:
+
+  * OpenCV  -  Apache License 2.0  -  https://opencv.org/
+  * OpenBLAS  -  BSD 3-Clause License  -  https://www.openblas.net/
+  * FFmpeg  -  GNU LGPL 2.1+ or GNU GPL 2.0+, depending on build configuration
+    https://ffmpeg.org/legal.html
+
+================================================================================

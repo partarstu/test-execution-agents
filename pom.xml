@@ -9,12 +9,21 @@
     <version>2.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Test Execution Agent Parent</name>
+    <description>Parent build/dependency management for the Test Execution Agents system.</description>
 
     <modules>
         <module>agent_core</module>
         <module>ui_test_execution_agent</module>
         <module>api_test_execution_agent</module>
     </modules>
+
+    <licenses>
+        <license>
+            <name>GNU Affero General Public License v3.0</name>
+            <url>https://www.gnu.org/licenses/agpl-3.0.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
     <developers>
         <developer>
@@ -26,8 +35,8 @@
     <properties>
         <jdk.version>26</jdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <langchain4j.version>1.11.0</langchain4j.version>
-        <langchain4j.beta.version>1.11.0-beta19</langchain4j.beta.version>
+        <langchain4j.version>1.15.0</langchain4j.version>
+        <langchain4j.beta.version>1.15.0-beta25</langchain4j.beta.version>
         <logback.version>1.5.18</logback.version>
         <junit.version>5.12.1</junit.version>
         <license.maven.plugin.version>5.0.0</license.maven.plugin.version>
@@ -316,11 +325,11 @@
                          <properties>
                             <owner>Taras Paruta</owner>
                             <email>partarstu@gmail.com</email>
-                            <year>2026</year>
+                            <year>2025-2026</year>
                         </properties>
                          <licenseSets>
                             <licenseSet>
-                                <header>com/mycila/maven/plugin/license/templates/APACHE-2.txt</header>
+                                <header>com/mycila/maven/plugin/license/templates/AGPL-3.txt</header>
                                 <excludes>
                                     <exclude>**/README</exclude>
                                     <exclude>src/test/resources/**</exclude>

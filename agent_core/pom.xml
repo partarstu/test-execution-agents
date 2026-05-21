@@ -11,6 +11,7 @@
     </parent>
 
     <artifactId>agent-core</artifactId>
+    <description>Core execution engine, with common logic for all test execution agents.</description>
 
     <dependencies>
         <dependency>
