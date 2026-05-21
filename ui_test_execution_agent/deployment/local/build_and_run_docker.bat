@@ -1,6 +1,6 @@
 @REM
-@REM ui-test-execution-agent - ${project.description}
-@REM Copyright © 2026 Taras Paruta (partarstu@gmail.com)
+@REM ui-test-execution-agent - Agent specializing in execution of UI tests.
+@REM Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
 @REM
 @REM This program is free software: you can redistribute it and/or modify
 @REM it under the terms of the GNU Affero General Public License as published by

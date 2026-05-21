@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# ui-test-execution-agent - ${project.description}
-# Copyright © 2026 Taras Paruta (partarstu@gmail.com)
+# ui-test-execution-agent - Agent specializing in execution of UI tests.
+# Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by

@@ -9,6 +9,7 @@
     <version>2.0.0</version>
     <packaging>pom</packaging>
     <name>Test Execution Agent Parent</name>
+    <description>Parent build/dependency management for the Test Execution Agents system.</description>
 
     <modules>
         <module>agent_core</module>

@@ -1,5 +1,5 @@
 /*
- * Test Execution Agent Parent - ${project.description}
+ * Test Execution Agent Parent - Parent build/dependency management for the Test Execution Agents system.
  * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
  *
  * This program is free software: you can redistribute it and/or modify

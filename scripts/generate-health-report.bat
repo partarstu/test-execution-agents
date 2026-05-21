@@ -1,6 +1,6 @@
 @REM
-@REM Test Execution Agent Parent - ${project.description}
-@REM Copyright © 2026 Taras Paruta (partarstu@gmail.com)
+@REM Test Execution Agent Parent - Parent build/dependency management for the Test Execution Agents system.
+@REM Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
 @REM
 @REM This program is free software: you can redistribute it and/or modify
 @REM it under the terms of the GNU Affero General Public License as published by

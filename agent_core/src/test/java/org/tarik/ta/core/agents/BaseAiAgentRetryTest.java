@@ -1,5 +1,5 @@
 /*
- * agent-core - ${project.description}
+ * agent-core - Core execution engine, with common logic for all test execution agents.
  * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
  *
  * This program is free software: you can redistribute it and/or modify
