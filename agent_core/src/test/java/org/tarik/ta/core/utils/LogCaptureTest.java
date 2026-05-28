@@ -22,10 +22,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class LogCaptureTest {
 
@@ -34,12 +39,26 @@ class LogCaptureTest {
 
     @BeforeEach
     void setUp() {
-        logCapture = new LogCapture();
+        logCapture = new LogCapture(StreamingEventEmitter.NOOP);
     }
 
     @AfterEach
     void tearDown() {
         logCapture.stop();
+    }
+
+    @Test
+    void capture_shouldStreamEachLogLineLive() {
+        StreamingEventEmitter eventEmitter = mock(StreamingEventEmitter.class);
+        LogCapture streamingCapture = new LogCapture(eventEmitter);
+        streamingCapture.start();
+        try {
+            LOG.info("Streamed log message");
+        } finally {
+            streamingCapture.stop();
+        }
+
+        verify(eventEmitter, atLeastOnce()).emitLog(contains("Streamed log message"));
     }
 
     @Test

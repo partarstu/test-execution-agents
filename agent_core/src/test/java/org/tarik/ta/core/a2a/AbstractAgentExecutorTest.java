@@ -37,14 +37,11 @@ import org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import org.mockito.ArgumentMatchers;
 
@@ -180,7 +177,7 @@ class AbstractAgentExecutorTest {
     }
 
     @Test
-    void execute_shouldAddLogsArtifact_andHandleArtifactException() {
+    void execute_shouldStreamLogLinesAsLogFileArtifacts() {
         when(requestContext.getTask()).thenReturn(null);
         when(requestContext.getTaskId()).thenReturn("task-123");
         Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
@@ -188,35 +185,34 @@ class AbstractAgentExecutorTest {
         when(requestContext.getMessage()).thenReturn(message);
         when(agentEmitter.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.ROLE_USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
 
-        TestExecutionResult result = new TestExecutionResult(
-                "test-case",
-                TestExecutionStatus.PASSED,
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Instant.now(),
-                Instant.now(),
-                null,
-                null,
-                null);
-        executor.setResultToReturn(result);
-        executor.setLogsToReturn(List.of("log line 1", "log line 2"));
+        executor.setResultToReturn(passedResult());
+        executor.setLogToEmit("streamed log line");
 
         executor.execute(requestContext, agentEmitter);
 
-        // Verify addArtifact was called (for logs and the main json)
-        verify(agentEmitter).addArtifact(any(), any(), any(), any());
-        verify(agentEmitter).complete(any());
+        // The log line is streamed live as a dedicated ".log" file artifact, and the run completes with a message.
+        verify(agentEmitter).addArtifact(anyList(), any(), eq("execution_log"), any());
+        verify(agentEmitter).complete(any(Message.class));
     }
 
     @Test
-    void execute_shouldFailTask_whenArtifactCreationFails() {
+    void execute_shouldFailTask_whenFinalArtifactCreationFails() {
         when(requestContext.getTask()).thenReturn(null);
         when(requestContext.getTaskId()).thenReturn("task-123");
         Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
                 null, null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
-        TestExecutionResult result = new TestExecutionResult(
+        executor.setResultToReturn(passedResult());
+        executor.setThrowOnFinalArtifacts(true);
+
+        executor.execute(requestContext, agentEmitter);
+
+        verify(agentEmitter).fail(ArgumentMatchers.<Message>any());
+    }
+
+    private static TestExecutionResult passedResult() {
+        return new TestExecutionResult(
                 "test-case",
                 TestExecutionStatus.PASSED,
                 Collections.emptyList(),
@@ -226,21 +222,14 @@ class AbstractAgentExecutorTest {
                 null,
                 null,
                 null);
-        executor.setResultToReturn(result);
-        executor.setThrowOnArtifacts(true);
-
-        executor.execute(requestContext, agentEmitter);
-
-        // It should fail because addSpecificArtifacts throws
-        verify(agentEmitter).fail(ArgumentMatchers.<Message>any());
     }
 
     // Implementation stub
     static class TestAgentExecutor extends AbstractAgentExecutor {
         private TestExecutionResult resultToReturn;
         private boolean throwException = false;
-        private boolean throwOnArtifacts = false;
-        private List<String> logsToReturn = null;
+        private boolean throwOnFinalArtifacts = false;
+        private String logToEmit = null;
 
         public void setResultToReturn(TestExecutionResult result) {
             this.resultToReturn = result;
@@ -250,32 +239,31 @@ class AbstractAgentExecutorTest {
             this.throwException = throwException;
         }
 
-        public void setThrowOnArtifacts(boolean throwOnArtifacts) {
-            this.throwOnArtifacts = throwOnArtifacts;
+        public void setThrowOnFinalArtifacts(boolean throwOnFinalArtifacts) {
+            this.throwOnFinalArtifacts = throwOnFinalArtifacts;
         }
 
-        public void setLogsToReturn(List<String> logsToReturn) {
-            this.logsToReturn = logsToReturn;
+        public void setLogToEmit(String logToEmit) {
+            this.logToEmit = logToEmit;
         }
 
         @Override
-        protected TestExecutionResult executeTestCase(String message) {
+        protected TestExecutionResult executeTestCase(String message, StreamingEventEmitter eventEmitter) {
             if (throwException) {
                 throw new RuntimeException("Simulated error");
+            }
+            if (logToEmit != null) {
+                eventEmitter.emitLog(logToEmit);
             }
             return resultToReturn;
         }
 
         @Override
-        protected void addSpecificArtifacts(TestExecutionResult result, List<Part<?>> parts) {
-            if (throwOnArtifacts) {
+        protected List<Part<?>> buildFinalArtifactParts(TestExecutionResult result) {
+            if (throwOnFinalArtifacts) {
                 throw new RuntimeException("Simulated artifact error");
             }
-        }
-
-        @Override
-        protected Optional<List<String>> extractLogs(TestExecutionResult result) {
-            return Optional.ofNullable(logsToReturn);
+            return List.of();
         }
     }
 }

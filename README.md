@@ -35,8 +35,13 @@ D:\Projects\test-execution-agents\
 
 * **`agent_core`**: A shared library module containing the core framework logic, data transfer objects (DTOs), base agent classes, budget
   management, and generic utilities. This module provides:
-    * **`AbstractServer`**: Base class for agent servers providing common HTTP server initialization and A2A endpoint configuration.
-    * **`AbstractAgentExecutor`**: Base class for agent executors handling test case execution lifecycle and artifact management.
+    * **`AbstractServer`**: Base class for agent servers providing common HTTP server initialization and A2A endpoint configuration,
+      routing streaming methods to a Server-Sent Events (SSE) response and all other methods to a single JSON-RPC response.
+    * **`AbstractAgentExecutor`**: Base class for agent executors handling the test case execution lifecycle. It streams incremental
+      progress (step/precondition results, log lines) to the caller via a `StreamingEventEmitter` and emits a final consolidated
+      `TestExecutionResult` artifact on completion.
+    * **`StreamingEventEmitter`**: Abstraction that bridges live execution progress (step results, precondition results, log lines) to the
+      A2A streaming channel without coupling execution code to the transport layer.
     * **`GenericAiAgent`**: Core interface for all AI agents with retry logic and budget management.
     * **`TestCaseExtractor`**: Utility class that provides shared test case extraction functionality using an AI model.
     * **`TestContextDataTools`**: Shared tools for loading and managing test data (JSON, CSV).
@@ -120,10 +125,17 @@ The core module provides shared abstractions that both UI and API agents extend:
 
 ### Shared Across Agents
 
-- **A2A Protocol Support**: Both agents implement the Agent-to-Agent (A2A) protocol for inter-agent communication.
+- **A2A Protocol Support**: Both agents implement the Agent-to-Agent (A2A) protocol for inter-agent communication, including the
+  streaming `message/stream` (and `tasks/resubscribe`) methods served over Server-Sent Events (SSE). The agent cards advertise
+  `capabilities.streaming = true`.
+- **Live Streaming of Progress and Logs**: Streaming clients receive incremental events as execution advances — each precondition and
+  test step result is streamed as an artifact the moment it is recorded, and every captured log line is streamed live as a `text/plain`
+  `.log` file artifact. UI step screenshots are streamed as part of the corresponding step events. Regardless of streaming, the run always
+  concludes by emitting a single consolidated `TestExecutionResult` (full result JSON + logs file + screenshots), so non-streaming
+  `message/send` callers receive one ready-to-consume result object without having to reassemble the individual events.
 - **Test Case Extraction**: AI-powered parsing of natural language test cases into structured format.
 - **Budget Management**: Token and time budget controls to prevent runaway executions.
-- **Structured Logging**: Execution logs captured and included in test results.
+- **Structured Logging**: Execution logs captured and streamed live during execution.
 - **System Info Capture**: Device, OS, browser, and environment information in results.
 
 ### UI Test Agent Specific
@@ -313,7 +325,13 @@ gcloud builds submit --config=cloudbuild.yaml \
 
 ## Test Execution Results
 
-Both agents return structured `TestExecutionResult` objects containing:
+During execution, each precondition and test step result is streamed as an artifact as soon as it is recorded and each log line is streamed
+as a `text/plain` `.log` file artifact (UI step artifacts additionally include the step screenshot). The task then **completes with a single consolidated
+`TestExecutionResult`** — emitted both as a final artifact (full result JSON + logs file + screenshots) and as the completion message — so a
+non-streaming `message/send` caller receives one ready-to-consume result object, while a streaming `message/stream` caller additionally sees
+the live per-step progress.
+
+The consolidated `TestExecutionResult` contains:
 
 | Field                     | Description                           |
 |---------------------------|---------------------------------------|

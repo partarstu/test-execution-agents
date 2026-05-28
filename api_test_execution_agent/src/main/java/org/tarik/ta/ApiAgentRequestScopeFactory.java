@@ -20,6 +20,7 @@ package org.tarik.ta;
 import io.avaje.inject.BeanScope;
 import jakarta.inject.Singleton;
 import org.tarik.ta.core.BaseAgentRequestModule;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.core.model.ModelFactory;
 import org.tarik.ta.core.utils.TestCaseExtractor;
@@ -32,10 +33,11 @@ public class ApiAgentRequestScopeFactory {
         this.appScope = appScope;
     }
 
-    public BeanScope create() {
+    public BeanScope create(StreamingEventEmitter eventEmitter) {
         return BeanScope.builder()
                 .parent(appScope)
                 .bean(ApiTestAgentConfig.class, getAppConfig())
+                .bean(StreamingEventEmitter.class, eventEmitter)
                 .bean(ModelFactory.class, appScope.get(ModelFactory.class))
                 .bean(TestCaseExtractor.class, appScope.get(TestCaseExtractor.class))
                 .bean(BudgetManager.class, appScope.get(BudgetManager.class))

@@ -18,6 +18,7 @@
 package org.tarik.ta.model;
 
 import jakarta.inject.Inject;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.config.scopes.UiAgentRequestScope;
 
@@ -29,7 +30,8 @@ public class UiTestExecutionContext extends TestExecutionContext {
     private VisualState visualState;
 
     @Inject
-    public UiTestExecutionContext(VisualState visualState) {
+    public UiTestExecutionContext(VisualState visualState, StreamingEventEmitter eventEmitter) {
+        super(eventEmitter);
         this.visualState = visualState;
     }
 

@@ -53,8 +53,11 @@ or nested scope creation resolves all required dependencies consistently.
 - **Data Driven Testing:** Loads test data from JSON and CSV files using `TestContextDataTools`.
 - **Assertions:** Validates Status Codes, JSON Paths, JSON Schemas, and OpenAPI Specifications via `ApiAssertionTools`.
 - **Variable Substitution:** Dynamically replaces `${variableName}` in URLs, Headers, and Bodies.
-- **A2A Protocol:** Full support for Agent-to-Agent communication protocol.
-- **Execution Logging:** Captures and returns execution logs with test results.
+- **A2A Protocol:** Full support for Agent-to-Agent communication protocol, including streaming `message/stream` over Server-Sent Events
+  (the agent card advertises `capabilities.streaming = true`).
+- **Live Streaming:** Step and precondition results are streamed as artifacts as they are recorded, and each execution log line is streamed
+  live as a `text/plain` `.log` file artifact. The execution always concludes by emitting a single consolidated `TestExecutionResult`
+  (result JSON + logs file), so non-streaming `message/send` callers receive one ready-to-consume result object.
 - **System Info:** Includes device/OS/environment information in test results.
 
 ## Configuration

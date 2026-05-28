@@ -62,54 +62,48 @@ class AgentExecutionResourceTest {
     }
 
     @Test
-    void handleNonStreamingRequests_shouldHandleGetTask() {
-        Context ctx = mock(Context.class);
-        String body = "{\"jsonrpc\":\"2.0\",\"method\":\"agent/getTask\",\"params\":{\"taskId\":\"123\"},\"id\":1}";
-        when(ctx.body()).thenReturn(body);
-
-        String result = resource.handleNonStreamingRequests(ctx);
-        // It might return "not supported" if the handler isn't fully set up, but it covers the case
-        assertThat(result).contains("jsonrpc");
+    void handle_shouldHandleGetTask() {
+        assertThat(handleNonStreaming("{\"jsonrpc\":\"2.0\",\"method\":\"agent/getTask\",\"params\":{\"taskId\":\"123\"},\"id\":1}"))
+                .contains("jsonrpc");
     }
 
     @Test
-    void handleNonStreamingRequests_shouldHandleSendMessage() {
-        Context ctx = mock(Context.class);
+    void handle_shouldHandleSendMessage() {
         String body = "{\"jsonrpc\":\"2.0\",\"method\":\"agent/sendMessage\",\"params\":{\"taskId\":\"123\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"hello\"}]}},\"id\":2}";
-        when(ctx.body()).thenReturn(body);
-
-        String result = resource.handleNonStreamingRequests(ctx);
-        assertThat(result).contains("jsonrpc");
+        assertThat(handleNonStreaming(body)).contains("jsonrpc");
     }
 
     @Test
-    void handleNonStreamingRequests_shouldHandleCancelTask() {
-        Context ctx = mock(Context.class);
-        String body = "{\"jsonrpc\":\"2.0\",\"method\":\"agent/cancelTask\",\"params\":{\"taskId\":\"123\"},\"id\":3}";
-        when(ctx.body()).thenReturn(body);
-
-        String result = resource.handleNonStreamingRequests(ctx);
-        assertThat(result).contains("jsonrpc");
+    void handle_shouldHandleCancelTask() {
+        assertThat(handleNonStreaming("{\"jsonrpc\":\"2.0\",\"method\":\"agent/cancelTask\",\"params\":{\"taskId\":\"123\"},\"id\":3}"))
+                .contains("jsonrpc");
     }
 
     @Test
-    void handleNonStreamingRequests_shouldHandleUnknownMethod() {
-        Context ctx = mock(Context.class);
-        String body = "{\"jsonrpc\":\"2.0\",\"method\":\"unknown\",\"id\":4}";
-        when(ctx.body()).thenReturn(body);
-
-        String result = resource.handleNonStreamingRequests(ctx);
+    void handle_shouldHandleUnknownMethod() {
+        String result = handleNonStreaming("{\"jsonrpc\":\"2.0\",\"method\":\"unknown\",\"id\":4}");
         assertThat(result).contains("error");
-        assertThat(result).contains("not supported"); 
+        assertThat(result).contains("not supported");
     }
 
     @Test
-    void handleNonStreamingRequests_shouldHandleInvalidJson() {
-        Context ctx = mock(Context.class);
-        when(ctx.body()).thenReturn("invalid-json");
+    void handle_shouldHandleInvalidJson() {
+        assertThat(handleNonStreaming("invalid-json")).contains("error");
+    }
 
-        String result = resource.handleNonStreamingRequests(ctx);
-        assertThat(result).contains("error");
+    /**
+     * Drives {@link AgentExecutionResource#handle(Context)} through the non-streaming branch and returns the JSON
+     * response written to the Javalin context.
+     */
+    private String handleNonStreaming(String body) {
+        Context ctx = mock(Context.class);
+        when(ctx.body()).thenReturn(body);
+
+        resource.handle(ctx);
+
+        ArgumentCaptor<String> responseCaptor = ArgumentCaptor.forClass(String.class);
+        verify(ctx).result(responseCaptor.capture());
+        return responseCaptor.getValue();
     }
 
     @Test

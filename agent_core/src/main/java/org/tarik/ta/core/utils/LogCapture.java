@@ -19,8 +19,11 @@ package org.tarik.ta.core.utils;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
+import ch.qos.logback.core.AppenderBase;
+import io.avaje.inject.External;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.config.scopes.BaseAgentRequestScope;
 import jakarta.annotation.PreDestroy;
 
@@ -36,32 +39,34 @@ public class LogCapture {
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
             .withZone(ZoneId.systemDefault());
 
-    private ListAppender<ILoggingEvent> listAppender;
     private final Logger rootLogger;
+    private final StreamingEventEmitter eventEmitter;
+    private StreamingAppender appender;
 
-    public LogCapture() {
+    public LogCapture(@External @NotNull StreamingEventEmitter eventEmitter) {
+        this.eventEmitter = eventEmitter;
         this.rootLogger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
     }
 
     public void start() {
-        listAppender = new ListAppender<>();
-        listAppender.start();
-        rootLogger.addAppender(listAppender);
+        appender = new StreamingAppender();
+        appender.start();
+        rootLogger.addAppender(appender);
     }
 
     @PreDestroy
     public void stop() {
-        if (listAppender != null) {
-            rootLogger.detachAppender(listAppender);
-            listAppender.stop();
+        if (appender != null) {
+            rootLogger.detachAppender(appender);
+            appender.stop();
         }
     }
 
     public List<String> getLogs() {
-        if (listAppender == null) {
+        if (appender == null) {
             return new ArrayList<>();
         }
-        return listAppender.list.stream()
+        return appender.capturedEvents.stream()
                 .map(this::formatLogEvent)
                 .collect(Collectors.toList());
     }
@@ -79,5 +84,29 @@ public class LogCapture {
         }
         int lastDotIndex = loggerName.lastIndexOf('.');
         return lastDotIndex >= 0 ? loggerName.substring(lastDotIndex + 1) : loggerName;
+    }
+
+    /**
+     * Captures every log event for the final report and streams each formatted line live through the
+     * {@link StreamingEventEmitter}. Streaming a log line may itself produce log events on the same thread, so a
+     * re-entrancy guard prevents the forwarding from recursing into itself.
+     */
+    private final class StreamingAppender extends AppenderBase<ILoggingEvent> {
+        private final List<ILoggingEvent> capturedEvents = new ArrayList<>();
+        private final ThreadLocal<Boolean> forwarding = ThreadLocal.withInitial(() -> false);
+
+        @Override
+        protected void append(ILoggingEvent event) {
+            capturedEvents.add(event);
+            if (forwarding.get()) {
+                return;
+            }
+            forwarding.set(true);
+            try {
+                eventEmitter.emitLog(formatLogEvent(event));
+            } finally {
+                forwarding.set(false);
+            }
+        }
     }
 }

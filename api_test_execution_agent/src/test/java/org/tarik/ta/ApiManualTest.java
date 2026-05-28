@@ -23,6 +23,7 @@ import io.avaje.inject.BeanScope;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
@@ -117,7 +118,7 @@ class ApiManualTest {
         // When
         TestExecutionResult actualResult;
         try (BeanScope scope = BeanScope.builder().build()) {
-            try (BeanScope requestScope = scope.get(ApiAgentRequestScopeFactory.class).create()) {
+            try (BeanScope requestScope = scope.get(ApiAgentRequestScopeFactory.class).create(StreamingEventEmitter.NOOP)) {
                 actualResult = requestScope.get(ApiTestAgent.class).executeTestCase(OBJECT_MAPPER.writeValueAsString(testCase));
             }
         }

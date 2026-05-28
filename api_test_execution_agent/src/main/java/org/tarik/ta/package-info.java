@@ -25,6 +25,7 @@
     org.tarik.ta.core.utils.LogCapture.class,
     org.tarik.ta.core.utils.TestCaseExtractor.class,
     org.tarik.ta.core.AbstractServer.class,
-    org.tarik.ta.core.a2a.AgentExecutionResource.class
+    org.tarik.ta.core.a2a.AgentExecutionResource.class,
+    org.tarik.ta.core.a2a.StreamingEventEmitter.class
 })
 package org.tarik.ta;

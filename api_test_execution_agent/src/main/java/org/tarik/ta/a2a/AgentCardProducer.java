@@ -33,7 +33,7 @@ public class AgentCardProducer {
                 .description("Can execute API tests in a fully automated mode")
                 .version("1.0.0")
                 .capabilities(AgentCapabilities.builder()
-                        .streaming(false)
+                        .streaming(true)
                         .pushNotifications(false)
                         .extendedAgentCard(false)
                         .build())

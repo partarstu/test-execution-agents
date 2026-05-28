@@ -17,6 +17,9 @@
  */
 package org.tarik.ta.core.model;
 
+import io.avaje.inject.External;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.core.config.scopes.BaseAgentRequestScope;
@@ -34,8 +37,10 @@ public class TestExecutionContext {
     private final List<TestStepResult> testStepExecutionHistory;
     private final List<PreconditionResult> preconditionExecutionHistory;
     private final Map<String, Object> sharedData;
+    private final StreamingEventEmitter eventEmitter;
 
-    public TestExecutionContext() {
+    public TestExecutionContext(@External @NotNull StreamingEventEmitter eventEmitter) {
+        this.eventEmitter = eventEmitter;
         this.testStepExecutionHistory = new ArrayList<>();
         this.preconditionExecutionHistory = new ArrayList<>();
         this.sharedData = new HashMap<>();
@@ -55,10 +60,12 @@ public class TestExecutionContext {
 
     public synchronized void addStepResult(TestStepResult result) {
         this.testStepExecutionHistory.add(result);
+        eventEmitter.emitStepResult(result);
     }
 
     public synchronized void addPreconditionResult(PreconditionResult result) {
         this.preconditionExecutionHistory.add(result);
+        eventEmitter.emitPreconditionResult(result);
     }
 
     public synchronized void addSharedData(String key, Object value) {

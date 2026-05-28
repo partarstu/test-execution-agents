@@ -24,15 +24,17 @@ import jakarta.inject.Singleton;
 import org.tarik.ta.UiAgentRequestScopeFactory;
 import org.tarik.ta.UiTestAgent;
 import org.tarik.ta.core.a2a.AbstractAgentExecutor;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.dto.TestExecutionResult;
+import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.dto.UiTestExecutionResult;
 import org.tarik.ta.dto.UiTestStepResult;
 import org.tarik.ta.model.VisualState;
 
+import java.awt.image.BufferedImage;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
 
-import static java.util.Optional.ofNullable;
 import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 
@@ -46,38 +48,36 @@ public class UiAgentExecutor extends AbstractAgentExecutor {
     }
 
     @Override
-    protected TestExecutionResult executeTestCase(String message) {
-        try (var requestScope = requestScopeFactory.create(new VisualState(captureScreen()))) {
+    protected TestExecutionResult executeTestCase(String message, StreamingEventEmitter eventEmitter) {
+        try (var requestScope = requestScopeFactory.create(new VisualState(captureScreen()), eventEmitter)) {
             return requestScope.get(UiTestAgent.class).executeTestCase(message);
         }
     }
 
     @Override
-    protected void addSpecificArtifacts(TestExecutionResult result, List<Part<?>> parts) {
-        result.getStepResults().stream()
-                .filter(UiTestStepResult.class::isInstance)
-                .map(UiTestStepResult.class::cast)
-                .filter(r -> r.getScreenshot() != null)
-                .map(r -> new FileWithBytes(
-                        "image/" + SCREENSHOT_FORMAT,
-                        "screenshot_for_the_test_step_%s.%s".formatted(
-                                r.getTestStep().stepDescription().replaceAll("\\s", "_").toLowerCase(), SCREENSHOT_FORMAT),
-                        convertImageToBase64(r.getScreenshot(), SCREENSHOT_FORMAT)))
-                .map(FilePart::new)
-                .forEach(parts::add);
-
-        if (result instanceof UiTestExecutionResult uiResult) {
-            ofNullable(uiResult.getScreenshot())
-                    .ifPresent(screenshot -> parts.add(new FilePart(new FileWithBytes(
-                            "image/" + SCREENSHOT_FORMAT,
-                            "general_screenshot_for_the_test_case_%s.%s".formatted(
-                                    result.getTestCaseName().replaceAll("\\s", "_").toLowerCase(), SCREENSHOT_FORMAT),
-                            convertImageToBase64(screenshot, SCREENSHOT_FORMAT)))));
+    protected List<Part<?>> buildStepArtifactParts(TestStepResult stepResult) {
+        if (stepResult instanceof UiTestStepResult uiStepResult && uiStepResult.getScreenshot() != null) {
+            String fileName = "screenshot_for_the_test_step_%s.%s".formatted(
+                    uiStepResult.getTestStep().stepDescription().replaceAll("\\s", "_").toLowerCase(), SCREENSHOT_FORMAT);
+            return List.of(buildScreenshotPart(uiStepResult.getScreenshot(), fileName));
         }
+        return List.of();
     }
 
     @Override
-    protected Optional<List<String>> extractLogs(TestExecutionResult result) {
-        return ofNullable(result.getLogs());
+    protected List<Part<?>> buildFinalArtifactParts(TestExecutionResult result) {
+        List<Part<?>> parts = new LinkedList<>();
+        result.getStepResults().forEach(stepResult -> parts.addAll(buildStepArtifactParts(stepResult)));
+        if (result instanceof UiTestExecutionResult uiResult && uiResult.getScreenshot() != null) {
+            String fileName = "general_screenshot_for_the_test_case_%s.%s".formatted(
+                    result.getTestCaseName().replaceAll("\\s", "_").toLowerCase(), SCREENSHOT_FORMAT);
+            parts.add(buildScreenshotPart(uiResult.getScreenshot(), fileName));
+        }
+        return parts;
+    }
+
+    private static Part<?> buildScreenshotPart(BufferedImage screenshot, String fileName) {
+        return new FilePart(new FileWithBytes(
+                "image/" + SCREENSHOT_FORMAT, fileName, convertImageToBase64(screenshot, SCREENSHOT_FORMAT)));
     }
 }

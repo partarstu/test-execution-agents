@@ -26,12 +26,14 @@
         TestCaseExtractor.class,
         AbstractServer.class,
         AgentExecutionResource.class,
+        StreamingEventEmitter.class,
         VisualState.class
 })
 package org.tarik.ta;
 
 import io.avaje.inject.InjectModule;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.core.model.ModelFactory;
 import org.tarik.ta.core.model.TestExecutionContext;

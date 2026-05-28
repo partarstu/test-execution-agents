@@ -181,7 +181,9 @@ a part of this framework for executing a sample test case inside Google Cloud.
     * The [Server](src/main/java/org/tarik/ta/Server.java) class
       extends [AbstractServer](../agent_core/src/main/java/org/tarik/ta/core/AbstractServer.java) and is the entry point where a
       Javalin web server is started. The agent registers its capabilities and listens for A2A JSON-RPC requests on the root endpoint (`/`) (
-      port configured via `port` in `config.properties`). The server accepts only one test case execution at a time (the agent has been
+      port configured via `port` in `config.properties`). The endpoint serves the streaming `message/stream` (and `tasks/resubscribe`)
+      methods as a Server-Sent Events (SSE) stream and all other methods as a single JSON-RPC response; the agent card advertises
+      `capabilities.streaming = true`. The server accepts only one test case execution at a time (the agent has been
       designed as a static utility for simplicity purposes). Upon receiving a valid request when idle, it returns `200 OK` and starts the
       test case execution. If busy, it returns `429 Too Many Requests`.
     * The runtime request lifecycle now mirrors the API agent: [UiAgentExecutor](src/main/java/org/tarik/ta/a2a/UiAgentExecutor.java)
@@ -582,9 +584,12 @@ precondition.agent.prompt.version=v1.0.0
    java -jar target/<your-jar-name.jar>
    ```
 3. The server will start listening on the configured port (default `8005`).
-4. Send a `POST` request to the root endpoint (`/`) with the correct A2A message.
-5. The server will respond with execution results after it's done processing if it accepts the request (i.e., not already running a
-   test case) or with `429 Too Many Requests` if it's busy. The test case execution synchronously.
+4. Send a `POST` request to the root endpoint (`/`) with the correct A2A message. Use `message/stream` to receive incremental progress
+   and logs as a Server-Sent Events stream, or `message/send` for a single aggregated response.
+5. The server starts the test case execution if it accepts the request (i.e., not already running a test case) or returns
+   `429 Too Many Requests` if it's busy. Streaming clients receive step results and log lines as they are produced; in both cases the
+   execution concludes by emitting a single consolidated `TestExecutionResult` (full result JSON + logs file + screenshots), so a
+   `message/send` caller gets one ready-to-consume result object.
 
 ### Generating the Knowledge Graph Health Report
 

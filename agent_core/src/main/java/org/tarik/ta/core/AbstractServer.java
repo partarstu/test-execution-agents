@@ -54,7 +54,7 @@ public class AbstractServer {
         create(config -> {
             config.http.maxRequestSize = MAX_REQUEST_SIZE;
             config.jsonMapper(new JavalinJackson());
-            config.routes.post(MAIN_PATH, ctx -> ctx.result(agentExecutionResource.handleNonStreamingRequests(ctx)));
+            config.routes.post(MAIN_PATH, agentExecutionResource::handle);
             config.routes.get(AGENT_CARD_PATH, agentExecutionResource::getAgentCard);
         }).start(host, port);
 
