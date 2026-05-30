@@ -587,9 +587,10 @@ precondition.agent.prompt.version=v1.0.0
 4. Send a `POST` request to the root endpoint (`/`) with the correct A2A message. Use `message/stream` to receive incremental progress
    and logs as a Server-Sent Events stream, or `message/send` for a single aggregated response.
 5. The server starts the test case execution if it accepts the request (i.e., not already running a test case) or returns
-   `429 Too Many Requests` if it's busy. Streaming clients receive step results and log lines as they are produced; in both cases the
-   execution concludes by emitting a single consolidated `TestExecutionResult` (full result JSON + logs file + screenshots), so a
-   `message/send` caller gets one ready-to-consume result object.
+   `429 Too Many Requests` if it's busy. Streaming clients receive, before each step/precondition runs, a `working` status update
+   announcing the item about to execute (an `ExecutionActivity` payload for live dashboards), followed by step results and log lines as they
+   are produced; in both cases the execution concludes by emitting a single consolidated `TestExecutionResult` (full result JSON + logs file
+   + screenshots), so a `message/send` caller gets one ready-to-consume result object.
 
 ### Generating the Knowledge Graph Health Report
 

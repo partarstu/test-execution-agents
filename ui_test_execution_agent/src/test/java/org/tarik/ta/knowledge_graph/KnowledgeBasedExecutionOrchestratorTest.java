@@ -28,6 +28,7 @@ import org.tarik.ta.ExecutionMode;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.*;
 import org.tarik.ta.core.dto.TestCase;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator;
 import org.tarik.ta.knowledge_graph.StepExecutionOrchestrator;
@@ -95,6 +96,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         lenient().when(configMock.isFullyUnattended()).thenReturn(true);
         lenient().when(configMock.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
         lenient().when(configMock.getAncestryWindowSize()).thenReturn(5);
+        lenient().when(mockContext.getEventEmitter()).thenReturn(StreamingEventEmitter.NOOP);
 
         orchestrator = new KnowledgeBasedExecutionOrchestrator(
                 mockKnowledgeService, mockIngestionService, mockStepExecutionOrchestrator,

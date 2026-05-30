@@ -134,6 +134,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                     ExecutionItem item = queue.next();
                     LOG.info("Processing execution item: {} (remaining in queue: {})", item.getClass().getSimpleName(),
                             queue.remainingCount());
+                    notifyItemStarted(context, item);
                     var lookup = prefetchCoordinator.takeMatchResultIfValid(item)
                             .map(m -> toProcedureLookup(m, stateTracker))
                             .orElseGet(() -> findProcedureInDb(item, stateTracker));
@@ -169,6 +170,18 @@ public class KnowledgeBasedExecutionOrchestrator {
                 }
                 throw e;
             }
+        }
+    }
+
+    /**
+     * Streams the item that is about to be executed so observers (e.g. a live dashboard) can show the current activity
+     * before the corresponding result is produced.
+     */
+    private static void notifyItemStarted(UiTestExecutionContext context, ExecutionItem item) {
+        var eventEmitter = context.getEventEmitter();
+        switch (item) {
+            case TestStepItem(TestStep testStep) -> eventEmitter.emitStepStarted(testStep);
+            case PreconditionItem _ -> eventEmitter.emitPreconditionStarted(item.getDescription());
         }
     }
 

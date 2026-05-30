@@ -128,11 +128,13 @@ The core module provides shared abstractions that both UI and API agents extend:
 - **A2A Protocol Support**: Both agents implement the Agent-to-Agent (A2A) protocol for inter-agent communication, including the
   streaming `message/stream` (and `tasks/resubscribe`) methods served over Server-Sent Events (SSE). The agent cards advertise
   `capabilities.streaming = true`.
-- **Live Streaming of Progress and Logs**: Streaming clients receive incremental events as execution advances — each precondition and
-  test step result is streamed as an artifact the moment it is recorded, and every captured log line is streamed live as a `text/plain`
-  `.log` file artifact. UI step screenshots are streamed as part of the corresponding step events. Regardless of streaming, the run always
-  concludes by emitting a single consolidated `TestExecutionResult` (full result JSON + logs file + screenshots), so non-streaming
-  `message/send` callers receive one ready-to-consume result object without having to reassemble the individual events.
+- **Live Streaming of Progress and Logs**: Streaming clients receive incremental events as execution advances — before each test step or
+  precondition runs, a `working` status update carrying an `ExecutionActivity` payload announces what is *about to execute* (so a live
+  dashboard can show the current activity); each precondition and test step result is then streamed as an artifact the moment it is
+  recorded; and captured log lines are streamed live as appended chunks of a single growing `execution_log.log` artifact. UI step
+  screenshots are streamed as part of the corresponding step events. Regardless of streaming, the run always concludes by emitting a single
+  consolidated `TestExecutionResult` (full result JSON + logs file + screenshots), so non-streaming `message/send` callers receive one
+  ready-to-consume result object without having to reassemble the individual events.
 - **Test Case Extraction**: AI-powered parsing of natural language test cases into structured format.
 - **Budget Management**: Token and time budget controls to prevent runaway executions.
 - **Structured Logging**: Execution logs captured and streamed live during execution.
@@ -325,8 +327,10 @@ gcloud builds submit --config=cloudbuild.yaml \
 
 ## Test Execution Results
 
-During execution, each precondition and test step result is streamed as an artifact as soon as it is recorded and each log line is streamed
-as a `text/plain` `.log` file artifact (UI step artifacts additionally include the step screenshot). The task then **completes with a single consolidated
+During execution, a `working` status update announces each test step / precondition right before it runs (an `ExecutionActivity` payload
+with `activityType` and `description`, for live "currently executing" dashboards); each precondition and test step result is then streamed
+as an artifact as soon as it is recorded; and log lines are streamed as appended chunks of a single growing `execution_log.log` artifact
+(UI step artifacts additionally include the step screenshot). The task then **completes with a single consolidated
 `TestExecutionResult`** — emitted both as a final artifact (full result JSON + logs file + screenshots) and as the completion message — so a
 non-streaming `message/send` caller receives one ready-to-consume result object, while a streaming `message/stream` caller additionally sees
 the live per-step progress.

@@ -46,6 +46,10 @@ public class TestExecutionContext {
         this.sharedData = new HashMap<>();
     }
 
+    public @NotNull StreamingEventEmitter getEventEmitter() {
+        return eventEmitter;
+    }
+
     public synchronized List<TestStepResult> getTestStepExecutionHistory() {
         return testStepExecutionHistory;
     }

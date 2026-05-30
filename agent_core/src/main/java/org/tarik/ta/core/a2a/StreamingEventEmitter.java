@@ -19,6 +19,7 @@ package org.tarik.ta.core.a2a;
 
 import org.jetbrains.annotations.NotNull;
 import org.tarik.ta.core.dto.PreconditionResult;
+import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.dto.TestStepResult;
 
 /**
@@ -28,6 +29,12 @@ import org.tarik.ta.core.dto.TestStepResult;
  * {@code TestExecutionContext} and {@code LogCapture} can publish progress without coupling to the transport layer.
  */
 public interface StreamingEventEmitter {
+
+    /** Signals that the given test step is about to be executed, so observers can display the current activity. */
+    void emitStepStarted(@NotNull TestStep step);
+
+    /** Signals that the given precondition is about to be executed, so observers can display the current activity. */
+    void emitPreconditionStarted(@NotNull String precondition);
 
     void emitStepResult(@NotNull TestStepResult stepResult);
 
@@ -40,6 +47,14 @@ public interface StreamingEventEmitter {
      * the execution components in isolation.
      */
     StreamingEventEmitter NOOP = new StreamingEventEmitter() {
+        @Override
+        public void emitStepStarted(@NotNull TestStep step) {
+        }
+
+        @Override
+        public void emitPreconditionStarted(@NotNull String precondition) {
+        }
+
         @Override
         public void emitStepResult(@NotNull TestStepResult stepResult) {
         }

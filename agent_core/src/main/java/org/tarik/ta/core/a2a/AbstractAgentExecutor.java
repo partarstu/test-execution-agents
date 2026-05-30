@@ -27,8 +27,10 @@ import io.a2a.spec.*;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.core.dto.ExecutionActivity;
 import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestExecutionResult;
+import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.core.utils.CommonUtils;
 
@@ -42,6 +44,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static io.a2a.spec.TaskState.TASK_STATE_WORKING;
 import static java.lang.Thread.currentThread;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
@@ -219,9 +222,37 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
     private final class AgentBackedStreamingEventEmitter implements StreamingEventEmitter {
         private final AgentEmitter agentEmitter;
         private final ReentrantLock lock = new ReentrantLock();
+        private boolean logArtifactStarted = false;
 
         private AgentBackedStreamingEventEmitter(AgentEmitter agentEmitter) {
             this.agentEmitter = agentEmitter;
+        }
+
+        @Override
+        public void emitStepStarted(@NotNull TestStep step) {
+            emitActivity(new ExecutionActivity(ExecutionActivity.TEST_STEP, step.stepDescription()));
+        }
+
+        @Override
+        public void emitPreconditionStarted(@NotNull String precondition) {
+            emitActivity(new ExecutionActivity(ExecutionActivity.PRECONDITION, precondition));
+        }
+
+        /**
+         * Streams the currently-executing item as the message of a {@code working} status update, so observers see what
+         * is being executed right now (as opposed to the result artifacts, which describe what has already completed).
+         */
+        private void emitActivity(ExecutionActivity activity) {
+            serializeToJson(activity).ifPresent(json -> {
+                lock.lock();
+                try {
+                    agentEmitter.updateStatus(TASK_STATE_WORKING, agentEmitter.newAgentMessage(List.of(new TextPart(json)), null));
+                } catch (Exception e) {
+                    LOG.warn("Failed to stream the current activity to the caller.", e);
+                } finally {
+                    lock.unlock();
+                }
+            });
         }
 
         @Override
@@ -240,11 +271,23 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                     .ifPresent(json -> emitArtifact(List.of(new TextPart(json)), PRECONDITION_RESULT_ARTIFACT));
         }
 
+        /**
+         * Streams a single log line into one continuously growing {@code execution_log.log} artifact. The first line
+         * establishes the artifact; every subsequent line is appended to it as a new chunk, so the caller reconstructs
+         * the full log by concatenating the artifact's parts instead of receiving one artifact per line.
+         */
         @Override
         public void emitLog(@NotNull String logLine) {
-            String base64Log = Base64.getEncoder().encodeToString(logLine.getBytes(StandardCharsets.UTF_8));
-            FileWithBytes logFile = new FileWithBytes("text/plain", STREAMED_LOG_FILE_NAME, base64Log);
-            emitArtifact(List.of(new FilePart(logFile)), LOG_ARTIFACT);
+            lock.lock();
+            try {
+                List<Part<?>> parts = List.of(new TextPart(logLine + "\n"));
+                agentEmitter.addArtifact(parts, LOG_ARTIFACT, STREAMED_LOG_FILE_NAME, null, logArtifactStarted, false);
+                logArtifactStarted = true;
+            } catch (Exception e) {
+                LOG.warn("Failed to stream a log line to the caller.", e);
+            } finally {
+                lock.unlock();
+            }
         }
 
         private void emitArtifact(List<Part<?>> parts, String artifactName) {

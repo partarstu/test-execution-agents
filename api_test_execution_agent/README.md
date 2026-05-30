@@ -55,9 +55,10 @@ or nested scope creation resolves all required dependencies consistently.
 - **Variable Substitution:** Dynamically replaces `${variableName}` in URLs, Headers, and Bodies.
 - **A2A Protocol:** Full support for Agent-to-Agent communication protocol, including streaming `message/stream` over Server-Sent Events
   (the agent card advertises `capabilities.streaming = true`).
-- **Live Streaming:** Step and precondition results are streamed as artifacts as they are recorded, and each execution log line is streamed
-  live as a `text/plain` `.log` file artifact. The execution always concludes by emitting a single consolidated `TestExecutionResult`
-  (result JSON + logs file), so non-streaming `message/send` callers receive one ready-to-consume result object.
+- **Live Streaming:** Before each step/precondition runs, a `working` status update with an `ExecutionActivity` payload announces what is
+  about to execute (for live dashboards); step and precondition results are then streamed as artifacts as they are recorded; and log lines
+  are streamed live as appended chunks of a single growing `execution_log.log` artifact. The execution always concludes by emitting a single
+  consolidated `TestExecutionResult` (result JSON + logs file), so non-streaming `message/send` callers receive one ready-to-consume result object.
 - **System Info:** Includes device/OS/environment information in test results.
 
 ## Configuration

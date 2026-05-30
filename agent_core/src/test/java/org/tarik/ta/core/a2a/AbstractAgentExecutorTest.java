@@ -33,8 +33,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus;
+import org.tarik.ta.core.dto.TestStep;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -186,12 +188,33 @@ class AbstractAgentExecutorTest {
         when(agentEmitter.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.ROLE_USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
 
         executor.setResultToReturn(passedResult());
-        executor.setLogToEmit("streamed log line");
+        executor.addLogToEmit("first line");
+        executor.addLogToEmit("second line");
 
         executor.execute(requestContext, agentEmitter);
 
-        // The log line is streamed live as a dedicated ".log" file artifact, and the run completes with a message.
-        verify(agentEmitter).addArtifact(anyList(), any(), eq("execution_log"), any());
+        // The first line establishes the growing "execution_log.log" artifact (append=false); the second is appended (append=true).
+        verify(agentEmitter).addArtifact(anyList(), eq("execution_log"), eq("execution_log.log"), any(), eq(false), eq(false));
+        verify(agentEmitter).addArtifact(anyList(), eq("execution_log"), eq("execution_log.log"), any(), eq(true), eq(false));
+        verify(agentEmitter).complete(any(Message.class));
+    }
+
+    @Test
+    void execute_shouldStreamCurrentActivityWhenStepStarts() {
+        when(requestContext.getTask()).thenReturn(null);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+        when(agentEmitter.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.ROLE_USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
+
+        executor.setResultToReturn(passedResult());
+        executor.setStepToStart(new TestStep("click the button", null, null));
+
+        executor.execute(requestContext, agentEmitter);
+
+        // The step-about-to-run is streamed as a WORKING status update before its result, and the run completes.
+        verify(agentEmitter).updateStatus(eq(TaskState.TASK_STATE_WORKING), any(Message.class));
         verify(agentEmitter).complete(any(Message.class));
     }
 
@@ -229,10 +252,15 @@ class AbstractAgentExecutorTest {
         private TestExecutionResult resultToReturn;
         private boolean throwException = false;
         private boolean throwOnFinalArtifacts = false;
-        private String logToEmit = null;
+        private final List<String> logsToEmit = new ArrayList<>();
+        private TestStep stepToStart = null;
 
         public void setResultToReturn(TestExecutionResult result) {
             this.resultToReturn = result;
+        }
+
+        public void setStepToStart(TestStep stepToStart) {
+            this.stepToStart = stepToStart;
         }
 
         public void setThrowException(boolean throwException) {
@@ -243,8 +271,8 @@ class AbstractAgentExecutorTest {
             this.throwOnFinalArtifacts = throwOnFinalArtifacts;
         }
 
-        public void setLogToEmit(String logToEmit) {
-            this.logToEmit = logToEmit;
+        public void addLogToEmit(String logLine) {
+            this.logsToEmit.add(logLine);
         }
 
         @Override
@@ -252,9 +280,10 @@ class AbstractAgentExecutorTest {
             if (throwException) {
                 throw new RuntimeException("Simulated error");
             }
-            if (logToEmit != null) {
-                eventEmitter.emitLog(logToEmit);
+            if (stepToStart != null) {
+                eventEmitter.emitStepStarted(stepToStart);
             }
+            logsToEmit.forEach(eventEmitter::emitLog);
             return resultToReturn;
         }
 
