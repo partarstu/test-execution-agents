@@ -40,8 +40,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.a2a.spec.TaskState.TASK_STATE_WORKING;
@@ -65,6 +68,8 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
     private static final String STREAMED_LOG_FILE_NAME = "execution_log.log";
 
     private final ExecutorService taskExecutor = newSingleThreadExecutor();
+    private final AtomicReference<Future<?>> runningExecution = new AtomicReference<>();
+    private volatile boolean cancelled = false;
 
     @Override
     public void execute(RequestContext context, AgentEmitter emitter) throws A2AError {
@@ -72,34 +77,46 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
             emitter.submit();
         }
 
+        cancelled = false;
         LOG.info("Received test case execution request. Submitting to the execution queue.");
+        // Only a single execution may be running at a time. The future is kept so that cancel() can interrupt the
+        // running execution thread, which the inner taskExecutor would otherwise keep running after the caller returns.
+        Future<?> execution = taskExecutor.submit(() -> {
+            var taskId = context.getTaskId();
+            LOG.info("Starting task {} from the queue.", taskId);
+            try {
+                emitter.startWork();
+                extractTextFromMessage(context.getMessage())
+                        .ifPresentOrElse(userMessage -> runTestCase(userMessage, emitter),
+                                () -> {
+                                    var message = "Request for test case execution failed either contained no valid test " +
+                                            "case or insufficient information in order to execute it.";
+                                    LOG.error(message);
+                                    failTask(emitter, message);
+                                });
+            } catch (Exception e) {
+                LOG.error("Error while processing test case execution request for task {}", taskId, e);
+                failTask(emitter, "Couldn't start the task %s".formatted(taskId));
+            }
+        });
+        runningExecution.set(execution);
         try {
-            // Only a single execution may be running at a time
-            taskExecutor.submit(() -> {
-                var taskId = context.getTaskId();
-                LOG.info("Starting task {} from the queue.", taskId);
-                try {
-                    emitter.startWork();
-                    extractTextFromMessage(context.getMessage())
-                            .ifPresentOrElse(userMessage -> runTestCase(userMessage, emitter),
-                                    () -> {
-                                        var message = "Request for test case execution failed either contained no valid test " +
-                                                "case or insufficient information in order to execute it.";
-                                        LOG.error(message);
-                                        failTask(emitter, message);
-                                    });
-                } catch (Exception e) {
-                    LOG.error("Error while processing test case execution request for task {}", taskId, e);
-                    failTask(emitter, "Couldn't start the task %s".formatted(taskId));
-                }
-            }).get();
+            execution.get();
+        } catch (CancellationException e) {
+            LOG.info("Task execution was cancelled.");
         } catch (InterruptedException e) {
             currentThread().interrupt();
-            LOG.error("Task execution was interrupted.", e);
-            failTask(emitter, "Task execution was interrupted.");
+            if (cancelled) {
+                LOG.info("Task execution was cancelled.");
+            } else {
+                LOG.error("Task execution was interrupted.", e);
+                failTask(emitter, "Task execution was interrupted.");
+            }
         } catch (ExecutionException e) {
             LOG.error("Error during task execution.", e.getCause());
             failTask(emitter, "Error during task execution: %s".formatted(e.getCause().getMessage()));
+        } finally {
+            runningExecution.compareAndSet(execution, null);
         }
     }
 
@@ -131,6 +148,10 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
      * individual streamed events.
      */
     private void completeWithResult(TestExecutionResult result, AgentEmitter emitter) {
+        if (cancelled) {
+            LOG.info("Skipping result completion because the task was cancelled.");
+            return;
+        }
         try {
             String resultJson = OBJECT_MAPPER.writeValueAsString(result);
             List<Part<?>> parts = new ArrayList<>();
@@ -182,6 +203,10 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
     }
 
     protected void failTask(AgentEmitter emitter, String message) {
+        if (cancelled) {
+            LOG.info("Skipping task failure because the task was cancelled.");
+            return;
+        }
         TextPart errorPart = new TextPart(message, null);
         List<Part<?>> parts = List.of(errorPart);
         emitter.fail(emitter.newAgentMessage(parts, null));
@@ -199,7 +224,16 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
             throw new TaskNotCancelableError();
         }
 
+        cancelled = true;
+        interruptRunningExecution();
         emitter.cancel();
+    }
+
+    private void interruptRunningExecution() {
+        Future<?> execution = runningExecution.get();
+        if (execution != null) {
+            execution.cancel(true);
+        }
     }
 
     protected Optional<String> extractTextFromMessage(Message message) {

@@ -40,6 +40,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -181,6 +183,31 @@ class AbstractAgentExecutorTest {
     }
 
     @Test
+    void cancel_shouldInterruptRunningExecutionAndNotEmitTerminalEvent() throws Exception {
+        when(requestContext.getTask()).thenReturn(task);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+        when(task.status()).thenReturn(new TaskStatus(TaskState.TASK_STATE_WORKING, null, null));
+        executor.setResultToReturn(passedResult());
+        executor.setBlockUntilInterrupted(true);
+
+        Thread executionThread = new Thread(() -> executor.execute(requestContext, agentEmitter));
+        executionThread.start();
+        // Wait until the test case execution is actually running before cancelling it.
+        assertThat(executor.awaitExecutionStarted()).isTrue();
+
+        executor.cancel(requestContext, agentEmitter);
+        executionThread.join(5_000);
+
+        assertThat(executionThread.isAlive()).isFalse();
+        verify(agentEmitter).cancel();
+        verify(agentEmitter, never()).complete(any(Message.class));
+        verify(agentEmitter, never()).fail(ArgumentMatchers.<Message>any());
+    }
+
+    @Test
     void execute_shouldStreamLogLinesAsLogFileArtifacts() {
         when(requestContext.getTask()).thenReturn(null);
         when(requestContext.getTaskId()).thenReturn("task-123");
@@ -287,6 +314,16 @@ class AbstractAgentExecutorTest {
         private final List<String> logsToEmit = new ArrayList<>();
         private TestStep stepToStart = null;
         private String preconditionToStart = null;
+        private boolean blockUntilInterrupted = false;
+        private final CountDownLatch executionStarted = new CountDownLatch(1);
+
+        public void setBlockUntilInterrupted(boolean blockUntilInterrupted) {
+            this.blockUntilInterrupted = blockUntilInterrupted;
+        }
+
+        public boolean awaitExecutionStarted() throws InterruptedException {
+            return executionStarted.await(5, TimeUnit.SECONDS);
+        }
 
         public void setResultToReturn(TestExecutionResult result) {
             this.resultToReturn = result;
@@ -316,6 +353,15 @@ class AbstractAgentExecutorTest {
         protected TestExecutionResult executeTestCase(String message, StreamingEventEmitter eventEmitter) {
             if (throwException) {
                 throw new RuntimeException("Simulated error");
+            }
+            if (blockUntilInterrupted) {
+                executionStarted.countDown();
+                try {
+                    new CountDownLatch(1).await(); // released only by interruption from cancel()
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Execution interrupted", e);
+                }
             }
             if (stepToStart != null) {
                 eventEmitter.emitStepStarted(stepToStart);

@@ -41,7 +41,10 @@ D:\Projects\test-execution-agents\
       (method not found, invalid params, invalid request, parse error, or internal error).
     * **`AbstractAgentExecutor`**: Base class for agent executors handling the test case execution lifecycle. It streams incremental
       progress (step/precondition results, log lines) to the caller via a `StreamingEventEmitter` and emits a final consolidated
-      `TestExecutionResult` artifact on completion.
+      `TestExecutionResult` artifact on completion. It also supports the A2A `tasks/cancel` method: a cancel request interrupts the
+      running execution thread and transitions the task to the `canceled` state, suppressing any terminal completion/failure event from
+      the aborted run. Cancelling when no task is running yields a `TaskNotFoundError`, and cancelling an already-terminal task yields a
+      `TaskNotCancelableError`, as required by the A2A specification.
     * **`StreamingEventEmitter`**: Abstraction that bridges live execution progress (step results, precondition results, log lines) to the
       A2A streaming channel without coupling execution code to the transport layer.
     * **`GenericAiAgent`**: Core interface for all AI agents with retry logic and budget management.
@@ -130,6 +133,9 @@ The core module provides shared abstractions that both UI and API agents extend:
 - **A2A Protocol Support**: Both agents implement the Agent-to-Agent (A2A) protocol for inter-agent communication, including the
   streaming `message/stream` (and `tasks/resubscribe`) methods served over Server-Sent Events (SSE). The agent cards advertise
   `capabilities.streaming = true`.
+- **Task Cancellation**: The A2A `tasks/cancel` method interrupts the currently running test execution and transitions the task to the
+  `canceled` state, suppressing the terminal completion/failure event of the aborted run. A cancel request for a task that is not running
+  returns `TaskNotFoundError`, and one for an already-terminal task returns `TaskNotCancelableError`, per the A2A specification.
 - **Live Streaming of Progress and Logs**: Streaming clients receive incremental events as execution advances — before each test step or
   precondition runs, a `working` status update carrying an `ExecutionActivity` payload announces what is *about to execute* (so a live
   dashboard can show the current activity); each precondition and test step result is then streamed as an artifact the moment it is
