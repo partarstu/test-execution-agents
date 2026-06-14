@@ -222,9 +222,12 @@ class AbstractAgentExecutorTest {
 
         executor.execute(requestContext, agentEmitter);
 
-        // The first line establishes the growing "execution_log.log" artifact (append=false); the second is appended (append=true).
-        verify(agentEmitter).addArtifact(anyList(), eq("execution_log"), eq("execution_log.log"), any(), eq(false), eq(false));
-        verify(agentEmitter).addArtifact(anyList(), eq("execution_log"), eq("execution_log.log"), any(), eq(true), eq(false));
+        // Both lines are batched and flushed as a single artifact event after execution completes.
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Part<?>>> partsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(agentEmitter).addArtifact(partsCaptor.capture(), eq("execution_log"), eq("execution_log.log"), any(), eq(false), eq(false));
+        String logText = ((TextPart) partsCaptor.getValue().getFirst()).text();
+        assertThat(logText).contains("first line").contains("second line");
         verify(agentEmitter).complete(any(Message.class));
     }
 

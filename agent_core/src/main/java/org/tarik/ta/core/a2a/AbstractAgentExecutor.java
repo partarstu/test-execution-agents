@@ -122,8 +122,9 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
 
     private void runTestCase(String message, AgentEmitter emitter) {
         var eventEmitter = new AgentBackedStreamingEventEmitter(emitter);
-        getTestExecutionResult(message, emitter, eventEmitter)
-                .ifPresent(result -> completeWithResult(result, emitter));
+        var result = getTestExecutionResult(message, emitter, eventEmitter);
+        eventEmitter.flushLogs();
+        result.ifPresent(r -> completeWithResult(r, emitter));
     }
 
     private Optional<TestExecutionResult> getTestExecutionResult(String message, AgentEmitter emitter,
@@ -256,8 +257,10 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
      * deterministic when they originate from different execution threads.
      */
     private final class AgentBackedStreamingEventEmitter implements StreamingEventEmitter {
+        private static final int LOG_BUFFER_FLUSH_SIZE = 50;
         private final AgentEmitter agentEmitter;
         private final ReentrantLock lock = new ReentrantLock();
+        private final List<String> logBuffer = new ArrayList<>();
         private boolean logArtifactStarted = false;
 
         private AgentBackedStreamingEventEmitter(AgentEmitter agentEmitter) {
@@ -316,11 +319,39 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
         public void emitLog(@NotNull String logLine) {
             lock.lock();
             try {
-                List<Part<?>> parts = List.of(new TextPart("%s\n".formatted(logLine)));
+                logBuffer.add(logLine);
+                if (logBuffer.size() >= LOG_BUFFER_FLUSH_SIZE) {
+                    flushLogBuffer();
+                }
+            } catch (Exception e) {
+                LOG.warn("Failed to stream a log line to the caller.", e);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        /** Flushes buffered log lines as a single artifact event. Caller must hold the lock. */
+        private void flushLogBuffer() {
+            if (logBuffer.isEmpty()) {
+                return;
+            }
+            try {
+                String combined = logBuffer.stream().collect(joining("\n", "", "\n"));
+                List<Part<?>> parts = List.of(new TextPart(combined));
                 agentEmitter.addArtifact(parts, LOG_ARTIFACT, STREAMED_LOG_FILE_NAME, null, logArtifactStarted, false);
                 logArtifactStarted = true;
             } catch (Exception e) {
-                LOG.warn("Failed to stream a log line to the caller.", e);
+                LOG.warn("Failed to flush buffered log lines to the caller.", e);
+            } finally {
+                logBuffer.clear();
+            }
+        }
+
+        /** Flushes any remaining buffered log lines. */
+        void flushLogs() {
+            lock.lock();
+            try {
+                flushLogBuffer();
             } finally {
                 lock.unlock();
             }
