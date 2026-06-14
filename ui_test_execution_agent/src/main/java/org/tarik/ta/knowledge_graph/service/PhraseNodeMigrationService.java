@@ -78,11 +78,12 @@ class PhraseNodeMigrationService {
                 failed++;
             }
         }
-        LOG.info("Phrase node migration complete: {}/{} procedure(s) migrated", migrated, orphans.size());
         if (failed > 0) {
+            LOG.error("Phrase node migration failed: {}/{} procedure(s) failed to migrate", failed, orphans.size());
             throw new IllegalStateException(
                     "Phrase node migration failed for %d procedure(s) — startup aborted. Check logs above for details.".formatted(failed));
         }
+        LOG.info("Phrase node migration complete: {}/{} procedure(s) migrated", migrated, orphans.size());
     }
 
     /**
@@ -109,10 +110,11 @@ class PhraseNodeMigrationService {
                 failed++;
             }
         }
-        LOG.info("Phrase property repair complete: {}/{} procedure(s) repaired", repaired, mismatches.size());
         if (failed > 0) {
+            LOG.error("Phrase property repair failed: {}/{} procedure(s) failed to repair", failed, mismatches.size());
             throw new IllegalStateException(
                     "Phrase property repair failed for %d procedure(s) — startup aborted. Check logs above for details.".formatted(failed));
         }
+        LOG.info("Phrase property repair complete: {}/{} procedure(s) repaired", repaired, mismatches.size());
     }
 }

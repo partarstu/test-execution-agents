@@ -29,7 +29,6 @@ import org.tarik.ta.UiTestAgent;
 import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
-import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.dto.UiTestExecutionResult;
 import org.tarik.ta.dto.UiTestStepResult;
 import org.tarik.ta.model.VisualState;
@@ -98,24 +97,21 @@ class UiAgentExecutorTest {
     }
 
     @Test
-    void buildFinalArtifactParts_shouldBeEmpty_whenResultHasNoScreenshots() {
+    void buildFinalArtifactParts_shouldBeEmpty_whenResultHasNoScreenshot() {
         UiAgentExecutor executor = new UiAgentExecutor(mock(UiAgentRequestScopeFactory.class));
         UiTestExecutionResult result = mock(UiTestExecutionResult.class);
-        when(result.getStepResults()).thenReturn(List.of());
         when(result.getScreenshot()).thenReturn(null);
 
         assertThat(executor.buildFinalArtifactParts(result)).isEmpty();
     }
 
     @Test
-    void buildFinalArtifactParts_shouldBundleStepScreenshots() {
+    void buildFinalArtifactParts_shouldContainOnlyGeneralScreenshot_withoutRebundlingStepScreenshots() {
         UiAgentExecutor executor = new UiAgentExecutor(mock(UiAgentRequestScopeFactory.class));
         BufferedImage screenshot = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
-        UiTestStepResult stepResult = new UiTestStepResult(new TestStep("click the button", null, null),
-                SUCCESS, null, "done", screenshot, Instant.now(), Instant.now());
         UiTestExecutionResult result = mock(UiTestExecutionResult.class);
-        when(result.getStepResults()).thenReturn(List.<TestStepResult>of(stepResult));
-        when(result.getScreenshot()).thenReturn(null);
+        when(result.getTestCaseName()).thenReturn("sample test");
+        when(result.getScreenshot()).thenReturn(screenshot);
 
         List<Part<?>> parts = executor.buildFinalArtifactParts(result);
 

@@ -17,14 +17,20 @@
  */
 package org.tarik.ta.core.a2a;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.a2a.jsonrpc.common.json.IdJsonMappingException;
+import io.a2a.jsonrpc.common.json.InvalidParamsJsonMappingException;
+import io.a2a.jsonrpc.common.json.JsonMappingException;
+import io.a2a.jsonrpc.common.json.JsonProcessingException;
+import io.a2a.jsonrpc.common.json.MethodNotFoundJsonMappingException;
 import io.a2a.jsonrpc.common.wrappers.A2AErrorResponse;
+import io.a2a.jsonrpc.common.wrappers.A2ARequest;
 import io.a2a.jsonrpc.common.wrappers.A2AResponse;
 import io.a2a.jsonrpc.common.wrappers.CancelTaskRequest;
 import io.a2a.jsonrpc.common.wrappers.GetTaskRequest;
 import io.a2a.jsonrpc.common.wrappers.SendMessageRequest;
 import io.a2a.jsonrpc.common.wrappers.SendStreamingMessageRequest;
 import io.a2a.jsonrpc.common.wrappers.SendStreamingMessageResponse;
+import io.a2a.jsonrpc.common.wrappers.StreamingJSONRPCRequest;
 import io.a2a.jsonrpc.common.wrappers.SubscribeToTaskRequest;
 import io.a2a.server.ServerCallContext;
 import io.a2a.server.auth.UnauthenticatedUser;
@@ -37,9 +43,13 @@ import io.a2a.server.tasks.InMemoryPushNotificationConfigStore;
 import io.a2a.server.tasks.InMemoryTaskStore;
 import io.a2a.server.tasks.PushNotificationConfigStore;
 import io.a2a.server.util.sse.SseFormatter;
-import io.a2a.spec.A2AMethods;
+import io.a2a.spec.A2AError;
 import io.a2a.spec.AgentCard;
 import io.a2a.spec.InternalError;
+import io.a2a.spec.InvalidParamsError;
+import io.a2a.spec.InvalidRequestError;
+import io.a2a.spec.JSONParseError;
+import io.a2a.spec.MethodNotFoundError;
 import io.a2a.spec.UnsupportedOperationError;
 import io.a2a.transport.jsonrpc.handler.JSONRPCHandler;
 import io.javalin.http.Context;
@@ -57,10 +67,12 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static io.a2a.grpc.utils.JSONRPCUtils.parseRequestBody;
+import static io.a2a.jsonrpc.common.json.JsonUtil.toJson;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 
@@ -70,14 +82,12 @@ public class AgentExecutionResource {
     private static final PushNotificationConfigStore pushNotificationConfigStore = new InMemoryPushNotificationConfigStore();
     private final Provider<AgentExecutor> agentExecutorProvider;
     private final Provider<AgentCard> agentCardProvider;
-    private final ObjectMapper objectMapper;
     private JSONRPCHandler jsonRpcHandler;
 
     @Inject
     public AgentExecutionResource(Provider<AgentExecutor> agentExecutorProvider, Provider<AgentCard> agentCardProvider) {
         this.agentExecutorProvider = agentExecutorProvider;
         this.agentCardProvider = agentCardProvider;
-        this.objectMapper = new ObjectMapper().findAndRegisterModules();
     }
 
     @PostConstruct
@@ -97,15 +107,21 @@ public class AgentExecutionResource {
     }
 
     /**
-     * Entry point for the main A2A endpoint. Streaming methods ({@code SendStreamingMessage}, {@code SubscribeToTask})
-     * are answered with a Server-Sent Events stream; every other method is answered with a single JSON-RPC response.
+     * Entry point for the main A2A endpoint. The body is parsed once with the A2A SDK's JSON-RPC parser into a typed
+     * {@link A2ARequest}; streaming requests ({@code SendStreamingMessage}, {@code SubscribeToTask}) are answered with
+     * a Server-Sent Events stream, every other request with a single JSON-RPC response.
      */
     public void handle(@NotNull Context context) {
-        var body = context.body();
-        if (isStreamingMethod(extractMethod(body))) {
-            handleStreamingRequest(context, body);
-        } else {
-            context.result(handleNonStreamingRequest(body));
+        try {
+            A2ARequest<?> request = parseRequestBody(context.body(), null);
+            if (request instanceof StreamingJSONRPCRequest<?> streamingRequest) {
+                handleStreamingRequest(context, streamingRequest);
+            } else {
+                context.result(handleNonStreamingRequest(request));
+            }
+        } catch (Exception e) {
+            LOG.error("Got error while processing agent task request", e);
+            context.result(toErrorResponse(e));
         }
     }
 
@@ -114,75 +130,97 @@ public class AgentExecutionResource {
      *
      * @return the JSON-RPC response which may be an error response
      */
-    private String handleNonStreamingRequest(String body) {
+    private String handleNonStreamingRequest(A2ARequest<?> request) {
         try {
-            var method = extractMethod(body);
             ServerCallContext serverCallContext = newCallContext();
-            A2AResponse<?> response = switch (method) {
-                case A2AMethods.GET_TASK_METHOD ->
-                    jsonRpcHandler.onGetTask(objectMapper.readValue(body, GetTaskRequest.class), serverCallContext);
-                case A2AMethods.CANCEL_TASK_METHOD ->
-                    jsonRpcHandler.onCancelTask(objectMapper.readValue(body, CancelTaskRequest.class),
-                            serverCallContext);
-                case A2AMethods.SEND_MESSAGE_METHOD ->
-                    jsonRpcHandler.onMessageSend(objectMapper.readValue(body, SendMessageRequest.class),
-                            serverCallContext);
-                default -> new A2AErrorResponse(null, new UnsupportedOperationError());
+            A2AResponse<?> response = switch (request) {
+                case GetTaskRequest getTaskRequest -> jsonRpcHandler.onGetTask(getTaskRequest, serverCallContext);
+                case CancelTaskRequest cancelTaskRequest -> jsonRpcHandler.onCancelTask(cancelTaskRequest, serverCallContext);
+                case SendMessageRequest sendMessageRequest -> jsonRpcHandler.onMessageSend(sendMessageRequest, serverCallContext);
+                default -> new A2AErrorResponse(request.getId(), new UnsupportedOperationError());
             };
-            return objectMapper.writeValueAsString(response);
+            return toJson(response);
         } catch (Exception e) {
-            try {
-                LOG.error("Got error while processing agent task request", e);
-                return objectMapper
-                        .writeValueAsString(new A2AErrorResponse(null, new InternalError(e.getMessage())));
-            } catch (Exception ex) {
-                return "{}";
-            }
+            LOG.error("Got error while processing agent task request", e);
+            return toErrorResponse(e);
+        }
+    }
+
+    /**
+     * Maps a failure to its JSON-RPC spec error and serializes it as an {@link A2AErrorResponse}, falling back to an
+     * empty JSON object if even the error serialization fails. SDK parse exceptions carry the request id when it could
+     * be extracted, so it is echoed back as required by the JSON-RPC spec.
+     */
+    private String toErrorResponse(@NotNull Throwable e) {
+        Object requestId = e instanceof IdJsonMappingException idAware ? idAware.getId() : null;
+        A2AError error = switch (e) {
+            case A2AError a2aError -> a2aError;
+            case MethodNotFoundJsonMappingException ignored -> new MethodNotFoundError();
+            case InvalidParamsJsonMappingException invalidParams -> new InvalidParamsError(invalidParams.getMessage());
+            case JsonMappingException invalidRequest -> new InvalidRequestError(invalidRequest.getMessage());
+            case JsonProcessingException unparseable -> new JSONParseError(unparseable.getMessage());
+            default -> new InternalError(e.getMessage());
+        };
+        try {
+            return toJson(new A2AErrorResponse(requestId, error));
+        } catch (Exception ex) {
+            LOG.error("Failed to serialize the JSON-RPC error response.", ex);
+            return "{}";
         }
     }
 
     /**
      * Subscribes to the publisher produced by the streaming handler and writes each emitted event to the client as a
-     * Server-Sent Event. The request thread is held open until the stream completes, errors or the client disconnects.
+     * Server-Sent Event.
      */
-    private void handleStreamingRequest(@NotNull Context context, String body) {
+    private void handleStreamingRequest(@NotNull Context context, StreamingJSONRPCRequest<?> request) {
         try {
             ServerCallContext serverCallContext = newCallContext();
-            var method = extractMethod(body);
-            Flow.Publisher<SendStreamingMessageResponse> publisher = switch (method) {
-                case A2AMethods.SEND_STREAMING_MESSAGE_METHOD ->
-                    jsonRpcHandler.onMessageSendStream(objectMapper.readValue(body, SendStreamingMessageRequest.class),
-                            serverCallContext);
-                case A2AMethods.SUBSCRIBE_TO_TASK_METHOD ->
-                    jsonRpcHandler.onSubscribeToTask(objectMapper.readValue(body, SubscribeToTaskRequest.class),
-                            serverCallContext);
-                default -> null;
+            Flow.Publisher<SendStreamingMessageResponse> publisher = switch (request) {
+                case SendStreamingMessageRequest sendStreamingMessageRequest ->
+                    jsonRpcHandler.onMessageSendStream(sendStreamingMessageRequest, serverCallContext);
+                case SubscribeToTaskRequest subscribeToTaskRequest ->
+                    jsonRpcHandler.onSubscribeToTask(subscribeToTaskRequest, serverCallContext);
             };
-            if (publisher == null) {
-                context.result(objectMapper.writeValueAsString(new A2AErrorResponse(null, new UnsupportedOperationError())));
-                return;
-            }
             writeServerSentEvents(context, publisher);
         } catch (Exception e) {
             LOG.error("Got error while processing streaming agent task request", e);
+            context.result(toErrorResponse(e));
         }
     }
 
     private void writeServerSentEvents(@NotNull Context context,
                                        Flow.Publisher<SendStreamingMessageResponse> publisher) {
-        HttpServletResponse response = context.res();
-        response.setStatus(200);
-        response.setContentType("text/event-stream");
-        response.setHeader("Cache-Control", "no-cache");
-        response.setHeader("Connection", "keep-alive");
-        var completion = new CountDownLatch(1);
-        publisher.subscribe(new SseSubscriber(context.outputStream(), completion));
-        try {
-            completion.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            LOG.warn("Interrupted while streaming Server-Sent Events to the client.", e);
-        }
+        CompletableFuture<Void> completionFuture = new CompletableFuture<>();
+        AtomicReference<SseSubscriber> subscriberRef = new AtomicReference<>();
+
+        context.async(config -> {
+            config.timeout = 0; // unlimited timeout
+            config.onTimeout(ctx -> {
+                LOG.warn("Async timeout reached for SSE stream.");
+                SseSubscriber sub = subscriberRef.get();
+                if (sub != null) {
+                    sub.cancelSubscription();
+                } else {
+                    completionFuture.complete(null);
+                }
+            });
+        }, () -> {
+            HttpServletResponse response = context.res();
+            response.setStatus(200);
+            response.setContentType("text/event-stream");
+            response.setHeader("Cache-Control", "no-cache");
+            response.setHeader("Connection", "keep-alive");
+
+            SseSubscriber subscriber = new SseSubscriber(context.outputStream(), completionFuture);
+            subscriberRef.set(subscriber);
+            publisher.subscribe(subscriber);
+            try {
+                completionFuture.get();
+            } catch (Exception e) {
+                LOG.warn("SSE streaming async task interrupted or failed.", e);
+            }
+        });
     }
 
     public void getAgentCard(@NotNull Context context) {
@@ -193,19 +231,6 @@ public class AgentExecutionResource {
         return new ServerCallContext(UnauthenticatedUser.INSTANCE, new HashMap<>(), Set.of());
     }
 
-    private String extractMethod(String body) {
-        try {
-            return (String) objectMapper.readValue(body, Map.class).get("method");
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private static boolean isStreamingMethod(String method) {
-        return A2AMethods.SEND_STREAMING_MESSAGE_METHOD.equals(method)
-                || A2AMethods.SUBSCRIBE_TO_TASK_METHOD.equals(method);
-    }
-
     /**
      * Writes each streamed {@link SendStreamingMessageResponse} to the client output stream as a Server-Sent Event,
      * applying back-pressure by requesting one event at a time and cancelling the upstream execution if the client
@@ -213,13 +238,13 @@ public class AgentExecutionResource {
      */
     private static final class SseSubscriber implements Flow.Subscriber<SendStreamingMessageResponse> {
         private final ServletOutputStream outputStream;
-        private final CountDownLatch completion;
-        private final AtomicLong eventId = new AtomicLong();
+        private final CompletableFuture<Void> completionFuture;
         private Flow.Subscription subscription;
+        private long eventId = 0;
 
-        private SseSubscriber(ServletOutputStream outputStream, CountDownLatch completion) {
+        private SseSubscriber(ServletOutputStream outputStream, CompletableFuture<Void> completionFuture) {
             this.outputStream = outputStream;
-            this.completion = completion;
+            this.completionFuture = completionFuture;
         }
 
         @Override
@@ -231,25 +256,38 @@ public class AgentExecutionResource {
         @Override
         public void onNext(SendStreamingMessageResponse item) {
             try {
-                outputStream.write(SseFormatter.formatResponseAsSSE(item, eventId.getAndIncrement()).getBytes(UTF_8));
+                outputStream.write(SseFormatter.formatResponseAsSSE(item, eventId++).getBytes(UTF_8));
                 outputStream.flush();
                 subscription.request(1);
             } catch (IOException e) {
                 LOG.warn("Failed to write a Server-Sent Event to the client. Cancelling the stream.", e);
-                subscription.cancel();
-                completion.countDown();
+                cancelSubscription();
             }
         }
 
         @Override
         public void onError(Throwable throwable) {
             LOG.error("Error while streaming Server-Sent Events to the client.", throwable);
-            completion.countDown();
+            completeContext();
         }
 
         @Override
         public void onComplete() {
-            completion.countDown();
+            completeContext();
+        }
+
+        private void completeContext() {
+            // Only signal the async task to return; Javalin owns the AsyncContext and completes it once the
+            // task finishes. Completing it here as well caused a double-completion that recycled the response
+            // before Javalin's post-handler tasks ran, triggering a cascading exception-handler failure.
+            completionFuture.complete(null);
+        }
+
+        public void cancelSubscription() {
+            if (subscription != null) {
+                subscription.cancel();
+            }
+            completeContext();
         }
     }
 }

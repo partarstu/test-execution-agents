@@ -224,6 +224,11 @@
                 <artifactId>a2a-java-sdk-jsonrpc-common</artifactId>
                 <version>${a2a.sdk.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.github.a2asdk</groupId>
+                <artifactId>a2a-java-sdk-spec-grpc</artifactId>
+                <version>${a2a.sdk.version}</version>
+            </dependency>
 
              <!-- Web Server -->
             <dependency>

@@ -32,7 +32,6 @@ import org.tarik.ta.dto.UiTestStepResult;
 import org.tarik.ta.model.VisualState;
 
 import java.awt.image.BufferedImage;
-import java.util.LinkedList;
 import java.util.List;
 
 import static org.tarik.ta.utils.ImageUtils.convertImageToBase64;
@@ -66,14 +65,14 @@ public class UiAgentExecutor extends AbstractAgentExecutor {
 
     @Override
     protected List<Part<?>> buildFinalArtifactParts(TestExecutionResult result) {
-        List<Part<?>> parts = new LinkedList<>();
-        result.getStepResults().forEach(stepResult -> parts.addAll(buildStepArtifactParts(stepResult)));
+        // Per-step screenshots are already streamed with their step result artifacts and accumulated into the task, so
+        // the final artifact only adds the end-of-test general screenshot to avoid transferring every screenshot twice.
         if (result instanceof UiTestExecutionResult uiResult && uiResult.getScreenshot() != null) {
             String fileName = "general_screenshot_for_the_test_case_%s.%s".formatted(
                     result.getTestCaseName().replaceAll("\\s", "_").toLowerCase(), SCREENSHOT_FORMAT);
-            parts.add(buildScreenshotPart(uiResult.getScreenshot(), fileName));
+            return List.of(buildScreenshotPart(uiResult.getScreenshot(), fileName));
         }
-        return parts;
+        return List.of();
     }
 
     private static Part<?> buildScreenshotPart(BufferedImage screenshot, String fileName) {

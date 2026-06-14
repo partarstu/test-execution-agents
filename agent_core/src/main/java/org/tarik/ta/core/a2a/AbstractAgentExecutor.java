@@ -36,8 +36,8 @@ import org.tarik.ta.core.utils.CommonUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -123,15 +123,17 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
 
     /**
      * Terminal event of an execution. Although step results, precondition results and logs were also streamed live as
-     * they happened, the completion emits a single consolidated {@link TestExecutionResult} artifact (the full result
-     * JSON, the agent-specific artifacts such as screenshots, and the logs file) plus a completion message carrying the
-     * same result JSON. This ensures non-streaming callers receive one ready-to-consume result object without having to
-     * reassemble it from the individual streamed events.
+     * they happened, the completion emits a single consolidated {@link TestExecutionResult} artifact plus a completion
+     * message carrying the same result JSON. Per-step artifacts (e.g. screenshots) are not re-bundled here: they already
+     * live in the task's accumulated artifact list from the streamed step events, so the final artifact carries only the
+     * full result JSON, the logs file and any end-of-test artifact (e.g. the general screenshot). This ensures
+     * non-streaming callers receive one ready-to-consume result object without having to reassemble it from the
+     * individual streamed events.
      */
     private void completeWithResult(TestExecutionResult result, AgentEmitter emitter) {
         try {
             String resultJson = OBJECT_MAPPER.writeValueAsString(result);
-            List<Part<?>> parts = new LinkedList<>();
+            List<Part<?>> parts = new ArrayList<>();
             parts.add(new TextPart(resultJson));
             parts.addAll(buildFinalArtifactParts(result));
             addLogsArtifact(result, parts);
@@ -230,12 +232,12 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
 
         @Override
         public void emitStepStarted(@NotNull TestStep step) {
-            emitActivity(new ExecutionActivity(ExecutionActivity.TEST_STEP, step.stepDescription()));
+            emitActivity(new ExecutionActivity(ExecutionActivity.ActivityType.TEST_STEP, step.stepDescription()));
         }
 
         @Override
         public void emitPreconditionStarted(@NotNull String precondition) {
-            emitActivity(new ExecutionActivity(ExecutionActivity.PRECONDITION, precondition));
+            emitActivity(new ExecutionActivity(ExecutionActivity.ActivityType.PRECONDITION, precondition));
         }
 
         /**
@@ -258,7 +260,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
         @Override
         public void emitStepResult(@NotNull TestStepResult stepResult) {
             serializeToJson(stepResult).ifPresent(json -> {
-                List<Part<?>> parts = new LinkedList<>();
+                List<Part<?>> parts = new ArrayList<>();
                 parts.add(new TextPart(json));
                 parts.addAll(buildStepArtifactParts(stepResult));
                 emitArtifact(parts, STEP_RESULT_ARTIFACT);
@@ -280,7 +282,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
         public void emitLog(@NotNull String logLine) {
             lock.lock();
             try {
-                List<Part<?>> parts = List.of(new TextPart(logLine + "\n"));
+                List<Part<?>> parts = List.of(new TextPart("%s\n".formatted(logLine)));
                 agentEmitter.addArtifact(parts, LOG_ARTIFACT, STREAMED_LOG_FILE_NAME, null, logArtifactStarted, false);
                 logArtifactStarted = true;
             } catch (Exception e) {

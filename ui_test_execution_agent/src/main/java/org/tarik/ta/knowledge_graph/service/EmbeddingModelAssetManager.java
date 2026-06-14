@@ -28,6 +28,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 class EmbeddingModelAssetManager {
     private static final Logger LOG = LoggerFactory.getLogger(EmbeddingModelAssetManager.class);
@@ -36,11 +40,21 @@ class EmbeddingModelAssetManager {
             "https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/onnx/model.onnx";
     private static final String TOKENIZER_URL =
             "https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/tokenizer.json";
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(10);
 
     private final Path targetDirectory;
+    private final String modelUrl;
+    private final String tokenizerUrl;
 
     EmbeddingModelAssetManager(@NotNull Path targetDirectory) {
+        this(targetDirectory, MODEL_URL, TOKENIZER_URL);
+    }
+
+    EmbeddingModelAssetManager(@NotNull Path targetDirectory, @NotNull String modelUrl, @NotNull String tokenizerUrl) {
         this.targetDirectory = targetDirectory;
+        this.modelUrl = modelUrl;
+        this.tokenizerUrl = tokenizerUrl;
     }
 
     /**
@@ -56,8 +70,8 @@ class EmbeddingModelAssetManager {
             throw new IllegalStateException(
                     "Failed to create model cache directory: %s".formatted(targetDirectory), e);
         }
-        downloadIfAbsent("model.onnx", MODEL_URL);
-        downloadIfAbsent("tokenizer.json", TOKENIZER_URL);
+        downloadIfAbsent("model.onnx", modelUrl);
+        downloadIfAbsent("tokenizer.json", tokenizerUrl);
     }
 
     private void downloadIfAbsent(@NotNull String filename, @NotNull String url) {
@@ -67,22 +81,29 @@ class EmbeddingModelAssetManager {
             return;
         }
         LOG.info("Downloading embedding model asset '{}' from {} ...", filename, url);
-        try (var client = HttpClient.newHttpClient()) {
-            var request = HttpRequest.newBuilder(URI.create(url)).GET().build();
-            var response = client.send(request, HttpResponse.BodyHandlers.ofFile(destination));
+        // Download into a temp file and atomically move it into place so that a crash mid-download cannot leave a
+        // truncated file that later looks like a valid cache hit.
+        var tempFile = targetDirectory.resolve(filename + ".tmp");
+        try (var client = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .connectTimeout(CONNECT_TIMEOUT)
+                .build()) {
+            var request = HttpRequest.newBuilder(URI.create(url)).timeout(REQUEST_TIMEOUT).GET().build();
+            var response = client.send(request, HttpResponse.BodyHandlers.ofFile(tempFile));
             if (response.statusCode() != 200) {
-                Files.deleteIfExists(destination);
                 throw new IllegalStateException(
                         "Failed to download '%s' from %s — HTTP %d".formatted(filename, url, response.statusCode()));
             }
+            Files.move(tempFile, destination, ATOMIC_MOVE, REPLACE_EXISTING);
             LOG.info("Downloaded embedding model asset '{}' to {}", filename, destination);
         } catch (IOException | InterruptedException e) {
-            try { Files.deleteIfExists(destination); } catch (IOException ignored) {}
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             throw new IllegalStateException(
                     "Failed to download embedding model asset '%s' from %s".formatted(filename, url), e);
+        } finally {
+            try { Files.deleteIfExists(tempFile); } catch (IOException ignored) {}
         }
     }
 }

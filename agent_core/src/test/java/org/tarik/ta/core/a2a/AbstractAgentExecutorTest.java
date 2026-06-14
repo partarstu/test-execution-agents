@@ -29,6 +29,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -40,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -206,16 +208,46 @@ class AbstractAgentExecutorTest {
         Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
                 null, null, null);
         when(requestContext.getMessage()).thenReturn(message);
-        when(agentEmitter.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.ROLE_USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
+        when(agentEmitter.newAgentMessage(anyList(), any())).thenAnswer(invocation ->
+                new Message(Message.Role.ROLE_AGENT, invocation.getArgument(0), "msg-2", null, null, null, null, null));
 
         executor.setResultToReturn(passedResult());
         executor.setStepToStart(new TestStep("click the button", null, null));
 
         executor.execute(requestContext, agentEmitter);
 
-        // The step-about-to-run is streamed as a WORKING status update before its result, and the run completes.
-        verify(agentEmitter).updateStatus(eq(TaskState.TASK_STATE_WORKING), any(Message.class));
+        // The step-about-to-run is streamed as a WORKING status update before its result, with the enum serialized
+        // using the stable wire format, and the run completes.
+        assertThat(captureActivityJson()).contains("\"test_step\"").contains("click the button");
         verify(agentEmitter).complete(any(Message.class));
+    }
+
+    @Test
+    void execute_shouldStreamCurrentActivityWhenPreconditionStarts() {
+        when(requestContext.getTask()).thenReturn(null);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+        when(agentEmitter.newAgentMessage(anyList(), any())).thenAnswer(invocation ->
+                new Message(Message.Role.ROLE_AGENT, invocation.getArgument(0), "msg-2", null, null, null, null, null));
+
+        executor.setResultToReturn(passedResult());
+        executor.setPreconditionToStart("user is logged in");
+
+        executor.execute(requestContext, agentEmitter);
+
+        assertThat(captureActivityJson()).contains("\"precondition\"").contains("user is logged in");
+        verify(agentEmitter).complete(any(Message.class));
+    }
+
+    /**
+     * Captures the message streamed as the {@code WORKING} status update and returns the activity JSON it carries.
+     */
+    private String captureActivityJson() {
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(agentEmitter).updateStatus(eq(TaskState.TASK_STATE_WORKING), messageCaptor.capture());
+        return ((TextPart) messageCaptor.getValue().parts().getFirst()).text();
     }
 
     @Test
@@ -254,6 +286,7 @@ class AbstractAgentExecutorTest {
         private boolean throwOnFinalArtifacts = false;
         private final List<String> logsToEmit = new ArrayList<>();
         private TestStep stepToStart = null;
+        private String preconditionToStart = null;
 
         public void setResultToReturn(TestExecutionResult result) {
             this.resultToReturn = result;
@@ -261,6 +294,10 @@ class AbstractAgentExecutorTest {
 
         public void setStepToStart(TestStep stepToStart) {
             this.stepToStart = stepToStart;
+        }
+
+        public void setPreconditionToStart(String preconditionToStart) {
+            this.preconditionToStart = preconditionToStart;
         }
 
         public void setThrowException(boolean throwException) {
@@ -282,6 +319,9 @@ class AbstractAgentExecutorTest {
             }
             if (stepToStart != null) {
                 eventEmitter.emitStepStarted(stepToStart);
+            }
+            if (preconditionToStart != null) {
+                eventEmitter.emitPreconditionStarted(preconditionToStart);
             }
             logsToEmit.forEach(eventEmitter::emitLog);
             return resultToReturn;

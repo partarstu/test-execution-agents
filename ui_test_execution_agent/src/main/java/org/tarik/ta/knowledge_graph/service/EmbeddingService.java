@@ -18,15 +18,11 @@
 package org.tarik.ta.knowledge_graph.service;
 
 import dev.langchain4j.data.embedding.Embedding;
-import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.embedding.onnx.bgesmallenv15.BgeSmallEnV15EmbeddingModel;
-import dev.langchain4j.model.output.Response;
 import io.avaje.inject.Bean;
 import io.avaje.inject.Factory;
 import jakarta.inject.Singleton;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
@@ -34,6 +30,7 @@ import org.tarik.ta.UiTestAgentConfig;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Centralized embedding service for batch embedding during knowledge ingestion
@@ -54,11 +51,7 @@ public class EmbeddingService {
 
     private final SupportedEmbeddingModel modelDescriptor;
     private final UiTestAgentConfig config;
-
-    // Non-final: private, each is assigned exactly once in the constructor.
-    // `e5Model` is null for BGE; `model` is always set.
-    private EmbeddingModel model;
-    private @Nullable MultilingualE5SmallEmbeddingModel e5Model;
+    final EmbeddingStrategy strategy;
 
     public EmbeddingService(@NotNull UiTestAgentConfig config) {
         this.config = config;
@@ -71,34 +64,19 @@ public class EmbeddingService {
                             .formatted(modelDescriptor.configKey, modelDescriptor.dimension, EXPECTED_DIMENSION));
         }
 
-        initModel();
-        LOG.info("Embedding model initialized: {}", modelDescriptor.configKey);
-    }
-
-    private void initModel() {
         switch (modelDescriptor) {
-            case BGE_SMALL_EN_V15 -> {
-                model = new BgeSmallEnV15EmbeddingModel();
-                e5Model = null;
-            }
-            case MULTILINGUAL_E5_SMALL -> {
-                new EmbeddingModelAssetManager(E5_CACHE_DIR).ensureAssets();
-                var e5 = new MultilingualE5SmallEmbeddingModel(
-                        E5_CACHE_DIR.resolve("model.onnx"), E5_CACHE_DIR.resolve("tokenizer.json"));
-                e5Model = e5;
-                model = buildE5DocumentModeBean(e5);
-            }
+            case BGE_SMALL_EN_V15 -> this.strategy = new BgeStrategy();
+            case MULTILINGUAL_E5_SMALL -> this.strategy = new E5Strategy(E5_CACHE_DIR);
+            default -> throw new IllegalArgumentException("Unsupported embedding model: " + modelDescriptor);
         }
+        LOG.info("Embedding model initialized: {}", modelDescriptor.configKey);
     }
 
     /**
      * Embeds a single text for document ingestion.
      */
     public @NotNull Embedding embed(@NotNull String text) {
-        if (e5Model != null) {
-            return e5Model.embedDocument(text);
-        }
-        return model.embed(text).content();
+        return strategy.embedDocuments(List.of(text)).getFirst();
     }
 
     /**
@@ -110,20 +88,14 @@ public class EmbeddingService {
         if (texts.isEmpty()) {
             return List.of();
         }
-        if (e5Model != null) {
-            return embedInChunks(texts, false);
-        }
-        return embedInChunksWithModel(texts);
+        return embedInChunks(texts, strategy::embedDocuments);
     }
 
     /**
      * Embeds a single text in query context (used for semantic search).
      */
     public @NotNull Embedding embedForQuery(@NotNull String text) {
-        if (e5Model != null) {
-            return e5Model.embedQuery(text);
-        }
-        return model.embed(text).content();
+        return strategy.embedQueries(List.of(text)).getFirst();
     }
 
     /**
@@ -135,10 +107,7 @@ public class EmbeddingService {
         if (texts.isEmpty()) {
             return List.of();
         }
-        if (e5Model != null) {
-            return embedInChunks(texts, true);
-        }
-        return embedInChunksWithModel(texts);
+        return embedInChunks(texts, strategy::embedQueries);
     }
 
     /**
@@ -149,32 +118,17 @@ public class EmbeddingService {
     @Bean
     @Singleton
     public @NotNull EmbeddingModel getModel() {
-        return model;
+        return strategy.documentModel();
     }
 
-    private @NotNull List<Embedding> embedInChunks(@NotNull List<String> texts, boolean queryMode) {
+    private @NotNull List<Embedding> embedInChunks(@NotNull List<String> texts, @NotNull Function<List<String>, List<Embedding>> embedder) {
         var batchSize = config.getKnowledgeEmbeddingBatchSize();
         var allEmbeddings = new ArrayList<Embedding>(texts.size());
         for (int start = 0; start < texts.size(); start += batchSize) {
             int end = Math.min(start + batchSize, texts.size());
             var chunk = texts.subList(start, end);
-            var chunkEmbeddings = queryMode ? e5Model.embedQueryBatch(chunk) : e5Model.embedDocumentBatch(chunk);
-            allEmbeddings.addAll(chunkEmbeddings);
+            allEmbeddings.addAll(embedder.apply(chunk));
             LOG.debug("Embedded batch chunk [{}-{}) of {} total texts", start, end, texts.size());
-        }
-        logBatchSummary(texts.size(), batchSize);
-        return List.copyOf(allEmbeddings);
-    }
-
-    private @NotNull List<Embedding> embedInChunksWithModel(@NotNull List<String> texts) {
-        var batchSize = config.getKnowledgeEmbeddingBatchSize();
-        var segments = texts.stream().map(TextSegment::from).toList();
-        var allEmbeddings = new ArrayList<Embedding>(segments.size());
-        for (int start = 0; start < segments.size(); start += batchSize) {
-            int end = Math.min(start + batchSize, segments.size());
-            var chunk = segments.subList(start, end);
-            allEmbeddings.addAll(model.embedAll(chunk).content());
-            LOG.debug("Embedded batch chunk [{}-{}) of {} total texts", start, end, segments.size());
         }
         logBatchSummary(texts.size(), batchSize);
         return List.copyOf(allEmbeddings);
@@ -183,20 +137,5 @@ public class EmbeddingService {
     private void logBatchSummary(int totalTexts, int batchSize) {
         LOG.info("Embedded {} texts in {} batch(es) of size {}",
                 totalTexts, (int) Math.ceil((double) totalTexts / batchSize), batchSize);
-    }
-
-    private static @NotNull EmbeddingModel buildE5DocumentModeBean(@NotNull MultilingualE5SmallEmbeddingModel e5) {
-        return new EmbeddingModel() {
-            @Override
-            public Response<Embedding> embed(String text) {
-                return Response.from(e5.embedDocument(text));
-            }
-
-            @Override
-            public Response<List<Embedding>> embedAll(List<TextSegment> segments) {
-                var texts = segments.stream().map(TextSegment::text).toList();
-                return Response.from(e5.embedDocumentBatch(texts));
-            }
-        };
     }
 }

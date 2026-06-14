@@ -56,6 +56,13 @@ public class AbstractServer {
             config.jsonMapper(new JavalinJackson());
             config.routes.post(MAIN_PATH, agentExecutionResource::handle);
             config.routes.get(AGENT_CARD_PATH, agentExecutionResource::getAgentCard);
+            // Guard against the recycled-response failure mode: once a response is recycled, Javalin's default
+            // error handling reads from the (also recycled) request and throws again, which it then re-handles
+            // recursively in an unbounded loop that floods the log. Handling the IllegalStateException here
+            // without touching the recycled context breaks that recursion.
+            config.routes.exception(IllegalStateException.class, (exception, context) ->
+                    LOG.warn("Suppressing an IllegalStateException from a recycled/committed response to "
+                            + "prevent a cascading exception-handler loop.", exception));
         }).start(host, port);
 
         LOG.info("Agent server started on {}:{}", host, port);

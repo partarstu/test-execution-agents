@@ -62,6 +62,30 @@ class TestExecutionContextTest {
     }
 
     @Test
+    void shouldContainResultInHistoryWhenEmitterFires() {
+        StreamingEventEmitter eventEmitter = mock(StreamingEventEmitter.class);
+        TestExecutionContext context = new TestExecutionContext(eventEmitter);
+        TestStepResult stepResult = mock(TestStepResult.class);
+        PreconditionResult preconditionResult = mock(PreconditionResult.class);
+
+        org.mockito.Mockito.doAnswer(invocation -> {
+            assertThat(context.getTestStepExecutionHistory()).containsExactly(stepResult);
+            return null;
+        }).when(eventEmitter).emitStepResult(stepResult);
+
+        org.mockito.Mockito.doAnswer(invocation -> {
+            assertThat(context.getPreconditionExecutionHistory()).containsExactly(preconditionResult);
+            return null;
+        }).when(eventEmitter).emitPreconditionResult(preconditionResult);
+
+        context.addStepResult(stepResult);
+        context.addPreconditionResult(preconditionResult);
+
+        verify(eventEmitter).emitStepResult(stepResult);
+        verify(eventEmitter).emitPreconditionResult(preconditionResult);
+    }
+
+    @Test
     void shouldAddSharedData() {
         TestExecutionContext context = new TestExecutionContext(StreamingEventEmitter.NOOP);
 

@@ -20,17 +20,19 @@ package org.tarik.ta.core.utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.a2a.StreamingEventEmitter;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 class LogCaptureTest {
 
@@ -48,17 +50,23 @@ class LogCaptureTest {
     }
 
     @Test
-    void capture_shouldStreamEachLogLineLive() {
+    void capture_shouldStreamEachLogLineLiveInOrderAndFlushOnStop() {
         StreamingEventEmitter eventEmitter = mock(StreamingEventEmitter.class);
         LogCapture streamingCapture = new LogCapture(eventEmitter);
         streamingCapture.start();
         try {
-            LOG.info("Streamed log message");
+            LOG.info("Streamed log message 1");
+            LOG.info("Streamed log message 2");
+            LOG.info("Streamed log message 3");
         } finally {
             streamingCapture.stop();
         }
 
-        verify(eventEmitter, atLeastOnce()).emitLog(contains("Streamed log message"));
+        // stop() drains the queue before returning, so by now every line must have been emitted, in logging order.
+        InOrder inOrder = inOrder(eventEmitter);
+        inOrder.verify(eventEmitter).emitLog(contains("Streamed log message 1"));
+        inOrder.verify(eventEmitter).emitLog(contains("Streamed log message 2"));
+        inOrder.verify(eventEmitter).emitLog(contains("Streamed log message 3"));
     }
 
     @Test
@@ -89,6 +97,36 @@ class LogCaptureTest {
         assertThat(logs).hasSize(1);
         assertThat(logs.get(0)).contains("First message");
         assertThat(logs.get(0)).doesNotContain("Second message");
+    }
+
+    @Test
+    void getLogs_shouldNotThrowWhenAppendedConcurrently() throws InterruptedException {
+        logCapture.start();
+        var stop = new AtomicBoolean(false);
+        var failure = new AtomicReference<Throwable>();
+
+        Thread writer = new Thread(() -> {
+            for (int i = 0; i < 10_000 && !stop.get(); i++) {
+                LOG.info("Concurrent message {}", i);
+            }
+        });
+        Thread reader = new Thread(() -> {
+            try {
+                while (!stop.get()) {
+                    logCapture.getLogs();
+                }
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        });
+
+        reader.start();
+        writer.start();
+        writer.join();
+        stop.set(true);
+        reader.join();
+
+        assertThat(failure.get()).isNull();
     }
 
     @Test

@@ -36,7 +36,9 @@ D:\Projects\test-execution-agents\
 * **`agent_core`**: A shared library module containing the core framework logic, data transfer objects (DTOs), base agent classes, budget
   management, and generic utilities. This module provides:
     * **`AbstractServer`**: Base class for agent servers providing common HTTP server initialization and A2A endpoint configuration,
-      routing streaming methods to a Server-Sent Events (SSE) response and all other methods to a single JSON-RPC response.
+      routing streaming methods to a Server-Sent Events (SSE) response and all other methods to a single JSON-RPC response. Request bodies
+      are parsed with the A2A SDK's JSON-RPC parser, and failures are answered with the corresponding spec-compliant JSON-RPC error
+      (method not found, invalid params, invalid request, parse error, or internal error).
     * **`AbstractAgentExecutor`**: Base class for agent executors handling the test case execution lifecycle. It streams incremental
       progress (step/precondition results, log lines) to the caller via a `StreamingEventEmitter` and emits a final consolidated
       `TestExecutionResult` artifact on completion.
@@ -133,7 +135,8 @@ The core module provides shared abstractions that both UI and API agents extend:
   dashboard can show the current activity); each precondition and test step result is then streamed as an artifact the moment it is
   recorded; and captured log lines are streamed live as appended chunks of a single growing `execution_log.log` artifact. UI step
   screenshots are streamed as part of the corresponding step events. Regardless of streaming, the run always concludes by emitting a single
-  consolidated `TestExecutionResult` (full result JSON + logs file + screenshots), so non-streaming `message/send` callers receive one
+  consolidated `TestExecutionResult` (full result JSON + logs file + end-of-test general screenshot); per-step screenshots are not
+  re-bundled there since they already arrived with their step events, so non-streaming `message/send` callers still receive one
   ready-to-consume result object without having to reassemble the individual events.
 - **Test Case Extraction**: AI-powered parsing of natural language test cases into structured format.
 - **Budget Management**: Token and time budget controls to prevent runaway executions.
@@ -331,9 +334,10 @@ During execution, a `working` status update announces each test step / precondit
 with `activityType` and `description`, for live "currently executing" dashboards); each precondition and test step result is then streamed
 as an artifact as soon as it is recorded; and log lines are streamed as appended chunks of a single growing `execution_log.log` artifact
 (UI step artifacts additionally include the step screenshot). The task then **completes with a single consolidated
-`TestExecutionResult`** — emitted both as a final artifact (full result JSON + logs file + screenshots) and as the completion message — so a
-non-streaming `message/send` caller receives one ready-to-consume result object, while a streaming `message/stream` caller additionally sees
-the live per-step progress.
+`TestExecutionResult`** — emitted both as a final artifact (full result JSON + logs file + end-of-test general screenshot) and as the
+completion message. Per-step screenshots are not re-bundled into the final artifact since they were already streamed with their step events,
+so a non-streaming `message/send` caller receives one ready-to-consume result object, while a streaming `message/stream` caller additionally
+sees the live per-step progress.
 
 The consolidated `TestExecutionResult` contains:
 

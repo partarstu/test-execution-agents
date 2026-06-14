@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.core.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -24,10 +25,14 @@ import org.jetbrains.annotations.NotNull;
  * {@code working} task status update right before the item runs, so that an observing client (e.g. a live dashboard)
  * can show what is currently being executed.
  *
- * @param activityType the kind of item being executed, either {@link #TEST_STEP} or {@link #PRECONDITION}
+ * @param activityType the kind of item being executed, either {@link ActivityType#TEST_STEP} or {@link ActivityType#PRECONDITION}
  * @param description   the human-readable description of the item being executed
  */
-public record ExecutionActivity(@NotNull String activityType, @NotNull String description) {
-    public static final String TEST_STEP = "test_step";
-    public static final String PRECONDITION = "precondition";
+public record ExecutionActivity(@NotNull ActivityType activityType, @NotNull String description) {
+    public enum ActivityType {
+        @JsonProperty("test_step")
+        TEST_STEP,
+        @JsonProperty("precondition")
+        PRECONDITION
+    }
 }
