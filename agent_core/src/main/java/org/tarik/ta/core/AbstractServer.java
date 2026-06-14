@@ -17,7 +17,7 @@
  */
 package org.tarik.ta.core;
 
-import io.a2a.spec.AgentCard;
+import org.a2aproject.sdk.spec.AgentCard;
 import io.javalin.json.JavalinJackson;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;

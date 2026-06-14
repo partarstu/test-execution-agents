@@ -17,8 +17,8 @@
  */
 package org.tarik.ta.a2a;
 
-import io.a2a.spec.FilePart;
-import io.a2a.spec.Part;
+import org.a2aproject.sdk.spec.FilePart;
+import org.a2aproject.sdk.spec.Part;
 import io.avaje.inject.BeanScope;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

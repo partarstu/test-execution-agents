@@ -34,7 +34,7 @@ Apache License, Version 2.0  -  <https://www.apache.org/licenses/LICENSE-2.0>
     https://github.com/langchain4j/langchain4j
 
   * A2A Java SDK
-    io.github.a2asdk:a2a-java-sdk-server-common,
+    org.a2aproject.sdk:a2a-java-sdk-server-common,
     a2a-java-sdk-transport-jsonrpc, a2a-java-sdk-jsonrpc-common
     https://github.com/a2aproject/a2a-java
 

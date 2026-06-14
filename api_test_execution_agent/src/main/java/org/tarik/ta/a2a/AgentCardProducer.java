@@ -17,13 +17,13 @@
  */
 package org.tarik.ta.a2a;
 
-import io.a2a.spec.AgentCapabilities;
-import io.a2a.spec.AgentCard;
-import io.a2a.spec.AgentInterface;
+import org.a2aproject.sdk.spec.AgentCapabilities;
+import org.a2aproject.sdk.spec.AgentCard;
+import org.a2aproject.sdk.spec.AgentInterface;
 
 import java.util.List;
 
-import static io.a2a.spec.TransportProtocol.JSONRPC;
+import static org.a2aproject.sdk.spec.TransportProtocol.JSONRPC;
 
 public class AgentCardProducer {
 

@@ -17,8 +17,8 @@
  */
 package org.tarik.ta.core.a2a;
 
-import io.a2a.server.TransportMetadata;
-import io.a2a.spec.TransportProtocol;
+import org.a2aproject.sdk.server.TransportMetadata;
+import org.a2aproject.sdk.spec.TransportProtocol;
 
 public class JsonRpcTransportService implements TransportMetadata {
 

@@ -17,9 +17,9 @@
  */
 package org.tarik.ta.a2a;
 
-import io.a2a.spec.FilePart;
-import io.a2a.spec.FileWithBytes;
-import io.a2a.spec.Part;
+import org.a2aproject.sdk.spec.FilePart;
+import org.a2aproject.sdk.spec.FileWithBytes;
+import org.a2aproject.sdk.spec.Part;
 import jakarta.inject.Singleton;
 import org.tarik.ta.UiAgentRequestScopeFactory;
 import org.tarik.ta.UiTestAgent;

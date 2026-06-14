@@ -17,14 +17,14 @@
  */
 package org.tarik.ta.core.a2a;
 
-import io.a2a.server.agentexecution.RequestContext;
-import io.a2a.server.tasks.AgentEmitter;
-import io.a2a.spec.Message;
-import io.a2a.spec.Part;
-import io.a2a.spec.Task;
-import io.a2a.spec.TaskStatus;
-import io.a2a.spec.TaskState;
-import io.a2a.spec.TextPart;
+import org.a2aproject.sdk.server.agentexecution.RequestContext;
+import org.a2aproject.sdk.server.tasks.AgentEmitter;
+import org.a2aproject.sdk.spec.Message;
+import org.a2aproject.sdk.spec.Part;
+import org.a2aproject.sdk.spec.Task;
+import org.a2aproject.sdk.spec.TaskStatus;
+import org.a2aproject.sdk.spec.TaskState;
+import org.a2aproject.sdk.spec.TextPart;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -170,7 +170,7 @@ class AbstractAgentExecutorTest {
         when(task.status()).thenReturn(new TaskStatus(TaskState.TASK_STATE_CANCELED, null, null));
 
         assertThatThrownBy(() -> executor.cancel(requestContext, agentEmitter))
-                .isInstanceOf(io.a2a.spec.TaskNotCancelableError.class);
+                .isInstanceOf(org.a2aproject.sdk.spec.TaskNotCancelableError.class);
     }
 
     @Test
@@ -179,7 +179,7 @@ class AbstractAgentExecutorTest {
         when(task.status()).thenReturn(new TaskStatus(TaskState.TASK_STATE_COMPLETED, null, null));
 
         assertThatThrownBy(() -> executor.cancel(requestContext, agentEmitter))
-                .isInstanceOf(io.a2a.spec.TaskNotCancelableError.class);
+                .isInstanceOf(org.a2aproject.sdk.spec.TaskNotCancelableError.class);
     }
 
     @Test

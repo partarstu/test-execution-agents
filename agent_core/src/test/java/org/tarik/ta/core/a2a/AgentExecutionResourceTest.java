@@ -17,18 +17,18 @@
  */
 package org.tarik.ta.core.a2a;
 
-import io.a2a.jsonrpc.common.wrappers.SendMessageRequest;
-import io.a2a.jsonrpc.common.wrappers.SendMessageResponse;
-import io.a2a.jsonrpc.common.wrappers.SendStreamingMessageResponse;
-import io.a2a.spec.AgentCapabilities;
-import io.a2a.spec.AgentCard;
-import io.a2a.spec.AgentInterface;
-import io.a2a.spec.Message;
-import io.a2a.spec.TaskState;
-import io.a2a.spec.TaskStatus;
-import io.a2a.spec.TaskStatusUpdateEvent;
-import io.a2a.spec.TextPart;
-import io.a2a.transport.jsonrpc.handler.JSONRPCHandler;
+import org.a2aproject.sdk.jsonrpc.common.wrappers.SendMessageRequest;
+import org.a2aproject.sdk.jsonrpc.common.wrappers.SendMessageResponse;
+import org.a2aproject.sdk.jsonrpc.common.wrappers.SendStreamingMessageResponse;
+import org.a2aproject.sdk.spec.AgentCapabilities;
+import org.a2aproject.sdk.spec.AgentCard;
+import org.a2aproject.sdk.spec.AgentInterface;
+import org.a2aproject.sdk.spec.Message;
+import org.a2aproject.sdk.spec.TaskState;
+import org.a2aproject.sdk.spec.TaskStatus;
+import org.a2aproject.sdk.spec.TaskStatusUpdateEvent;
+import org.a2aproject.sdk.spec.TextPart;
+import org.a2aproject.sdk.transport.jsonrpc.handler.JSONRPCHandler;
 import io.javalin.http.Context;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,22 +54,16 @@ class AgentExecutionResourceTest {
     @BeforeEach
     void setUp() {
         agentExecutor = mock(AgentExecutor.class);
-        agentCard = new AgentCard(
-                "test-agent",
-                "desc",
-                null,
-                "1.0",
-                null,
-                new AgentCapabilities(false, false, false, null),
-                List.of("text"),
-                List.of("text"),
-                List.of(),
-                null,
-                null,
-                null,
-                List.of(new AgentInterface("JSONRPC", "http://localhost")),
-                null
-        );
+        agentCard = AgentCard.builder()
+                .name("test-agent")
+                .description("desc")
+                .version("1.0")
+                .capabilities(new AgentCapabilities(false, false, false, null))
+                .defaultInputModes(List.of("text"))
+                .defaultOutputModes(List.of("text"))
+                .skills(List.of())
+                .supportedInterfaces(List.of(new AgentInterface("JSONRPC", "http://localhost")))
+                .build();
         jakarta.inject.Provider<AgentExecutor> agentExecutorProvider = () -> agentExecutor;
         jakarta.inject.Provider<AgentCard> agentCardProvider = () -> agentCard;
         resource = new AgentExecutionResource(agentExecutorProvider, agentCardProvider);
@@ -107,6 +101,48 @@ class AgentExecutionResourceTest {
         assertThat(parts).hasSize(1);
         assertThat(((TextPart) parts.getFirst()).text()).isEqualTo("hello");
         assertThat(response).contains("jsonrpc").contains("done");
+    }
+
+    @Test
+    void handle_shouldTranslateSpecSendMethodToHandler() throws Exception {
+        // A generic A2A client sends the spec name "message/send"; it must be routed to the send handler.
+        JSONRPCHandler mockHandler = injectMockJsonRpcHandler();
+        Message reply = new Message(Message.Role.ROLE_AGENT, List.of(new TextPart("done", null)), "msg-2", null, null,
+                null, null, null);
+        when(mockHandler.onMessageSend(any(), any())).thenReturn(new SendMessageResponse(2, reply));
+        String body = "{\"jsonrpc\":\"2.0\",\"method\":\"message/send\",\"params\":{\"message\":{\"messageId\":\"msg-1\"," +
+                "\"role\":\"ROLE_USER\",\"parts\":[{\"text\":\"hello\"}]}},\"id\":2}";
+
+        String response = handleNonStreaming(body);
+
+        verify(mockHandler).onMessageSend(any(), any());
+        assertThat(response).contains("jsonrpc").contains("done");
+    }
+
+    @Test
+    void handle_shouldTranslateSpecCancelMethodToHandler() {
+        // "tasks/cancel" must route to onCancelTask; the empty task store answers TaskNotFoundError (-32001) rather
+        // than the MethodNotFoundError (-32601) returned when the method name is not recognized at all.
+        String response = handleNonStreaming("{\"jsonrpc\":\"2.0\",\"method\":\"tasks/cancel\",\"params\":{\"id\":\"123\"},\"id\":3}");
+        assertThat(response).contains("jsonrpc").contains("-32001");
+    }
+
+    @Test
+    void handle_shouldTranslateSpecStreamMethodToStreamingHandler() throws Exception {
+        // "message/stream" must reach the streaming handler (not be rejected as an unknown method); a thrown handler
+        // error proves the request was routed to the streaming path.
+        JSONRPCHandler mockHandler = injectMockJsonRpcHandler();
+        when(mockHandler.onMessageSendStream(any(), any())).thenThrow(new RuntimeException("boom"));
+        Context ctx = mock(Context.class);
+        String body = "{\"jsonrpc\":\"2.0\",\"method\":\"message/stream\",\"params\":{\"message\":{\"messageId\":\"msg-1\"," +
+                "\"role\":\"ROLE_USER\",\"parts\":[{\"text\":\"hello\"}]}},\"id\":6}";
+        when(ctx.body()).thenReturn(body);
+
+        resource.handle(ctx);
+
+        ArgumentCaptor<String> responseCaptor = ArgumentCaptor.forClass(String.class);
+        verify(ctx).result(responseCaptor.capture());
+        assertThat(responseCaptor.getValue()).contains("error").contains("boom");
     }
 
     @Test
@@ -188,7 +224,7 @@ class AgentExecutionResourceTest {
 
         // Setup publisher stubbing
         TaskStatusUpdateEvent streamedEvent =
-                new TaskStatusUpdateEvent("123", new TaskStatus(TaskState.TASK_STATE_WORKING), "ctx-1", false, null);
+                new TaskStatusUpdateEvent("123", new TaskStatus(TaskState.TASK_STATE_WORKING), "ctx-1", null);
         Flow.Publisher<SendStreamingMessageResponse> publisher = subscriber -> {
             subscriber.onSubscribe(new Flow.Subscription() {
                 // The subscriber requests the next item from within onNext, so emit only once to avoid recursion.
