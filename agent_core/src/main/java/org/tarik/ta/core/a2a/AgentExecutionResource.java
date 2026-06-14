@@ -32,7 +32,6 @@ import org.a2aproject.sdk.jsonrpc.common.wrappers.SendStreamingMessageRequest;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.SendStreamingMessageResponse;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.StreamingJSONRPCRequest;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.SubscribeToTaskRequest;
-import org.a2aproject.sdk.server.AgentCardValidator;
 import org.a2aproject.sdk.server.ServerCallContext;
 import org.a2aproject.sdk.server.auth.UnauthenticatedUser;
 import org.a2aproject.sdk.server.events.InMemoryQueueManager;
@@ -75,6 +74,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.a2aproject.sdk.common.A2AHeaders.A2A_VERSION;
 import static org.a2aproject.sdk.grpc.utils.JSONRPCUtils.parseRequestBody;
 import static org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.toJson;
 import static org.a2aproject.sdk.spec.A2AMethods.CANCEL_TASK_METHOD;
@@ -82,6 +82,7 @@ import static org.a2aproject.sdk.spec.A2AMethods.GET_TASK_METHOD;
 import static org.a2aproject.sdk.spec.A2AMethods.SEND_MESSAGE_METHOD;
 import static org.a2aproject.sdk.spec.A2AMethods.SEND_STREAMING_MESSAGE_METHOD;
 import static org.a2aproject.sdk.spec.A2AMethods.SUBSCRIBE_TO_TASK_METHOD;
+import static org.a2aproject.sdk.spec.AgentInterface.CURRENT_PROTOCOL_VERSION;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 
@@ -115,10 +116,6 @@ public class AgentExecutionResource {
 
     @PostConstruct
     void init() {
-        // This agent serves the A2A JSON-RPC transport over its own Javalin endpoint instead of one of the SDK's
-        // reference transports, so the SDK's classpath-based transport-availability check (which would otherwise
-        // reject the JSONRPC interface advertised by the agent card) does not apply and is explicitly skipped.
-        System.setProperty(AgentCardValidator.SKIP_JSONRPC_PROPERTY, "true");
         var taskExecutor = newSingleThreadExecutor();
         var eventConsumerExecutor = newSingleThreadExecutor();
         var taskStore = new InMemoryTaskStore();
@@ -144,7 +141,7 @@ public class AgentExecutionResource {
             if (request instanceof StreamingJSONRPCRequest<?> streamingRequest) {
                 handleStreamingRequest(context, streamingRequest);
             } else {
-                context.result(handleNonStreamingRequest(request));
+                context.result(handleNonStreamingRequest(context, request));
             }
         } catch (Exception e) {
             LOG.error("Got error while processing agent task request", e);
@@ -181,9 +178,9 @@ public class AgentExecutionResource {
      *
      * @return the JSON-RPC response which may be an error response
      */
-    private String handleNonStreamingRequest(A2ARequest<?> request) {
+    private String handleNonStreamingRequest(@NotNull Context context, A2ARequest<?> request) {
         try {
-            ServerCallContext serverCallContext = newCallContext();
+            ServerCallContext serverCallContext = newCallContext(context);
             A2AResponse<?> response = switch (request) {
                 case GetTaskRequest getTaskRequest -> jsonRpcHandler.onGetTask(getTaskRequest, serverCallContext);
                 case CancelTaskRequest cancelTaskRequest -> jsonRpcHandler.onCancelTask(cancelTaskRequest, serverCallContext);
@@ -226,7 +223,7 @@ public class AgentExecutionResource {
      */
     private void handleStreamingRequest(@NotNull Context context, StreamingJSONRPCRequest<?> request) {
         try {
-            ServerCallContext serverCallContext = newCallContext();
+            ServerCallContext serverCallContext = newCallContext(context);
             Flow.Publisher<SendStreamingMessageResponse> publisher = switch (request) {
                 case SendStreamingMessageRequest sendStreamingMessageRequest ->
                     jsonRpcHandler.onMessageSendStream(sendStreamingMessageRequest, serverCallContext);
@@ -278,8 +275,19 @@ public class AgentExecutionResource {
         context.json(jsonRpcHandler.getAgentCard());
     }
 
-    private ServerCallContext newCallContext() {
-        return new ServerCallContext(UnauthenticatedUser.INSTANCE, new HashMap<>(), Set.of());
+    private ServerCallContext newCallContext(@NotNull Context context) {
+        return new ServerCallContext(UnauthenticatedUser.INSTANCE, new HashMap<>(), Set.of(), resolveProtocolVersion(context));
+    }
+
+    /**
+     * Resolves the A2A protocol version of the incoming request from the {@code A2A-Version} header. When the header is
+     * absent, the version this agent advertises is assumed instead of the SDK's spec-default {@code 0.3}, which would
+     * otherwise be rejected by {@link org.a2aproject.sdk.server.version.A2AVersionValidator} against the agent card and
+     * break version-less A2A clients.
+     */
+    static String resolveProtocolVersion(@NotNull Context context) {
+        String requestedVersion = context.header(A2A_VERSION);
+        return requestedVersion == null || requestedVersion.isBlank() ? CURRENT_PROTOCOL_VERSION : requestedVersion;
     }
 
     /**

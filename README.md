@@ -37,8 +37,9 @@ D:\Projects\test-execution-agents\
   management, and generic utilities. This module provides:
     * **`AbstractServer`**: Base class for agent servers providing common HTTP server initialization and A2A endpoint configuration,
       routing streaming methods to a Server-Sent Events (SSE) response and all other methods to a single JSON-RPC response. Request bodies
-      are parsed with the A2A SDK's JSON-RPC parser, and failures are answered with the corresponding spec-compliant JSON-RPC error
-      (method not found, invalid params, invalid request, parse error, or internal error).
+      are parsed with the A2A SDK's JSON-RPC parser; incoming standard A2A method names (`message/send`, `message/stream`, `tasks/get`,
+      `tasks/cancel`, `tasks/resubscribe`) are normalized to the SDK's request types before parsing, and failures are answered with the
+      corresponding spec-compliant JSON-RPC error (method not found, invalid params, invalid request, parse error, or internal error).
     * **`AbstractAgentExecutor`**: Base class for agent executors handling the test case execution lifecycle. It streams incremental
       progress (step/precondition results, log lines) to the caller via a `StreamingEventEmitter` and emits a final consolidated
       `TestExecutionResult` artifact on completion. It also supports the A2A `tasks/cancel` method: a cancel request interrupts the

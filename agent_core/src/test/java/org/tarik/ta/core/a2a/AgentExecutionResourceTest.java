@@ -198,12 +198,8 @@ class AgentExecutionResourceTest {
         Context ctx = mock(Context.class);
         when(ctx.body()).thenReturn(VALID_STREAMING_BODY);
 
-        jakarta.servlet.http.HttpServletRequest req = mock(jakarta.servlet.http.HttpServletRequest.class);
         jakarta.servlet.http.HttpServletResponse res = mock(jakarta.servlet.http.HttpServletResponse.class);
-        jakarta.servlet.AsyncContext asyncCtx = mock(jakarta.servlet.AsyncContext.class);
-        when(ctx.req()).thenReturn(req);
         when(ctx.res()).thenReturn(res);
-        when(req.getAsyncContext()).thenReturn(asyncCtx);
 
         java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
         jakarta.servlet.ServletOutputStream servletOut = new jakarta.servlet.ServletOutputStream() {
@@ -256,7 +252,8 @@ class AgentExecutionResourceTest {
         // Verify status and headers are set, and SSE event was written
         verify(res).setStatus(200);
         verify(res).setContentType("text/event-stream");
-        verify(asyncCtx).complete();
+        // The SSE subscriber intentionally does not complete the AsyncContext itself — Javalin owns and completes it
+        // once the async task returns — so this test asserts only the response setup and the emitted event.
         assertThat(out.toString()).contains("data:");
     }
 
@@ -285,6 +282,24 @@ class AgentExecutionResourceTest {
         field.setAccessible(true);
         field.set(resource, mockHandler);
         return mockHandler;
+    }
+
+    @Test
+    void resolveProtocolVersion_shouldDefaultToAdvertisedVersionWhenHeaderAbsent() {
+        // A version-less client must not be assumed to speak the SDK's spec-default "0.3" (which the agent, advertising
+        // "1.0", would reject); the agent's advertised version is used instead.
+        Context ctx = mock(Context.class);
+        when(ctx.header("A2A-Version")).thenReturn(null);
+
+        assertThat(AgentExecutionResource.resolveProtocolVersion(ctx)).isEqualTo("1.0");
+    }
+
+    @Test
+    void resolveProtocolVersion_shouldHonorExplicitHeader() {
+        Context ctx = mock(Context.class);
+        when(ctx.header("A2A-Version")).thenReturn("0.3");
+
+        assertThat(AgentExecutionResource.resolveProtocolVersion(ctx)).isEqualTo("0.3");
     }
 
     @Test
