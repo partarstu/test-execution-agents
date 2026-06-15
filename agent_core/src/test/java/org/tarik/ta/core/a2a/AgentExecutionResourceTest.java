@@ -210,7 +210,7 @@ class AgentExecutionResourceTest {
             @Override
             public void write(int b) { out.write(b); }
         };
-        when(ctx.outputStream()).thenReturn(servletOut);
+        when(res.getOutputStream()).thenReturn(servletOut);
 
         JSONRPCHandler mockHandler = injectMockJsonRpcHandler();
 

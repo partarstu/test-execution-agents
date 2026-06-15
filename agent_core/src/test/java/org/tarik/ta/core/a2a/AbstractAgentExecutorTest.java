@@ -246,9 +246,9 @@ class AbstractAgentExecutorTest {
 
         executor.execute(requestContext, agentEmitter);
 
-        // The step-about-to-run is streamed as a WORKING status update before its result, with the enum serialized
-        // using the stable wire format, and the run completes.
-        assertThat(captureActivityJson()).contains("\"test_step\"").contains("click the button");
+        // The step-about-to-run is streamed as a WORKING status update before its result, as a human-readable line,
+        // and the run completes.
+        assertThat(captureActivityText()).contains("Executing test step").contains("click the button");
         verify(agentEmitter).complete(any(Message.class));
     }
 
@@ -267,14 +267,15 @@ class AbstractAgentExecutorTest {
 
         executor.execute(requestContext, agentEmitter);
 
-        assertThat(captureActivityJson()).contains("\"precondition\"").contains("user is logged in");
+        assertThat(captureActivityText()).contains("Handling precondition").contains("user is logged in");
         verify(agentEmitter).complete(any(Message.class));
     }
 
     /**
-     * Captures the message streamed as the {@code WORKING} status update and returns the activity JSON it carries.
+     * Captures the message streamed as the {@code WORKING} status update and returns the human-readable activity line
+     * it carries.
      */
-    private String captureActivityJson() {
+    private String captureActivityText() {
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
         verify(agentEmitter).updateStatus(eq(TaskState.TASK_STATE_WORKING), messageCaptor.capture());
         return ((TextPart) messageCaptor.getValue().parts().getFirst()).text();

@@ -282,16 +282,20 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
          * is being executed right now (as opposed to the result artifacts, which describe what has already completed).
          */
         private void emitActivity(ExecutionActivity activity) {
-            serializeToJson(activity).ifPresent(json -> {
-                lock.lock();
-                try {
-                    agentEmitter.updateStatus(TASK_STATE_WORKING, agentEmitter.newAgentMessage(List.of(new TextPart(json)), null));
-                } catch (Exception e) {
-                    LOG.warn("Failed to stream the current activity to the caller.", e);
-                } finally {
-                    lock.unlock();
-                }
-            });
+            // The consumer (e.g. the orchestrator dashboard) renders the working-status message verbatim as the
+            // "currently executing" line, so it must be a human-readable sentence rather than serialized JSON.
+            String description = switch (activity.activityType()) {
+                case TEST_STEP -> "Executing test step: " + activity.description();
+                case PRECONDITION -> "Handling precondition: " + activity.description();
+            };
+            lock.lock();
+            try {
+                agentEmitter.updateStatus(TASK_STATE_WORKING, agentEmitter.newAgentMessage(List.of(new TextPart(description)), null));
+            } catch (Exception e) {
+                LOG.warn("Failed to stream the current activity to the caller.", e);
+            } finally {
+                lock.unlock();
+            }
         }
 
         @Override

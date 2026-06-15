@@ -53,6 +53,8 @@ public class LogCapture {
 
     public void start() {
         appender = new StreamingAppender();
+        appender.setContext(rootLogger.getLoggerContext());
+        appender.setName("log-capture-streaming");
         appender.start();
         rootLogger.addAppender(appender);
     }
@@ -141,16 +143,23 @@ public class LogCapture {
         }
 
         private void drainLoop() {
+            boolean interrupted = false;
             try {
                 while (true) {
                     emit(pendingLines.take());
                 }
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                interrupted = true;
             } finally {
+                // Drain leftover lines with a clean interrupt status: emitLog performs interruptible blocking I/O
+                // (MainEventBus.submit), which would otherwise fail immediately on a still-set interrupt flag. The
+                // interrupt is re-asserted afterwards so the thread terminates as expected.
                 List<String> remaining = new ArrayList<>();
                 pendingLines.drainTo(remaining);
                 remaining.forEach(this::emit);
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
+                }
             }
         }
 

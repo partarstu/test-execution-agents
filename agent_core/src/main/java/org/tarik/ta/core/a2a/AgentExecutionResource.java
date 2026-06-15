@@ -123,7 +123,13 @@ public class AgentExecutionResource {
         var queueManager = new InMemoryQueueManager(taskStore, mainEventBus);
         var pushNotificationSender = new BasePushNotificationSender(pushNotificationConfigStore);
         var mainEventBusProcessor = new MainEventBusProcessor(mainEventBus, taskStore, pushNotificationSender, queueManager);
-        mainEventBusProcessor.ensureStarted();
+        // The SDK starts the processor's background thread from its @PostConstruct, which only runs under a Jakarta CDI
+        // container. This agent wires the processor manually via avaje-inject, so that callback never fires and
+        // ensureStarted() is a no-op proxy hook. Without a running processor the MainEventBus is never drained and no
+        // events ever reach subscribers, so the thread must be started explicitly here.
+        var eventBusProcessorThread = new Thread(mainEventBusProcessor, "MainEventBusProcessor");
+        eventBusProcessorThread.setDaemon(true);
+        eventBusProcessorThread.start();
         DefaultRequestHandler httpRequestHandler = DefaultRequestHandler.create(agentExecutorProvider.get(),
                 taskStore, queueManager, pushNotificationConfigStore,
                 mainEventBusProcessor, taskExecutor, eventConsumerExecutor);
@@ -260,7 +266,10 @@ public class AgentExecutionResource {
             response.setHeader("Cache-Control", "no-cache");
             response.setHeader("Connection", "keep-alive");
 
-            SseSubscriber subscriber = new SseSubscriber(context.outputStream(), completionFuture);
+            // Use the raw servlet output stream rather than ctx.outputStream(): Javalin's wrapper does not override
+            // flush(), so per-event flushes are no-ops and the SSE events stay buffered until the response closes,
+            // making live progress arrive in a burst at task end. The raw stream's flush() reaches the socket.
+            SseSubscriber subscriber = new SseSubscriber(response.getOutputStream(), completionFuture);
             subscriberRef.set(subscriber);
             publisher.subscribe(subscriber);
             try {
