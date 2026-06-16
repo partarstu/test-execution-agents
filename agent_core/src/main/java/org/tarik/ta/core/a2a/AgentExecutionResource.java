@@ -84,7 +84,7 @@ import static org.a2aproject.sdk.spec.A2AMethods.SEND_STREAMING_MESSAGE_METHOD;
 import static org.a2aproject.sdk.spec.A2AMethods.SUBSCRIBE_TO_TASK_METHOD;
 import static org.a2aproject.sdk.spec.AgentInterface.CURRENT_PROTOCOL_VERSION;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static java.util.concurrent.Executors.newCachedThreadPool;
 
 @Singleton
 public class AgentExecutionResource {
@@ -116,8 +116,12 @@ public class AgentExecutionResource {
 
     @PostConstruct
     void init() {
-        var taskExecutor = newSingleThreadExecutor();
-        var eventConsumerExecutor = newSingleThreadExecutor();
+        // Both executors must allow on-demand thread growth: the SDK runs the (long, blocking) agent execution on
+        // taskExecutor and schedules the SSE subscription + EventConsumer polling loop on these same pools. A single
+        // thread lets the blocking agent starve the streaming consumption, so live progress only reaches the client in
+        // a burst at task end. Cached pools match the SDK's own default executor semantics.
+        var taskExecutor = newCachedThreadPool();
+        var eventConsumerExecutor = newCachedThreadPool();
         var taskStore = new InMemoryTaskStore();
         var mainEventBus = new MainEventBus();
         var queueManager = new InMemoryQueueManager(taskStore, mainEventBus);

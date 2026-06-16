@@ -19,6 +19,8 @@ package org.tarik.ta.core.a2a;
 
 import org.a2aproject.sdk.server.agentexecution.RequestContext;
 import org.a2aproject.sdk.server.tasks.AgentEmitter;
+import org.a2aproject.sdk.spec.FilePart;
+import org.a2aproject.sdk.spec.FileWithBytes;
 import org.a2aproject.sdk.spec.Message;
 import org.a2aproject.sdk.spec.Part;
 import org.a2aproject.sdk.spec.Task;
@@ -36,8 +38,10 @@ import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus;
 import org.tarik.ta.core.dto.TestStep;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -226,7 +230,9 @@ class AbstractAgentExecutorTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Part<?>>> partsCaptor = ArgumentCaptor.forClass(List.class);
         verify(agentEmitter).addArtifact(partsCaptor.capture(), eq("execution_log"), eq("execution_log.log"), any(), eq(false), eq(false));
-        String logText = ((TextPart) partsCaptor.getValue().getFirst()).text();
+        FileWithBytes logFile = (FileWithBytes) ((FilePart) partsCaptor.getValue().getFirst()).file();
+        assertThat(logFile.mimeType()).isEqualTo("text/plain");
+        String logText = new String(Base64.getDecoder().decode(logFile.bytes()), StandardCharsets.UTF_8);
         assertThat(logText).contains("first line").contains("second line");
         verify(agentEmitter).complete(any(Message.class));
     }

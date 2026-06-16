@@ -340,8 +340,12 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                 return;
             }
             try {
+                // Stream logs as a text/plain file part (not a TextPart): the orchestrator identifies log artifacts by
+                // their text/plain MIME type and routes them to the live log view. A plain TextPart has no MIME type, so
+                // it would be misread as test-execution-result content and end up mixed into the final results.
                 String combined = logBuffer.stream().collect(joining("\n", "", "\n"));
-                List<Part<?>> parts = List.of(new TextPart(combined));
+                String base64Logs = Base64.getEncoder().encodeToString(combined.getBytes(StandardCharsets.UTF_8));
+                List<Part<?>> parts = List.of(new FilePart(new FileWithBytes("text/plain", STREAMED_LOG_FILE_NAME, base64Logs)));
                 agentEmitter.addArtifact(parts, LOG_ARTIFACT, STREAMED_LOG_FILE_NAME, null, logArtifactStarted, false);
                 logArtifactStarted = true;
             } catch (Exception e) {
