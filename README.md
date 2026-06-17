@@ -435,6 +435,10 @@ The deploy script automatically:
 2. Creates a persistent data disk that survives VM recreations
 3. Provisions the VM with authentication enabled and verifies credentials on startup
 
+The startup script locates the data disk by its configured `DATA_DISK_NAME` (passed via VM metadata) and aborts if that disk is not
+attached, rather than silently starting Neo4j against an empty boot-disk directory. An existing data disk is never reformatted; only a
+genuinely empty disk is formatted on first boot. When attaching a cloned/restored disk, its `device-name` must equal `DATA_DISK_NAME`.
+
 **Then deploy the UI agent with the Neo4j host:**
 
 ```bash

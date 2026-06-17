@@ -27,6 +27,8 @@ NEO4J_HEAP_SIZE=$(curl -s "http://metadata.google.internal/computeMetadata/v1/in
 NEO4J_PAGECACHE_SIZE=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/NEO4J_PAGECACHE_SIZE" -H "Metadata-Flavor: Google")
 NEO4J_BOLT_PORT=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/NEO4J_BOLT_PORT" -H "Metadata-Flavor: Google")
 NEO4J_BOLT_PORT="${NEO4J_BOLT_PORT:-7687}"
+DATA_DISK_NAME=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/DATA_DISK_NAME" -H "Metadata-Flavor: Google")
+DATA_DISK_NAME="${DATA_DISK_NAME:-neo4j-data-disk}"
 
 # --- Install Google Cloud SDK (using containerized gcloud) ---
 echo "Pulling google/cloud-sdk image..."
@@ -54,13 +56,20 @@ echo "Neo4j authentication credentials retrieved successfully (user=${NEO4J_USER
 
 # --- Mount Persistent Data Disk ---
 echo "Setting up persistent data disk..."
-DATA_DISK_DEVICE="/dev/disk/by-id/google-neo4j-data-disk"
+DATA_DISK_DEVICE="/dev/disk/by-id/google-${DATA_DISK_NAME}"
 DATA_MOUNT_POINT="/var/lib/neo4j-data"
 
 # Create mount point directory - /var/lib is writable on COS
 mkdir -p "${DATA_MOUNT_POINT}"
 
-# Format the disk only if it has no filesystem (first boot)
+# The data disk holds the entire database. If it isn't attached, mounting silently falls back to the empty
+# boot-disk directory and Neo4j starts with a blank store. Fail loudly instead of destroying the illusion of data.
+if [ ! -b "${DATA_DISK_DEVICE}" ]; then
+    echo "ERROR: Data disk ${DATA_DISK_DEVICE} is not attached. Aborting to avoid starting with an empty database." >&2
+    exit 1
+fi
+
+# Format only a genuinely empty disk (first boot of a brand-new disk). An existing filesystem is never reformatted.
 if ! blkid "${DATA_DISK_DEVICE}" &>/dev/null; then
     echo "Formatting data disk (first boot)..."
     mkfs.ext4 -m 0 -F -E lazy_itable_init=0,lazy_journal_init=0,discard "${DATA_DISK_DEVICE}"

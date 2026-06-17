@@ -143,6 +143,7 @@ METADATA+=",gcp-project-id=${PROJECT_ID}"
 METADATA+=",NEO4J_HEAP_SIZE=${NEO4J_HEAP_SIZE}"
 METADATA+=",NEO4J_PAGECACHE_SIZE=${NEO4J_PAGECACHE_SIZE}"
 METADATA+=",NEO4J_BOLT_PORT=${NEO4J_BOLT_PORT:-7687}"
+METADATA+=",DATA_DISK_NAME=${DATA_DISK_NAME}"
 
 # Create new instance with attached persistent data disk
 gcloud beta compute instances create ${INSTANCE_NAME} \
