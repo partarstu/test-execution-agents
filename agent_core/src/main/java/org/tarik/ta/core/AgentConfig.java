@@ -50,6 +50,7 @@ public class AgentConfig {
     private final ConfigProperty<String> host;
     private final ConfigProperty<String> externalUrl;
     private final ConfigProperty<Boolean> debugMode;
+    private final ConfigProperty<String> agentAuthToken;
 
     // RAG Config
     private final ConfigProperty<RagDbProvider> vectorDbProvider;
@@ -139,6 +140,7 @@ public class AgentConfig {
         this.externalUrl = loadProperty("external.url", "EXTERNAL_URL",
                 "http://localhost:%s".formatted(startPort.value()), s -> s, false);
         this.debugMode = loadProperty("debug.mode", "DEBUG_MODE", "false", Boolean::parseBoolean, false);
+        this.agentAuthToken = loadProperty("agent.auth.token", "AGENT_AUTH_TOKEN", "", s -> s, true);
 
         // RAG Config
         this.vectorDbProvider = getProperty("vector.db.provider", "VECTOR_DB_PROVIDER", "neo4j",
@@ -239,6 +241,15 @@ public class AgentConfig {
 
     public boolean isDebugMode() {
         return debugMode.value();
+    }
+
+    /**
+     * Shared secret required as a {@code Bearer} token on requests to the main endpoint. An empty value means
+     * authentication is disabled (intended only for local/dev runs).
+     */
+    public Optional<String> getAuthToken() {
+        String value = agentAuthToken.value();
+        return value.isEmpty() ? empty() : Optional.of(value);
     }
 
     // -----------------------------------------------------

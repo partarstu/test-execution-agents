@@ -41,28 +41,31 @@ import java.util.stream.Collectors;
 public class LogCapture {
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
             .withZone(ZoneId.systemDefault());
+    // Scope capture to the application's own logger so framework/third-party log lines (which may carry credentials or
+    // request/response bodies) never enter the client-facing SSE stream.
+    private static final String APP_LOGGER_NAME = "org.tarik.ta";
 
-    private final Logger rootLogger;
+    private final Logger appLogger;
     private final StreamingEventEmitter eventEmitter;
     private StreamingAppender appender;
 
     public LogCapture(@External @NotNull StreamingEventEmitter eventEmitter) {
         this.eventEmitter = eventEmitter;
-        this.rootLogger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        this.appLogger = (Logger) LoggerFactory.getLogger(APP_LOGGER_NAME);
     }
 
     public void start() {
         appender = new StreamingAppender();
-        appender.setContext(rootLogger.getLoggerContext());
+        appender.setContext(appLogger.getLoggerContext());
         appender.setName("log-capture-streaming");
         appender.start();
-        rootLogger.addAppender(appender);
+        appLogger.addAppender(appender);
     }
 
     @PreDestroy
     public void stop() {
         if (appender != null) {
-            rootLogger.detachAppender(appender);
+            appLogger.detachAppender(appender);
             appender.stop();
         }
     }

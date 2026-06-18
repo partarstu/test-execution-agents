@@ -33,6 +33,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 class LogCaptureTest {
 
@@ -67,6 +69,22 @@ class LogCaptureTest {
         inOrder.verify(eventEmitter).emitLog(contains("Streamed log message 1"));
         inOrder.verify(eventEmitter).emitLog(contains("Streamed log message 2"));
         inOrder.verify(eventEmitter).emitLog(contains("Streamed log message 3"));
+    }
+
+    @Test
+    void capture_shouldNotCaptureOrStreamLogsOutsideAppLogger() {
+        StreamingEventEmitter eventEmitter = mock(StreamingEventEmitter.class);
+        LogCapture appLoggerCapture = new LogCapture(eventEmitter);
+        appLoggerCapture.start();
+        Logger externalLogger = LoggerFactory.getLogger("com.external.ThirdPartyLibrary");
+        try {
+            externalLogger.info("Sensitive third-party message");
+        } finally {
+            appLoggerCapture.stop();
+        }
+
+        assertThat(appLoggerCapture.getLogs()).noneMatch(line -> line.contains("Sensitive third-party message"));
+        verify(eventEmitter, never()).emitLog(contains("Sensitive third-party message"));
     }
 
     @Test

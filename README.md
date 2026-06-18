@@ -145,9 +145,16 @@ The core module provides shared abstractions that both UI and API agents extend:
   consolidated `TestExecutionResult` (full result JSON + logs file + end-of-test general screenshot); per-step screenshots are not
   re-bundled there since they already arrived with their step events, so non-streaming `message/send` callers still receive one
   ready-to-consume result object without having to reassemble the individual events.
+- **Endpoint Authentication**: When `agent.auth.token` / `AGENT_AUTH_TOKEN` is set, every request to the main A2A endpoint must
+  carry a matching `Authorization: Bearer <token>` header (compared in constant time); otherwise it is rejected with `401`. The
+  `GET /.well-known/agent-card.json` discovery endpoint stays public. If no token is configured the endpoint is unauthenticated and a
+  startup `WARN` is logged — set a token for any non-local deployment.
 - **Test Case Extraction**: AI-powered parsing of natural language test cases into structured format.
 - **Budget Management**: Token and time budget controls to prevent runaway executions.
-- **Structured Logging**: Execution logs captured and streamed live during execution.
+- **Structured Logging**: Execution logs captured and streamed live during execution. Only the application's own logger
+  (`org.tarik.ta`) is streamed to clients, so framework/third-party lines never enter the client stream. The optional
+  `model.logging.enabled`, `api.request.logging.enabled`, and `api.response.logging.enabled` toggles default to `false` because
+  enabling them streams sensitive data (prompts, response bodies, auth headers).
 - **System Info Capture**: Device, OS, browser, and environment information in results.
 
 ### UI Test Agent Specific
@@ -164,6 +171,12 @@ The core module provides shared abstractions that both UI and API agents extend:
 ### API Test Agent Specific
 
 - **Multiple Auth Types**: Basic, Bearer Token, and API Key authentication.
+- **Outbound Request Guards (SSRF / file-exfiltration)**: Tool-layer enforcement independent of the model. Requests to SSRF-sensitive
+  ranges (loopback, link-local, site-local, multicast, wildcard) and the cloud metadata address `169.254.169.254` are blocked; an
+  optional `api.outbound.host.allowlist` (CSV) restricts requests to trusted hosts (an allow-listed host bypasses the range check).
+  `uploadFile` is confined to `api.upload.base.dir` (canonicalized) and is refused entirely when that directory is unset.
+- **TLS Validation On By Default**: `api.relaxed.https.validation` defaults to `false`; relax it only per trusted target, since
+  relaxing it exposes credentialed requests to man-in-the-middle interception.
 - **Schema Validation**: JSON Schema and OpenAPI specification validation.
 - **Variable Substitution**: Dynamic `${variableName}` replacement in requests.
 - **Cookie Management**: Automatic session handling across requests.
@@ -202,6 +215,7 @@ The following configuration properties are shared across agents (defined in `Age
 |-------------------------|-------------------------|---------------------------|-----------------------------------------------------|
 | `port`                  | `PORT`                  | `8005`                    | Server port                                         |
 | `host`                  | `AGENT_HOST`            | (required)                | Server host                                         |
+| `agent.auth.token`      | `AGENT_AUTH_TOKEN`      | (empty ⇒ auth disabled)   | Shared secret required as `Bearer` token on the main endpoint |
 | `external.url`          | `EXTERNAL_URL`          | `http://localhost:{port}` | External URL for A2A card                           |
 | `vector.db.provider`    | `VECTOR_DB_PROVIDER`    | `neo4j`                   | Knowledge DB provider (`neo4j`)                     |
 | `vector.db.url`         | `VECTOR_DB_URL`         | (required)                | URL for the vector database                         |

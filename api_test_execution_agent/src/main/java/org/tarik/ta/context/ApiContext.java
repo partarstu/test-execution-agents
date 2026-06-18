@@ -44,7 +44,7 @@ public class ApiContext {
     private String baseUri;
     private Integer proxyPort;
     private String proxyHost;
-    private boolean relaxedHttpsValidation = true;
+    private boolean relaxedHttpsValidation = false;
 
     /**
      * Creates a new ApiContext initialized from configuration properties.

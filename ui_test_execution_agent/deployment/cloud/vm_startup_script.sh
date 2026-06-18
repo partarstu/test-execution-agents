@@ -117,6 +117,8 @@ ANTHROPIC_API_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versi
 ANTHROPIC_ENDPOINT=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="ANTHROPIC_ENDPOINT" --project="${PROJECT_ID}")
 GOOGLE_API_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="GOOGLE_API_KEY" --project="${PROJECT_ID}")
 NEO4J_USERNAME=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="NEO4J_USERNAME" --project="${PROJECT_ID}" 2>/dev/null || echo "")
+# Optional: when set, the agent requires this shared secret as a Bearer token on the main endpoint. Empty disables auth.
+AGENT_AUTH_TOKEN=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="AGENT_AUTH_TOKEN" --project="${PROJECT_ID}" 2>/dev/null || echo "")
 
 # --- Creating Log Directory on Host ---
 echo "Creating log directory on the host..."
@@ -149,6 +151,7 @@ docker run -d --name ${SERVICE_NAME} --shm-size=4g --log-driver=gcplogs \
     -e ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
     -e ANTHROPIC_ENDPOINT="${ANTHROPIC_ENDPOINT}" \
     -e GOOGLE_API_KEY="${GOOGLE_API_KEY}" \
+    -e AGENT_AUTH_TOKEN="${AGENT_AUTH_TOKEN}" \
     -e WEBSOCKIFY_ENABLED=false \
     -e logging.level.dev.langchain4j="INFO" \
     -e SCREEN_RECORDING_FOLDER="/app/log/videos" \

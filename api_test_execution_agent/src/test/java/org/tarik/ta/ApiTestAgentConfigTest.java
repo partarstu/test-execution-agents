@@ -31,7 +31,9 @@ class ApiTestAgentConfigTest {
         assertThat(config.getTargetBaseUri()).isNotNull();
         assertThat(config.getProxyPort()).isNotNull();
         assertThat(config.getProxyHost()).isNotNull();
-        assertThat(config.getRelaxedHttpsValidation()).isTrue();
+        assertThat(config.getRelaxedHttpsValidation()).isFalse();
+        assertThat(config.getOutboundHostAllowlist()).isEmpty();
+        assertThat(config.getUploadBaseDir()).isEmpty();
         assertThat(config.getRequestTimeoutMillis()).isGreaterThan(0);
         assertThat(config.getResponseTimeoutMillis()).isGreaterThan(0);
         assertThat(config.getConnectionTimeoutMillis()).isGreaterThan(0);

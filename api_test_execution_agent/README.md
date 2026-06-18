@@ -73,7 +73,9 @@ configuration properties:
 | `api.base.uri`                 | `API_BASE_URI`                 | (empty) | Base URI for API requests                   |
 | `api.proxy.host`               | `API_PROXY_HOST`               | (empty) | Proxy server hostname                       |
 | `api.proxy.port`               | `API_PROXY_PORT`               | `8080`  | Proxy server port                           |
-| `api.relaxed.https.validation` | `API_RELAXED_HTTPS_VALIDATION` | `true`  | Disable strict HTTPS certificate validation |
+| `api.relaxed.https.validation` | `API_RELAXED_HTTPS_VALIDATION` | `false` | Relax strict HTTPS certificate validation (opt in per trusted target only) |
+| `api.outbound.host.allowlist`  | `API_OUTBOUND_HOST_ALLOWLIST`  | (empty) | Optional CSV allow-list of hosts permitted for outbound requests; empty ⇒ only SSRF range-blocking applies |
+| `api.upload.base.dir`          | `API_UPLOAD_BASE_DIR`          | (empty) | Base directory `uploadFile` is confined to (canonicalized); empty ⇒ uploads refused |
 
 ### Timeout Configuration
 
@@ -205,11 +207,13 @@ The API Test Execution Agent uses the following tools:
 ### ApiRequestTools
 
 - `sendRequest(method, url, headers, body, authType)` - Sends HTTP requests. The `authType` parameter is optional; if not specified, the
-  configured default authentication type (`api.default.auth.type`) is used.
+  configured default authentication type (`api.default.auth.type`) is used. The target host is enforced against the outbound guard
+  (SSRF range-blocking plus the optional `api.outbound.host.allowlist`) regardless of model instructions.
 - `getLastApiResponse()` - Retrieves the last API response information (status code, body, headers). Use when a test step explicitly
   requires access to the previous API response data.
 - `uploadFile(url, filePath, multipartName, headers, authType)` - Uploads files using multipart/form-data. The `authType` parameter is
-  optional; if not specified, the configured default authentication type is used.
+  optional; if not specified, the configured default authentication type is used. The target host is enforced against the outbound guard,
+  and the file path must resolve inside `api.upload.base.dir` (uploads are refused when that directory is unset).
 
 ### ApiAssertionTools
 

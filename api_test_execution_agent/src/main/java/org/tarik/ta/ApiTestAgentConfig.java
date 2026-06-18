@@ -21,7 +21,12 @@ import jakarta.inject.Singleton;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.model.AuthType;
 
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
+
+import static java.util.Arrays.stream;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 /**
  * Configuration class for the API Test Execution Agent.
@@ -43,6 +48,11 @@ public class ApiTestAgentConfig extends AgentConfig {
     private final ConfigProperty<Integer> PROXY_PORT;
     private final ConfigProperty<String> PROXY_HOST;
     private final ConfigProperty<Boolean> RELAXED_HTTPS_VALIDATION;
+
+    // -----------------------------------------------------
+    // Outbound Request Restrictions (SSRF / file-exfiltration guards)
+    private final ConfigProperty<String> OUTBOUND_HOST_ALLOWLIST;
+    private final ConfigProperty<String> UPLOAD_BASE_DIR;
 
     // -----------------------------------------------------
     // Request/Response Timeout Configuration
@@ -99,7 +109,12 @@ public class ApiTestAgentConfig extends AgentConfig {
         this.TARGET_BASE_URI = loadProperty("api.base.uri", "API_BASE_URI", "", s -> s, false);
         this.PROXY_PORT = loadPropertyAsInteger("api.proxy.port", "API_PROXY_PORT", "8080", false);
         this.PROXY_HOST = loadProperty("api.proxy.host", "API_PROXY_HOST", "", s -> s, false);
-        this.RELAXED_HTTPS_VALIDATION = loadProperty("api.relaxed.https.validation", "API_RELAXED_HTTPS_VALIDATION", "true", Boolean::parseBoolean, false);
+        this.RELAXED_HTTPS_VALIDATION = loadProperty("api.relaxed.https.validation", "API_RELAXED_HTTPS_VALIDATION", "false", Boolean::parseBoolean, false);
+
+        // -----------------------------------------------------
+        // Outbound Request Restrictions (SSRF / file-exfiltration guards)
+        this.OUTBOUND_HOST_ALLOWLIST = loadProperty("api.outbound.host.allowlist", "API_OUTBOUND_HOST_ALLOWLIST", "", s -> s, false);
+        this.UPLOAD_BASE_DIR = loadProperty("api.upload.base.dir", "API_UPLOAD_BASE_DIR", "", s -> s, false);
 
         // -----------------------------------------------------
         // Request/Response Timeout Configuration
@@ -165,6 +180,30 @@ public class ApiTestAgentConfig extends AgentConfig {
 
     public boolean getRelaxedHttpsValidation() {
         return RELAXED_HTTPS_VALIDATION.value();
+    }
+
+    /**
+     * Hosts explicitly permitted for outbound requests, parsed from the optional CSV property. An empty set means no
+     * allow-list is configured, in which case only SSRF range-blocking applies.
+     */
+    public Set<String> getOutboundHostAllowlist() {
+        String value = OUTBOUND_HOST_ALLOWLIST.value();
+        if (value.isBlank()) {
+            return Set.of();
+        }
+        return stream(value.split(","))
+                .map(String::trim)
+                .filter(host -> !host.isEmpty())
+                .map(host -> host.toLowerCase(Locale.ROOT))
+                .collect(toUnmodifiableSet());
+    }
+
+    /**
+     * Base directory that file uploads are restricted to. Empty means uploads are disabled.
+     */
+    public Optional<String> getUploadBaseDir() {
+        String value = UPLOAD_BASE_DIR.value();
+        return value.isBlank() ? Optional.empty() : Optional.of(value);
     }
 
     public int getRequestTimeoutMillis() {
