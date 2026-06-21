@@ -63,6 +63,6 @@ class MultilingualE5SmallEmbeddingModel {
     }
 
     private static @NotNull String prefixed(@NotNull String text, @NotNull E5EmbeddingMode mode) {
-        return (mode == QUERY ? "query: " : "passage: ") + text;
+        return (mode == QUERY ? "query: %s" : "passage: %s").formatted(text);
     }
 }

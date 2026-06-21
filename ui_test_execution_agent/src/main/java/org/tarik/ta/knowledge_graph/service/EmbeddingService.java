@@ -67,7 +67,7 @@ public class EmbeddingService {
         switch (modelDescriptor) {
             case BGE_SMALL_EN_V15 -> this.strategy = new BgeStrategy();
             case MULTILINGUAL_E5_SMALL -> this.strategy = new E5Strategy(E5_CACHE_DIR);
-            default -> throw new IllegalArgumentException("Unsupported embedding model: " + modelDescriptor);
+            default -> throw new IllegalArgumentException("Unsupported embedding model: %s".formatted(modelDescriptor));
         }
         LOG.info("Embedding model initialized: {}", modelDescriptor.configKey);
     }

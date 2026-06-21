@@ -103,7 +103,11 @@ class EmbeddingModelAssetManager {
             throw new IllegalStateException(
                     "Failed to download embedding model asset '%s' from %s".formatted(filename, url), e);
         } finally {
-            try { Files.deleteIfExists(tempFile); } catch (IOException ignored) {}
+            try {
+                Files.deleteIfExists(tempFile);
+            } catch (IOException e) {
+                LOG.debug("Failed to delete temp file {}", tempFile, e);
+            }
         }
     }
 }

@@ -285,8 +285,8 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
             // The consumer (e.g. the orchestrator dashboard) renders the working-status message verbatim as the
             // "currently executing" line, so it must be a human-readable sentence rather than serialized JSON.
             String description = switch (activity.activityType()) {
-                case TEST_STEP -> "Executing test step: " + activity.description();
-                case PRECONDITION -> "Handling precondition: " + activity.description();
+                case TEST_STEP -> "Executing test step: %s".formatted(activity.description());
+                case PRECONDITION -> "Handling precondition: %s".formatted(activity.description());
             };
             lock.lock();
             try {
