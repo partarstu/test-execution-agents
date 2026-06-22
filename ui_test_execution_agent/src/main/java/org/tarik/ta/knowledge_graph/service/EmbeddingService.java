@@ -18,84 +18,124 @@
 package org.tarik.ta.knowledge_graph.service;
 
 import dev.langchain4j.data.embedding.Embedding;
-import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.embedding.onnx.bgesmallenv15.BgeSmallEnV15EmbeddingModel;
 import io.avaje.inject.Bean;
 import io.avaje.inject.Factory;
 import jakarta.inject.Singleton;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.UiTestAgentConfig;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
-import static java.util.Objects.requireNonNull;
-import org.tarik.ta.UiTestAgentConfig;
+import java.util.function.Function;
 
 /**
  * Centralized embedding service for batch embedding during knowledge ingestion
  * and for Procedure semantic search queries.
  *
- * <p>Reuses the shared {@link BgeSmallEnV15EmbeddingModel} instance (384-dimension, ONNX-based,
- * thread-safe). Configurable batch size via {@code knowledge.embedding.batch.size} property.</p>
+ * <p>The active model is configured via {@code knowledge.embedding.model} property.
+ * Supported values: {@code bge-small-en-v15}, {@code multilingual-e5-small}.
+ * Both produce 384-dimensional embeddings. For multilingual-e5-small, document
+ * embeddings use the {@code "passage: "} prefix and query embeddings use {@code "query: "}.</p>
  */
 @Factory
 public class EmbeddingService {
     private static final Logger LOG = LoggerFactory.getLogger(EmbeddingService.class);
+    private static final int EXPECTED_DIMENSION = 384;
 
-    private final EmbeddingModel MODEL = new BgeSmallEnV15EmbeddingModel();
+    private static final Path E5_CACHE_DIR = Path.of(
+            System.getProperty("user.home"), ".cache", "test-execution-agents", "models", "multilingual-e5-small");
+
+    private final SupportedEmbeddingModel modelDescriptor;
     private final UiTestAgentConfig config;
+    final EmbeddingStrategy strategy;
 
-    public EmbeddingService(UiTestAgentConfig config) {
+    public EmbeddingService(@NotNull UiTestAgentConfig config) {
         this.config = config;
+        this.modelDescriptor = SupportedEmbeddingModel.fromConfigKey(config.getKnowledgeEmbeddingModel());
+
+        if (modelDescriptor.dimension != EXPECTED_DIMENSION) {
+            throw new IllegalStateException(
+                    ("Embedding model '%s' produces %d-dimensional vectors, but the knowledge graph vector indexes " +
+                            "require exactly %d dimensions. Update SchemaMigrationManager or choose a compatible model.")
+                            .formatted(modelDescriptor.configKey, modelDescriptor.dimension, EXPECTED_DIMENSION));
+        }
+
+        switch (modelDescriptor) {
+            case BGE_SMALL_EN_V15 -> this.strategy = new BgeStrategy();
+            case MULTILINGUAL_E5_SMALL -> this.strategy = new E5Strategy(E5_CACHE_DIR);
+            default -> throw new IllegalArgumentException("Unsupported embedding model: %s".formatted(modelDescriptor));
+        }
+        LOG.info("Embedding model initialized: {}", modelDescriptor.configKey);
     }
 
     /**
-     * Embeds a single text string and returns the resulting {@link Embedding}.
+     * Embeds a single text for document ingestion.
      */
-    public Embedding embed(String text) {
-        requireNonNull(text, "text");
-        return MODEL.embed(text).content();
+    public @NotNull Embedding embed(@NotNull String text) {
+        return strategy.embedDocuments(List.of(text)).getFirst();
     }
 
     /**
-     * Embeds multiple texts in configurable batch chunks.
-     * Each chunk is processed via {@code embedAll()} for efficiency.
+     * Embeds multiple texts in configurable batch chunks for document ingestion.
      *
-     * @param texts the list of texts to embed
      * @return embeddings in the same order as the input texts
      */
-    public List<Embedding> embedBatch(List<String> texts) {
-        requireNonNull(texts, "texts");
+    public @NotNull List<Embedding> embedBatch(@NotNull List<String> texts) {
         if (texts.isEmpty()) {
             return List.of();
         }
+        return embedInChunks(texts, strategy::embedDocuments);
+    }
 
-        var batchSize = config.getKnowledgeEmbeddingBatchSize();
-        var segments = texts.stream().map(TextSegment::from).toList();
-        var allEmbeddings = new ArrayList<Embedding>(segments.size());
+    /**
+     * Embeds a single text in query context (used for semantic search).
+     */
+    public @NotNull Embedding embedForQuery(@NotNull String text) {
+        return strategy.embedQueries(List.of(text)).getFirst();
+    }
 
-        for (int start = 0; start < segments.size(); start += batchSize) {
-            int end = Math.min(start + batchSize, segments.size());
-            var chunk = segments.subList(start, end);
-            var chunkEmbeddings = MODEL.embedAll(chunk).content();
-            allEmbeddings.addAll(chunkEmbeddings);
-            LOG.debug("Embedded batch chunk [{}-{}) of {} total texts", start, end, segments.size());
+    /**
+     * Embeds multiple texts in query context (used for semantic search).
+     *
+     * @return embeddings in the same order as the input texts
+     */
+    public @NotNull List<Embedding> embedBatchForQuery(@NotNull List<String> texts) {
+        if (texts.isEmpty()) {
+            return List.of();
         }
-
-        LOG.info("Embedded {} texts in {} batch(es) of size {}",
-                texts.size(), (int) Math.ceil((double) texts.size() / batchSize), batchSize);
-        return List.copyOf(allEmbeddings);
+        return embedInChunks(texts, strategy::embedQueries);
     }
 
     /**
      * Exposes the shared embedding model as an injectable bean so that avaje can inject it into
      * repositories that need it (e.g. {@link org.tarik.ta.knowledge_graph.repository.UiElementRepository}).
+     * For multilingual-e5-small this is a document-mode wrapper.
      */
     @Bean
     @Singleton
-    public EmbeddingModel getModel() {
-        return MODEL;
+    public @NotNull EmbeddingModel getModel() {
+        return strategy.documentModel();
+    }
+
+    private @NotNull List<Embedding> embedInChunks(@NotNull List<String> texts, @NotNull Function<List<String>, List<Embedding>> embedder) {
+        var batchSize = config.getKnowledgeEmbeddingBatchSize();
+        var allEmbeddings = new ArrayList<Embedding>(texts.size());
+        for (int start = 0; start < texts.size(); start += batchSize) {
+            int end = Math.min(start + batchSize, texts.size());
+            var chunk = texts.subList(start, end);
+            allEmbeddings.addAll(embedder.apply(chunk));
+            LOG.debug("Embedded batch chunk [{}-{}) of {} total texts", start, end, texts.size());
+        }
+        logBatchSummary(texts.size(), batchSize);
+        return List.copyOf(allEmbeddings);
+    }
+
+    private void logBatchSummary(int totalTexts, int batchSize) {
+        LOG.info("Embedded {} texts in {} batch(es) of size {}",
+                totalTexts, (int) Math.ceil((double) totalTexts / batchSize), batchSize);
     }
 }

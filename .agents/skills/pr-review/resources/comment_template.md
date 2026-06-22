@@ -54,7 +54,7 @@ Use these templates when adding inline comments to PRs. Maintain consistency in 
 
 **Issue:** This logic duplicates functionality in `ExistingClass.methodName()`.
 
-**Why:** Per GEMINI.md, we should never duplicate existing functionality. Extract and reuse.
+**Why:** Per AGENTS.md, we should never duplicate existing functionality. Extract and reuse.
 
 **Suggestion:** Reuse the existing method or extract common logic into a shared utility.
 
@@ -82,7 +82,7 @@ Use these templates when adding inline comments to PRs. Maintain consistency in 
 
 **Issue:** String concatenation used instead of `String.formatted()`.
 
-**Why:** Per GEMINI.md, always use `String.formatted()` for string parameterization (except logging).
+**Why:** Per AGENTS.md, always use `String.formatted()` for string parameterization (except logging).
 
 **Suggestion:** Refactor to use formatted strings.
 
@@ -130,9 +130,33 @@ String msg = "User %s not found in %s".formatted(userId, database);
 
 **Issue:** Raw type `List` used instead of parameterized `List<String>`.
 
-**Why:** Per GEMINI.md, always use parameterized generic types for type safety.
+**Why:** Per AGENTS.md, always use parameterized generic types for type safety.
 
 **Suggestion:** Specify the type parameter.
+```
+
+### Manual Null Check
+
+```
+[MINOR] Null-Safety: Manual Null Check
+
+**Issue:** Parameter is guarded with an explicit null check.
+
+**Why:** Per AGENTS.md, annotate non-nullable parameters/returns with `org.jetbrains.annotations.NotNull` instead of checking for null manually.
+
+**Suggestion:** Add `@NotNull` to the parameter and remove the manual check.
+```
+
+### Virtual-Thread Pinning
+
+```
+[MAJOR] Concurrency: Virtual-Thread Pinning
+
+**Issue:** A `synchronized` block/method wraps blocking I/O on a virtual-thread path.
+
+**Why:** `synchronized` pins the virtual thread to its carrier for the whole block, defeating scalability under load.
+
+**Suggestion:** Replace `synchronized` with `java.util.concurrent.locks.ReentrantLock`.
 ```
 
 ---

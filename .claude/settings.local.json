@@ -49,7 +49,8 @@
       "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(x[''''name''''], x[''''type'''']\\) for x in data if isinstance\\(data, list\\)]\")",
       "Bash(./mvnw compile:*)",
       "Bash(cmd.exe /c \"cd /d D:\\\\\\\\Projects\\\\\\\\test-execution-agents && mvn test-compile -pl ui_test_execution_agent -am 2>&1\")",
-      "Bash(cmd.exe:*)"
+      "Bash(cmd.exe:*)",
+      "PowerShell($isAdmin = \\(New-Object Security.Principal.WindowsPrincipal\\([Security.Principal.WindowsIdentity]::GetCurrent\\(\\)\\)\\).IsInRole\\([Security.Principal.WindowsBuiltInRole]::Administrator\\); \"Elevated: $isAdmin\")"
     ]
   },
   "defaultMode": "bypassPermissions"

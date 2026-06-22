@@ -20,6 +20,7 @@ package org.tarik.ta;
 import io.avaje.inject.BeanScope;
 import jakarta.inject.Singleton;
 import org.tarik.ta.core.BaseAgentRequestModule;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.model.VisualState;
 
 @Singleton
@@ -30,10 +31,11 @@ public class UiAgentRequestScopeFactory {
         this.appScope = appScope;
     }
 
-    public BeanScope create(VisualState visualState) {
+    public BeanScope create(VisualState visualState, StreamingEventEmitter eventEmitter) {
         return BeanScope.builder()
                 .parent(appScope)
                 .bean(VisualState.class, visualState)
+                .bean(StreamingEventEmitter.class, eventEmitter)
                 .modules(new BaseAgentRequestModule(), new UiAgentRequestModule())
                 .build();
     }

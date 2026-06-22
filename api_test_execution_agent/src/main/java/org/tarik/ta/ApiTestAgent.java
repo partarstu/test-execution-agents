@@ -123,6 +123,7 @@ public class ApiTestAgent {
             LOG.info("Executing and verifying preconditions for test case: {}", testCase.name());
             for (String precondition : preconditions) {
                 var executionStartTimestamp = now();
+                executionContext.getEventEmitter().emitPreconditionStarted(precondition);
                 LOG.info("Executing precondition: {}", precondition);
                 var executionResult = preconditionActionAgent.executeWithRetry(
                         () -> preconditionActionAgent.execute(precondition, executionContext.getSharedData().toString()),
@@ -170,6 +171,7 @@ public class ApiTestAgent {
 
             try {
                 var executionStartTimestamp = now();
+                executionContext.getEventEmitter().emitStepStarted(testStep);
                 LOG.info("Executing test step: {}", actionInstruction);
                 var expectedResults = isNotBlank(verificationInstruction) ? verificationInstruction : "";
 

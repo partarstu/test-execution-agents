@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import io.avaje.inject.PostConstruct;
 import jakarta.inject.Singleton;
 
 import org.slf4j.Logger;
@@ -51,6 +52,11 @@ class GraphHealthService {
         this.config = config;
     }
 
+    @PostConstruct
+    void runStartupCleanup() {
+        runStaleSatisfiesEdgeCleanup();
+    }
+
     GraphHealthReport runFullHealthCheck() {
         int warnThreshold = config.getHealthWarningThreshold();
         int critThreshold = config.getHealthCriticalThreshold();
@@ -69,7 +75,7 @@ class GraphHealthService {
                         "Procedure trees exceeding max depth of %d".formatted(maxDepth),
                         repository.findDeepHierarchies(maxDepth), warnThreshold, critThreshold),
                 HealthCheckCategory.of("Disconnected Procedures",
-                        "Non-atomic procedures with no parent or children",
+                        "Procedures with no parent in the hierarchy",
                         repository.findDisconnectedProcedures(), warnThreshold, critThreshold),
                 HealthCheckCategory.of("Missing Effects",
                         "Atomic procedures with no effect phrases",

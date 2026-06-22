@@ -17,7 +17,7 @@
  */
 package org.tarik.ta.a2a;
 
-import io.a2a.spec.AgentCard;
+import org.a2aproject.sdk.spec.AgentCard;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +30,7 @@ class AgentCardProducerTest {
         AgentCard card = new AgentCardProducer().agentCard(agentUrl);
 
         assertThat(card.name()).isEqualTo("API Test Execution Agent");
-        assertThat(card.url()).isEqualTo(agentUrl);
-        assertThat(card.preferredTransport()).isEqualTo("JSONRPC");
+        assertThat(card.supportedInterfaces()).hasSize(1);
+        assertThat(card.supportedInterfaces().getFirst().url()).isEqualTo(agentUrl);
     }
 }

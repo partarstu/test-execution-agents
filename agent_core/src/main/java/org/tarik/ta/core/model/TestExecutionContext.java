@@ -17,6 +17,9 @@
  */
 package org.tarik.ta.core.model;
 
+import io.avaje.inject.External;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.core.config.scopes.BaseAgentRequestScope;
@@ -25,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Holds the context and state of the current test execution.
@@ -34,34 +38,73 @@ public class TestExecutionContext {
     private final List<TestStepResult> testStepExecutionHistory;
     private final List<PreconditionResult> preconditionExecutionHistory;
     private final Map<String, Object> sharedData;
+    private final StreamingEventEmitter eventEmitter;
+    private final ReentrantLock lock = new ReentrantLock();
 
-    public TestExecutionContext() {
+    public TestExecutionContext(@External @NotNull StreamingEventEmitter eventEmitter) {
+        this.eventEmitter = eventEmitter;
         this.testStepExecutionHistory = new ArrayList<>();
         this.preconditionExecutionHistory = new ArrayList<>();
         this.sharedData = new HashMap<>();
     }
 
-    public synchronized List<TestStepResult> getTestStepExecutionHistory() {
-        return testStepExecutionHistory;
+    public @NotNull StreamingEventEmitter getEventEmitter() {
+        return eventEmitter;
     }
 
-    public synchronized List<PreconditionResult> getPreconditionExecutionHistory() {
-        return preconditionExecutionHistory;
+    public List<TestStepResult> getTestStepExecutionHistory() {
+        lock.lock();
+        try {
+            return new ArrayList<>(testStepExecutionHistory);
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public synchronized Map<String, Object> getSharedData() {
-        return sharedData;
+    public List<PreconditionResult> getPreconditionExecutionHistory() {
+        lock.lock();
+        try {
+            return new ArrayList<>(preconditionExecutionHistory);
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public synchronized void addStepResult(TestStepResult result) {
-        this.testStepExecutionHistory.add(result);
+    public Map<String, Object> getSharedData() {
+        lock.lock();
+        try {
+            return new HashMap<>(sharedData);
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public synchronized void addPreconditionResult(PreconditionResult result) {
-        this.preconditionExecutionHistory.add(result);
+    public void addStepResult(TestStepResult result) {
+        lock.lock();
+        try {
+            this.testStepExecutionHistory.add(result);
+        } finally {
+            lock.unlock();
+        }
+        eventEmitter.emitStepResult(result);
     }
 
-    public synchronized void addSharedData(String key, Object value) {
-        this.sharedData.put(key, value);
+    public void addPreconditionResult(PreconditionResult result) {
+        lock.lock();
+        try {
+            this.preconditionExecutionHistory.add(result);
+        } finally {
+            lock.unlock();
+        }
+        eventEmitter.emitPreconditionResult(result);
+    }
+
+    public void addSharedData(String key, Object value) {
+        lock.lock();
+        try {
+            this.sharedData.put(key, value);
+        } finally {
+            lock.unlock();
+        }
     }
 }

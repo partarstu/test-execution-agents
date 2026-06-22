@@ -35,8 +35,19 @@ D:\Projects\test-execution-agents\
 
 * **`agent_core`**: A shared library module containing the core framework logic, data transfer objects (DTOs), base agent classes, budget
   management, and generic utilities. This module provides:
-    * **`AbstractServer`**: Base class for agent servers providing common HTTP server initialization and A2A endpoint configuration.
-    * **`AbstractAgentExecutor`**: Base class for agent executors handling test case execution lifecycle and artifact management.
+    * **`AbstractServer`**: Base class for agent servers providing common HTTP server initialization and A2A endpoint configuration,
+      routing streaming methods to a Server-Sent Events (SSE) response and all other methods to a single JSON-RPC response. Request bodies
+      are parsed with the A2A SDK's JSON-RPC parser; incoming standard A2A method names (`message/send`, `message/stream`, `tasks/get`,
+      `tasks/cancel`, `tasks/resubscribe`) are normalized to the SDK's request types before parsing, and failures are answered with the
+      corresponding spec-compliant JSON-RPC error (method not found, invalid params, invalid request, parse error, or internal error).
+    * **`AbstractAgentExecutor`**: Base class for agent executors handling the test case execution lifecycle. It streams incremental
+      progress (step/precondition results, log lines) to the caller via a `StreamingEventEmitter` and emits a final consolidated
+      `TestExecutionResult` artifact on completion. It also supports the A2A `tasks/cancel` method: a cancel request interrupts the
+      running execution thread and transitions the task to the `canceled` state, suppressing any terminal completion/failure event from
+      the aborted run. Cancelling when no task is running yields a `TaskNotFoundError`, and cancelling an already-terminal task yields a
+      `TaskNotCancelableError`, as required by the A2A specification.
+    * **`StreamingEventEmitter`**: Abstraction that bridges live execution progress (step results, precondition results, log lines) to the
+      A2A streaming channel without coupling execution code to the transport layer.
     * **`GenericAiAgent`**: Core interface for all AI agents with retry logic and budget management.
     * **`TestCaseExtractor`**: Utility class that provides shared test case extraction functionality using an AI model.
     * **`TestContextDataTools`**: Shared tools for loading and managing test data (JSON, CSV).
@@ -120,10 +131,30 @@ The core module provides shared abstractions that both UI and API agents extend:
 
 ### Shared Across Agents
 
-- **A2A Protocol Support**: Both agents implement the Agent-to-Agent (A2A) protocol for inter-agent communication.
+- **A2A Protocol Support**: Both agents implement the Agent-to-Agent (A2A) protocol for inter-agent communication, including the
+  streaming `message/stream` (and `tasks/resubscribe`) methods served over Server-Sent Events (SSE). The agent cards advertise
+  `capabilities.streaming = true`.
+- **Task Cancellation**: The A2A `tasks/cancel` method interrupts the currently running test execution and transitions the task to the
+  `canceled` state, suppressing the terminal completion/failure event of the aborted run. A cancel request for a task that is not running
+  returns `TaskNotFoundError`, and one for an already-terminal task returns `TaskNotCancelableError`, per the A2A specification.
+- **Live Streaming of Progress and Logs**: Streaming clients receive incremental events as execution advances — before each test step or
+  precondition runs, a `working` status update carrying an `ExecutionActivity` payload announces what is *about to execute* (so a live
+  dashboard can show the current activity); each precondition and test step result is then streamed as an artifact the moment it is
+  recorded; and captured log lines are streamed live as appended chunks of a single growing `execution_log.log` artifact. UI step
+  screenshots are streamed as part of the corresponding step events. Regardless of streaming, the run always concludes by emitting a single
+  consolidated `TestExecutionResult` (full result JSON + logs file + end-of-test general screenshot); per-step screenshots are not
+  re-bundled there since they already arrived with their step events, so non-streaming `message/send` callers still receive one
+  ready-to-consume result object without having to reassemble the individual events.
+- **Endpoint Authentication**: When `agent.auth.token` / `AGENT_AUTH_TOKEN` is set, every request to the main A2A endpoint must
+  carry a matching `Authorization: Bearer <token>` header (compared in constant time); otherwise it is rejected with `401`. The
+  `GET /.well-known/agent-card.json` discovery endpoint stays public. If no token is configured the endpoint is unauthenticated and a
+  startup `WARN` is logged — set a token for any non-local deployment.
 - **Test Case Extraction**: AI-powered parsing of natural language test cases into structured format.
 - **Budget Management**: Token and time budget controls to prevent runaway executions.
-- **Structured Logging**: Execution logs captured and included in test results.
+- **Structured Logging**: Execution logs captured and streamed live during execution. Only the application's own logger
+  (`org.tarik.ta`) is streamed to clients, so framework/third-party lines never enter the client stream. The optional
+  `model.logging.enabled`, `api.request.logging.enabled`, and `api.response.logging.enabled` toggles default to `false` because
+  enabling them streams sensitive data (prompts, response bodies, auth headers).
 - **System Info Capture**: Device, OS, browser, and environment information in results.
 
 ### UI Test Agent Specific
@@ -140,6 +171,12 @@ The core module provides shared abstractions that both UI and API agents extend:
 ### API Test Agent Specific
 
 - **Multiple Auth Types**: Basic, Bearer Token, and API Key authentication.
+- **Outbound Request Guards (SSRF / file-exfiltration)**: Tool-layer enforcement independent of the model. Requests to SSRF-sensitive
+  ranges (loopback, link-local, site-local, multicast, wildcard) and the cloud metadata address `169.254.169.254` are blocked; an
+  optional `api.outbound.host.allowlist` (CSV) restricts requests to trusted hosts (an allow-listed host bypasses the range check).
+  `uploadFile` is confined to `api.upload.base.dir` (canonicalized) and is refused entirely when that directory is unset.
+- **TLS Validation On By Default**: `api.relaxed.https.validation` defaults to `false`; relax it only per trusted target, since
+  relaxing it exposes credentialed requests to man-in-the-middle interception.
 - **Schema Validation**: JSON Schema and OpenAPI specification validation.
 - **Variable Substitution**: Dynamic `${variableName}` replacement in requests.
 - **Cookie Management**: Automatic session handling across requests.
@@ -178,6 +215,7 @@ The following configuration properties are shared across agents (defined in `Age
 |-------------------------|-------------------------|---------------------------|-----------------------------------------------------|
 | `port`                  | `PORT`                  | `8005`                    | Server port                                         |
 | `host`                  | `AGENT_HOST`            | (required)                | Server host                                         |
+| `agent.auth.token`      | `AGENT_AUTH_TOKEN`      | (empty ⇒ auth disabled)   | Shared secret required as `Bearer` token on the main endpoint |
 | `external.url`          | `EXTERNAL_URL`          | `http://localhost:{port}` | External URL for A2A card                           |
 | `vector.db.provider`    | `VECTOR_DB_PROVIDER`    | `neo4j`                   | Knowledge DB provider (`neo4j`)                     |
 | `vector.db.url`         | `VECTOR_DB_URL`         | (required)                | URL for the vector database                         |
@@ -313,7 +351,16 @@ gcloud builds submit --config=cloudbuild.yaml \
 
 ## Test Execution Results
 
-Both agents return structured `TestExecutionResult` objects containing:
+During execution, a `working` status update announces each test step / precondition right before it runs (an `ExecutionActivity` payload
+with `activityType` and `description`, for live "currently executing" dashboards); each precondition and test step result is then streamed
+as an artifact as soon as it is recorded; and log lines are streamed as appended chunks of a single growing `execution_log.log` artifact
+(UI step artifacts additionally include the step screenshot). The task then **completes with a single consolidated
+`TestExecutionResult`** — emitted both as a final artifact (full result JSON + logs file + end-of-test general screenshot) and as the
+completion message. Per-step screenshots are not re-bundled into the final artifact since they were already streamed with their step events,
+so a non-streaming `message/send` caller receives one ready-to-consume result object, while a streaming `message/stream` caller additionally
+sees the live per-step progress.
+
+The consolidated `TestExecutionResult` contains:
 
 | Field                     | Description                           |
 |---------------------------|---------------------------------------|
@@ -336,8 +383,7 @@ remember procedures (reusable test action sequences) across sessions.
 
 ### Features
 
-- **Procedure Graph**: Stores hierarchical procedures (composite and atomic) as a Neo4j graph with CONTAINS (parent-child) and
-  TARGETS (step-to-UI-element) relationships.
+- **Procedure Graph**: Stores hierarchical procedures (composite and atomic) as a Neo4j graph with CONTAINS (parent-child) and TARGETS (step-to-UI-element) relationships. To ensure data integrity, each procedure is restricted to target at most/exactly one `UiElement` by automatically deleting any previous target relationship before linking a new one.
 - **PDDL-Lite Planning**: Prerequisite/effect state tracking enables automatic prerequisite resolution during test execution.
 - **Queue-Based Execution**: Replaces the sequential for-loop with a dynamic execution queue that injects prerequisite steps when
   prerequisites are unmet.
@@ -351,9 +397,7 @@ remember procedures (reusable test action sequences) across sessions.
 - **Phrase-Aware Reads**: `ProcedureRepository.findByIdWithPhrases` rebuilds the returned `Procedure`'s prerequisites/effects lists from
   the ordered `PhraseEmbedding` nodes whenever they exist, so callers always see the authoritative phrase order rather than
   potentially-stale node properties.
-- **Bidirectional Startup Sync**: `PhraseNodeMigrationService` runs two passes at startup — a forward pass that creates missing phrase
-  nodes from node-property lists (legacy backfill), and a backward pass that repairs stale node-property lists from the authoritative
-  phrase nodes (`ProcedureRepository.findWithPhrasePropertyMismatches` + `updatePhraseProperties`).
+- **Bidirectional Startup Sync**: `PhraseNodeMigrationService` runs two passes at startup — a forward pass that creates missing phrase nodes from node-property lists (legacy backfill), and a backward pass that repairs stale node-property lists from the authoritative phrase nodes (`ProcedureRepository.findWithPhrasePropertyMismatches` + `updatePhraseProperties`). Any forward migration or backward repair failure during this startup sequence triggers an `IllegalStateException` that immediately aborts startup with clear diagnostic logs.
 
 ### Neo4j Setup
 
@@ -405,6 +449,10 @@ The deploy script automatically:
 2. Creates a persistent data disk that survives VM recreations
 3. Provisions the VM with authentication enabled and verifies credentials on startup
 
+The startup script locates the data disk by its configured `DATA_DISK_NAME` (passed via VM metadata) and aborts if that disk is not
+attached, rather than silently starting Neo4j against an empty boot-disk directory. An existing data disk is never reformatted; only a
+genuinely empty disk is formatted on first boot. When attaching a cloned/restored disk, its `device-name` must equal `DATA_DISK_NAME`.
+
 **Then deploy the UI agent with the Neo4j host:**
 
 ```bash
@@ -428,7 +476,7 @@ gcloud secrets versions access latest --secret=VECTOR_DB_KEY
 |-----------------------------------|-----------------------------------|-------------------------|-------------------------------------------------------------------|
 | `neo4j.username`                  | `NEO4J_USERNAME`                  | `neo4j`                 | Neo4j username (from Secret Manager in cloud)                     |
 | `neo4j.database`                  | `NEO4J_DATABASE`                  | `neo4j`                 | Neo4j database name                                               |
-| `knowledge.embedding.model`       | `KNOWLEDGE_EMBEDDING_MODEL`       | `bge-small-en-v15`      | Embedding model for semantic search                               |
+| `knowledge.embedding.model`       | `KNOWLEDGE_EMBEDDING_MODEL`       | `multilingual-e5-small` | Embedding model for semantic search                               |
 | `knowledge.max.depth`             | `KNOWLEDGE_MAX_DEPTH`             | `3`                     | Maximum procedure decomposition depth                         |
 | `knowledge.embedding.batch.size`  | `KNOWLEDGE_EMBEDDING_BATCH_SIZE`  | `10`                    | Batch size for embedding generation                               |
 | `knowledge.match.confidence.high` | `KNOWLEDGE_MATCH_CONFIDENCE_HIGH` | `0.85`                  | High-confidence match threshold                                   |
@@ -479,7 +527,7 @@ This allows the agent to see both the current screen and the reference screensho
 
 1. During test execution, the agent encounters an unknown action (no matching procedure in the knowledge graph).
 2. The AI suggestion agent analyzes the action and proposes preconditions, effects, and child steps.
-3. A Swing collecting knowledge dialog (`ProcedureKnowledgeCollectionDialog`) presents the suggestions for the operator to review, modify, or accept. Child steps are listed with screenshot thumbnails; double-clicking or clicking the ✏ affordance on any row opens a recursive `ProcedureKnowledgeCollectionDialog` for that child (bidirectional navigation with "Edit Parent" button). The dialog tracks unsaved changes and warns before discarding them.
+3. A Swing collecting knowledge dialog (`ProcedureKnowledgeCollectionDialog`) presents the suggestions for the operator to review, modify, or accept. Child steps are listed with screenshot thumbnails; double-clicking or clicking the ✏ affordance on any row opens a recursive `ProcedureKnowledgeCollectionDialog` for that child (bidirectional navigation with "Edit Parent" button which returns back to the originating parent's dialog directly, bypassing the parent selection dialog even if the child is shared among multiple parent procedures). The dialog tracks unsaved changes and warns before discarding them.
 4. For atomic steps, the operator can: (a) run the agent-driven element search ("Locate UI Element..."), or (b) open `UiElementLookupDialog` ("Select UI element") to search for an existing element by description and link it, or create a new one directly (agent skips DB search and creates the element, then captures its screenshot).
 5. The completed procedure tree is persisted to Neo4j with all relationships and embeddings.
 6. On subsequent executions, the agent recognizes the action and executes the learned procedure automatically.

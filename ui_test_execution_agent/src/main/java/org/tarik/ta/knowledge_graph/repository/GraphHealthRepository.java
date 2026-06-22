@@ -57,8 +57,8 @@ public class GraphHealthRepository {
             ORDER BY depth DESC
             """);
         this.FIND_DISCONNECTED_PROCEDURES = repositorySupport.cypher("""
-            MATCH (p:${LABEL_PROCEDURE} {${PROP_IS_ATOMIC}: false})
-            WHERE NOT ()-[:${REL_CONTAINS}]->(p) AND NOT (p)-[:${REL_CONTAINS}]->()
+            MATCH (p:${LABEL_PROCEDURE})
+            WHERE NOT ()-[:${REL_CONTAINS}]->(p)
             RETURN p.${PROP_ID} AS id, p.${PROP_DESCRIPTION} AS description
             ORDER BY description ASC
             """);

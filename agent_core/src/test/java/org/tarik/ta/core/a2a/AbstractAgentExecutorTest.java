@@ -17,36 +17,43 @@
  */
 package org.tarik.ta.core.a2a;
 
-import io.a2a.server.agentexecution.RequestContext;
-import io.a2a.server.events.EventQueue;
-import io.a2a.server.tasks.TaskUpdater;
-import io.a2a.spec.Message;
-import io.a2a.spec.Part;
-import io.a2a.spec.Task;
-import io.a2a.spec.TaskStatus;
-import io.a2a.spec.TaskState;
-import io.a2a.spec.TextPart;
+import org.a2aproject.sdk.server.agentexecution.RequestContext;
+import org.a2aproject.sdk.server.tasks.AgentEmitter;
+import org.a2aproject.sdk.spec.FilePart;
+import org.a2aproject.sdk.spec.FileWithBytes;
+import org.a2aproject.sdk.spec.Message;
+import org.a2aproject.sdk.spec.Part;
+import org.a2aproject.sdk.spec.Task;
+import org.a2aproject.sdk.spec.TaskStatus;
+import org.a2aproject.sdk.spec.TaskState;
+import org.a2aproject.sdk.spec.TextPart;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus;
+import org.tarik.ta.core.dto.TestStep;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import org.mockito.ArgumentMatchers;
 
 @ExtendWith(MockitoExtension.class)
 class AbstractAgentExecutorTest {
@@ -54,7 +61,7 @@ class AbstractAgentExecutorTest {
     @Mock
     private RequestContext requestContext;
     @Mock
-    private EventQueue eventQueue;
+    private AgentEmitter agentEmitter;
     @Mock
     private Task task;
 
@@ -69,10 +76,10 @@ class AbstractAgentExecutorTest {
     void execute_shouldSubmitTask_whenTaskIsNull() {
         when(requestContext.getTask()).thenReturn(null);
         when(requestContext.getTaskId()).thenReturn("task-123");
-        // Create a message with text to satisfy extractTextFromMessage
-        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
                 null, null, null);
         when(requestContext.getMessage()).thenReturn(message);
+        when(agentEmitter.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.ROLE_USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
 
         TestExecutionResult result = new TestExecutionResult(
                 "test-case",
@@ -86,26 +93,21 @@ class AbstractAgentExecutorTest {
                 null);
         executor.setResultToReturn(result);
 
-        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class,
-                (mock, context) -> {
-                    when(mock.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
-                })) {
-            executor.execute(requestContext, eventQueue);
+        executor.execute(requestContext, agentEmitter);
 
-            TaskUpdater updater = mockedUpdater.constructed().get(0);
-            verify(updater).submit(); // Verified because context.getTask() is null
-            verify(updater).startWork();
-            verify(updater).complete(any(Message.class));
-        }
+        verify(agentEmitter).submit(); // Verified because context.getTask() is null
+        verify(agentEmitter).startWork();
+        verify(agentEmitter).complete(any(Message.class));
     }
 
     @Test
     void execute_shouldNotSubmitTask_whenTaskIsNotNull() {
         when(requestContext.getTask()).thenReturn(task);
         when(requestContext.getTaskId()).thenReturn("task-123");
-        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
                 null, null, null);
         when(requestContext.getMessage()).thenReturn(message);
+        when(agentEmitter.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.ROLE_USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
 
         TestExecutionResult result = new TestExecutionResult(
                 "test-case",
@@ -119,96 +121,190 @@ class AbstractAgentExecutorTest {
                 null);
         executor.setResultToReturn(result);
 
-        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class,
-                (mock, context) -> {
-                    when(mock.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
-                })) {
-            executor.execute(requestContext, eventQueue);
+        executor.execute(requestContext, agentEmitter);
 
-            TaskUpdater updater = mockedUpdater.constructed().get(0);
-            verify(updater, never()).submit();
-            verify(updater).startWork();
-            verify(updater).complete(any(Message.class));
-        }
+        verify(agentEmitter, never()).submit();
+        verify(agentEmitter).startWork();
+        verify(agentEmitter).complete(any(Message.class));
     }
 
     @Test
     void execute_shouldFailTask_whenMessageIsEmpty() {
         when(requestContext.getTask()).thenReturn(task);
         when(requestContext.getTaskId()).thenReturn("task-123");
-        // Message with empty text
-        Message message = new Message(Message.Role.USER, List.of(new TextPart("   ", null)), "msg-1", null, null, null,
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("   ", null)), "msg-1", null, null, null,
                 null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
-        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
-            executor.execute(requestContext, eventQueue);
+        executor.execute(requestContext, agentEmitter);
 
-            TaskUpdater updater = mockedUpdater.constructed().get(0);
-            verify(updater).startWork();
-            verify(updater).fail(any());
-        }
+        verify(agentEmitter).startWork();
+        verify(agentEmitter).fail(ArgumentMatchers.<Message>any());
     }
 
     @Test
     void execute_shouldFailTask_whenExceptionDuringExecution() {
         when(requestContext.getTask()).thenReturn(task);
         when(requestContext.getTaskId()).thenReturn("task-123");
-        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
                 null, null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
         executor.setThrowException(true);
 
-        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
-            executor.execute(requestContext, eventQueue);
+        executor.execute(requestContext, agentEmitter);
 
-            TaskUpdater updater = mockedUpdater.constructed().get(0);
-            verify(updater).startWork();
-            verify(updater).fail(any());
-        }
+        verify(agentEmitter).startWork();
+        verify(agentEmitter).fail(ArgumentMatchers.<Message>any());
     }
 
     @Test
     void cancel_shouldCancel_whenStateIsValid() {
         when(requestContext.getTask()).thenReturn(task);
-        when(task.getStatus()).thenReturn(new TaskStatus(TaskState.SUBMITTED, null, null));
+        when(task.status()).thenReturn(new TaskStatus(TaskState.TASK_STATE_SUBMITTED, null, null));
 
-        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
-            executor.cancel(requestContext, eventQueue);
+        executor.cancel(requestContext, agentEmitter);
 
-            TaskUpdater updater = mockedUpdater.constructed().get(0);
-            verify(updater).cancel();
-        }
+        verify(agentEmitter).cancel();
     }
 
     @Test
     void cancel_shouldThrowTaskNotCancelableError_whenStateIsCanceled() {
         when(requestContext.getTask()).thenReturn(task);
-        when(task.getStatus()).thenReturn(new TaskStatus(TaskState.CANCELED, null, null));
+        when(task.status()).thenReturn(new TaskStatus(TaskState.TASK_STATE_CANCELED, null, null));
 
-        assertThatThrownBy(() -> executor.cancel(requestContext, eventQueue))
-                .isInstanceOf(io.a2a.spec.TaskNotCancelableError.class);
+        assertThatThrownBy(() -> executor.cancel(requestContext, agentEmitter))
+                .isInstanceOf(org.a2aproject.sdk.spec.TaskNotCancelableError.class);
     }
 
     @Test
     void cancel_shouldThrowTaskNotCancelableError_whenStateIsCompleted() {
         when(requestContext.getTask()).thenReturn(task);
-        when(task.getStatus()).thenReturn(new TaskStatus(TaskState.COMPLETED, null, null));
+        when(task.status()).thenReturn(new TaskStatus(TaskState.TASK_STATE_COMPLETED, null, null));
 
-        assertThatThrownBy(() -> executor.cancel(requestContext, eventQueue))
-                .isInstanceOf(io.a2a.spec.TaskNotCancelableError.class);
+        assertThatThrownBy(() -> executor.cancel(requestContext, agentEmitter))
+                .isInstanceOf(org.a2aproject.sdk.spec.TaskNotCancelableError.class);
     }
 
     @Test
-    void execute_shouldAddLogsArtifact_andHandleArtifactException() {
+    void cancel_shouldInterruptRunningExecutionAndNotEmitTerminalEvent() throws Exception {
+        when(requestContext.getTask()).thenReturn(task);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+        when(task.status()).thenReturn(new TaskStatus(TaskState.TASK_STATE_WORKING, null, null));
+        executor.setResultToReturn(passedResult());
+        executor.setBlockUntilInterrupted(true);
+
+        Thread executionThread = new Thread(() -> executor.execute(requestContext, agentEmitter));
+        executionThread.start();
+        // Wait until the test case execution is actually running before cancelling it.
+        assertThat(executor.awaitExecutionStarted()).isTrue();
+
+        executor.cancel(requestContext, agentEmitter);
+        executionThread.join(5_000);
+
+        assertThat(executionThread.isAlive()).isFalse();
+        verify(agentEmitter).cancel();
+        verify(agentEmitter, never()).complete(any(Message.class));
+        verify(agentEmitter, never()).fail(ArgumentMatchers.<Message>any());
+    }
+
+    @Test
+    void execute_shouldStreamLogLinesAsLogFileArtifacts() {
         when(requestContext.getTask()).thenReturn(null);
         when(requestContext.getTaskId()).thenReturn("task-123");
-        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+        when(agentEmitter.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.ROLE_USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
+
+        executor.setResultToReturn(passedResult());
+        executor.addLogToEmit("first line");
+        executor.addLogToEmit("second line");
+
+        executor.execute(requestContext, agentEmitter);
+
+        // Both lines are batched and flushed as a single artifact event after execution completes.
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Part<?>>> partsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(agentEmitter).addArtifact(partsCaptor.capture(), eq("execution_log"), eq("execution_log.log"), any(), eq(false), eq(false));
+        FileWithBytes logFile = (FileWithBytes) ((FilePart) partsCaptor.getValue().getFirst()).file();
+        assertThat(logFile.mimeType()).isEqualTo("text/plain");
+        String logText = new String(Base64.getDecoder().decode(logFile.bytes()), StandardCharsets.UTF_8);
+        assertThat(logText).contains("first line").contains("second line");
+        verify(agentEmitter).complete(any(Message.class));
+    }
+
+    @Test
+    void execute_shouldStreamCurrentActivityWhenStepStarts() {
+        when(requestContext.getTask()).thenReturn(null);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+        when(agentEmitter.newAgentMessage(anyList(), any())).thenAnswer(invocation ->
+                new Message(Message.Role.ROLE_AGENT, invocation.getArgument(0), "msg-2", null, null, null, null, null));
+
+        executor.setResultToReturn(passedResult());
+        executor.setStepToStart(new TestStep("click the button", null, null));
+
+        executor.execute(requestContext, agentEmitter);
+
+        // The step-about-to-run is streamed as a WORKING status update before its result, as a human-readable line,
+        // and the run completes.
+        assertThat(captureActivityText()).contains("Executing test step").contains("click the button");
+        verify(agentEmitter).complete(any(Message.class));
+    }
+
+    @Test
+    void execute_shouldStreamCurrentActivityWhenPreconditionStarts() {
+        when(requestContext.getTask()).thenReturn(null);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+        when(agentEmitter.newAgentMessage(anyList(), any())).thenAnswer(invocation ->
+                new Message(Message.Role.ROLE_AGENT, invocation.getArgument(0), "msg-2", null, null, null, null, null));
+
+        executor.setResultToReturn(passedResult());
+        executor.setPreconditionToStart("user is logged in");
+
+        executor.execute(requestContext, agentEmitter);
+
+        assertThat(captureActivityText()).contains("Handling precondition").contains("user is logged in");
+        verify(agentEmitter).complete(any(Message.class));
+    }
+
+    /**
+     * Captures the message streamed as the {@code WORKING} status update and returns the human-readable activity line
+     * it carries.
+     */
+    private String captureActivityText() {
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(agentEmitter).updateStatus(eq(TaskState.TASK_STATE_WORKING), messageCaptor.capture());
+        return ((TextPart) messageCaptor.getValue().parts().getFirst()).text();
+    }
+
+    @Test
+    void execute_shouldFailTask_whenFinalArtifactCreationFails() {
+        when(requestContext.getTask()).thenReturn(null);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
                 null, null, null);
         when(requestContext.getMessage()).thenReturn(message);
 
-        TestExecutionResult result = new TestExecutionResult(
+        executor.setResultToReturn(passedResult());
+        executor.setThrowOnFinalArtifacts(true);
+
+        executor.execute(requestContext, agentEmitter);
+
+        verify(agentEmitter).fail(ArgumentMatchers.<Message>any());
+    }
+
+    private static TestExecutionResult passedResult() {
+        return new TestExecutionResult(
                 "test-case",
                 TestExecutionStatus.PASSED,
                 Collections.emptyList(),
@@ -218,93 +314,81 @@ class AbstractAgentExecutorTest {
                 null,
                 null,
                 null);
-        executor.setResultToReturn(result);
-        executor.setLogsToReturn(List.of("log line 1", "log line 2"));
-
-        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class,
-                (mock, context) -> {
-                    when(mock.newAgentMessage(anyList(), any())).thenReturn(new Message(Message.Role.USER, List.of(new TextPart("dummy", null)), "id", null, null, null, null, null));
-                })) {
-            executor.execute(requestContext, eventQueue);
-
-            TaskUpdater updater = mockedUpdater.constructed().get(0);
-            // Verify addArtifact was called (for logs and the main json)
-            verify(updater).addArtifact(any(), any(), any(), any());
-            verify(updater).complete(any());
-        }
-    }
-
-    @Test
-    void execute_shouldFailTask_whenArtifactCreationFails() {
-        when(requestContext.getTask()).thenReturn(null);
-        when(requestContext.getTaskId()).thenReturn("task-123");
-        Message message = new Message(Message.Role.USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
-                null, null, null);
-        when(requestContext.getMessage()).thenReturn(message);
-
-        TestExecutionResult result = new TestExecutionResult(
-                "test-case",
-                TestExecutionStatus.PASSED,
-                Collections.emptyList(),
-                Collections.emptyList(),
-                Instant.now(),
-                Instant.now(),
-                null,
-                null,
-                null);
-        executor.setResultToReturn(result);
-        executor.setThrowOnArtifacts(true);
-
-        try (MockedConstruction<TaskUpdater> mockedUpdater = mockConstruction(TaskUpdater.class)) {
-            executor.execute(requestContext, eventQueue);
-
-            TaskUpdater updater = mockedUpdater.constructed().get(0);
-            // It should fail because addSpecificArtifacts throws
-            verify(updater).fail(any());
-        }
     }
 
     // Implementation stub
     static class TestAgentExecutor extends AbstractAgentExecutor {
         private TestExecutionResult resultToReturn;
         private boolean throwException = false;
-        private boolean throwOnArtifacts = false;
-        private List<String> logsToReturn = null;
+        private boolean throwOnFinalArtifacts = false;
+        private final List<String> logsToEmit = new ArrayList<>();
+        private TestStep stepToStart = null;
+        private String preconditionToStart = null;
+        private boolean blockUntilInterrupted = false;
+        private final CountDownLatch executionStarted = new CountDownLatch(1);
+
+        public void setBlockUntilInterrupted(boolean blockUntilInterrupted) {
+            this.blockUntilInterrupted = blockUntilInterrupted;
+        }
+
+        public boolean awaitExecutionStarted() throws InterruptedException {
+            return executionStarted.await(5, TimeUnit.SECONDS);
+        }
 
         public void setResultToReturn(TestExecutionResult result) {
             this.resultToReturn = result;
+        }
+
+        public void setStepToStart(TestStep stepToStart) {
+            this.stepToStart = stepToStart;
+        }
+
+        public void setPreconditionToStart(String preconditionToStart) {
+            this.preconditionToStart = preconditionToStart;
         }
 
         public void setThrowException(boolean throwException) {
             this.throwException = throwException;
         }
 
-        public void setThrowOnArtifacts(boolean throwOnArtifacts) {
-            this.throwOnArtifacts = throwOnArtifacts;
+        public void setThrowOnFinalArtifacts(boolean throwOnFinalArtifacts) {
+            this.throwOnFinalArtifacts = throwOnFinalArtifacts;
         }
 
-        public void setLogsToReturn(List<String> logsToReturn) {
-            this.logsToReturn = logsToReturn;
+        public void addLogToEmit(String logLine) {
+            this.logsToEmit.add(logLine);
         }
 
         @Override
-        protected TestExecutionResult executeTestCase(String message) {
+        protected TestExecutionResult executeTestCase(String message, StreamingEventEmitter eventEmitter) {
             if (throwException) {
                 throw new RuntimeException("Simulated error");
             }
+            if (blockUntilInterrupted) {
+                executionStarted.countDown();
+                try {
+                    new CountDownLatch(1).await(); // released only by interruption from cancel()
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Execution interrupted", e);
+                }
+            }
+            if (stepToStart != null) {
+                eventEmitter.emitStepStarted(stepToStart);
+            }
+            if (preconditionToStart != null) {
+                eventEmitter.emitPreconditionStarted(preconditionToStart);
+            }
+            logsToEmit.forEach(eventEmitter::emitLog);
             return resultToReturn;
         }
 
         @Override
-        protected void addSpecificArtifacts(TestExecutionResult result, List<Part<?>> parts) {
-            if (throwOnArtifacts) {
+        protected List<Part<?>> buildFinalArtifactParts(TestExecutionResult result) {
+            if (throwOnFinalArtifacts) {
                 throw new RuntimeException("Simulated artifact error");
             }
-        }
-
-        @Override
-        protected Optional<List<String>> extractLogs(TestExecutionResult result) {
-            return Optional.ofNullable(logsToReturn);
+            return List.of();
         }
     }
 }

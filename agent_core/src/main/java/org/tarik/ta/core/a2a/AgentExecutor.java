@@ -17,5 +17,5 @@
  */
 package org.tarik.ta.core.a2a;
 
-public interface AgentExecutor extends io.a2a.server.agentexecution.AgentExecutor {
+public interface AgentExecutor extends org.a2aproject.sdk.server.agentexecution.AgentExecutor {
 }

@@ -84,7 +84,7 @@ public class CommonTools extends UiAbstractTools {
                 closeBrowser();
                 String os = System.getProperty(OS_NAME_SYS_PROPERTY).toLowerCase();
                 if (os.contains("linux")) {
-                    String[] command = buildBrowserStartupCommand(os, finalUrl.toString());
+                    String[] command = buildBrowserStartupCommand(finalUrl.toString());
                     LOG.debug("Executing command: {}", String.join(" ", command));
                     browserProcess = new ProcessBuilder(command).start();
                     if (!browserProcess.isAlive()) {
@@ -126,29 +126,24 @@ public class CommonTools extends UiAbstractTools {
         }
     }
 
-    private static String[] buildBrowserStartupCommand(String os, String url) {
-        if (os.contains("win")) {
-            return new String[]{"cmd.exe", "/c", "start", url};
-        } else if (os.contains("mac")) {
-            return new String[]{"open", url};
-        } else {
-            String browserCommand = System.getenv("BROWSER_COMMAND");
-            if (browserCommand == null || browserCommand.trim().isEmpty()) {
-                browserCommand = "chromium-browser";
-            }
-            return new String[]{
-                    browserCommand,
-                    "--no-sandbox",
-                    "--test-type",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                    "--start-maximized",
-                    "--disable-gpu",
-                    "--disable-dev-shm-usage",
-                    "--force-device-scale-factor=1",
-                    "--in-process-gpu",
-                    url
-            };
+    // Only reached for Linux: openBrowser uses Desktop.browse on Windows/macOS, so this builds the Linux launch command.
+    private static String[] buildBrowserStartupCommand(String url) {
+        String browserCommand = System.getenv("BROWSER_COMMAND");
+        if (browserCommand == null || browserCommand.trim().isEmpty()) {
+            browserCommand = "chromium-browser";
         }
+        return new String[]{
+                browserCommand,
+                "--no-sandbox",
+                "--test-type",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--start-maximized",
+                "--disable-gpu",
+                "--disable-dev-shm-usage",
+                "--force-device-scale-factor=1",
+                "--in-process-gpu",
+                url
+        };
     }
 }

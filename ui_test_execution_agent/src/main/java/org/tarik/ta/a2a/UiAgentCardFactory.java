@@ -17,7 +17,7 @@
  */
 package org.tarik.ta.a2a;
 
-import io.a2a.spec.AgentCard;
+import org.a2aproject.sdk.spec.AgentCard;
 import io.avaje.inject.Bean;
 import io.avaje.inject.Factory;
 import jakarta.inject.Singleton;

@@ -156,7 +156,7 @@ public class ProcedureKnowledgeCollectionService {
             var outcome = ProcedureDialog.displayForEditing(null, current, targetElementId,
                     showTestDataAndExpectedResults, hasParent, itemContext, knowledgeService, knowledgeIngestionService,
                     childLoaderFactory, preloadedChildren,
-                    uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, usageTrackingService);
+                    uiTestAgentConfig, uiElementRepository, uiElementDialogHelper, usageTrackingService, null);
             if (outcome.deleted()) {
                 LOG.info("Procedure '{}' deleted by user", current.description());
                 return ProcedureEditResult.cancelled();
@@ -165,15 +165,24 @@ public class ProcedureKnowledgeCollectionService {
                 return ProcedureEditResult.saved(current.id(), np);
             } else if (outcome.editParentRequested() && hasParent) {
                 if (parents.size() > 1) {
-                    var selection = UserChoiceDialog.displayAndGetSelection(null,
-                            "Multiple parent procedures found. Select the parent to edit:",
-                            current.description(), List.of(), knowledgeService, Set.of(), Set.of(), uiTestAgentConfig);
-                    if (selection.isPresent() && selection.get().action() == UserChoiceDialog.SelectionAction.BROWSE) {
-                        current = knowledgeService.findById(selection.get().existingId())
-                                .orElseThrow(() -> new IllegalStateException("Selected parent with ID '%s' not found"
-                                        .formatted(selection.get().existingId())));
+                    var originatingId = outcome.originatingParentId();
+                    if (originatingId != null) {
+                        current = parents.stream()
+                                .filter(p -> p.id().equals(originatingId))
+                                .findFirst()
+                                .orElseThrow(() -> new IllegalStateException(
+                                        "Originating parent '%s' not found among parents".formatted(originatingId)));
                     } else {
-                        return ProcedureEditResult.cancelled();
+                        var selection = UserChoiceDialog.displayAndGetSelection(null,
+                                "Multiple parent procedures found. Select the parent to edit:",
+                                current.description(), List.of(), knowledgeService, Set.of(), Set.of(), uiTestAgentConfig);
+                        if (selection.isPresent() && selection.get().action() == UserChoiceDialog.SelectionAction.BROWSE) {
+                            current = knowledgeService.findById(selection.get().existingId())
+                                    .orElseThrow(() -> new IllegalStateException("Selected parent with ID '%s' not found"
+                                            .formatted(selection.get().existingId())));
+                        } else {
+                            return ProcedureEditResult.cancelled();
+                        }
                     }
                 } else {
                     current = parents.getFirst();

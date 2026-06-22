@@ -1,15 +1,15 @@
 # PR Review Criteria
 
-This document defines the comprehensive review criteria for this project, combining project-specific guidelines from GEMINI.md with
+This document defines the comprehensive review criteria for this project, combining project-specific guidelines from AGENTS.md with
 industry best practices for Java 25 and Agentic development.
 
 ---
 
-## 1. Project-Specific Rules (from GEMINI.md)
+## 1. Project-Specific Rules (from AGENTS.md)
 
 ### 1.1 Java Version & Formatting
 
-- [ ] Code uses Java 25 features appropriately
+- [ ] Code uses specified in POM Java version features appropriately
 - [ ] No reformatting of unchanged code
 - [ ] Lines under 140 characters are not wrapped
 - [ ] Uses imports instead of qualified names
@@ -18,26 +18,41 @@ industry best practices for Java 25 and Agentic development.
 ### 1.2 Code Reuse & Design
 
 - [ ] No duplication of existing functionality
-- [ ] Reuses existing logic via inheritance or composition
-- [ ] Uses `String.formatted()` for string parameterization (not concatenation)
+- [ ] Reuses existing logic via inheritance or composition (extract to make reusable if needed)
+- [ ] Uses `String.formatted()` for string parameterization (never `+` concatenation for parameters)
 - [ ] Uses composition over inheritance for flexibility
+- [ ] Standalone logic extracted into focused methods (no monolithic methods)
 
-### 1.3 Documentation
+### 1.3 Scope & Minimalism
 
-- [ ] README.md updated if functionality changed
+- [ ] Every changed line traces directly to the request (no unrelated "improvements" or refactors)
+- [ ] No features, abstractions, or configurability beyond what was asked
+- [ ] No error handling for impossible scenarios
+- [ ] Unchanged code is not reformatted
+- [ ] Unrelated dead code is flagged in a comment, not silently deleted
+- [ ] No redundant code left behind
+
+### 1.4 Null-Safety & Logging
+
+- [ ] `org.jetbrains.annotations.NotNull` used for non-nullable parameters/returns instead of manual null checks
+- [ ] When logging an error with a cause as the second arg and the message uses string formatting, the message is extracted into a variable
+
+### 1.5 Documentation
+
+- [ ] README.md updated if functionality changed (added, modified, removed, or extended)
 - [ ] High-value comments explain *why*, not *what*
 - [ ] Implementation plan (.MD TODO file) created for multi-class changes
 
-### 1.4 Type System & Patterns (Data-Oriented Programming)
+### 1.6 Type System & Patterns (Data-Oriented Programming)
 
 - [ ] Java records used for DTOs, API responses, value objects
 - [ ] Sealed types define fixed subtypes for pattern matching
 - [ ] Pattern matching used for `instanceof` checks
 - [ ] Exhaustive `switch` with pattern matching
-- [ ] `Optional` used to make absence explicit
+- [ ] `Optional` used in method signatures to make absence explicit (not returning `null`)
 - [ ] Parameterized generic types used (no raw types)
 
-### 1.5 Access Modifiers & Module Encapsulation
+### 1.7 Access Modifiers & Module Encapsulation
 
 - [ ] Classes without `public` modifier for package encapsulation
 - [ ] Only `public` for module's explicit API
@@ -55,16 +70,23 @@ industry best practices for Java 25 and Agentic development.
 ### 2.2 Modern Language Features
 
 - [ ] **Primitive Types in Patterns** (JEP 507): Pattern matching in `switch`/`instanceof` for primitives used correctly
+- [ ] **Record Deconstruction Patterns**: `case User(String n, int a)` used instead of manual `.name()`/`.age()` field extraction
+- [ ] **Guarded Patterns**: `when` clauses used for fine-grained conditions instead of nested `if`s (e.g. `case Circle c when c.radius() > 100`)
+- [ ] **Unnamed Patterns/Variables** (`_`): Used to signal deliberate discard (e.g. `catch (TimeoutException _)`)
 - [ ] **Flexible Constructor Bodies** (JEP 513): Statements before `super()`/`this()` don't reference object under construction
 - [ ] **Structured Concurrency** (JEP 505): Related concurrent tasks treated as single units
 - [ ] **Scoped Values** (JEP 506): Used instead of `ThreadLocal` with virtual threads
 - [ ] **Stable Values** (JEP 502): Immutable data holders used for JVM optimization
+- [ ] Preview features (if any) documented and gated behind `--enable-preview`
 
 ### 2.3 Concurrency
 
-- [ ] Virtual threads used for I/O-bound tasks
+- [ ] Virtual threads used for I/O-bound tasks (blocking ratio high enough to benefit)
+- [ ] Virtual threads NOT used for CPU-bound work (image processing, crypto, compression — use a platform-thread pool)
 - [ ] Virtual threads NOT pooled
-- [ ] `ReentrantLock` preferred over `synchronized` for long-held locks
+- [ ] `ReentrantLock` preferred over `synchronized` for long-held locks (a `synchronized` block around blocking I/O pins the carrier thread)
+- [ ] Libraries on the virtual-thread path (e.g. JDBC drivers, connection pools) audited for `synchronized`-over-I/O pinning
+- [ ] `StructuredTaskScope` (with `join()` / `throwIfFailed()`) preferred over `CompletableFuture.allOf()`, which leaves orphaned tasks running
 - [ ] Thread-safety documented where applicable
 - [ ] Independent I/O operations run in parallel
 
@@ -92,6 +114,7 @@ industry best practices for Java 25 and Agentic development.
 - [ ] `.map()`, `.filter()`, `.collect()` for declarative processing
 - [ ] Correct data structure for use case (HashMap for lookups, ArrayList for indexed access)
 - [ ] Immutable collections preferred where appropriate
+- [ ] `SequencedCollection.getFirst()`/`getLast()` call sites guard against empty collections (they throw `NoSuchElementException`, they are not `Optional`)
 
 ### 3.4 Performance
 
@@ -232,8 +255,12 @@ industry best practices for Java 25 and Agentic development.
 | Code duplication                    | 🟠 MAJOR      | Request changes |
 | Context Window Bloat / Inefficiency | 🟠 MAJOR      | Request changes |
 | Missing Tool Failure Handling       | 🟠 MAJOR      | Request changes |
+| Virtual-thread pinning (`synchronized` over I/O) | 🟠 MAJOR | Request changes |
+| Orphaned concurrency (`CompletableFuture.allOf`) | 🟠 MAJOR | Comment      |
 | Missing tests for new code          | 🟠 MAJOR      | Comment         |
 | Performance issue                   | 🟠 MAJOR      | Comment         |
+| Scope creep / unrelated changes     | 🟡 MINOR      | Comment         |
+| Manual null check instead of `@NotNull` | 🟡 MINOR  | Comment         |
 | Style violation                     | 🟡 MINOR      | Comment         |
 | Missing documentation               | 🟡 MINOR      | Comment         |
 | Refactoring opportunity             | 🔵 SUGGESTION | Comment         |

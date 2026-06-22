@@ -17,12 +17,18 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.tarik.ta.ExecutionMode;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
@@ -39,6 +45,7 @@ import static org.mockito.Mockito.*;
 class AsyncExecutionPersistenceServiceTest {
 
     private AsyncExecutionPersistenceService service;
+    private ListAppender<ILoggingEvent> logAppender;
 
     @Mock private UiTestAgentConfig mockConfig;
     @Mock private SatisfiesEdgeService mockSatisfiesEdgeService;
@@ -50,6 +57,21 @@ class AsyncExecutionPersistenceServiceTest {
     void setUp() {
         service = new AsyncExecutionPersistenceService(mockConfig, mockSatisfiesEdgeService,
                 mockKnowledgeService, mockProcedureRepository, mockFailureContextService);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (logAppender != null) {
+            ((Logger) LoggerFactory.getLogger(AsyncExecutionPersistenceService.class)).detachAppender(logAppender);
+            logAppender.stop();
+        }
+    }
+
+    private ListAppender<ILoggingEvent> captureAsyncPersistenceLogs() {
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        ((Logger) LoggerFactory.getLogger(AsyncExecutionPersistenceService.class)).addAppender(logAppender);
+        return logAppender;
     }
 
     @Test
@@ -168,5 +190,82 @@ class AsyncExecutionPersistenceServiceTest {
 
         assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
         verify(mockFailureContextService).captureFailureContext(id, fc);
+    }
+
+    @Test
+    @DisplayName("persistSatisfiesEdges logs ERROR on async failure in UNATTENDED mode")
+    void persistSatisfiesEdges_asyncLogsErrorOnFailure() throws InterruptedException {
+        when(mockConfig.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
+        UUID id = UUID.randomUUID();
+        CountDownLatch latch = new CountDownLatch(1);
+        var appender = captureAsyncPersistenceLogs();
+
+        doAnswer(inv -> { latch.countDown(); throw new RuntimeException("persistence failure"); })
+                .when(mockSatisfiesEdgeService).persistSatisfiesEdges(id);
+
+        service.persistSatisfiesEdges(id);
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(50);
+        assertThat(appender.list).anyMatch(e -> e.getLevel() == Level.ERROR
+                && e.getFormattedMessage().contains("persistSatisfiesEdges"));
+    }
+
+    @Test
+    @DisplayName("updateTimingProfile logs ERROR on async failure in UNATTENDED mode")
+    void updateTimingProfile_asyncLogsErrorOnFailure() throws InterruptedException {
+        when(mockConfig.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
+        UUID id = UUID.randomUUID();
+        CountDownLatch latch = new CountDownLatch(1);
+        var appender = captureAsyncPersistenceLogs();
+
+        doAnswer(inv -> { latch.countDown(); throw new RuntimeException("persistence failure"); })
+                .when(mockKnowledgeService).updateTimingProfile(id, 100, 200);
+
+        service.updateTimingProfile(id, 100, 200);
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(50);
+        assertThat(appender.list).anyMatch(e -> e.getLevel() == Level.ERROR
+                && e.getFormattedMessage().contains("updateTimingProfile"));
+    }
+
+    @Test
+    @DisplayName("updateElementStability logs ERROR on async failure in UNATTENDED mode")
+    void updateElementStability_asyncLogsErrorOnFailure() throws InterruptedException {
+        when(mockConfig.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
+        UUID id = UUID.randomUUID();
+        CountDownLatch latch = new CountDownLatch(1);
+        var appender = captureAsyncPersistenceLogs();
+
+        doAnswer(inv -> { latch.countDown(); throw new RuntimeException("persistence failure"); })
+                .when(mockProcedureRepository).updateElementStability(id, true, 100);
+
+        service.updateElementStability(id, true, 100);
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(50);
+        assertThat(appender.list).anyMatch(e -> e.getLevel() == Level.ERROR
+                && e.getFormattedMessage().contains("updateElementStability"));
+    }
+
+    @Test
+    @DisplayName("captureFailureContext logs ERROR on async failure in UNATTENDED mode")
+    void captureFailureContext_asyncLogsErrorOnFailure() throws InterruptedException {
+        when(mockConfig.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
+        UUID id = UUID.randomUUID();
+        FailureContext fc = mock(FailureContext.class);
+        CountDownLatch latch = new CountDownLatch(1);
+        var appender = captureAsyncPersistenceLogs();
+
+        doAnswer(inv -> { latch.countDown(); throw new RuntimeException("persistence failure"); })
+                .when(mockFailureContextService).captureFailureContext(id, fc);
+
+        service.captureFailureContext(id, fc);
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(50);
+        assertThat(appender.list).anyMatch(e -> e.getLevel() == Level.ERROR
+                && e.getFormattedMessage().contains("captureFailureContext"));
     }
 }

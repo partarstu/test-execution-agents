@@ -71,11 +71,19 @@ gh pr diff $prNumber --patch
 
 Review the diff using the criteria defined in `resources/review_criteria.md`. This includes:
 
-- **Project-Specific Rules** (from GEMINI.md)
+- **Project-Specific Rules** (from AGENTS.md)
 - **Java 25 Best Practices**
 - **Code Quality Standards**
 - **Security Considerations**
 - **Testing Requirements**
+
+Apply review effort in this priority order (delegate the last item to CI tooling rather than spending review time on it):
+
+1. **Correctness** — does the code do what it claims? Are edge cases handled?
+2. **Security** — injection, prompt injection, exposed secrets, untrusted input
+3. **Architecture** — alignment with existing patterns, reuse, no scope creep
+4. **Maintainability** — readability, naming, testability
+5. **Style** — formatting and mechanical conventions (trust automated tooling)
 
 For each file in the diff:
 

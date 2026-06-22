@@ -53,12 +53,14 @@ public class ApiRequestTools extends AbstractTools {
     private final ApiContext apiContext;
     private final TestExecutionContext testExecutionContext;
     private final ApiTestAgentConfig config;
+    private final OutboundRequestGuard outboundRequestGuard;
     private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
 
     public ApiRequestTools(ApiContext apiContext, TestExecutionContext testExecutionContext, ApiTestAgentConfig config) {
         this.apiContext = apiContext;
         this.testExecutionContext = testExecutionContext;
         this.config = config;
+        this.outboundRequestGuard = new OutboundRequestGuard(config.getOutboundHostAllowlist(), config.getUploadBaseDir());
     }
 
     @Tool("Sends an HTTP request.")
@@ -104,6 +106,7 @@ public class ApiRequestTools extends AbstractTools {
 
             applyAuth(request, effectiveAuthType);
 
+            outboundRequestGuard.assertHostAllowed(resolvedUrl);
             LOG.info("Sending {} request to {} with auth type {}", method, resolvedUrl, effectiveAuthType);
             Response response = request.request(method, resolvedUrl);
             apiContext.setLastResponse(response);
@@ -165,6 +168,9 @@ public class ApiRequestTools extends AbstractTools {
             if (!file.exists()) {
                 throw new ToolExecutionException("File not found at " + resolvedFilePath, TRANSIENT_TOOL_ERROR);
             }
+
+            outboundRequestGuard.assertHostAllowed(resolvedUrl);
+            outboundRequestGuard.assertPathAllowed(resolvedFilePath);
 
             RequestSpecification request = given()
                     .filter(apiContext.getCookieFilter())

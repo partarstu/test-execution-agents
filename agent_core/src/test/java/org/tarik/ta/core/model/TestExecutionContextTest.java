@@ -18,17 +18,19 @@
 package org.tarik.ta.core.model;
 
 import org.junit.jupiter.api.Test;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestStepResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class TestExecutionContextTest {
 
     @Test
     void shouldInitializeCorrectly() {
-        TestExecutionContext context = new TestExecutionContext();
+        TestExecutionContext context = new TestExecutionContext(StreamingEventEmitter.NOOP);
 
         assertThat(context.getTestStepExecutionHistory()).isEmpty();
         assertThat(context.getPreconditionExecutionHistory()).isEmpty();
@@ -36,28 +38,56 @@ class TestExecutionContextTest {
     }
 
     @Test
-    void shouldAddStepResult() {
-        TestExecutionContext context = new TestExecutionContext();
+    void shouldAddStepResultAndStreamIt() {
+        StreamingEventEmitter eventEmitter = mock(StreamingEventEmitter.class);
+        TestExecutionContext context = new TestExecutionContext(eventEmitter);
 
         TestStepResult result = mock(TestStepResult.class);
         context.addStepResult(result);
 
         assertThat(context.getTestStepExecutionHistory()).containsExactly(result);
+        verify(eventEmitter).emitStepResult(result);
     }
 
     @Test
-    void shouldAddPreconditionResult() {
-        TestExecutionContext context = new TestExecutionContext();
+    void shouldAddPreconditionResultAndStreamIt() {
+        StreamingEventEmitter eventEmitter = mock(StreamingEventEmitter.class);
+        TestExecutionContext context = new TestExecutionContext(eventEmitter);
 
         PreconditionResult result = mock(PreconditionResult.class);
         context.addPreconditionResult(result);
 
         assertThat(context.getPreconditionExecutionHistory()).containsExactly(result);
+        verify(eventEmitter).emitPreconditionResult(result);
+    }
+
+    @Test
+    void shouldContainResultInHistoryWhenEmitterFires() {
+        StreamingEventEmitter eventEmitter = mock(StreamingEventEmitter.class);
+        TestExecutionContext context = new TestExecutionContext(eventEmitter);
+        TestStepResult stepResult = mock(TestStepResult.class);
+        PreconditionResult preconditionResult = mock(PreconditionResult.class);
+
+        org.mockito.Mockito.doAnswer(invocation -> {
+            assertThat(context.getTestStepExecutionHistory()).containsExactly(stepResult);
+            return null;
+        }).when(eventEmitter).emitStepResult(stepResult);
+
+        org.mockito.Mockito.doAnswer(invocation -> {
+            assertThat(context.getPreconditionExecutionHistory()).containsExactly(preconditionResult);
+            return null;
+        }).when(eventEmitter).emitPreconditionResult(preconditionResult);
+
+        context.addStepResult(stepResult);
+        context.addPreconditionResult(preconditionResult);
+
+        verify(eventEmitter).emitStepResult(stepResult);
+        verify(eventEmitter).emitPreconditionResult(preconditionResult);
     }
 
     @Test
     void shouldAddSharedData() {
-        TestExecutionContext context = new TestExecutionContext();
+        TestExecutionContext context = new TestExecutionContext(StreamingEventEmitter.NOOP);
 
         context.addSharedData("key1", "value1");
         context.addSharedData("key2", 123);

@@ -21,7 +21,9 @@ import org.jetbrains.annotations.Nullable;
 import org.tarik.ta.dto.IngestionNode;
 
 import java.awt.image.BufferedImage;
+import java.util.UUID;
 
 public record ProcedureDialogOutcome(@Nullable IngestionNode result, boolean editParentRequested, boolean cancelled,
-                                     boolean deleted, @Nullable BufferedImage elementScreenshot) {
+                                     boolean deleted, @Nullable BufferedImage elementScreenshot,
+                                     @Nullable UUID originatingParentId) {
 }

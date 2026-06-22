@@ -28,6 +28,7 @@ import org.tarik.ta.ExecutionMode;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.*;
 import org.tarik.ta.core.dto.TestCase;
+import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator;
 import org.tarik.ta.knowledge_graph.StepExecutionOrchestrator;
@@ -47,9 +48,15 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.Set;
 
+import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
+import org.tarik.ta.dto.UiTestStepResult;
+import org.tarik.ta.exceptions.DatabaseConnectionException;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -89,6 +96,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         lenient().when(configMock.isFullyUnattended()).thenReturn(true);
         lenient().when(configMock.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
         lenient().when(configMock.getAncestryWindowSize()).thenReturn(5);
+        lenient().when(mockContext.getEventEmitter()).thenReturn(StreamingEventEmitter.NOOP);
 
         orchestrator = new KnowledgeBasedExecutionOrchestrator(
                 mockKnowledgeService, mockIngestionService, mockStepExecutionOrchestrator,
@@ -186,6 +194,46 @@ class KnowledgeBasedExecutionOrchestratorTest {
         
         // Next step was matched correctly (at least once, as prefetch might also trigger match)
         verify(mockKnowledgeService, atLeastOnce()).findBestMatch("step2", Set.of(effectId), Set.of(proc1.id()));
+    }
+
+    @Test
+    @DisplayName("cleanupStaleUsesProcedure is not called when DatabaseConnectionException is thrown")
+    void cleanupStaleUsesProcedure_notCalled_onDatabaseConnectionException() {
+        TestCase testCase = new TestCase("tc", List.of(), List.of(new TestStep("action", List.of(), "results")));
+        when(mockKnowledgeService.findBestMatch(anyString(), any(), any()))
+                .thenThrow(new DatabaseConnectionException("connection lost", new RuntimeException()));
+
+        assertThatThrownBy(() -> orchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, mock(ExecutionStateTracker.class)))
+                .isInstanceOf(DatabaseConnectionException.class);
+
+        verify(mockProcedureUsageByTestCaseTrackingService, never()).cleanupStaleUsesProcedure(any(), any());
+    }
+
+    @Test
+    @DisplayName("cleanupStaleUsesProcedure is called exactly once on successful execution")
+    void cleanupStaleUsesProcedure_calledOnce_onSuccessfulExecution() {
+        TestCase testCase = new TestCase("tc", List.of(), List.of(new TestStep("action", List.of(), "results")));
+        Procedure proc = Procedure.createAtomic("action", List.of(), "", List.of(), List.of(), false);
+        ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
+
+        var match = new KnowledgeService.MatchResult(proc, KnowledgeService.MatchConfidence.HIGH,
+                List.of(new KnowledgeService.ScoredProcedure(proc, 0, 0)), false, false, false);
+
+        when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(match));
+        when(mockKnowledgeService.findEffectsForProcedure(proc.id())).thenReturn(List.of());
+        when(mockKnowledgeService.findTargetedUiElementId(proc.id())).thenReturn(Optional.empty());
+        when(mockFailureContextService.findFailureHints(proc.id())).thenReturn(List.of());
+        when(mockStepExecutionOrchestrator.executeAtomicStepWithRetryLoop(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> {
+                    List<UiTestStepResult> results = inv.getArgument(5);
+                    results.add(new UiTestStepResult(new TestStep("", List.of(), ""), TestStepResultStatus.SUCCESS, null, "", null,
+                            java.time.Instant.now(), java.time.Instant.now()));
+                    return UserDecisionOutcome.CONTINUE_NEXT_STEP;
+                });
+
+        orchestrator.executeBasedOnKnowledge(mockContext, testCase, 0, stateTracker);
+
+        verify(mockProcedureUsageByTestCaseTrackingService, times(1)).cleanupStaleUsesProcedure(eq("tc"), any());
     }
 
     @Test

@@ -17,7 +17,7 @@
  */
 package org.tarik.ta.a2a;
 
-import io.a2a.spec.Part;
+import org.a2aproject.sdk.spec.Part;
 import jakarta.inject.Singleton;
 import org.tarik.ta.NewTestAgent;
 import org.tarik.ta.core.a2a.AbstractAgentExecutor;

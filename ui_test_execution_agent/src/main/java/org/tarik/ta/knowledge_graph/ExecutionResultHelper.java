@@ -60,7 +60,7 @@ final class ExecutionResultHelper {
         if (isBlank(finalError) && !allSuccess) {
             finalError = "Execution of test step '%s' was aborted.".formatted(testStep.stepDescription());
         }
-        if (allSuccess && !isNotBlank(finalError)) {
+        if (allSuccess && isNotBlank(finalError)) {
             LOG.error("Got a situation when procedure results are OK, but one of them has error message. It means there's a bug in the " +
                     "corresponding code. The steps affected:\n <{}>", results);
         }

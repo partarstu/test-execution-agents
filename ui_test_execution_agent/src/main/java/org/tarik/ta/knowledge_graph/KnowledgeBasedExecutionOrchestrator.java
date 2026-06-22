@@ -134,6 +134,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                     ExecutionItem item = queue.next();
                     LOG.info("Processing execution item: {} (remaining in queue: {})", item.getClass().getSimpleName(),
                             queue.remainingCount());
+                    notifyItemStarted(context, item);
                     var lookup = prefetchCoordinator.takeMatchResultIfValid(item)
                             .map(m -> toProcedureLookup(m, stateTracker))
                             .orElseGet(() -> findProcedureInDb(item, stateTracker));
@@ -156,6 +157,11 @@ public class KnowledgeBasedExecutionOrchestrator {
                         return;
                     }
                 }
+                try {
+                    procedureUsageByTestCaseTrackingService.cleanupStaleUsesProcedure(testCase.name(), usedProcedureIds);
+                } catch (Exception e) {
+                    LOG.error("Failed to clean up stale USES_PROCEDURE edges for test case '{}'", testCase.name(), e);
+                }
             } catch (DatabaseConnectionException e) {
                 LOG.error("DB connection error during execution of test case '{}'", testCase.name(), e);
                 if (!uiTestAgentConfig.isFullyUnattended()) {
@@ -163,13 +169,19 @@ public class KnowledgeBasedExecutionOrchestrator {
                             "Lost connection to the knowledge graph DB: " + e.getMessage(), null, ERROR, uiTestAgentConfig);
                 }
                 throw e;
-            } finally {
-                try {
-                    procedureUsageByTestCaseTrackingService.cleanupStaleUsesProcedure(testCase.name(), usedProcedureIds);
-                } catch (Exception e) {
-                    LOG.error("Failed to clean up stale USES_PROCEDURE edges for test case '{}'", testCase.name(), e);
-                }
             }
+        }
+    }
+
+    /**
+     * Streams the item that is about to be executed so observers (e.g. a live dashboard) can show the current activity
+     * before the corresponding result is produced.
+     */
+    private static void notifyItemStarted(UiTestExecutionContext context, ExecutionItem item) {
+        var eventEmitter = context.getEventEmitter();
+        switch (item) {
+            case TestStepItem(TestStep testStep) -> eventEmitter.emitStepStarted(testStep);
+            case PreconditionItem _ -> eventEmitter.emitPreconditionStarted(item.getDescription());
         }
     }
 

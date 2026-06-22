@@ -25,7 +25,7 @@ import java.util.UUID;
 public record LocatedElementInfo(
         @Description("The name of the element retrieved from DB and used during location.") String name,
         @Description("The UUID of the UI element in the database.") UUID elementId,
-        @Description("The X coordinate of the center point of UI element in logical pixels (DPI-scaled, for robot interaction).") int centerXCoordinate,
-        @Description("The Y coordinate of the center point of UI element in logical pixels (DPI-scaled, for robot interaction).") int centerYCoordinate,
+        @Description("The X coordinate of the center point of UI element in physical screen pixels.") int centerXCoordinate,
+        @Description("The Y coordinate of the center point of UI element in physical screen pixels.") int centerYCoordinate,
         @Description("The physical screen region in pixels where the UI element was identified.") ScreenRegion elementScreenRegion) {
 }

@@ -65,6 +65,7 @@ class PhraseNodeMigrationService {
         }
         LOG.info("Phrase node migration: found {} procedure(s) with missing HAS_EFFECT/HAS_PREREQUISITE nodes — backfilling", orphans.size());
         int migrated = 0;
+        int failed = 0;
         for (var procedure : orphans) {
             try {
                 phraseEmbeddingRepository.deleteForProcedure(procedure.id());
@@ -74,7 +75,13 @@ class PhraseNodeMigrationService {
             } catch (Exception e) {
                 var msg = "Phrase node migration failed for procedure '%s' (id=%s)".formatted(procedure.description(), procedure.id());
                 LOG.error(msg, e);
+                failed++;
             }
+        }
+        if (failed > 0) {
+            LOG.error("Phrase node migration failed: {}/{} procedure(s) failed to migrate", failed, orphans.size());
+            throw new IllegalStateException(
+                    "Phrase node migration failed for %d procedure(s) — startup aborted. Check logs above for details.".formatted(failed));
         }
         LOG.info("Phrase node migration complete: {}/{} procedure(s) migrated", migrated, orphans.size());
     }
@@ -91,6 +98,7 @@ class PhraseNodeMigrationService {
         }
         LOG.info("Phrase property repair: found {} procedure(s) with stale prerequisites/effects — repairing", mismatches.size());
         int repaired = 0;
+        int failed = 0;
         for (var mismatch : mismatches) {
             try {
                 procedureRepository.updatePhraseProperties(mismatch.procedure().id(), mismatch.phrasePrerequisites(), mismatch.phraseEffects());
@@ -99,7 +107,13 @@ class PhraseNodeMigrationService {
             } catch (Exception e) {
                 var msg = "Phrase property repair failed for procedure '%s' (id=%s)".formatted(mismatch.procedure().description(), mismatch.procedure().id());
                 LOG.error(msg, e);
+                failed++;
             }
+        }
+        if (failed > 0) {
+            LOG.error("Phrase property repair failed: {}/{} procedure(s) failed to repair", failed, mismatches.size());
+            throw new IllegalStateException(
+                    "Phrase property repair failed for %d procedure(s) — startup aborted. Check logs above for details.".formatted(failed));
         }
         LOG.info("Phrase property repair complete: {}/{} procedure(s) repaired", repaired, mismatches.size());
     }

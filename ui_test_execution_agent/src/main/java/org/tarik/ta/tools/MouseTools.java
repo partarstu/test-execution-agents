@@ -51,11 +51,12 @@ public class MouseTools extends UiAbstractTools {
     @Tool(value = "Performs a right click with a mouse at the specified coordinates. Use this tool when you need to right-click at a " +
             "specific location on the screen.")
     public void rightMouseClick(
-            @P(value = "The x-coordinate of the screen location to right-click on (must be >= 0)") int x,
-            @P(value = "The y-coordinate of the screen location to right-click on (must be >= 0)") int y) {
+            @P(value = "The x-coordinate of the screen location to right-click on in physical screen pixels (must be >= 0)") int x,
+            @P(value = "The y-coordinate of the screen location to right-click on in physical screen pixels (must be >= 0)") int y) {
         validateCoordinates(x, y);
         try {
-            getRobot().mouseMove(x, y);
+            var logical = getScaledScreenLocationCoordinates(new Point(x, y));
+            getRobot().mouseMove(logical.x, logical.y);
             sleepMillis(MOUSE_ACTION_DELAY_MILLIS);
             getRobot().mousePress(InputEvent.BUTTON3_DOWN_MASK);
             getRobot().mouseRelease(InputEvent.BUTTON3_DOWN_MASK);
@@ -67,11 +68,11 @@ public class MouseTools extends UiAbstractTools {
     @Tool(value = "Performs a left click with a mouse at the specified coordinates. Use this tool when you need to left-click at a " +
             "specific location on the screen.")
     public void leftMouseClick(
-            @P(value = "The x-coordinate of the screen location to left-click on (must be >= 0)") int x,
-            @P(value = "The y-coordinate of the screen location to left-click on (must be >= 0)") int y) {
+            @P(value = "The x-coordinate of the screen location to left-click on in physical screen pixels (must be >= 0)") int x,
+            @P(value = "The y-coordinate of the screen location to left-click on in physical screen pixels (must be >= 0)") int y) {
         validateCoordinates(x, y);
         try {
-            leftMouseClick(new Point(x, y));
+            leftMouseClick(getScaledScreenLocationCoordinates(new Point(x, y)));
         } catch (Exception e) {
             throw rethrowAsToolException(e, "performing left click with mouse at (%s, %s)".formatted(x, y));
         }
@@ -80,11 +81,12 @@ public class MouseTools extends UiAbstractTools {
     @Tool(value = "Performs a double click with a left mouse button at the specified coordinates. Use this tool when you need to " +
             "double-click at a specific location on the screen.")
     public void leftMouseDoubleClick(
-            @P(value = "The x-coordinate of the screen location to double-click on (must be >= 0)") int x,
-            @P(value = "The y-coordinate of the screen location to double-click on (must be >= 0)") int y) {
+            @P(value = "The x-coordinate of the screen location to double-click on in physical screen pixels (must be >= 0)") int x,
+            @P(value = "The y-coordinate of the screen location to double-click on in physical screen pixels (must be >= 0)") int y) {
         validateCoordinates(x, y);
         try {
-            getRobot().mouseMove(x, y);
+            var logical = getScaledScreenLocationCoordinates(new Point(x, y));
+            getRobot().mouseMove(logical.x, logical.y);
             sleepMillis(MOUSE_ACTION_DELAY_MILLIS);
             getRobot().mousePress(InputEvent.BUTTON1_DOWN_MASK);
             getRobot().mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
@@ -98,11 +100,12 @@ public class MouseTools extends UiAbstractTools {
     @Tool(value = "Moves the mouse to the specified coordinates. Use this tool when you need to move the mouse to a specific " +
             "location on the screen.")
     public void moveMouseTo(
-            @P(value = "The x-coordinate of the screen location to move the mouse to (must be >= 0)") int x,
-            @P(value = "The y-coordinate of the screen location to move the mouse to (must be >= 0)") int y) {
+            @P(value = "The x-coordinate of the screen location to move the mouse to in physical screen pixels (must be >= 0)") int x,
+            @P(value = "The y-coordinate of the screen location to move the mouse to in physical screen pixels (must be >= 0)") int y) {
         validateCoordinates(x, y);
         try {
-            getRobot().mouseMove(x, y);
+            var logical = getScaledScreenLocationCoordinates(new Point(x, y));
+            getRobot().mouseMove(logical.x, logical.y);
         } catch (Exception e) {
             throw rethrowAsToolException(e, "moving mouse to (%s, %s)".formatted(x, y));
         }
@@ -129,8 +132,8 @@ public class MouseTools extends UiAbstractTools {
     @Tool(value = "Repeatedly clicks at specified coordinates until a desired state is reached or a timeout occurs. Use this tool if a " +
             "single mouse click is not enough in order to reach the desired state.")
     public void clickElementUntilStateAchieved(
-            @P("The x-coordinate of the screen location to click (must be >= 0)") int x,
-            @P("The y-coordinate of the screen location to click (must be >= 0)") int y,
+            @P("The x-coordinate of the screen location to click in physical screen pixels (must be >= 0)") int x,
+            @P("The y-coordinate of the screen location to click in physical screen pixels (must be >= 0)") int y,
             @P("Description of the expected state after the click") String expectedStateDescription) {
         validateCoordinates(x, y);
         if (expectedStateDescription == null || expectedStateDescription.isBlank()) {
@@ -143,7 +146,7 @@ public class MouseTools extends UiAbstractTools {
             long retryDelayMillis = uiTestAgentConfig.getActionRetryPolicy().delayMillis();
             long deadline = currentTimeMillis() + waitDuration;
             AtomicReference<BufferedImage> latestScreenshot = new AtomicReference<>();
-            Point clickLocation = new Point(x, y);
+            Point clickLocation = getScaledScreenLocationCoordinates(new Point(x, y));
             do {
                 var screenshot = latestScreenshot.updateAndGet(_ -> captureScreen());
                 var image = singleImageContent(screenshot, uiTestAgentConfig.getUiStateCheckAgentImageDetailLevel());

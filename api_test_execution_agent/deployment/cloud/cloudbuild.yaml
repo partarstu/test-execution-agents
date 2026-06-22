@@ -65,7 +65,7 @@ steps:
       - '--min-instances=$_MIN_INSTANCES'
       - '--max-instances=$_MAX_INSTANCES'
       - '--set-env-vars=DEPLOYMENT_ENV=cloud,AGENT_HOST=0.0.0.0,EXTERNAL_URL=$_EXTERNAL_URL'
-      - '--set-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest'
+      - '--set-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,AGENT_AUTH_TOKEN=AGENT_AUTH_TOKEN:latest'
     waitFor: [ 'docker-push-api-agent' ]
 
 # ============================================

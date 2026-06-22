@@ -17,30 +17,31 @@
  */
 package org.tarik.ta.a2a;
 
-import io.a2a.spec.AgentCapabilities;
-import io.a2a.spec.AgentCard;
+import org.a2aproject.sdk.spec.AgentCapabilities;
+import org.a2aproject.sdk.spec.AgentCard;
+import org.a2aproject.sdk.spec.AgentInterface;
 
 import java.util.List;
 
-import static io.a2a.spec.TransportProtocol.JSONRPC;
+import static org.a2aproject.sdk.spec.TransportProtocol.JSONRPC;
 
 public class AgentCardProducer {
-    
+
     public AgentCard agentCard(String agentUrl) {
-        return new AgentCard.Builder()
+        return AgentCard.builder()
                 .name("API Test Execution Agent")
                 .description("Can execute API tests in a fully automated mode")
-                .url(agentUrl)
-                .preferredTransport(JSONRPC.name())
                 .version("1.0.0")
-                .capabilities(new AgentCapabilities.Builder()
-                        .streaming(false)
+                .capabilities(AgentCapabilities.builder()
+                        .streaming(true)
                         .pushNotifications(false)
-                        .stateTransitionHistory(false)
+                        .extendedAgentCard(false)
                         .build())
                 .defaultInputModes(List.of("text"))
                 .defaultOutputModes(List.of("text"))
                 .skills(List.of())
+                .documentationUrl("https://github.com/partarstu/test-execution-agents")
+                .supportedInterfaces(List.of(new AgentInterface(JSONRPC.asString(), agentUrl)))
                 .build();
     }
 }

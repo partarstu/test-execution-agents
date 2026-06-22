@@ -24,6 +24,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 import org.tarik.ta.ApiTestAgentConfig;
 import org.tarik.ta.context.ApiContext;
@@ -31,13 +32,19 @@ import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.model.AuthType;
 import org.tarik.ta.core.model.TestExecutionContext;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
@@ -73,6 +80,9 @@ class ApiRequestToolsTest {
         when(config.getBearerTokenEnv()).thenReturn("API_TOKEN");
         when(config.getApiKeyNameEnv()).thenReturn("API_KEY_NAME");
         when(config.getApiKeyValueEnv()).thenReturn("API_KEY_VALUE");
+        // WireMock binds to loopback, so it must be on the allow-list to be reachable through the SSRF guard.
+        when(config.getOutboundHostAllowlist()).thenReturn(Set.of("localhost", "127.0.0.1"));
+        when(config.getUploadBaseDir()).thenReturn(Optional.of(testResourcesDir()));
         apiContext = Mockito.spy(new ApiContext(config));
         apiContext.setBaseUri(wireMockServer.baseUrl());
 
@@ -365,5 +375,89 @@ class ApiRequestToolsTest {
         assertThat(result).contains("Last API Response:");
         assertThat(result).contains("Status Code: 200");
         assertThat(result).contains("Response Body: Body");
+    }
+
+    @Test
+    void apiContext_shouldDisableRelaxedHttpsValidation_byDefault() {
+        // config (mock) returns false for getRelaxedHttpsValidation(), matching the new secure default.
+        assertThat(new ApiContext(config).isRelaxedHttpsValidation()).isFalse();
+    }
+
+    @Test
+    void guard_shouldBlockCloudMetadataIp_whenNoAllowlist() {
+        OutboundRequestGuard guard = new OutboundRequestGuard(Set.of(), Optional.empty());
+        assertThatThrownBy(() -> guard.assertHostAllowed("http://169.254.169.254/latest/meta-data/"))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("blocked address");
+    }
+
+    @Test
+    void guard_shouldBlockLoopback_whenNoAllowlist() {
+        OutboundRequestGuard guard = new OutboundRequestGuard(Set.of(), Optional.empty());
+        assertThatThrownBy(() -> guard.assertHostAllowed("http://127.0.0.1:8080/internal"))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("blocked address");
+    }
+
+    @Test
+    void guard_shouldBlockPrivateRange_whenNoAllowlist() {
+        OutboundRequestGuard guard = new OutboundRequestGuard(Set.of(), Optional.empty());
+        assertThatThrownBy(() -> guard.assertHostAllowed("http://10.0.0.5/"))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("blocked address");
+    }
+
+    @Test
+    void guard_shouldBlockHostNotOnAllowlist() {
+        OutboundRequestGuard guard = new OutboundRequestGuard(Set.of("api.example.com"), Optional.empty());
+        assertThatThrownBy(() -> guard.assertHostAllowed("http://10.0.0.5/"))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("not in the configured outbound allow-list");
+    }
+
+    @Test
+    void guard_shouldAllowAllowlistedHost_evenWhenLoopback() {
+        OutboundRequestGuard guard = new OutboundRequestGuard(Set.of("127.0.0.1"), Optional.empty());
+        assertThatCode(() -> guard.assertHostAllowed("http://127.0.0.1:8080/")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void guard_shouldRefuseUpload_whenNoUploadDirConfigured() {
+        OutboundRequestGuard guard = new OutboundRequestGuard(Set.of(), Optional.empty());
+        assertThatThrownBy(() -> guard.assertPathAllowed("/etc/passwd"))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("upload base directory");
+    }
+
+    @Test
+    void guard_shouldBlockPathOutsideUploadDir(@TempDir Path uploadDir) throws IOException {
+        Path outsideFile = Files.createTempFile("outside", ".txt");
+        try {
+            OutboundRequestGuard guard = new OutboundRequestGuard(Set.of(), Optional.of(uploadDir.toString()));
+            assertThatThrownBy(() -> guard.assertPathAllowed(outsideFile.toString()))
+                    .isInstanceOf(ToolExecutionException.class)
+                    .hasMessageContaining("outside the allowed upload directory");
+        } finally {
+            Files.deleteIfExists(outsideFile);
+        }
+    }
+
+    @Test
+    void guard_shouldAllowPathInsideUploadDir(@TempDir Path uploadDir) throws IOException {
+        Path insideFile = Files.createFile(uploadDir.resolve("inside.txt"));
+        OutboundRequestGuard guard = new OutboundRequestGuard(Set.of(), Optional.of(uploadDir.toString()));
+        assertThatCode(() -> guard.assertPathAllowed(insideFile.toString())).doesNotThrowAnyException();
+    }
+
+    private static String testResourcesDir() {
+        return Paths.get(resourceFilePath("pet-image.png")).getParent().toString();
+    }
+
+    private static String resourceFilePath(String resourceName) {
+        String path = ApiRequestToolsTest.class.getClassLoader().getResource(resourceName).getPath();
+        if (System.getProperty("os.name").toLowerCase().contains("win") && path.startsWith("/")) {
+            path = path.substring(1);
+        }
+        return path;
     }
 }
