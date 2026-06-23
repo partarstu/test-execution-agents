@@ -561,7 +561,7 @@ Available agents and their configuration prefixes:
 **Example agent configuration:**
 
 ```properties
-precondition.agent.model.name=gemini-3-flash-preview
+precondition.agent.model.name=gemini-3.5-flash
 precondition.agent.model.provider=google
 precondition.agent.prompt.version=v1.0.0
 ```
