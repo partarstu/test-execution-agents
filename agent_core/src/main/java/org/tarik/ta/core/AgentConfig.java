@@ -199,7 +199,7 @@ public class AgentConfig {
 
         // Precondition Agent
         this.preconditionAgentModelName = loadProperty(
-                "precondition.agent.model.name", "PRECONDITION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
+                "precondition.agent.model.name", "PRECONDITION_AGENT_MODEL_NAME", "gemini-3.5-flash", s -> s, false);
         this.preconditionAgentModelProvider = getProperty(
                 "precondition.agent.model.provider", "PRECONDITION_AGENT_MODEL_PROVIDER", "google",
                 this::getModelProvider, false);
@@ -208,7 +208,7 @@ public class AgentConfig {
 
         // Test Step Action Agent
         this.testStepActionAgentModelName = loadProperty(
-                "test.step.action.agent.model.name", "TEST_STEP_ACTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
+                "test.step.action.agent.model.name", "TEST_STEP_ACTION_AGENT_MODEL_NAME", "gemini-3.5-flash", s -> s, false);
         this.testStepActionAgentModelProvider = getProperty(
                 "test.step.action.agent.model.provider", "TEST_STEP_ACTION_AGENT_MODEL_PROVIDER", "google",
                 this::getModelProvider, false);
@@ -217,7 +217,7 @@ public class AgentConfig {
 
         // Test Case Extraction Agent
         this.testCaseExtractionAgentModelName = loadProperty(
-                "test.case.extraction.agent.model.name", "TEST_CASE_EXTRACTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
+                "test.case.extraction.agent.model.name", "TEST_CASE_EXTRACTION_AGENT_MODEL_NAME", "gemini-3.5-flash", s -> s, false);
         this.testCaseExtractionAgentModelProvider = getProperty(
                 "test.case.extraction.agent.model.provider", "TEST_CASE_EXTRACTION_AGENT_MODEL_PROVIDER", "google",
                 this::getModelProvider, false);

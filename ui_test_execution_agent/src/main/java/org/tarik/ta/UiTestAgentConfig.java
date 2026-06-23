@@ -125,7 +125,7 @@ public class UiTestAgentConfig extends AgentConfig {
                 "procedure.lookup.delay.ms", "PROCEDURE_LOOKUP_DELAY_MS", "2000", false);
         this.uiElementDescriptionMatcherAgentModelName = loadProperty(
                 "ui.element.description.matcher.agent.model.name", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME",
-                "gemini-3-flash-preview",
+                "gemini-3.5-flash",
                 s -> s, false);
         this.uiElementDescriptionMatcherAgentModelProvider = getProperty(
                 "ui.element.description.matcher.agent.model.provider", "UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_PROVIDER", "google",
@@ -135,7 +135,7 @@ public class UiTestAgentConfig extends AgentConfig {
                 s -> s, false);
         this.uiElementDescriptionExtractionAgentModelName = loadProperty(
                 "ui.element.description.extraction.agent.model.name", "UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_MODEL_NAME",
-                "gemini-3-flash-preview", s -> s, false);
+                "gemini-3.5-flash", s -> s, false);
         this.uiElementDescriptionExtractionAgentModelProvider = getProperty(
                 "ui.element.description.extraction.agent.model.provider", "UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_MODEL_PROVIDER",
                 "google", this::getModelProvider, false);
@@ -143,14 +143,14 @@ public class UiTestAgentConfig extends AgentConfig {
                 "ui.element.description.extraction.agent.prompt.version", "UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_PROMPT_VERSION",
                 "v1.0.0", s -> s, false);
         this.uiStateCheckAgentModelName = loadProperty(
-                "ui.state.check.agent.model.name", "UI_STATE_CHECK_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
+                "ui.state.check.agent.model.name", "UI_STATE_CHECK_AGENT_MODEL_NAME", "gemini-3.5-flash", s -> s, false);
         this.uiStateCheckAgentModelProvider = getProperty(
                 "ui.state.check.agent.model.provider", "UI_STATE_CHECK_AGENT_MODEL_PROVIDER", "google",
                 this::getModelProvider, false);
         this.uiStateCheckAgentPromptVersion = loadProperty(
                 "ui.state.check.agent.prompt.version", "UI_STATE_CHECK_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
         this.elementBoundingBoxAgentModelName = loadProperty(
-                "element.bounding.box.agent.model.name", "ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME", "gemini-3-flash-preview",
+                "element.bounding.box.agent.model.name", "ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME", "gemini-3.5-flash",
                 s -> s, false);
         this.elementBoundingBoxAgentModelProvider = getProperty(
                 "element.bounding.box.agent.model.provider", "ELEMENT_BOUNDING_BOX_AGENT_MODEL_PROVIDER", "google",
@@ -159,7 +159,7 @@ public class UiTestAgentConfig extends AgentConfig {
                 "element.bounding.box.agent.prompt.version", "ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION", "v1.0.0", s -> s,
                 false);
         this.uiElementVisualMatchAgentModelName = loadProperty(
-                "element.selection.agent.model.name", "ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
+                "element.selection.agent.model.name", "ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-3.5-flash", s -> s, false);
         this.uiElementVisualMatchAgentModelProvider = getProperty(
                 "element.selection.agent.model.provider", "ELEMENT_SELECTION_AGENT_MODEL_PROVIDER", "google", this::getModelProvider,
                 false);
@@ -169,13 +169,13 @@ public class UiTestAgentConfig extends AgentConfig {
                 "db.element.selection.agent.prompt.version", "ELEMENT_CANDIDATE_SELECTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s,
                 false);
         this.dbElementSelectionAgentModelName = loadProperty(
-                "db.element.selection.agent.model.name", "DB_ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-3-flash-preview", s -> s, false);
+                "db.element.selection.agent.model.name", "DB_ELEMENT_SELECTION_AGENT_MODEL_NAME", "gemini-3.5-flash", s -> s, false);
         this.dbElementSelectionAgentModelProvider = getProperty(
                 "db.element.selection.agent.model.provider", "DB_ELEMENT_SELECTION_AGENT_MODEL_PROVIDER", "google",
                 this::getModelProvider, false);
         this.preconditionVerificationAgentModelName = loadProperty(
                 "precondition.verification.agent.model.name", "PRECONDITION_VERIFICATION_AGENT_MODEL_NAME",
-                "gemini-3-flash-preview", s -> s, false);
+                "gemini-3.5-flash", s -> s, false);
         this.preconditionVerificationAgentModelProvider = getProperty(
                 "precondition.verification.agent.model.provider", "precondition_VERIFICATION_AGENT_MODEL_PROVIDER",
                 "google", this::getModelProvider, false);
@@ -183,7 +183,7 @@ public class UiTestAgentConfig extends AgentConfig {
                 "precondition.verification.agent.prompt.version", "PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION",
                 "v1.0.0", s -> s, false);
         this.testStepVerificationAgentModelName = loadProperty(
-                "test.step.verification.agent.model.name", "TEST_STEP_VERIFICATION_AGENT_MODEL_NAME", "gemini-3-flash-preview",
+                "test.step.verification.agent.model.name", "TEST_STEP_VERIFICATION_AGENT_MODEL_NAME", "gemini-3.5-flash",
                 s -> s, false);
         this.testStepVerificationAgentModelProvider = getProperty(
                 "test.step.verification.agent.model.provider", "TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER", "google",
@@ -192,7 +192,7 @@ public class UiTestAgentConfig extends AgentConfig {
                 "test.step.verification.agent.prompt.version", "TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION", "v1.0.0",
                 s -> s, false);
         this.knowledgeSuggestionAgentModelName = loadProperty(
-                "knowledge.suggestion.agent.model.name", "KNOWLEDGE_SUGGESTION_AGENT_MODEL_NAME", "gemini-3-flash-preview",
+                "knowledge.suggestion.agent.model.name", "KNOWLEDGE_SUGGESTION_AGENT_MODEL_NAME", "gemini-3.5-flash",
                 s -> s, false);
         this.knowledgeSuggestionAgentModelProvider = getProperty(
                 "knowledge.suggestion.agent.model.provider", "KNOWLEDGE_SUGGESTION_AGENT_MODEL_PROVIDER", "google",
@@ -202,7 +202,7 @@ public class UiTestAgentConfig extends AgentConfig {
                 s -> s, false);
         this.knowledgeCollectionElementResolutionAgentModelName = loadProperty(
                 "knowledge.collection.element.resolution.agent.model.name", "KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_NAME",
-                "gemini-3-flash-preview", s -> s, false);
+                "gemini-3.5-flash", s -> s, false);
         this.knowledgeCollectionElementResolutionAgentModelProvider = getProperty(
                 "knowledge.collection.element.resolution.agent.model.provider",
                 "KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_PROVIDER",

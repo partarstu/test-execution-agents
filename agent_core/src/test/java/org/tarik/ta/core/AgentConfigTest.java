@@ -106,15 +106,15 @@ class AgentConfigTest {
 
     @Test
     void testAgentSpecificConfigs() {
-        assertThat(config.getPreconditionActionAgentModelName()).isEqualTo("gemini-3-flash-preview");
+        assertThat(config.getPreconditionActionAgentModelName()).isEqualTo("gemini-3.5-flash");
         assertThat(config.getPreconditionActionAgentModelProvider()).isEqualTo(AgentConfig.ModelProvider.GOOGLE);
         assertThat(config.getPreconditionAgentPromptVersion()).isEqualTo("v1.0.0");
 
-        assertThat(config.getTestStepActionAgentModelName()).isEqualTo("gemini-3-flash-preview");
+        assertThat(config.getTestStepActionAgentModelName()).isEqualTo("gemini-3.5-flash");
         assertThat(config.getTestStepActionAgentModelProvider()).isEqualTo(AgentConfig.ModelProvider.GOOGLE);
         assertThat(config.getTestStepActionAgentPromptVersion()).isEqualTo("v1.0.0");
 
-        assertThat(config.getTestCaseExtractionAgentModelName()).isEqualTo("gemini-3-flash-preview");
+        assertThat(config.getTestCaseExtractionAgentModelName()).isEqualTo("gemini-3.5-flash");
         assertThat(config.getTestCaseExtractionAgentModelProvider()).isEqualTo(AgentConfig.ModelProvider.GOOGLE);
         assertThat(config.getTestCaseExtractionAgentPromptVersion()).isEqualTo("v1.0.0");
     }

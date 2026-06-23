@@ -123,7 +123,7 @@ Executes precondition setup operations and verifies their success.
 
 | Property                            | Environment Variable                | Default                  | Description    |
 |-------------------------------------|-------------------------------------|--------------------------|----------------|
-| `precondition.agent.model.name`     | `PRECONDITION_AGENT_MODEL_NAME`     | `gemini-3-flash-preview` | Model name     |
+| `precondition.agent.model.name`     | `PRECONDITION_AGENT_MODEL_NAME`     | `gemini-3.5-flash` | Model name     |
 | `precondition.agent.model.provider` | `PRECONDITION_AGENT_MODEL_PROVIDER` | `google`                 | Model provider |
 | `precondition.agent.prompt.version` | `PRECONDITION_AGENT_PROMPT_VERSION` | `v1.0.0`                 | Prompt version |
 
@@ -133,7 +133,7 @@ Executes individual API test steps and verifies expected results.
 
 | Property                                | Environment Variable                    | Default                  | Description    |
 |-----------------------------------------|-----------------------------------------|--------------------------|----------------|
-| `test.step.action.agent.model.name`     | `TEST_STEP_ACTION_AGENT_MODEL_NAME`     | `gemini-3-flash-preview` | Model name     |
+| `test.step.action.agent.model.name`     | `TEST_STEP_ACTION_AGENT_MODEL_NAME`     | `gemini-3.5-flash` | Model name     |
 | `test.step.action.agent.model.provider` | `TEST_STEP_ACTION_AGENT_MODEL_PROVIDER` | `google`                 | Model provider |
 | `test.step.action.agent.prompt.version` | `TEST_STEP_ACTION_AGENT_PROMPT_VERSION` | `v1.0.0`                 | Prompt version |
 

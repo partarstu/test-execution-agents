@@ -221,7 +221,7 @@ The following configuration properties are shared across agents (defined in `Age
 | `vector.db.url`         | `VECTOR_DB_URL`         | (required)                | URL for the vector database                         |
 | `vector.db.key`         | `VECTOR_DB_KEY`         |                           | API Key/Token for the vector database               |
 | `model.provider`        | `MODEL_PROVIDER`        | `google`                  | AI model provider (google, openai, groq, anthropic) |
-| `model.name`            | `MODEL_NAME`            | `gemini-3-flash-preview`  | Default model name                                  |
+| `model.name`            | `MODEL_NAME`            | `gemini-3.5-flash`  | Default model name                                  |
 | `gemini.thinking.level` | `GEMINI_THINKING_LEVEL` | `MINIMAL`                 | Gemini thinking configuration level                 |
 | `model.max.retries`     | `MAX_RETRIES`           | `10`                      | Maximum model API retries                           |
 | `LOG_LEVEL`             | `LOG_LEVEL`             | `INFO`                    | Global log level (INFO, DEBUG, WARN, ERROR)         |
@@ -272,6 +272,7 @@ Both agents can be deployed to Google Cloud using Cloud Build. The `cloudbuild.y
     - `VECTOR_DB_KEY` (auto-created by Neo4j deploy script with generated password)
     - `VNC_PW` (for UI agent)
     - `NEO4J_USERNAME` (auto-created by Neo4j deploy script, defaults to `neo4j`)
+    - `AGENT_AUTH_TOKEN` (shared bearer token required on the main A2A endpoint; consumed by both agents)
 
 3. Create a VPC connector named `agent-network-connector` for Cloud Run to access internal resources.
 
