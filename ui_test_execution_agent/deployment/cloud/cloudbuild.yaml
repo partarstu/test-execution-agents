@@ -180,8 +180,8 @@ steps:
 # Empty values will use defaults from config.properties at runtime.
 substitutions:
   # --- GCP Configuration ---
-  _REGION: 'us-central1'
-  _ZONE: 'us-central1-b'
+  _REGION: 'us-east1'
+  _ZONE: 'us-east1-c'
   _INSTANCE_NAME: 'ui-test-execution-agent-vm'
   _NETWORK_NAME: 'agent-network'
   _SUBNET_NAME: 'agent-network'
