@@ -56,7 +56,7 @@ echo "Step 3: Setting up VPC network and firewall rules..."
 
 if ! gcloud compute addresses describe ${STATIC_IP_ADDRESS_NAME} --project=${PROJECT_ID} --region=${REGION} &>/dev/null; then
     echo "Creating static IP address '${STATIC_IP_ADDRESS_NAME}'..."
-    gcloud compute addresses create ${STATIC_IP_ADDRESS_NAME} --project=${PROJECT_ID} --region=${REGION}
+    gcloud compute addresses create ${STATIC_IP_ADDRESS_NAME} --project=${PROJECT_ID} --region=${REGION} --network-tier=STANDARD
 else
     echo "Static IP address '${STATIC_IP_ADDRESS_NAME}' already exists."
 fi
