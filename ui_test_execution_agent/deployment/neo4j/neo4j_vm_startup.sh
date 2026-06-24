@@ -31,13 +31,14 @@ DATA_DISK_NAME=$(curl -s "http://metadata.google.internal/computeMetadata/v1/ins
 DATA_DISK_NAME="${DATA_DISK_NAME:-neo4j-data-disk}"
 
 # --- Install Google Cloud SDK (using containerized gcloud) ---
+# The image is only used to read secrets, so the tiny :alpine variant (core gcloud) is enough.
 echo "Pulling google/cloud-sdk image..."
-docker pull google/cloud-sdk:latest
+docker pull google/cloud-sdk:alpine
 
 # --- Fetch Authentication Credentials ---
 echo "Fetching Neo4j credentials from Secret Manager..."
-NEO4J_USERNAME=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="NEO4J_USERNAME" --project="${PROJECT_ID}" 2>/dev/null)
-VECTOR_DB_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="VECTOR_DB_KEY" --project="${PROJECT_ID}" 2>/dev/null)
+NEO4J_USERNAME=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="NEO4J_USERNAME" --project="${PROJECT_ID}" 2>/dev/null)
+VECTOR_DB_KEY=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="VECTOR_DB_KEY" --project="${PROJECT_ID}" 2>/dev/null)
 
 if [ -z "${NEO4J_USERNAME}" ]; then
     echo "ERROR: NEO4J_USERNAME secret not found or empty in project '${PROJECT_ID}'." >&2
@@ -53,6 +54,12 @@ if [ -z "${VECTOR_DB_KEY}" ]; then
     exit 1
 fi
 echo "Neo4j authentication credentials retrieved successfully (user=${NEO4J_USERNAME})."
+
+# The VM reboots every few hours (maxRunDuration STOP) and the boot disk is small. Now that the credentials are read,
+# prune every image no longer referenced by a container: this drops the cloud-sdk image used above and any superseded
+# versions while keeping the running Neo4j image, so later pulls don't fill the boot disk with "no space left on device".
+echo "Pruning unused Docker images to reclaim boot-disk space..."
+docker image prune -af || true
 
 # --- Mount Persistent Data Disk ---
 echo "Setting up persistent data disk..."
