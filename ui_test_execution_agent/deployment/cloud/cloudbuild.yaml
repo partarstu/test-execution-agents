@@ -185,7 +185,7 @@ substitutions:
   _INSTANCE_NAME: 'ui-test-execution-agent-vm'
   _NETWORK_NAME: 'agent-network'
   _SUBNET_NAME: 'agent-network'
-  _MACHINE_TYPE: 't2d-standard-2'
+  _MACHINE_TYPE: 'e2-standard-2'
   _SERVICE_NAME: 'ui-test-execution-agent'
   _IMAGE_TAG: 'latest'
   _BUILD_BASE_IMAGE: 'false'
