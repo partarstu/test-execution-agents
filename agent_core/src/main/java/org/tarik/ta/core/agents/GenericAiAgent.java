@@ -37,6 +37,7 @@ import static java.lang.System.currentTimeMillis;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.*;
 import static org.tarik.ta.core.error.ErrorCategory.TERMINATION_BY_USER;
 import org.tarik.ta.core.manager.BudgetManager;
+import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 
 public interface GenericAiAgent<T extends FinalResult> {
@@ -82,12 +83,12 @@ public interface GenericAiAgent<T extends FinalResult> {
                 case ToolExecutionException _ -> {
                     String message = "Got tool error while %s : %s".formatted(taskDescription, e.getMessage());
                     LOG.error(message, e);
-                    return createErrorResult(ERROR, e.getMessage(), null);
+                    return createErrorResult(ERROR, resolveErrorMessage(e), null);
                 }
                 default -> {
                     String message = "Error while %s".formatted(taskDescription);
                     LOG.error(message, e);
-                    return createErrorResult(ERROR, e.getMessage(), null);
+                    return createErrorResult(ERROR, resolveErrorMessage(e), null);
                 }
             }
         }
@@ -129,6 +130,14 @@ public interface GenericAiAgent<T extends FinalResult> {
         LOG.warn("{} failed after {} attempts (elapsed: {}ms). Last result: {}",
                 taskDescription, attempts, elapsedTime, operationResult.getResultPayload());
         return operationResult;
+    }
+
+    /**
+     * Resolves a non-blank, human-readable message from a throwable. Falls back to the throwable's type when its message is blank, so
+     * that error results never carry an empty message which would otherwise mask the real failure.
+     */
+    private static String resolveErrorMessage(Throwable e) {
+        return isNotBlank(e.getMessage()) ? e.getMessage() : e.toString();
     }
 
     @SuppressWarnings("unchecked")

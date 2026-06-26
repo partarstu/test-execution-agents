@@ -144,8 +144,12 @@ public class ChatModelEventListener implements ChatModelListener {
     @Override
     public void onError(ChatModelErrorContext errorContext) {
         Throwable error = errorContext.error();
-        LOG.error("Error: ", error);
         Map<Object, Object> attributes = errorContext.attributes();
-        LOG.info("Attributes on Error: {}", attributes.get("my-attribute"));
+        if (error != null) {
+            String message = "Chat model invocation failed: %s".formatted(error.toString());
+            LOG.error(message, error);
+        } else {
+            LOG.error("Chat model invocation failed without a propagated error. Error context attributes: {}", attributes);
+        }
     }
 }

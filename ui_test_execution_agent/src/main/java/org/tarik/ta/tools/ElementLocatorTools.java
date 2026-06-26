@@ -411,10 +411,17 @@ public class ElementLocatorTools extends UiAbstractTools {
             int voteCount = uiTestAgentConfig.getElementLocatorVisualGroundingVoteCount();
             try (var executor = newVirtualThreadPerTaskExecutor()) {
                 List<Callable<List<BoundingBox>>> tasks = range(0, voteCount)
-                        .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> Objects.requireNonNull(
-                                uiElementBoundingBoxAgent.executeAndGetResult(
-                                        () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt, singleImageContent(imageToSend, uiTestAgentConfig.getElementBoundingBoxAgentImageDetailLevel()))
-                                ).getResultPayload()).boundingBoxes())
+                        .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> {
+                            var executionResult = uiElementBoundingBoxAgent.executeAndGetResult(
+                                    () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt,
+                                            singleImageContent(imageToSend, uiTestAgentConfig.getElementBoundingBoxAgentImageDetailLevel())));
+                            var payload = executionResult.getResultPayload();
+                            if (!executionResult.isSuccess() || payload == null) {
+                                throw new IllegalStateException(
+                                        "Vision model failed to identify bounding boxes: %s".formatted(executionResult.getMessage()));
+                            }
+                            return payload.boundingBoxes();
+                        })
                         .toList();
                 List<Rectangle> allBoundingBoxes = executor.invokeAll(tasks).stream()
                         .map(future -> getFutureResult(future, "getting bounding boxes from vision model"))
