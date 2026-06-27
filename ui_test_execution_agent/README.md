@@ -183,8 +183,11 @@ a part of this framework for executing a sample test case inside Google Cloud.
       Javalin web server is started. The agent registers its capabilities and listens for A2A JSON-RPC requests on the root endpoint (`/`) (
       port configured via `port` in `config.properties`). The endpoint serves the streaming `message/stream` (and `tasks/resubscribe`)
       methods as a Server-Sent Events (SSE) stream and all other methods as a single JSON-RPC response; the agent card advertises
-      `capabilities.streaming = true`, exposes the test-execution skill in its `skills` list, and uses an HTML-friendly description that
-      lists each sub-agent together with its configured model. The server accepts only one test case execution at a time (the agent has been
+      `capabilities.streaming = true`, exposes a test-execution skill in its `skills` list, and uses an HTML-friendly description that
+      lists each sub-agent together with its configured model. The advertised skill depends on `execution.mode`: an unattended agent
+      exposes the `ui_test_execution_unattended` skill (tag `unattended`) while a supervised agent exposes `ui_test_execution_supervised`
+      (tag `supervised`), so CI/CD selectors can pick only unattended agents for automatic execution. The server accepts only one test case
+      execution at a time (the agent has been
       designed as a static utility for simplicity purposes). Upon receiving a valid request when idle, it returns `200 OK` and starts the
       test case execution. If busy, it returns `429 Too Many Requests`.
     * The runtime request lifecycle now mirrors the API agent: [UiAgentExecutor](src/main/java/org/tarik/ta/a2a/UiAgentExecutor.java)
