@@ -37,6 +37,7 @@ or nested scope creation resolves all required dependencies consistently.
 |-------|-------------|
 | `Server` | Thin bootstrap entry point that creates the root `BeanScope` and starts the injected `AbstractServer` |
 | `ApiAgentCardFactory` | Produces the singleton A2A `AgentCard` bean from injected configuration |
+| `AgentCardProducer` | Builds the A2A `AgentCard`: advertises the test-execution skill in the `skills` list and renders an HTML-friendly description listing each sub-agent and its configured model |
 | `ApiAgentExecutor` | Handles A2A task execution, extends `AbstractAgentExecutor` |
 | `ApiAgentRequestScopeFactory` | Centralizes creation of API request-scoped child `BeanScope` instances |
 | `ApiTestAgent` | Main orchestrator for API test execution |

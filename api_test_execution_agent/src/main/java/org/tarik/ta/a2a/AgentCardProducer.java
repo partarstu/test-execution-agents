@@ -20,17 +20,32 @@ package org.tarik.ta.a2a;
 import org.a2aproject.sdk.spec.AgentCapabilities;
 import org.a2aproject.sdk.spec.AgentCard;
 import org.a2aproject.sdk.spec.AgentInterface;
+import org.a2aproject.sdk.spec.AgentSkill;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.ApiTestAgentConfig;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.a2aproject.sdk.spec.TransportProtocol.JSONRPC;
 
 public class AgentCardProducer {
+    private static final String AGENT_NAME = "API Test Execution Agent";
 
-    public AgentCard agentCard(String agentUrl) {
+    private final String agentUrl;
+    private final ApiTestAgentConfig config;
+
+    public AgentCardProducer(@NotNull String agentUrl, @NotNull ApiTestAgentConfig config) {
+        this.agentUrl = agentUrl;
+        this.config = config;
+    }
+
+    public AgentCard agentCard() {
         return AgentCard.builder()
-                .name("API Test Execution Agent")
-                .description("Can execute API tests in a fully automated mode")
+                .name(AGENT_NAME)
+                .description(buildDescription())
                 .version("1.0.0")
                 .capabilities(AgentCapabilities.builder()
                         .streaming(true)
@@ -39,9 +54,32 @@ public class AgentCardProducer {
                         .build())
                 .defaultInputModes(List.of("text"))
                 .defaultOutputModes(List.of("text"))
-                .skills(List.of())
+                .skills(List.of(apiTestExecutionSkill()))
                 .documentationUrl("https://github.com/partarstu/test-execution-agents")
                 .supportedInterfaces(List.of(new AgentInterface(JSONRPC.asString(), agentUrl)))
+                .build();
+    }
+
+    private String buildDescription() {
+        var lines = new ArrayList<String>();
+        lines.add("%s using the following sub-agents:".formatted(AGENT_NAME));
+        subAgentModels().forEach((subAgent, modelName) -> lines.add("%s — %s".formatted(subAgent, modelName)));
+        return String.join("\n", lines);
+    }
+
+    private Map<String, String> subAgentModels() {
+        var models = new LinkedHashMap<String, String>();
+        models.put("Test Step Action Agent", config.getTestStepActionAgentModelName());
+        models.put("Precondition Action Agent", config.getPreconditionActionAgentModelName());
+        return models;
+    }
+
+    private AgentSkill apiTestExecutionSkill() {
+        return AgentSkill.builder()
+                .id("api_test_execution")
+                .name("API Test Execution")
+                .description("Can execute API tests in a fully automated mode")
+                .tags(List.of("testing", "api"))
                 .build();
     }
 }
