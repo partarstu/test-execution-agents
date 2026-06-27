@@ -40,9 +40,11 @@ class AgentCardProducerTest {
         assertThat(card.supportedInterfaces()).hasSize(1);
         assertThat(card.supportedInterfaces().getFirst().url()).isEqualTo(agentUrl);
         assertThat(card.description())
-                .startsWith("API Test Execution Agent using the following sub-agents:")
-                .contains("Test Step Action Agent — test-step-model")
-                .contains("Precondition Action Agent — precondition-model")
+                .startsWith("Uses the following sub-agents:<br>")
+                .contains("<ol>")
+                .contains("<li>Test Step Action Agent — test-step-model</li>")
+                .contains("<li>Precondition Action Agent — precondition-model</li>")
+                .contains("</ol>")
                 .doesNotContain("Can execute API tests in a fully automated mode");
         assertThat(card.skills()).singleElement().satisfies(skill -> {
             assertThat(skill.id()).isEqualTo("api_test_execution");

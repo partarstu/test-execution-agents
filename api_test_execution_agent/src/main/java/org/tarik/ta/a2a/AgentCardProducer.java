@@ -62,8 +62,10 @@ public class AgentCardProducer {
 
     private String buildDescription() {
         var lines = new ArrayList<String>();
-        lines.add("%s using the following sub-agents:".formatted(AGENT_NAME));
-        subAgentModels().forEach((subAgent, modelName) -> lines.add("%s — %s".formatted(subAgent, modelName)));
+        lines.add("Uses the following sub-agents:<br>");
+        lines.add("<ol>");
+        subAgentModels().forEach((subAgent, modelName) -> lines.add("<li>%s — %s</li>".formatted(subAgent, modelName)));
+        lines.add("</ol>");
         return String.join("\n", lines);
     }
 

@@ -43,7 +43,7 @@ public class AgentCardProducer {
 
     public AgentCard agentCard() {
         return AgentCard.builder()
-                .name(AGENT_NAME)
+                .name(buildName())
                 .description(buildDescription())
                 .version("1.0.0")
                 .capabilities(AgentCapabilities.builder()
@@ -59,10 +59,16 @@ public class AgentCardProducer {
                 .build();
     }
 
+    private String buildName() {
+        return "%s (%s)".formatted(AGENT_NAME, config.getExecutionMode().name().toLowerCase());
+    }
+
     private String buildDescription() {
         var lines = new ArrayList<String>();
-        lines.add("%s using the following sub-agents:".formatted(AGENT_NAME));
-        subAgentModels().forEach((subAgent, modelName) -> lines.add("%s — %s".formatted(subAgent, modelName)));
+        lines.add("Uses the following sub-agents:<br>");
+        lines.add("<ol>");
+        subAgentModels().forEach((subAgent, modelName) -> lines.add("<li>%s — %s</li>".formatted(subAgent, modelName)));
+        lines.add("</ol>");
         return String.join("\n", lines);
     }
 

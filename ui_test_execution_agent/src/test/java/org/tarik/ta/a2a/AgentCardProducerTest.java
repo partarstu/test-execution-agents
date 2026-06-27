@@ -32,6 +32,7 @@ class AgentCardProducerTest {
     void unattendedModeAdvertisesUnattendedSkill() {
         AgentCard card = cardForMode(ExecutionMode.UNATTENDED);
 
+        assertThat(card.name()).isEqualTo("UI Test Execution Agent (unattended)");
         assertThat(card.skills()).singleElement().satisfies(skill -> {
             assertThat(skill.id()).isEqualTo("ui_test_execution_unattended");
             assertThat(skill.name()).isEqualTo("Unattended UI Test Execution");
@@ -43,6 +44,7 @@ class AgentCardProducerTest {
     void supervisedModeAdvertisesSupervisedSkill() {
         AgentCard card = cardForMode(ExecutionMode.SUPERVISED);
 
+        assertThat(card.name()).isEqualTo("UI Test Execution Agent (supervised)");
         assertThat(card.skills()).singleElement().satisfies(skill -> {
             assertThat(skill.id()).isEqualTo("ui_test_execution_supervised");
             assertThat(skill.name()).isEqualTo("Supervised UI Test Execution");
@@ -59,8 +61,10 @@ class AgentCardProducerTest {
         AgentCard card = new AgentCardProducer("https://agent.example.test", config).agentCard();
 
         assertThat(card.description())
-                .startsWith("UI Test Execution Agent using the following sub-agents:")
-                .contains("Test Step Action Agent — test-step-model");
+                .startsWith("Uses the following sub-agents:<br>")
+                .contains("<ol>")
+                .contains("<li>Test Step Action Agent — test-step-model</li>")
+                .contains("</ol>");
     }
 
     private AgentCard cardForMode(ExecutionMode mode) {
