@@ -229,6 +229,35 @@ The API Test Execution Agent uses the following tools:
 - `loadJsonData(filePath, variableName)` - Loads JSON data into context
 - `loadCsvData(filePath, variableName)` - Loads CSV data into context
 
+## Smoke Tests
+
+`src/test/java/org/tarik/ta/smoke/ApiAgentSmokeTest` is a hermetic, end-to-end smoke suite that drives the
+**real** agent flow (`ApiTestAgent` -> step / precondition agents -> real `ApiRequestTools` /
+`ApiAssertionTools`) and mocks only the external boundaries:
+
+- the LLM is replaced by `smoke/ScriptedChatModel`, a deterministic `ChatModel` that returns a scripted
+  sequence of real tool calls (so the real tool-calling loop, tools and result extraction all run unchanged);
+- the target API is a local **WireMock** server, which records the requests that actually left the agent;
+- the config, `TestCaseExtractor` and `LogCapture` are Mockito mocks.
+
+Coverage: happy path, precondition + step (full `TestExecutionResult` contract), failed verification,
+Basic / Bearer / API-Key auth headers, `${var}` substitution, cookie propagation, JSON-schema validation,
+the SSRF guard, `uploadFile` confinement, and time-budget exhaustion.
+
+The tests are tagged `@Tag("smoke")` and are **excluded from the default build** (`mvn package` /
+`mvn test`) via the parent POM's `excludedGroups`. Run them explicitly:
+
+```bash
+# Run from the reactor root so agent_core is compiled with -parameters and used fresh.
+mvn -B test -P linux -Dtest.excluded.groups= -Dgroups=smoke
+```
+
+Notes:
+- Auth credentials are injected as **system properties** (the agent reads them through
+  `CommonUtils.getEnvironmentVariable`, which falls back to system properties), not real environment variables.
+- The suite shares process-global state (the `BudgetManager` singleton and a static WireMock server), so it
+  runs **single-threaded** (`src/test/resources/junit-platform.properties`).
+
 ## Deployment
 
 ### Cloud Run Deployment

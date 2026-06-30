@@ -205,6 +205,21 @@ To build specifically the API agent executable:
 mvn clean package -pl api_test_execution_agent -am -DskipTests
 ```
 
+### Smoke Tests
+
+A hermetic, end-to-end smoke suite drives the real agent flow while mocking only the external boundaries
+(LLM, target HTTP API, screen/OS, Neo4j). The tests are tagged `@Tag("smoke")` and are **excluded from the
+default build**; they run in a dedicated GitHub Actions workflow (`.github/workflows/smoke.yml`) and can be
+run locally with:
+
+```bash
+mvn -B test -P linux -Dtest.excluded.groups= -Dgroups=smoke
+```
+
+The API agent's suite is implemented (see
+[its README](api_test_execution_agent/README.md#smoke-tests)); the shared A2A surface and the UI agent are
+tracked in `SMOKE_TEST_PLAN.md`.
+
 ## Configuration
 
 ### Core Configuration

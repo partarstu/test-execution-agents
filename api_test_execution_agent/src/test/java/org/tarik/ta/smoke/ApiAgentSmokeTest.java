@@ -34,11 +34,9 @@ import org.tarik.ta.agents.ApiPreconditionActionAgent;
 import org.tarik.ta.agents.ApiTestStepActionAgent;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.a2a.StreamingEventEmitter;
-import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
-import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
@@ -93,9 +91,12 @@ class ApiAgentSmokeTest {
 
     private static final String SEND_REQUEST_TOOL = "sendRequest";
     private static final String UPLOAD_FILE_TOOL = "uploadFile";
-    private static final String STORE_VARIABLE_TOOL = "storeVariableIntoContext";
     private static final String VALIDATE_SCHEMA_TOOL = "validateSchema";
     private static final String RESULT_TOOL = "endExecutionAndGetFinalResult";
+    // langchain4j keys the final-result tool's single object argument by the method parameter's reflected name, which is
+    // "result" when -parameters applies and "arg0" otherwise. Reading it the same way keeps the scripted JSON in sync
+    // with whatever name the runtime exposes, so the test does not silently depend on the compiler flag.
+    private static final String RESULT_PARAM = resultToolParameterName();
 
     // Auth credential seam: env-var names the config points at, and the values injected as system properties.
     private static final String BASIC_USERNAME_ENV = "SMOKE_API_USERNAME";
@@ -300,12 +301,10 @@ class ApiAgentSmokeTest {
     @DisplayName("${var} placeholders in the URL resolve against the shared data")
     void variableSubstitutionResolvesAgainstSharedData() {
         wireMock.stubFor(get(urlEqualTo("/items/42")).willReturn(aResponse().withStatus(200).withBody("found")));
+        executionContext.addSharedData("resourceId", "42");
 
         var testCase = singleStepTestCase("Variable substitution", "Fetch the stored item", "Status is 200");
         Function<String, List<ScriptedToolCall>> script = userText -> List.of(
-                new ScriptedToolCall(STORE_VARIABLE_TOOL,
-                        """
-                        {"variableName":"resourceId","variableValue":"42"}"""),
                 sendGet(wireMock.baseUrl() + "/items/${resourceId}"),
                 result(true, "Fetched item 42"));
 
@@ -495,7 +494,17 @@ class ApiAgentSmokeTest {
 
     private static ScriptedToolCall result(boolean success, @NotNull String message) {
         return new ScriptedToolCall(RESULT_TOOL, """
-                {"result":{"success":%b,"message":"%s"}}""".formatted(success, message));
+                {"%s":{"success":%b,"message":"%s"}}""".formatted(RESULT_PARAM, success, message));
+    }
+
+    private static String resultToolParameterName() {
+        try {
+            return VerificationExecutionResult.class
+                    .getMethod(RESULT_TOOL, VerificationExecutionResult.class)
+                    .getParameters()[0].getName();
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException("Final-result tool method not found", e);
+        }
     }
 
     /** Escapes a filesystem path so it is a valid JSON string value (Windows paths contain backslashes). */
