@@ -316,6 +316,8 @@
                     <configuration>
                         <source>${jdk.version}</source>
                         <target>${jdk.version}</target>
+                        <!-- Retain method parameter names so langchain4j tool schemas expose readable arg names. -->
+                        <parameters>true</parameters>
                         <annotationProcessorPaths>
                             <path>
                                 <groupId>io.avaje</groupId>
