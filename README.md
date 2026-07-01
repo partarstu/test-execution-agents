@@ -216,9 +216,20 @@ run locally with:
 mvn -B test -P linux -Dtest.excluded.groups= -Dgroups=smoke
 ```
 
-The API agent's suite is implemented (see
-[its README](api_test_execution_agent/README.md#smoke-tests)); the shared A2A surface and the UI agent are
-tracked in `SMOKE_TEST_PLAN.md`.
+Three suites are implemented:
+
+- **API agent** (`api_test_execution_agent`) — drives the real `ApiTestAgent` flow against a local WireMock
+  server with a scripted `ChatModel` standing in for the LLM (see
+  [its README](api_test_execution_agent/README.md#smoke-tests)).
+- **UI agent** (`ui_test_execution_agent`) — drives the real `UiTestAgent` knowledge-based execution flow
+  (`UiTestAgent` -> `KnowledgeBasedExecutionOrchestrator` -> `StepExecutionOrchestrator` ->
+  `VerificationTools`) with the LLM agents, `KnowledgeService` (Neo4j) and the screen mocked, so it runs
+  headless (see [its README](ui_test_execution_agent/README.md#smoke-tests)).
+- **Shared A2A surface** (`agent_core`) — `org.tarik.ta.core.smoke.CoreA2aSmokeTest` starts the real
+  `AbstractServer` over HTTP and exercises the JSON-RPC + Server-Sent-Events transport end to end through a
+  small SSE-parsing test client (`A2aTestClient`): public agent-card discovery (advertising `streaming`),
+  bearer-token auth, `message/send`, `message/stream`, and the `tasks/cancel` and `tasks/resubscribe` task
+  lifecycle. Only the agent's test-execution body is a recording stand-in.
 
 ## Configuration
 

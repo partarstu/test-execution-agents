@@ -632,6 +632,35 @@ mvn exec:java -pl ui_test_execution_agent \
 The HTML report includes a color-coded summary card per health category (green=OK, yellow=WARNING, red=CRITICAL) and collapsible detail
 sections listing individual findings. All finding text is HTML-escaped to prevent XSS when procedure names contain special characters.
 
+## Smoke Tests
+
+`src/test/java/org/tarik/ta/smoke/UiAgentSmokeTest` is a hermetic, end-to-end smoke suite that drives the **real** knowledge-based
+execution flow (`UiTestAgent` -> `KnowledgeBasedExecutionOrchestrator` -> `StepExecutionOrchestrator` -> `VerificationTools`, plus the real
+execution queue, state tracker and prefetch coordinator) and mocks only the external boundaries:
+
+- the four LLM agents (test-step / precondition action + verification) are Mockito mocks, stubbed at `executeAndGetResult`, so the real
+  orchestration, result-merging and `UiTestExecutionResult` contract all run unchanged;
+- `KnowledgeService` (the Neo4j boundary) is a mock that returns in-memory `Procedure` matches;
+- the screen is mocked via a `MockedStatic` of `UiCommonUtils.captureScreen()`, which sits above every AWT `Robot` call, so the suite is
+  xvfb/headless-safe;
+- the config, `ScreenRecorder`, `LogCapture` and the remaining knowledge-graph services are Mockito mocks.
+
+The whole object graph is wired by hand (no Avaje DI bootstrap) and the agent runs fully unattended, so no supervised-mode Swing dialogs
+appear. Coverage: single-step and multi-step happy paths (asserting `SystemInfo`, logs and the recording path on the result), a failing
+precondition (-> `ERROR`), a failed step verification (-> `FAILED`, with the screenshot attached to the step result), a missing procedure
+(-> `ERROR`), and the streaming events emitted through the `StreamingEventEmitter` (started + result events for the precondition and the
+step, in order — the HTTP + SSE transport itself is covered by the `agent_core` suite).
+
+The tests are tagged `@Tag("smoke")` and are **excluded from the default build** (`mvn package` / `mvn test`) via the parent POM's
+`excludedGroups`. Run them explicitly:
+
+```bash
+mvn -B test -P linux -Dtest.excluded.groups= -Dgroups=smoke
+```
+
+The suite uses process-global test doubles (the `MockedStatic` screen stub plus background prefetch threads), so it runs **single-threaded**
+(`src/test/resources/junit-platform.properties`).
+
 ## Deployment
 
 This section provides detailed instructions for deploying the UI Test Execution Agent, both to Google Cloud Platform (GCP) and locally
