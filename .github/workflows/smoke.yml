@@ -30,9 +30,12 @@ jobs:
 
       # Smoke tests are excluded from the default build (excludedGroups=smoke); here that exclusion is
       # cleared and we opt in with -Dgroups=smoke so ONLY @Tag("smoke") tests run. -P linux pulls the
-      # Linux-native OpenCV/JavaCV binaries the UI module needs to compile and load.
+      # Linux-native OpenCV/JavaCV binaries the UI module needs to compile and load. -T 1C parallelizes
+      # the reactor across modules: the single-threaded constraint (junit-platform.properties) is
+      # intra-JVM and Surefire forks one JVM per module, so the api and ui modules can safely build and
+      # test concurrently once agent_core is done.
       - name: Run smoke tests
         run: >
-          xvfb-run -a mvn -B test -P linux
+          xvfb-run -a mvn -B -T 1C test -P linux
           -Dtest.excluded.groups=
           -Dgroups=smoke

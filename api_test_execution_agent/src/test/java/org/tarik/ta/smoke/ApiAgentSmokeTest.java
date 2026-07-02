@@ -18,6 +18,7 @@
 package org.tarik.ta.smoke;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.http.Fault;
 import dev.langchain4j.service.AiServices;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
@@ -41,6 +42,7 @@ import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.manager.BudgetManager;
+import org.tarik.ta.core.model.ChatModelEventListener;
 import org.tarik.ta.core.model.DefaultToolErrorHandler;
 import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
@@ -48,6 +50,7 @@ import org.tarik.ta.core.tools.TestContextDataTools;
 import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 import org.tarik.ta.model.AuthType;
+import org.tarik.ta.smoke.ScriptedChatModel.Script;
 import org.tarik.ta.smoke.ScriptedChatModel.ScriptedToolCall;
 import org.tarik.ta.tools.ApiAssertionTools;
 import org.tarik.ta.tools.ApiRequestTools;
@@ -59,16 +62,22 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
+import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -92,6 +101,11 @@ class ApiAgentSmokeTest {
     private static final String SEND_REQUEST_TOOL = "sendRequest";
     private static final String UPLOAD_FILE_TOOL = "uploadFile";
     private static final String VALIDATE_SCHEMA_TOOL = "validateSchema";
+    private static final String VALIDATE_OPENAPI_TOOL = "validateOpenApi";
+    private static final String LOAD_JSON_TOOL = "loadJsonData";
+    private static final String LOAD_CSV_TOOL = "loadCsvData";
+    private static final String LAST_RESPONSE_TOOL = "getLastApiResponse";
+    private static final String STORE_VARIABLE_TOOL = "storeVariableIntoContext";
     private static final String RESULT_TOOL = "endExecutionAndGetFinalResult";
     // langchain4j keys the final-result tool's single object argument by the method parameter's reflected name, which is
     // "result" when -parameters applies and "arg0" otherwise. Reading it the same way keeps the scripted JSON in sync
@@ -131,25 +145,7 @@ class ApiAgentSmokeTest {
     void setUp() {
         wireMock.resetAll();
 
-        config = mock(ApiTestAgentConfig.class);
-        lenient().when(config.getTargetBaseUri()).thenReturn(Optional.empty());
-        lenient().when(config.getProxyHost()).thenReturn(Optional.empty());
-        lenient().when(config.getProxyPort()).thenReturn(8080);
-        lenient().when(config.getRelaxedHttpsValidation()).thenReturn(false);
-        lenient().when(config.getDefaultContentType()).thenReturn("application/json");
-        lenient().when(config.getDefaultAuthType()).thenReturn(AuthType.NONE);
-        // WireMock binds to loopback, so it must be allow-listed to pass the SSRF guard.
-        lenient().when(config.getOutboundHostAllowlist()).thenReturn(Set.of("localhost", "127.0.0.1"));
-        lenient().when(config.getUploadBaseDir()).thenReturn(Optional.empty());
-        lenient().when(config.getActionRetryPolicy()).thenReturn(new RetryPolicy(2, 10, 5000));
-        lenient().when(config.getAgentExecutionTimeBudgetSeconds()).thenReturn(3000);
-        lenient().when(config.getAgentTokenBudget()).thenReturn(1_000_000);
-        lenient().when(config.getAgentToolCallsBudget()).thenReturn(10);
-        lenient().when(config.getBasicAuthUsernameEnv()).thenReturn(BASIC_USERNAME_ENV);
-        lenient().when(config.getBasicAuthPasswordEnv()).thenReturn(BASIC_PASSWORD_ENV);
-        lenient().when(config.getBearerTokenEnv()).thenReturn(BEARER_TOKEN_ENV);
-        lenient().when(config.getApiKeyNameEnv()).thenReturn(API_KEY_NAME_ENV);
-        lenient().when(config.getApiKeyValueEnv()).thenReturn(API_KEY_VALUE_ENV);
+        config = newSmokeConfig();
 
         // Constructing the BudgetManager publishes it as the static instance the agents read via getInstance().
         new BudgetManager(config);
@@ -247,6 +243,94 @@ class ApiAgentSmokeTest {
     }
 
     @Test
+    @DisplayName("A failed verification recovers on the retry attempt and the test case passes")
+    void verificationRetryRecoversOnSecondAttempt() {
+        wireMock.stubFor(get(urlEqualTo("/eventually-ok")).willReturn(aResponse().withStatus(200).withBody("ok")));
+
+        var testCase = singleStepTestCase("Retry recovery", "Send a GET request to /eventually-ok", "Status is 200");
+        // Each retry is a fresh agent invocation starting at round 0, which is where the attempt counter advances. The
+        // verification fails on the first attempt and passes on the second, driving the executeWithRetry recovery path.
+        var attempts = new AtomicInteger();
+        Script script = (userText, round, priorResults) -> {
+            if (round == 0) {
+                attempts.incrementAndGet();
+                return sendGet(wireMock.baseUrl() + "/eventually-ok");
+            }
+            return attempts.get() == 1 ? result(false, "Not ready yet") : result(true, "Status was 200");
+        };
+
+        TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult -> {
+            assertThat(stepResult.getExecutionStatus()).isEqualTo(TestStepResultStatus.SUCCESS);
+            assertThat(stepResult.getActualResult()).isEqualTo("Status was 200");
+        });
+        wireMock.verify(2, getRequestedFor(urlEqualTo("/eventually-ok")));
+    }
+
+    @Test
+    @DisplayName("A 5xx response reaches the agent as data and the verification fails")
+    void serverErrorFailsVerification() {
+        wireMock.stubFor(get(urlEqualTo("/unstable")).willReturn(aResponse().withStatus(500).withBody("boom")));
+
+        var testCase = singleStepTestCase("Server error", "Send a GET request to /unstable", "Status is 200");
+        var lastResponseSeenByModel = new AtomicReference<String>();
+        Script script = (userText, round, priorResults) -> switch (round) {
+            case 0 -> sendGet(wireMock.baseUrl() + "/unstable");
+            case 1 -> new ScriptedToolCall(LAST_RESPONSE_TOOL, "{}");
+            default -> {
+                lastResponseSeenByModel.set(priorResults.getLast().text());
+                yield result(false, "Expected status 200 but got 500");
+            }
+        };
+
+        TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(FAILED);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult -> {
+            assertThat(stepResult.getExecutionStatus()).isEqualTo(TestStepResultStatus.FAILURE);
+            assertThat(stepResult.getErrorMessage()).contains("Expected status 200 but got 500");
+        });
+        // The 5xx flowed back to the model as data (via getLastApiResponse), not as an exception.
+        assertThat(lastResponseSeenByModel.get()).contains("500").contains("boom");
+    }
+
+    @Test
+    @DisplayName("A network fault becomes a retryable tool error and the agent recovers on the next attempt")
+    void networkFaultIsRetriedAndRecovers() {
+        // MALFORMED_RESPONSE_CHUNK (rather than a connection reset) is the fault of choice: the response has already
+        // begun when it breaks, so Apache HttpClient cannot transparently re-send the idempotent GET and the failure
+        // is guaranteed to surface as a tool exception.
+        wireMock.stubFor(get(urlEqualTo("/flaky")).inScenario("fault-recovery")
+                .whenScenarioStateIs(STARTED)
+                .willReturn(aResponse().withFault(Fault.MALFORMED_RESPONSE_CHUNK))
+                .willSetStateTo("recovered"));
+        wireMock.stubFor(get(urlEqualTo("/flaky")).inScenario("fault-recovery")
+                .whenScenarioStateIs("recovered")
+                .willReturn(aResponse().withStatus(200).withBody("ok")));
+
+        var testCase = singleStepTestCase("Fault recovery", "Send a GET request to /flaky", "Status is 200");
+        // The fault surfaces as a retryable tool error whose message the error handler feeds back to the model instead
+        // of aborting, so round 1 re-issues the same call against the now-recovered stub.
+        var toolErrorFedBackToModel = new AtomicReference<String>();
+        Script script = (userText, round, priorResults) -> switch (round) {
+            case 0 -> sendGet(wireMock.baseUrl() + "/flaky");
+            case 1 -> {
+                toolErrorFedBackToModel.set(priorResults.getLast().text());
+                yield sendGet(wireMock.baseUrl() + "/flaky");
+            }
+            default -> result(true, "Status was 200");
+        };
+
+        TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        assertThat(toolErrorFedBackToModel.get()).contains("Error while sending request");
+        wireMock.verify(2, getRequestedFor(urlEqualTo("/flaky")));
+    }
+
+    @Test
     @DisplayName("BASIC auth attaches the credentials to the outgoing request")
     void basicAuthReachesStub() {
         System.setProperty(BASIC_USERNAME_ENV, "alice");
@@ -315,6 +399,58 @@ class ApiAgentSmokeTest {
     }
 
     @Test
+    @DisplayName("POST with a JSON body resolves body variables, merges headers and injects the default Content-Type")
+    void postWithBodyAndCustomHeaderReachesStub() {
+        wireMock.stubFor(post(urlEqualTo("/orders")).willReturn(aResponse().withStatus(201).withBody("created")));
+        executionContext.addSharedData("itemId", "42");
+
+        var testCase = singleStepTestCase("Post order", "Create an order for the stored item", "Status is 201");
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                new ScriptedToolCall(SEND_REQUEST_TOOL, """
+                        {"method":"POST","url":"%s","headers":{"X-Request-Source":"smoke"},\
+                        "body":"{\\"itemId\\":\\"${itemId}\\",\\"quantity\\":2}"}"""
+                        .formatted(wireMock.baseUrl() + "/orders")),
+                result(true, "Order created"));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        wireMock.verify(postRequestedFor(urlEqualTo("/orders"))
+                .withHeader("X-Request-Source", equalTo("smoke"))
+                .withHeader("Content-Type", containing("application/json"))
+                .withRequestBody(equalToJson("""
+                        {"itemId":"42","quantity":2}""")));
+    }
+
+    @Test
+    @DisplayName("A variable stored via the context tool in one step resolves in the next step's URL")
+    void storedVariableFlowsAcrossSteps() {
+        wireMock.stubFor(get(urlEqualTo("/items/42")).willReturn(aResponse().withStatus(200).withBody("found")));
+
+        var storeStep = new TestStep("Store the resource id", List.of(), "The id is stored");
+        var fetchStep = new TestStep("Fetch the stored item", List.of(), "Status is 200");
+        var testCase = new TestCase("Cross-step data flow", List.of(), List.of(storeStep, fetchStep));
+
+        var storeToolResponse = new AtomicReference<String>();
+        Script script = (userText, round, priorResults) -> {
+            if (userText.contains(storeStep.stepDescription())) {
+                if (round == 0) {
+                    return storeVariable("resourceId", "42");
+                }
+                storeToolResponse.set(priorResults.getLast().text());
+                return result(true, "Stored");
+            }
+            return round == 0 ? sendGet(wireMock.baseUrl() + "/items/${resourceId}") : result(true, "Fetched item 42");
+        };
+
+        TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
+
+        assertThat(storeToolResponse.get()).contains("Added variable 'resourceId' with value '42'");
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        wireMock.verify(getRequestedFor(urlEqualTo("/items/42")));
+    }
+
+    @Test
     @DisplayName("Cookies set by an earlier response are propagated to later requests")
     void cookiesPropagateAcrossRequests() {
         wireMock.stubFor(get(urlEqualTo("/login"))
@@ -363,6 +499,44 @@ class ApiAgentSmokeTest {
 
         assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
         wireMock.verify(getRequestedFor(urlEqualTo("/user")));
+    }
+
+    @Test
+    @DisplayName("JSON-schema validation of the last response fails for a mismatching body")
+    void jsonSchemaValidationFailsForMismatchingBody() throws Exception {
+        wireMock.stubFor(get(urlEqualTo("/user")).willReturn(aResponse().withStatus(200)
+                .withHeader("Content-Type", "application/json").withBody("""
+                        {"id":"not-a-number"}""")));
+        Path schema = Files.writeString(tempDir.resolve("user-schema.json"), """
+                {
+                  "$schema": "http://json-schema.org/draft-04/schema#",
+                  "type": "object",
+                  "required": ["id", "name"],
+                  "properties": {
+                    "id": {"type": "integer"},
+                    "name": {"type": "string"}
+                  }
+                }""");
+
+        var testCase = singleStepTestCase("Schema mismatch", "Fetch the user and validate the response schema",
+                "Body matches the user schema");
+        var validationOutcome = new AtomicReference<String>();
+        Script script = (userText, round, priorResults) -> switch (round) {
+            case 0 -> sendGet(wireMock.baseUrl() + "/user");
+            case 1 -> new ScriptedToolCall(VALIDATE_SCHEMA_TOOL, """
+                    {"schemaPath":"%s"}""".formatted(jsonPath(schema)));
+            default -> {
+                validationOutcome.set(priorResults.getLast().text());
+                yield result(false, "Response body does not match the user schema");
+            }
+        };
+
+        TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(FAILED);
+        assertThat(result.getGeneralErrorMessage()).contains("Response body does not match the user schema");
+        // The mismatch was reported to the model as the tool's result rather than as an exception.
+        assertThat(validationOutcome.get()).contains("Schema validation failed");
     }
 
     @Test
@@ -444,9 +618,10 @@ class ApiAgentSmokeTest {
     @Test
     @DisplayName("An over-budget run terminates with ERROR instead of running away")
     void budgetExhaustionTerminatesRun() {
-        // A 1-second time budget plus a retry whose delay exceeds it makes the budget check fail on the second attempt.
+        // A 1-second time budget plus a retry whose delay exceeds it (1.2s leaves a deterministic margin) makes the
+        // budget check fail on the second attempt.
         when(config.getAgentExecutionTimeBudgetSeconds()).thenReturn(1);
-        when(config.getActionRetryPolicy()).thenReturn(new RetryPolicy(3, 2100, 10000));
+        when(config.getActionRetryPolicy()).thenReturn(new RetryPolicy(3, 1200, 10000));
         new BudgetManager(config);
         wireMock.stubFor(get(urlEqualTo("/slow")).willReturn(aResponse().withStatus(200).withBody("ok")));
 
@@ -464,6 +639,183 @@ class ApiAgentSmokeTest {
         });
     }
 
+    @Test
+    @DisplayName("An exhausted token budget terminates the run with ERROR, with zero sleep")
+    void tokenBudgetExhaustionTerminatesRun() {
+        // Two scripted responses consume 20 tokens through the real ChatModelEventListener; a 15-token budget trips
+        // the budget check on the retry invocation.
+        when(config.getAgentTokenBudget()).thenReturn(15);
+        new BudgetManager(config);
+        wireMock.stubFor(get(urlEqualTo("/tokens")).willReturn(aResponse().withStatus(200).withBody("ok")));
+
+        var testCase = singleStepTestCase("Token budget", "Send a GET request to /tokens", "Status is 201");
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                sendGet(wireMock.baseUrl() + "/tokens"), result(false, "Status was not 201 yet"));
+        var model = new ScriptedChatModel(ScriptedChatModel.ofSequence(script),
+                List.of(new ChatModelEventListener(BudgetManager.getInstance())));
+
+        TestExecutionResult result = execute(testCase, model);
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult -> {
+            assertThat(stepResult.getExecutionStatus()).isEqualTo(TestStepResultStatus.ERROR);
+            assertThat(stepResult.getErrorMessage()).contains("Token budget exceeded");
+        });
+    }
+
+    @Test
+    @DisplayName("An exhausted tool-call budget terminates the run with ERROR, with zero sleep")
+    void toolCallBudgetExhaustionTerminatesRun() {
+        // The first invocation executes two tools (request + final result); a budget of 1 trips the budget check on
+        // the retry invocation.
+        when(config.getAgentToolCallsBudget()).thenReturn(1);
+        new BudgetManager(config);
+        wireMock.stubFor(get(urlEqualTo("/tools")).willReturn(aResponse().withStatus(200).withBody("ok")));
+
+        var testCase = singleStepTestCase("Tool call budget", "Send a GET request to /tools", "Status is 201");
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                sendGet(wireMock.baseUrl() + "/tools"), result(false, "Status was not 201 yet"));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult -> {
+            assertThat(stepResult.getExecutionStatus()).isEqualTo(TestStepResultStatus.ERROR);
+            assertThat(stepResult.getErrorMessage()).contains("Tool call budget exceeded");
+        });
+    }
+
+    @Test
+    @DisplayName("OpenAPI validation of the last response passes for a spec-conformant body")
+    void openApiValidationPasses() throws Exception {
+        wireMock.stubFor(get(urlEqualTo("/user")).willReturn(aResponse().withStatus(200)
+                .withHeader("Content-Type", "application/json").withBody("""
+                        {"id":1,"name":"Alice"}""")));
+        Path spec = Files.writeString(tempDir.resolve("user-api.json"), openApiSpecForGetUser());
+
+        var testCase = singleStepTestCase("OpenAPI validation", "Fetch the user and validate the response against the spec",
+                "Response matches the OpenAPI spec");
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                sendGet(wireMock.baseUrl() + "/user"),
+                validateOpenApi(spec),
+                result(true, "Spec matched"));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        wireMock.verify(getRequestedFor(urlEqualTo("/user")));
+    }
+
+    @Test
+    @DisplayName("OpenAPI validation reports a spec violation to the model as data and the verification fails")
+    void openApiValidationFailsForMismatchingBody() throws Exception {
+        // The body violates the spec: the required "name" property is missing.
+        wireMock.stubFor(get(urlEqualTo("/user")).willReturn(aResponse().withStatus(200)
+                .withHeader("Content-Type", "application/json").withBody("""
+                        {"id":1}""")));
+        Path spec = Files.writeString(tempDir.resolve("user-api.json"), openApiSpecForGetUser());
+
+        var testCase = singleStepTestCase("OpenAPI mismatch", "Fetch the user and validate the response against the spec",
+                "Response matches the OpenAPI spec");
+        var validationOutcome = new AtomicReference<String>();
+        Script script = (userText, round, priorResults) -> switch (round) {
+            case 0 -> sendGet(wireMock.baseUrl() + "/user");
+            case 1 -> validateOpenApi(spec);
+            default -> {
+                validationOutcome.set(priorResults.getLast().text());
+                yield result(false, "Response does not match the OpenAPI spec");
+            }
+        };
+
+        TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(FAILED);
+        assertThat(result.getGeneralErrorMessage()).contains("Response does not match the OpenAPI spec");
+        // The violation was reported to the model as the tool's result rather than as an exception.
+        assertThat(validationOutcome.get()).contains("OpenAPI Validation Failed");
+    }
+
+    @Test
+    @DisplayName("An unextractable test case yields ERROR without invoking the model")
+    void unextractableTestCaseYieldsError() {
+        when(testCaseExtractor.extractTestCase("run")).thenReturn(Optional.empty());
+        var modelInvoked = new AtomicBoolean();
+        Script script = (userText, round, priorResults) -> {
+            modelInvoked.set(true);
+            return result(true, "must never be reached");
+        };
+
+        TestExecutionResult result = buildAgent(new ScriptedChatModel(script)).executeTestCase("run");
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getGeneralErrorMessage()).contains("Could not extract test case");
+        assertThat(modelInvoked.get()).isFalse();
+    }
+
+    @Test
+    @DisplayName("A relative URL resolves against the configured base URI")
+    void relativeUrlResolvesAgainstBaseUri() {
+        when(config.getTargetBaseUri()).thenReturn(Optional.of(wireMock.baseUrl()));
+        // setUp built the ApiContext before the stubbing above, so it must be re-created to pick up the base URI.
+        apiContext = new ApiContext(config);
+        wireMock.stubFor(get(urlEqualTo("/relative-ping")).willReturn(aResponse().withStatus(200).withBody("pong")));
+
+        var testCase = singleStepTestCase("Base URI resolution", "Send a GET request to /relative-ping", "Status is 200");
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                sendGet("/relative-ping"), result(true, "Received status 200"));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        wireMock.verify(getRequestedFor(urlEqualTo("/relative-ping")));
+    }
+
+    @Test
+    @DisplayName("loadJsonData loads a file whose content resolves as the request body of a later call")
+    void loadJsonDataFlowsIntoRequestBody() throws Exception {
+        String payload = """
+                {"itemId":"42","quantity":2}""";
+        Path file = Files.writeString(tempDir.resolve("payload.json"), payload);
+        wireMock.stubFor(post(urlEqualTo("/orders")).willReturn(aResponse().withStatus(201).withBody("created")));
+
+        var testCase = singleStepTestCase("JSON data load", "Create an order from the payload file", "Status is 201");
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                new ScriptedToolCall(LOAD_JSON_TOOL, """
+                        {"filePath":"%s","variableName":"payload"}""".formatted(jsonPath(file))),
+                new ScriptedToolCall(SEND_REQUEST_TOOL, """
+                        {"method":"POST","url":"%s","body":"${payload}"}""".formatted(wireMock.baseUrl() + "/orders")),
+                result(true, "Order created"));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        wireMock.verify(postRequestedFor(urlEqualTo("/orders")).withRequestBody(equalToJson(payload)));
+    }
+
+    @Test
+    @DisplayName("loadCsvData loads the rows and reports the count to the model")
+    void loadCsvDataReportsLoadedRows() throws Exception {
+        Path file = Files.writeString(tempDir.resolve("data.csv"), """
+                id,name
+                42,Alice""");
+
+        var testCase = singleStepTestCase("CSV data load", "Load the test data file", "Data is loaded");
+        var toolResponse = new AtomicReference<String>();
+        Script script = (userText, round, priorResults) -> {
+            if (round == 0) {
+                return new ScriptedToolCall(LOAD_CSV_TOOL, """
+                        {"filePath":"%s","variableName":"rows"}""".formatted(jsonPath(file)));
+            }
+            toolResponse.set(priorResults.getLast().text());
+            return result(true, "Data loaded");
+        };
+
+        TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        assertThat(toolResponse.get()).contains("Loaded 1 items");
+    }
+
     private TestExecutionResult execute(@NotNull TestCase testCase, @NotNull ScriptedChatModel model) {
         when(testCaseExtractor.extractTestCase("run")).thenReturn(Optional.of(testCase));
         return buildAgent(model).executeTestCase("run");
@@ -477,7 +829,7 @@ class ApiAgentSmokeTest {
         return new ScriptedChatModel(ScriptedChatModel.ofSequence(sequenceByUserMessage));
     }
 
-    private static ScriptedToolCall sendGet(@NotNull String url) {
+    static ScriptedToolCall sendGet(@NotNull String url) {
         return new ScriptedToolCall(SEND_REQUEST_TOOL, """
                 {"method":"GET","url":"%s"}""".formatted(url));
     }
@@ -492,7 +844,49 @@ class ApiAgentSmokeTest {
                 {"url":"%s","filePath":"%s","multipartName":"file"}""".formatted(url, jsonPath(file)));
     }
 
-    private static ScriptedToolCall result(boolean success, @NotNull String message) {
+    private static ScriptedToolCall validateOpenApi(@NotNull Path spec) {
+        return new ScriptedToolCall(VALIDATE_OPENAPI_TOOL, """
+                {"specPath":"%s","method":"GET","path":"/user"}""".formatted(jsonPath(spec)));
+    }
+
+    /** A minimal OpenAPI spec describing GET /user with a JSON response that requires "id" and "name". */
+    private static String openApiSpecForGetUser() {
+        return """
+                {
+                  "openapi": "3.0.0",
+                  "info": {"title": "User API", "version": "1.0"},
+                  "paths": {
+                    "/user": {
+                      "get": {
+                        "responses": {
+                          "200": {
+                            "description": "The user",
+                            "content": {
+                              "application/json": {
+                                "schema": {
+                                  "type": "object",
+                                  "required": ["id", "name"],
+                                  "properties": {
+                                    "id": {"type": "integer"},
+                                    "name": {"type": "string"}
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }""";
+    }
+
+    private static ScriptedToolCall storeVariable(@NotNull String name, @NotNull String value) {
+        return new ScriptedToolCall(STORE_VARIABLE_TOOL, """
+                {"variableName":"%s","variableValue":"%s"}""".formatted(name, value));
+    }
+
+    static ScriptedToolCall result(boolean success, @NotNull String message) {
         return new ScriptedToolCall(RESULT_TOOL, """
                 {"%s":{"success":%b,"message":"%s"}}""".formatted(RESULT_PARAM, success, message));
     }
@@ -512,7 +906,37 @@ class ApiAgentSmokeTest {
         return path.toString().replace("\\", "\\\\");
     }
 
+    /** Creates the mocked config with the defaults every hand-wired smoke agent needs. */
+    static ApiTestAgentConfig newSmokeConfig() {
+        ApiTestAgentConfig config = mock(ApiTestAgentConfig.class);
+        lenient().when(config.getTargetBaseUri()).thenReturn(Optional.empty());
+        lenient().when(config.getProxyHost()).thenReturn(Optional.empty());
+        lenient().when(config.getProxyPort()).thenReturn(8080);
+        lenient().when(config.getRelaxedHttpsValidation()).thenReturn(false);
+        lenient().when(config.getDefaultContentType()).thenReturn("application/json");
+        lenient().when(config.getDefaultAuthType()).thenReturn(AuthType.NONE);
+        // WireMock binds to loopback, so it must be allow-listed to pass the SSRF guard.
+        lenient().when(config.getOutboundHostAllowlist()).thenReturn(Set.of("localhost", "127.0.0.1"));
+        lenient().when(config.getUploadBaseDir()).thenReturn(Optional.empty());
+        lenient().when(config.getActionRetryPolicy()).thenReturn(new RetryPolicy(2, 10, 5000));
+        lenient().when(config.getAgentExecutionTimeBudgetSeconds()).thenReturn(3000);
+        lenient().when(config.getAgentTokenBudget()).thenReturn(1_000_000);
+        lenient().when(config.getAgentToolCallsBudget()).thenReturn(10);
+        lenient().when(config.getBasicAuthUsernameEnv()).thenReturn(BASIC_USERNAME_ENV);
+        lenient().when(config.getBasicAuthPasswordEnv()).thenReturn(BASIC_PASSWORD_ENV);
+        lenient().when(config.getBearerTokenEnv()).thenReturn(BEARER_TOKEN_ENV);
+        lenient().when(config.getApiKeyNameEnv()).thenReturn(API_KEY_NAME_ENV);
+        lenient().when(config.getApiKeyValueEnv()).thenReturn(API_KEY_VALUE_ENV);
+        return config;
+    }
+
     private ApiTestAgent buildAgent(ScriptedChatModel model) {
+        return buildAgent(model, config, apiContext, executionContext, testCaseExtractor, logCapture);
+    }
+
+    /** Hand-wires the whole real API agent graph around a scripted model; shared with {@link ApiAgentA2aSmokeTest}. */
+    static ApiTestAgent buildAgent(ScriptedChatModel model, ApiTestAgentConfig config, ApiContext apiContext,
+                                   TestExecutionContext executionContext, TestCaseExtractor testCaseExtractor, LogCapture logCapture) {
         var requestTools = new ApiRequestTools(apiContext, executionContext, config);
         var assertionTools = new ApiAssertionTools(apiContext, executionContext);
         var dataTools = new TestContextDataTools(executionContext);

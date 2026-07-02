@@ -42,6 +42,7 @@ import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.dto.TestStepResult;
+import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.manager.BudgetManager;
@@ -81,6 +82,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.ERROR;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.FAILED;
@@ -219,6 +222,148 @@ class UiAgentSmokeTest {
     }
 
     @Test
+    @DisplayName("A composite procedure is decomposed and both atomic children execute")
+    void compositeProcedureDecomposesAndPasses() {
+        var step = new TestStep("Log in as admin", List.of(), "The dashboard is shown");
+        var testCase = new TestCase("Composite step", List.of(), List.of(step));
+        var enterCredentials = Procedure.createAtomic("Enter the admin credentials", List.of(), "", List.of(), List.of(), false);
+        var pressLogin = Procedure.createAtomic("Press the login button", List.of(), "", List.of(), List.of(), false);
+        var composite = Procedure.createComposite(step.stepDescription(), List.of(), "", List.of(), List.of(), false);
+        matchProcedure(step.stepDescription(), composite);
+        when(knowledgeService.resolveToAtomicSteps(composite.id())).thenReturn(List.of(enterCredentials, pressLogin));
+        when(knowledgeService.getChildren(composite.id())).thenReturn(List.of(enterCredentials, pressLogin));
+
+        TestExecutionResult result = execute(testCase);
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult ->
+                assertThat(stepResult.getExecutionStatus()).isEqualTo(SUCCESS));
+        // Both atomic children of the decomposed composite were actually executed.
+        verify(stepActionAgent, times(2)).executeAndGetResult(any());
+    }
+
+    @Test
+    @DisplayName("A verification that fails once succeeds on the retry attempt")
+    void verificationRetryRecoversOnSecondAttempt() {
+        var step = new TestStep("Refresh the dashboard", List.of(), "The widget is updated");
+        var testCase = new TestCase("Verification retry", List.of(), List.of(step));
+        matchAtomicProcedure(step.stepDescription());
+        // A timeout > 0 lets the loop attempt again; the zero delay keeps the retry instantaneous.
+        when(config.getVerificationRetryPolicy()).thenReturn(new RetryPolicy(2, 0, 5000));
+        when(stepVerificationAgent.executeAndGetResult(any()))
+                .thenReturn(verification(false, "the widget is stale"), verification(true, "the widget is updated"));
+
+        TestExecutionResult result = execute(testCase);
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult ->
+                assertThat(stepResult.getExecutionStatus()).isEqualTo(SUCCESS));
+        verify(stepVerificationAgent, times(2)).executeAndGetResult(any());
+    }
+
+    @Test
+    @DisplayName("An unexpected exception from the action agent yields ERROR with the cause recorded")
+    void unexpectedActionExceptionFailsTestCase() {
+        var step = new TestStep("Click the flaky control", List.of(), "Nothing crashes");
+        var testCase = new TestCase("Unexpected exception", List.of(), List.of(step));
+        matchAtomicProcedure(step.stepDescription());
+        when(stepActionAgent.executeAndGetResult(any())).thenThrow(new RuntimeException("boom from the action agent"));
+
+        TestExecutionResult result = execute(testCase);
+
+        // Errors are not failed verifications: the atomic ERROR survives mergeAtomicResults and maps to a top-level
+        // ERROR, matching the API agent's status contract.
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult -> {
+            assertThat(stepResult.getExecutionStatus()).isEqualTo(TestStepResultStatus.ERROR);
+            assertThat(stepResult.getErrorMessage()).contains("boom from the action agent");
+            assertThat(((UiTestStepResult) stepResult).getScreenshot()).isNotNull();
+        });
+        assertThat(result.getGeneralErrorMessage()).contains("boom from the action agent");
+    }
+
+    @Test
+    @DisplayName("A failing precondition verification yields ERROR before any step runs")
+    void preconditionVerificationFailureYieldsError() {
+        var precondition = "The user is logged in";
+        var step = new TestStep("Open the profile page", List.of(), "The profile page is shown");
+        var testCase = new TestCase("Precondition verification failure", List.of(precondition), List.of(step));
+        matchAtomicProcedure(precondition);
+        when(preconditionActionAgent.executeAndGetResult(any())).thenReturn(actionSuccess());
+        when(preconditionVerificationAgent.executeAndGetResult(any()))
+                .thenReturn(verification(false, "the login screen is still visible"));
+
+        TestExecutionResult result = execute(testCase);
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).isEmpty();
+        assertThat(result.getPreconditionResults()).singleElement().satisfies(preconditionResult -> {
+            assertThat(preconditionResult.isSuccess()).isFalse();
+            assertThat(preconditionResult.getErrorMessage()).contains("the login screen is still visible");
+        });
+    }
+
+    @Test
+    @DisplayName("A composite whose child verification fails yields FAILED")
+    void compositeChildVerificationFailureYieldsFailed() {
+        var step = new TestStep("Log in as admin", List.of(), "The dashboard is shown");
+        var testCase = new TestCase("Composite child verification failure", List.of(), List.of(step));
+        var enterCredentials = Procedure.createAtomic("Enter the admin credentials", List.of(), "", List.of(), List.of(), false);
+        var pressLogin = Procedure.createAtomic("Press the login button", List.of(), "", List.of(), List.of(), false);
+        var composite = Procedure.createComposite(step.stepDescription(), List.of(), "", List.of(), List.of(), false);
+        matchProcedure(step.stepDescription(), composite);
+        when(knowledgeService.resolveToAtomicSteps(composite.id())).thenReturn(List.of(enterCredentials, pressLogin));
+        lenient().when(knowledgeService.getChildren(composite.id())).thenReturn(List.of(enterCredentials, pressLogin));
+        when(stepVerificationAgent.executeAndGetResult(any()))
+                .thenReturn(verification(false, "the credentials were not accepted"));
+
+        TestExecutionResult result = execute(testCase);
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(FAILED);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult -> {
+            assertThat(stepResult.getExecutionStatus()).isEqualTo(FAILURE);
+            assertThat(stepResult.getErrorMessage()).contains("the credentials were not accepted");
+        });
+    }
+
+    @Test
+    @DisplayName("A composite whose child action throws yields ERROR")
+    void compositeChildActionExceptionYieldsError() {
+        var step = new TestStep("Log in as admin", List.of(), "The dashboard is shown");
+        var testCase = new TestCase("Composite child action error", List.of(), List.of(step));
+        var enterCredentials = Procedure.createAtomic("Enter the admin credentials", List.of(), "", List.of(), List.of(), false);
+        var pressLogin = Procedure.createAtomic("Press the login button", List.of(), "", List.of(), List.of(), false);
+        var composite = Procedure.createComposite(step.stepDescription(), List.of(), "", List.of(), List.of(), false);
+        matchProcedure(step.stepDescription(), composite);
+        when(knowledgeService.resolveToAtomicSteps(composite.id())).thenReturn(List.of(enterCredentials, pressLogin));
+        lenient().when(knowledgeService.getChildren(composite.id())).thenReturn(List.of(enterCredentials, pressLogin));
+        when(stepActionAgent.executeAndGetResult(any())).thenThrow(new RuntimeException("boom in the first child"));
+
+        TestExecutionResult result = execute(testCase);
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult -> {
+            assertThat(stepResult.getExecutionStatus()).isEqualTo(TestStepResultStatus.ERROR);
+            assertThat(stepResult.getErrorMessage()).contains("boom in the first child");
+        });
+    }
+
+    @Test
+    @DisplayName("A budget-exhaustion exception propagates to a top-level ERROR preserving the budget text")
+    void budgetExhaustionPropagatesAsError() {
+        var step = new TestStep("Click the slow control", List.of(), "Nothing crashes");
+        var testCase = new TestCase("Budget propagation", List.of(), List.of(step));
+        matchAtomicProcedure(step.stepDescription());
+        when(stepActionAgent.executeAndGetResult(any()))
+                .thenThrow(new RuntimeException("Execution time budget exceeded: the run took too long"));
+
+        TestExecutionResult result = execute(testCase);
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getGeneralErrorMessage()).contains("Execution time budget exceeded");
+    }
+
+    @Test
     @DisplayName("A failing precondition action yields ERROR before any step runs")
     void preconditionFailureYieldsError() {
         var precondition = "The user is logged in";
@@ -317,7 +462,11 @@ class UiAgentSmokeTest {
 
     /** Makes {@link KnowledgeService#findBestMatch} return a direct, high-confidence atomic procedure for a description. */
     private void matchAtomicProcedure(@NotNull String description) {
-        var procedure = Procedure.createAtomic(description, List.of(), "", List.of(), List.of(), false);
+        matchProcedure(description, Procedure.createAtomic(description, List.of(), "", List.of(), List.of(), false));
+    }
+
+    /** Makes {@link KnowledgeService#findBestMatch} return the given procedure as a direct, high-confidence match. */
+    private void matchProcedure(@NotNull String description, @NotNull Procedure procedure) {
         var match = new KnowledgeService.MatchResult(procedure, KnowledgeService.MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(procedure, 0, 0)), false, false, false);
         when(knowledgeService.findBestMatch(eq(description), any(), any())).thenReturn(Optional.of(match));

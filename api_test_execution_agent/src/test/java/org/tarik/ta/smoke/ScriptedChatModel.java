@@ -23,8 +23,10 @@ import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.output.TokenUsage;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -42,8 +44,18 @@ import java.util.function.Function;
  * exercise the retry / error-handling path — rather than only replaying a fixed list. The simple linear case is still
  * available via {@link #ofSequence(Function)}. The last decision of an invocation must invoke the agent's final-result
  * tool (which returns immediately), which ends the loop.
+ * <p>
+ * The model implements {@link #doChat(ChatRequest)} + {@link #listeners()} rather than overriding
+ * {@link #chat(ChatRequest)}, so the default {@code chat()} wraps every scripted response with the real listener
+ * callbacks. Each response carries a fixed {@link TokenUsage} ({@value #INPUT_TOKENS_PER_RESPONSE} input /
+ * {@value #OUTPUT_TOKENS_PER_RESPONSE} output tokens), which lets an attached production
+ * {@code ChatModelEventListener} accumulate tokens into the {@code BudgetManager} exactly as with a real model.
  */
 class ScriptedChatModel implements ChatModel {
+
+    static final String MODEL_NAME = "scripted-model";
+    static final int INPUT_TOKENS_PER_RESPONSE = 7;
+    static final int OUTPUT_TOKENS_PER_RESPONSE = 3;
 
     /** A single scripted decision: the tool to call and its JSON arguments. */
     record ScriptedToolCall(String toolName, String argumentsJson) {
@@ -59,13 +71,24 @@ class ScriptedChatModel implements ChatModel {
     }
 
     private final Script script;
+    private final List<ChatModelListener> listeners;
 
     ScriptedChatModel(@NotNull Script script) {
+        this(script, List.of());
+    }
+
+    ScriptedChatModel(@NotNull Script script, @NotNull List<ChatModelListener> listeners) {
         this.script = script;
+        this.listeners = List.copyOf(listeners);
     }
 
     @Override
-    public ChatResponse chat(ChatRequest chatRequest) {
+    public List<ChatModelListener> listeners() {
+        return listeners;
+    }
+
+    @Override
+    public ChatResponse doChat(ChatRequest chatRequest) {
         List<ChatMessage> messages = chatRequest.messages();
         String userText = firstUserText(messages);
         List<ToolExecutionResultMessage> priorResults = messages.stream()
@@ -83,7 +106,11 @@ class ScriptedChatModel implements ChatModel {
                 .name(call.toolName())
                 .arguments(call.argumentsJson())
                 .build();
-        return ChatResponse.builder().aiMessage(AiMessage.from(toolRequest)).build();
+        return ChatResponse.builder()
+                .aiMessage(AiMessage.from(toolRequest))
+                .modelName(MODEL_NAME)
+                .tokenUsage(new TokenUsage(INPUT_TOKENS_PER_RESPONSE, OUTPUT_TOKENS_PER_RESPONSE))
+                .build();
     }
 
     /**

@@ -150,7 +150,7 @@ The core module provides shared abstractions that both UI and API agents extend:
   `GET /.well-known/agent-card.json` discovery endpoint stays public. If no token is configured the endpoint is unauthenticated and a
   startup `WARN` is logged — set a token for any non-local deployment.
 - **Test Case Extraction**: AI-powered parsing of natural language test cases into structured format.
-- **Budget Management**: Token and time budget controls to prevent runaway executions.
+- **Budget Management**: Token, time and tool-call budget controls to prevent runaway executions.
 - **Structured Logging**: Execution logs captured and streamed live during execution. Only the application's own logger
   (`org.tarik.ta`) is streamed to clients, so framework/third-party lines never enter the client stream. The optional
   `model.logging.enabled`, `api.request.logging.enabled`, and `api.response.logging.enabled` toggles default to `false` because
@@ -228,8 +228,10 @@ Three suites are implemented:
 - **Shared A2A surface** (`agent_core`) — `org.tarik.ta.core.smoke.CoreA2aSmokeTest` starts the real
   `AbstractServer` over HTTP and exercises the JSON-RPC + Server-Sent-Events transport end to end through a
   small SSE-parsing test client (`A2aTestClient`): public agent-card discovery (advertising `streaming`),
-  bearer-token auth, `message/send`, `message/stream`, and the `tasks/cancel` and `tasks/resubscribe` task
-  lifecycle. Only the agent's test-execution body is a recording stand-in.
+  bearer-token auth, `message/send`, `message/stream`, failure propagation (a throwing executor fails the
+  task on both `message/send` and the stream), JSON-RPC error mapping for malformed bodies (-32700) and
+  unknown methods (-32601), and the `tasks/cancel` and `tasks/resubscribe` task lifecycle. Only the agent's
+  test-execution body is a recording stand-in.
 
 ## Configuration
 

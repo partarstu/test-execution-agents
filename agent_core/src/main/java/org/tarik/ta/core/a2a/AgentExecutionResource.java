@@ -55,6 +55,7 @@ import org.a2aproject.sdk.transport.jsonrpc.handler.JSONRPCHandler;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.gson.JsonSyntaxException;
 import io.javalin.http.Context;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
@@ -217,6 +218,8 @@ public class AgentExecutionResource {
             case InvalidParamsJsonMappingException invalidParams -> new InvalidParamsError(invalidParams.getMessage());
             case JsonMappingException invalidRequest -> new InvalidRequestError(invalidRequest.getMessage());
             case JsonProcessingException unparseable -> new JSONParseError(unparseable.getMessage());
+            // The SDK's JSON-RPC parser is gson-based, so a syntactically invalid body surfaces as a gson exception.
+            case JsonSyntaxException unparseable -> new JSONParseError(unparseable.getMessage());
             default -> new InternalError(e.getMessage());
         };
         try {

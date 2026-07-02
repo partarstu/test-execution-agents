@@ -237,12 +237,18 @@ The API Test Execution Agent uses the following tools:
 
 - the LLM is replaced by `smoke/ScriptedChatModel`, a deterministic `ChatModel` that returns a scripted
   sequence of real tool calls (so the real tool-calling loop, tools and result extraction all run unchanged);
+  it implements `doChat()` + `listeners()` and reports a fixed `TokenUsage` per response, so the production
+  `ChatModelEventListener` can be attached and real token accounting runs against the `BudgetManager`;
 - the target API is a local **WireMock** server, which records the requests that actually left the agent;
 - the config, `TestCaseExtractor` and `LogCapture` are Mockito mocks.
 
 Coverage: happy path, precondition + step (full `TestExecutionResult` contract), failed verification,
-Basic / Bearer / API-Key auth headers, `${var}` substitution, cookie propagation, JSON-schema validation,
-the SSRF guard, `uploadFile` confinement, and time-budget exhaustion.
+verification retry recovery (fail -> retry -> pass), POST with a JSON body (header merging, default
+Content-Type injection, body `${var}` resolution), a 5xx response read back through `getLastApiResponse`,
+a network fault recovered through the tool-error retry path, Basic / Bearer / API-Key auth headers,
+`${var}` substitution, cross-step data flow through the real `storeVariableIntoContext` tool, cookie
+propagation, JSON-schema validation (matching and mismatching bodies), the SSRF guard, `uploadFile`
+confinement, and time-, token- and tool-call-budget exhaustion.
 
 The tests are tagged `@Tag("smoke")` and are **excluded from the default build** (`mvn package` /
 `mvn test`) via the parent POM's `excludedGroups`. Run them explicitly:

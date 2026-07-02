@@ -47,28 +47,28 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * needs and which the production code does not provide. Non-streaming calls return the raw JSON-RPC response; streaming
  * calls return a live {@link SseStream} whose {@code result} payloads can be awaited as they arrive.
  */
-class A2aTestClient {
+public class A2aTestClient {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final String baseUrl;
 
-    A2aTestClient(@NotNull String baseUrl) {
+    public A2aTestClient(@NotNull String baseUrl) {
         this.baseUrl = baseUrl;
     }
 
-    record Response(int status, @NotNull String body) {
+    public record Response(int status, @NotNull String body) {
     }
 
-    Response get(@NotNull String path, @Nullable String bearerToken) {
+    public Response get(@NotNull String path, @Nullable String bearerToken) {
         return sendForString(withAuth(HttpRequest.newBuilder(URI.create(baseUrl + path)).GET(), bearerToken).build());
     }
 
-    Response postRpc(@NotNull String jsonRpcBody, @Nullable String bearerToken) {
+    public Response postRpc(@NotNull String jsonRpcBody, @Nullable String bearerToken) {
         return sendForString(rpcRequest(jsonRpcBody, bearerToken));
     }
 
-    SseStream openSse(@NotNull String jsonRpcBody, @Nullable String bearerToken) {
+    public SseStream openSse(@NotNull String jsonRpcBody, @Nullable String bearerToken) {
         try {
             HttpResponse<InputStream> response =
                     httpClient.send(rpcRequest(jsonRpcBody, bearerToken), HttpResponse.BodyHandlers.ofInputStream());
@@ -108,7 +108,7 @@ class A2aTestClient {
      * {@code result} payload of each, and makes them available for the test to await. Closing it stops the reader and
      * releases the underlying connection.
      */
-    static final class SseStream implements AutoCloseable {
+    public static final class SseStream implements AutoCloseable {
         private static final String DATA_PREFIX = "data:";
 
         private final InputStream source;
@@ -147,7 +147,7 @@ class A2aTestClient {
          * Returns the first event (already seen, or arriving within {@code timeout}) whose {@code result} payload matches
          * {@code predicate}. Events polled while waiting are retained, so a later await can still observe them.
          */
-        Optional<JsonNode> await(@NotNull Predicate<JsonNode> predicate, @NotNull Duration timeout) {
+        public Optional<JsonNode> await(@NotNull Predicate<JsonNode> predicate, @NotNull Duration timeout) {
             for (JsonNode event : received) {
                 if (predicate.test(event)) {
                     return Optional.of(event);
@@ -175,7 +175,8 @@ class A2aTestClient {
             }
         }
 
-        @NotNull List<JsonNode> received() {
+        @NotNull
+        public List<JsonNode> received() {
             return List.copyOf(received);
         }
 

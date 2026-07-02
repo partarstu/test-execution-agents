@@ -646,8 +646,10 @@ execution queue, state tracker and prefetch coordinator) and mocks only the exte
 - the config, `ScreenRecorder`, `LogCapture` and the remaining knowledge-graph services are Mockito mocks.
 
 The whole object graph is wired by hand (no Avaje DI bootstrap) and the agent runs fully unattended, so no supervised-mode Swing dialogs
-appear. Coverage: single-step and multi-step happy paths (asserting `SystemInfo`, logs and the recording path on the result), a failing
-precondition (-> `ERROR`), a failed step verification (-> `FAILED`, with the screenshot attached to the step result), a missing procedure
+appear. Coverage: single-step and multi-step happy paths (asserting `SystemInfo`, logs and the recording path on the result), a composite
+procedure decomposed into its atomic children (both executed), a step verification that fails once and recovers on its retry attempt, a
+failing precondition (-> `ERROR`), a failed step verification (-> `FAILED`, with the screenshot attached to the step result), an unexpected
+action-agent exception (-> `FAILED` — `mergeAtomicResults` flattens the atomic-level `ERROR` into `FAILURE`), a missing procedure
 (-> `ERROR`), and the streaming events emitted through the `StreamingEventEmitter` (started + result events for the precondition and the
 step, in order — the HTTP + SSE transport itself is covered by the `agent_core` suite).
 

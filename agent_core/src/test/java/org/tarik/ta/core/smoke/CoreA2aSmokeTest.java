@@ -167,6 +167,47 @@ class CoreA2aSmokeTest {
     }
 
     @Test
+    @DisplayName("A throwing executor fails the task on message/send")
+    void failingExecutionFailsTaskOnSend() throws Exception {
+        executor.withFailure("boom");
+        startServer(Optional.empty());
+
+        Response response = client.postRpc(sendBody("run"), null);
+
+        assertThat(response.status()).isEqualTo(200);
+        JsonNode json = MAPPER.readTree(response.body());
+        assertThat(json.has("error")).isFalse();
+        assertThat(response.body()).contains("TASK_STATE_FAILED");
+        // The production failure text is surfaced to the caller; the executor's internal message is not leaked.
+        assertThat(response.body()).contains("Got exception while executing the test case");
+        assertThat(executor.receivedMessages()).containsExactly("run");
+    }
+
+    @Test
+    @DisplayName("A throwing executor drives the stream to a terminal failed state")
+    void failingExecutionFailsTaskOnStream() {
+        executor.withFailure("boom");
+        startServer(Optional.empty());
+
+        try (SseStream stream = client.openSse(streamBody("run"), null)) {
+            assertThat(stream.await(inState("TASK_STATE_FAILED"), STREAM_TIMEOUT))
+                    .as("the stream must reach a terminal failed state").isPresent();
+        }
+    }
+
+    @Test
+    @DisplayName("Malformed JSON and unknown methods map to the standard JSON-RPC error codes")
+    void malformedRequestsMapToJsonRpcErrorCodes() {
+        startServer(Optional.empty());
+
+        Response parseError = client.postRpc("{not valid json", null);
+        Response unknownMethod = client.postRpc(rpc("no/such-method", "{}", 9), null);
+
+        assertThat(parseError.body()).contains("error").contains("-32700");
+        assertThat(unknownMethod.body()).contains("error").contains("-32601");
+    }
+
+    @Test
     @DisplayName("tasks/cancel on a running task cancels it")
     void cancelRunningTaskSucceeds() throws Exception {
         executor.withStep(new TestStep("long action", List.of(), "done")).blockUntilResumed();
@@ -212,6 +253,36 @@ class CoreA2aSmokeTest {
         Response response = client.postRpc(cancelBody(taskId), null);
 
         assertThat(response.body()).contains("error").contains("-32002");
+    }
+
+    @Test
+    @DisplayName("tasks/get on a completed task returns it with the completed state")
+    void getCompletedTaskReturnsCompletedState() throws Exception {
+        executor.withStep(new TestStep("quick action", List.of(), "done"));
+        startServer(Optional.empty());
+
+        String taskId;
+        try (SseStream stream = client.openSse(streamBody("run"), null)) {
+            assertThat(stream.await(inState("TASK_STATE_COMPLETED"), STREAM_TIMEOUT)).isPresent();
+            taskId = awaitTaskId(stream);
+        }
+
+        Response response = client.postRpc(getBody(taskId), null);
+
+        JsonNode json = MAPPER.readTree(response.body());
+        assertThat(response.status()).isEqualTo(200);
+        assertThat(json.has("error")).isFalse();
+        assertThat(stateOf(json.path("result"))).isEqualTo("TASK_STATE_COMPLETED");
+    }
+
+    @Test
+    @DisplayName("tasks/get on an unknown task returns TaskNotFound")
+    void getUnknownTaskReturnsTaskNotFound() {
+        startServer(Optional.empty());
+
+        Response response = client.postRpc(getBody("does-not-exist"), null);
+
+        assertThat(response.body()).contains("error").contains("-32001");
     }
 
     @Test
@@ -320,6 +391,10 @@ class CoreA2aSmokeTest {
         return rpc("tasks/cancel", "{\"id\":\"%s\"}".formatted(taskId), 3);
     }
 
+    private static String getBody(@NotNull String taskId) {
+        return rpc("tasks/get", "{\"id\":\"%s\"}".formatted(taskId), 5);
+    }
+
     private static String resubscribeBody(@NotNull String taskId) {
         return rpc("tasks/resubscribe", "{\"id\":\"%s\"}".formatted(taskId), 4);
     }
@@ -355,6 +430,7 @@ class CoreA2aSmokeTest {
         private volatile TestStep step;
         private volatile List<String> logs = List.of();
         private volatile boolean blockUntilResumed;
+        private volatile String failureMessage;
 
         RecordingAgentExecutor withTestCaseName(@NotNull String name) {
             this.testCaseName = name;
@@ -381,6 +457,12 @@ class CoreA2aSmokeTest {
             return this;
         }
 
+        /** Makes {@link #executeTestCase} throw, exercising the transport's failure-propagation path. */
+        RecordingAgentExecutor withFailure(@NotNull String failureMessage) {
+            this.failureMessage = failureMessage;
+            return this;
+        }
+
         void resume() {
             resume.countDown();
         }
@@ -392,6 +474,9 @@ class CoreA2aSmokeTest {
         @Override
         protected TestExecutionResult executeTestCase(String message, StreamingEventEmitter eventEmitter) {
             receivedMessages.add(message);
+            if (failureMessage != null) {
+                throw new IllegalStateException(failureMessage);
+            }
             Instant start = Instant.now();
 
             List<PreconditionResult> preconditionResults = emitPrecondition(eventEmitter, start);

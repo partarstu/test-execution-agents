@@ -106,7 +106,7 @@ public class ApiRequestTools extends AbstractTools {
 
             applyAuth(request, effectiveAuthType);
 
-            outboundRequestGuard.assertHostAllowed(resolvedUrl);
+            outboundRequestGuard.assertHostAllowed(toAbsoluteUrl(resolvedUrl));
             LOG.info("Sending {} request to {} with auth type {}", method, resolvedUrl, effectiveAuthType);
             Response response = request.request(method, resolvedUrl);
             apiContext.setLastResponse(response);
@@ -169,7 +169,7 @@ public class ApiRequestTools extends AbstractTools {
                 throw new ToolExecutionException("File not found at " + resolvedFilePath, TRANSIENT_TOOL_ERROR);
             }
 
-            outboundRequestGuard.assertHostAllowed(resolvedUrl);
+            outboundRequestGuard.assertHostAllowed(toAbsoluteUrl(resolvedUrl));
             outboundRequestGuard.assertPathAllowed(resolvedFilePath);
 
             RequestSpecification request = given()
@@ -239,6 +239,18 @@ public class ApiRequestTools extends AbstractTools {
                     TRANSIENT_TOOL_ERROR);
         }
         request.auth().preemptive().basic(username, password);
+    }
+
+    /**
+     * Resolves a relative URL against the configured base URI, mirroring how REST Assured builds the request target,
+     * so that the outbound guard checks the host the request will actually reach; a relative URL has no host of its
+     * own and would otherwise always be blocked.
+     */
+    private String toAbsoluteUrl(String url) {
+        if (url.regionMatches(true, 0, "http://", 0, 7) || url.regionMatches(true, 0, "https://", 0, 8)) {
+            return url;
+        }
+        return apiContext.getBaseUri().map(base -> base + url).orElse(url);
     }
 
     private String resolveVariables(String input) {

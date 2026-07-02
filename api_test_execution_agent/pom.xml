@@ -105,6 +105,14 @@
             <version>3.10.0</version>
             <scope>test</scope>
         </dependency>
+        <!-- Reuses agent-core's A2aTestClient (JSON-RPC + SSE test client) in the full-stack smoke test. -->
+        <dependency>
+            <groupId>org.tarik.ta</groupId>
+            <artifactId>agent-core</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
