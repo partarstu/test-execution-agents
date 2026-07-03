@@ -216,7 +216,11 @@ run locally with:
 mvn -B test -P linux -Dtest.excluded.groups= -Dgroups=smoke
 ```
 
-Three suites are implemented:
+Both agents share the same result-status contract: `FAILED` is reserved for failed step verifications, while any
+execution error (tool exception, budget exhaustion, aborted step, a model response without a tool call) and any
+precondition failure (the test never got a fair run) yields `ERROR`.
+
+Four suites are implemented:
 
 - **API agent** (`api_test_execution_agent`) — drives the real `ApiTestAgent` flow against a local WireMock
   server with a scripted `ChatModel` standing in for the LLM (see
@@ -230,8 +234,19 @@ Three suites are implemented:
   small SSE-parsing test client (`A2aTestClient`): public agent-card discovery (advertising `streaming`),
   bearer-token auth, `message/send`, `message/stream`, failure propagation (a throwing executor fails the
   task on both `message/send` and the stream), JSON-RPC error mapping for malformed bodies (-32700) and
-  unknown methods (-32601), and the `tasks/cancel` and `tasks/resubscribe` task lifecycle. Only the agent's
-  test-execution body is a recording stand-in.
+  unknown methods (-32601), the `tasks/get`, `tasks/cancel` and `tasks/resubscribe` task lifecycle (including
+  their unknown-task and terminal-state error responses), and completion of a task whose domain-level result
+  is `FAILED` (a failed test is a completed task carrying `FAILED` in its `final_result` artifact, not a
+  failed task). Only the agent's test-execution body is a recording stand-in.
+- **Full-stack transport-to-agent** (`api_test_execution_agent`) —
+  `org.tarik.ta.smoke.ApiAgentA2aSmokeTest` closes the seam the other suites leave open: one `message/stream`
+  request travels HTTP → `AgentExecutionResource` → executor → the real `ApiTestAgent` with real tools →
+  WireMock, asserting the streamed step and final-result events over SSE. It reuses `A2aTestClient` via
+  `agent_core`'s test-jar.
+
+The smoke workflow is hardened with a 15-minute job timeout, a per-ref `concurrency` group that cancels
+superseded runs, `-Djacoco.skip=true` (nothing consumes the coverage data there) and `paths-ignore` for
+docs-only (`**/*.md`) changes.
 
 ## Configuration
 
@@ -394,7 +409,7 @@ The consolidated `TestExecutionResult` contains:
 | Field                     | Description                           |
 |---------------------------|---------------------------------------|
 | `testCaseName`            | Name of the executed test case        |
-| `testExecutionStatus`     | PASSED, FAILED, or ERROR              |
+| `testExecutionStatus`     | PASSED, FAILED (a verification failed), or ERROR (an execution error occurred) |
 | `preconditionResults`     | Results for each precondition         |
 | `stepResults`             | Results for each test step            |
 | `executionStartTimestamp` | When execution started                |

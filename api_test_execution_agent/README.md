@@ -247,8 +247,19 @@ verification retry recovery (fail -> retry -> pass), POST with a JSON body (head
 Content-Type injection, body `${var}` resolution), a 5xx response read back through `getLastApiResponse`,
 a network fault recovered through the tool-error retry path, Basic / Bearer / API-Key auth headers,
 `${var}` substitution, cross-step data flow through the real `storeVariableIntoContext` tool, cookie
-propagation, JSON-schema validation (matching and mismatching bodies), the SSRF guard, `uploadFile`
-confinement, and time-, token- and tool-call-budget exhaustion.
+propagation, JSON-schema validation (matching and mismatching bodies), OpenAPI validation via
+`validateOpenApi` (conformant and spec-violating bodies), base-URI resolution of relative URLs, loading
+file data through the real `loadJsonData` / `loadCsvData` tools, an unextractable test case (-> `ERROR`
+without any model interaction), the SSRF guard, `uploadFile` confinement, time-, token- and
+tool-call-budget exhaustion, the three precondition failure paths (action error, no result from the model
+and failed verification — each -> `ERROR`, per the shared status contract), a step answered with plain text
+instead of a tool call (-> `ERROR`), and HTTPS against WireMock's self-signed certificate (rejected without
+`relaxedHttpsValidation`, accepted with it).
+
+`src/test/java/org/tarik/ta/smoke/ApiAgentA2aSmokeTest` additionally covers the full production stack in one
+test: an HTTP `message/stream` request travels `AgentExecutionResource` -> executor -> the real
+`ApiTestAgent` with real tools -> WireMock, and the step + final-result events are asserted over the SSE
+stream (using `A2aTestClient` from `agent_core`'s test-jar).
 
 The tests are tagged `@Tag("smoke")` and are **excluded from the default build** (`mvn package` /
 `mvn test`) via the parent POM's `excludedGroups`. Run them explicitly:

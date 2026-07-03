@@ -89,7 +89,7 @@ public class ApiTestAgent {
                 executePreconditions(testCase, executionContext, preconditionActionAgentProvider.get());
                 if (hasPreconditionFailures(executionContext)) {
                     var failedPrecondition = executionContext.getPreconditionExecutionHistory().getLast();
-                    return getFailedTestExecutionResult(testCase.name(), executionContext, testExecutionStartTimestamp,
+                    return getTestExecutionResultWithError(testCase.name(), executionContext, testExecutionStartTimestamp,
                             failedPrecondition.getErrorMessage(), logCapture.getLogs());
                 }
             }
@@ -191,7 +191,13 @@ public class ApiTestAgent {
                 LOG.info("Test step executed successfully.");
 
                 var verificationResult = executionResult.getResultPayload();
-                if (verificationResult != null && !verificationResult.success()) {
+                if (verificationResult == null) {
+                    var errorMessage = "Test step execution failed. Got no result from the model.";
+                    addFailedTestStep(executionContext, testStep, errorMessage, null, executionStartTimestamp, now(),
+                            TestStepResultStatus.ERROR);
+                    return;
+                }
+                if (!verificationResult.success()) {
                     var failureDetails = isNotBlank(verificationResult.message()) ? verificationResult.message() : "No failure details provided";
                     var errorMessage = "Verification failed. %s".formatted(failureDetails);
                     addFailedTestStep(executionContext, testStep, errorMessage, failureDetails, executionStartTimestamp,
@@ -200,7 +206,7 @@ public class ApiTestAgent {
                 }
                 LOG.info("Verification passed.");
                 LOG.info("Test step execution and verification complete.");
-                var message = verificationResult != null ? verificationResult.message() : null;
+                var message = verificationResult.message();
                 var actualResult = isNotBlank(message) ? message : "Execution successful";
                 executionContext.addStepResult(new TestStepResult(testStep, SUCCESS, null, actualResult, executionStartTimestamp, now()));
             } catch (Exception e) {

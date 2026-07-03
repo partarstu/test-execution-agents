@@ -37,6 +37,7 @@ import org.tarik.ta.core.a2a.AgentExecutionResource;
 import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestExecutionResult;
+import org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.core.smoke.A2aTestClient.Response;
@@ -56,6 +57,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.FAILED;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 
@@ -286,6 +288,53 @@ class CoreA2aSmokeTest {
     }
 
     @Test
+    @DisplayName("A domain-level FAILED result still completes the task and is carried in the final_result artifact")
+    void completedTaskCarriesFailedDomainResult() {
+        executor.withStep(new TestStep("failing action", List.of(), "expected"))
+                .withResult(FAILED, "Verification failed. Expected status 200 but got 500");
+        startServer(Optional.empty());
+
+        try (SseStream stream = client.openSse(streamBody("run"), null)) {
+            assertThat(stream.await(inState("TASK_STATE_COMPLETED"), STREAM_TIMEOUT))
+                    .as("a failed test is a completed task, not a failed one").isPresent();
+
+            String allEvents = combine(stream);
+            assertThat(allEvents).doesNotContain("TASK_STATE_FAILED");
+            // The final_result artifact carries the consolidated result JSON (escaped inside the event's text part).
+            assertThat(allEvents).contains("final_result")
+                    .contains("\\\"testExecutionStatus\\\":\\\"FAILED\\\"")
+                    .contains("Verification failed. Expected status 200 but got 500");
+        }
+    }
+
+    @Test
+    @DisplayName("tasks/resubscribe on an unknown task returns TaskNotFound")
+    void resubscribeUnknownTaskReturnsTaskNotFound() {
+        startServer(Optional.empty());
+
+        Response response = client.postRpc(resubscribeBody("does-not-exist"), null);
+
+        assertThat(response.body()).contains("error").contains("-32001");
+    }
+
+    @Test
+    @DisplayName("tasks/resubscribe on a completed task returns an error because the task is terminal")
+    void resubscribeCompletedTaskReturnsTerminalStateError() {
+        executor.withStep(new TestStep("quick action", List.of(), "done"));
+        startServer(Optional.empty());
+
+        String taskId;
+        try (SseStream stream = client.openSse(streamBody("run"), null)) {
+            assertThat(stream.await(inState("TASK_STATE_COMPLETED"), STREAM_TIMEOUT)).isPresent();
+            taskId = awaitTaskId(stream);
+        }
+
+        Response response = client.postRpc(resubscribeBody(taskId), null);
+
+        assertThat(response.body()).contains("error").contains("-32004").contains("terminal state TASK_STATE_COMPLETED");
+    }
+
+    @Test
     @DisplayName("tasks/resubscribe re-attaches a streaming client to a running task")
     void resubscribeReattachesToRunningTask() {
         executor.withStep(new TestStep("long action", List.of(), "done")).withLogs(List.of("running")).blockUntilResumed();
@@ -417,7 +466,7 @@ class CoreA2aSmokeTest {
 
     /**
      * A recording {@link AbstractAgentExecutor} that emits a configurable set of streaming events (a precondition, a
-     * step and log lines) and then returns a PASSED result. It can optionally block until {@link #resume()} is called
+     * step and log lines) and then returns a configurable result (PASSED by default). It can optionally block until {@link #resume()} is called
      * (or the execution is interrupted by a cancel), which keeps a task in the running state long enough to exercise
      * the cancel and resubscribe paths.
      */
@@ -431,6 +480,8 @@ class CoreA2aSmokeTest {
         private volatile List<String> logs = List.of();
         private volatile boolean blockUntilResumed;
         private volatile String failureMessage;
+        private volatile TestExecutionStatus resultStatus = PASSED;
+        private volatile String generalErrorMessage;
 
         RecordingAgentExecutor withTestCaseName(@NotNull String name) {
             this.testCaseName = name;
@@ -463,6 +514,13 @@ class CoreA2aSmokeTest {
             return this;
         }
 
+        /** Makes {@link #executeTestCase} return the given domain-level status normally instead of the default PASSED. */
+        RecordingAgentExecutor withResult(@NotNull TestExecutionStatus resultStatus, @Nullable String generalErrorMessage) {
+            this.resultStatus = resultStatus;
+            this.generalErrorMessage = generalErrorMessage;
+            return this;
+        }
+
         void resume() {
             resume.countDown();
         }
@@ -487,8 +545,8 @@ class CoreA2aSmokeTest {
                 awaitResume();
             }
 
-            return new TestExecutionResult(testCaseName, PASSED, preconditionResults, stepResults, start, Instant.now(),
-                    null, null, logs);
+            return new TestExecutionResult(testCaseName, resultStatus, preconditionResults, stepResults, start, Instant.now(),
+                    generalErrorMessage, null, logs);
         }
 
         private List<PreconditionResult> emitPrecondition(StreamingEventEmitter eventEmitter, Instant start) {

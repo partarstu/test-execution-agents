@@ -120,6 +120,7 @@ class ApiAgentSmokeTest {
     private static final String API_KEY_VALUE_ENV = "SMOKE_API_KEY_VALUE";
 
     private static WireMockServer wireMock;
+    private static WireMockServer wireMockHttps;
 
     private ApiTestAgentConfig config;
     private TestExecutionContext executionContext;
@@ -134,16 +135,22 @@ class ApiAgentSmokeTest {
     static void startServer() {
         wireMock = new WireMockServer(wireMockConfig().dynamicPort());
         wireMock.start();
+        // A separate server whose baseUrl() is HTTPS with WireMock's self-signed certificate, for the
+        // relaxed-HTTPS-validation cases. Enabling HTTPS on the main server would flip its baseUrl() to HTTPS too.
+        wireMockHttps = new WireMockServer(wireMockConfig().dynamicPort().dynamicHttpsPort());
+        wireMockHttps.start();
     }
 
     @AfterAll
     static void stopServer() {
         wireMock.stop();
+        wireMockHttps.stop();
     }
 
     @BeforeEach
     void setUp() {
         wireMock.resetAll();
+        wireMockHttps.resetAll();
 
         config = newSmokeConfig();
 
@@ -814,6 +821,136 @@ class ApiAgentSmokeTest {
 
         assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
         assertThat(toolResponse.get()).contains("Loaded 1 items");
+    }
+
+    @Test
+    @DisplayName("A precondition action error yields ERROR without executing any step")
+    void preconditionActionFailureYieldsError() {
+        // With no allow-list configured, the SSRF guard aborts the request with a non-retryable tool error, which is
+        // the action-error (as opposed to verification-failure) precondition path.
+        when(config.getOutboundHostAllowlist()).thenReturn(Set.of());
+
+        var precondition = "The metadata endpoint is reachable";
+        var step = new TestStep("Send a GET request to /resource", List.of(), "Status is 200");
+        var testCase = new TestCase("Precondition action error", List.of(precondition), List.of(step));
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                sendGet("http://169.254.169.254/latest/meta-data/"));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).isEmpty();
+        assertThat(result.getPreconditionResults()).singleElement().satisfies(preconditionResult -> {
+            assertThat(preconditionResult.isSuccess()).isFalse();
+            assertThat(preconditionResult.getErrorMessage()).contains("Failure while executing precondition").contains("blocked address");
+        });
+        assertThat(result.getGeneralErrorMessage()).contains("Failure while executing precondition");
+    }
+
+    @Test
+    @DisplayName("A precondition answered with plain text instead of a tool call yields ERROR")
+    void preconditionNoModelResultYieldsError() {
+        var precondition = "The resource endpoint is reachable";
+        var step = new TestStep("Send a GET request to /resource", List.of(), "Status is 200");
+        var testCase = new TestCase("Precondition without tool call", List.of(precondition), List.of(step));
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                ScriptedToolCall.plainText("The precondition is met."));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).isEmpty();
+        assertThat(result.getPreconditionResults()).singleElement().satisfies(preconditionResult -> {
+            assertThat(preconditionResult.isSuccess()).isFalse();
+            assertThat(preconditionResult.getErrorMessage()).contains("Got no result from the model");
+        });
+        assertThat(result.getGeneralErrorMessage()).contains("Got no result from the model");
+    }
+
+    @Test
+    @DisplayName("A failed precondition verification yields ERROR, matching the UI agent's status contract")
+    void preconditionVerificationFailureYieldsError() {
+        wireMock.stubFor(get(urlEqualTo("/setup")).willReturn(aResponse().withStatus(500).withBody("not ready")));
+
+        var precondition = "The resource endpoint is reachable";
+        var step = new TestStep("Send a GET request to /resource", List.of(), "Status is 200");
+        var testCase = new TestCase("Precondition verification failure", List.of(precondition), List.of(step));
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                sendGet(wireMock.baseUrl() + "/setup"), result(false, "Setup endpoint returned 500"));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).isEmpty();
+        assertThat(result.getPreconditionResults()).singleElement().satisfies(preconditionResult -> {
+            assertThat(preconditionResult.isSuccess()).isFalse();
+            assertThat(preconditionResult.getErrorMessage()).contains("Precondition verification failed")
+                    .contains("Setup endpoint returned 500");
+        });
+        assertThat(result.getGeneralErrorMessage()).contains("Setup endpoint returned 500");
+    }
+
+    @Test
+    @DisplayName("A step answered with plain text instead of a tool call yields ERROR")
+    void stepWithNoToolCallYieldsError() {
+        var testCase = singleStepTestCase("Step without tool call", "Send a GET request to /ping", "Status is 200");
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                ScriptedToolCall.plainText("I have sent the request and the status was 200."));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult -> {
+            assertThat(stepResult.getExecutionStatus()).isEqualTo(TestStepResultStatus.ERROR);
+            assertThat(stepResult.getErrorMessage()).contains("Got no result from the model");
+        });
+        assertThat(result.getGeneralErrorMessage()).contains("Got no result from the model");
+    }
+
+    @Test
+    @DisplayName("A self-signed HTTPS endpoint is rejected when relaxed HTTPS validation is off")
+    void selfSignedHttpsFailsWithoutRelaxedValidation() {
+        wireMockHttps.stubFor(get(urlEqualTo("/secure-ping")).willReturn(aResponse().withStatus(200).withBody("pong")));
+
+        var testCase = singleStepTestCase("Strict HTTPS", "Send a GET request to the HTTPS endpoint", "Status is 200");
+        // The certificate rejection surfaces as a tool error fed back to the model; the repeating error then exhausts
+        // the retry policy, so the step ends as an action error rather than a failed verification.
+        var toolErrorFedBackToModel = new AtomicReference<String>();
+        Script script = (userText, round, priorResults) -> {
+            if (round == 0) {
+                return sendGet(wireMockHttps.baseUrl() + "/secure-ping");
+            }
+            toolErrorFedBackToModel.set(priorResults.getLast().text());
+            return result(false, "The HTTPS request could not be sent");
+        };
+
+        TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult -> {
+            assertThat(stepResult.getExecutionStatus()).isEqualTo(TestStepResultStatus.ERROR);
+            assertThat(stepResult.getErrorMessage()).contains("Error while sending request");
+        });
+        assertThat(toolErrorFedBackToModel.get()).contains("PKIX path building failed");
+        wireMockHttps.verify(0, getRequestedFor(urlEqualTo("/secure-ping")));
+    }
+
+    @Test
+    @DisplayName("Relaxed HTTPS validation accepts the self-signed certificate")
+    void selfSignedHttpsPassesWithRelaxedValidation() {
+        when(config.getRelaxedHttpsValidation()).thenReturn(true);
+        // setUp built the ApiContext before the stubbing above, so it must be re-created to pick up the relaxed flag.
+        apiContext = new ApiContext(config);
+        wireMockHttps.stubFor(get(urlEqualTo("/secure-ping")).willReturn(aResponse().withStatus(200).withBody("pong")));
+
+        var testCase = singleStepTestCase("Relaxed HTTPS", "Send a GET request to the HTTPS endpoint", "Status is 200");
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                sendGet(wireMockHttps.baseUrl() + "/secure-ping"), result(true, "Received status 200"));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        wireMockHttps.verify(getRequestedFor(urlEqualTo("/secure-ping")));
     }
 
     private TestExecutionResult execute(@NotNull TestCase testCase, @NotNull ScriptedChatModel model) {

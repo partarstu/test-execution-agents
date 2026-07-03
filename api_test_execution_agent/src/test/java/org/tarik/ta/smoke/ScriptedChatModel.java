@@ -57,8 +57,20 @@ class ScriptedChatModel implements ChatModel {
     static final int INPUT_TOKENS_PER_RESPONSE = 7;
     static final int OUTPUT_TOKENS_PER_RESPONSE = 3;
 
-    /** A single scripted decision: the tool to call and its JSON arguments. */
+    /**
+     * A single scripted decision: the tool to call and its JSON arguments. A decision created via {@link #plainText}
+     * carries no tool name and makes the model answer with plain text instead, ending the tool-calling loop the way a
+     * real LLM going off-script would.
+     */
     record ScriptedToolCall(String toolName, String argumentsJson) {
+
+        static ScriptedToolCall plainText(@NotNull String text) {
+            return new ScriptedToolCall(null, text);
+        }
+
+        boolean isPlainText() {
+            return toolName == null;
+        }
     }
 
     /**
@@ -101,13 +113,20 @@ class ScriptedChatModel implements ChatModel {
             throw new IllegalStateException("Scripted model produced no tool call at round %d for user message: %s"
                     .formatted(round, userText));
         }
+        if (call.isPlainText()) {
+            return response(AiMessage.from(call.argumentsJson()));
+        }
         ToolExecutionRequest toolRequest = ToolExecutionRequest.builder()
                 .id("scripted-call-%d".formatted(round))
                 .name(call.toolName())
                 .arguments(call.argumentsJson())
                 .build();
+        return response(AiMessage.from(toolRequest));
+    }
+
+    private static ChatResponse response(@NotNull AiMessage aiMessage) {
         return ChatResponse.builder()
-                .aiMessage(AiMessage.from(toolRequest))
+                .aiMessage(aiMessage)
                 .modelName(MODEL_NAME)
                 .tokenUsage(new TokenUsage(INPUT_TOKENS_PER_RESPONSE, OUTPUT_TOKENS_PER_RESPONSE))
                 .build();

@@ -647,11 +647,15 @@ execution queue, state tracker and prefetch coordinator) and mocks only the exte
 
 The whole object graph is wired by hand (no Avaje DI bootstrap) and the agent runs fully unattended, so no supervised-mode Swing dialogs
 appear. Coverage: single-step and multi-step happy paths (asserting `SystemInfo`, logs and the recording path on the result), a composite
-procedure decomposed into its atomic children (both executed), a step verification that fails once and recovers on its retry attempt, a
-failing precondition (-> `ERROR`), a failed step verification (-> `FAILED`, with the screenshot attached to the step result), an unexpected
-action-agent exception (-> `FAILED` — `mergeAtomicResults` flattens the atomic-level `ERROR` into `FAILURE`), a missing procedure
-(-> `ERROR`), and the streaming events emitted through the `StreamingEventEmitter` (started + result events for the precondition and the
-step, in order — the HTTP + SSE transport itself is covered by the `agent_core` suite).
+procedure decomposed into its atomic children (both executed), composite variants where a child's verification fails (-> `FAILED`) or a
+child's action agent throws (-> `ERROR`), a step verification that fails once and recovers on its retry attempt, a failing precondition
+action or verification (-> `ERROR`), a failed step verification (-> `FAILED`, with the screenshot attached to the step result), an
+unexpected action-agent exception (-> `ERROR`), a budget-exhaustion exception propagated with its message preserved (-> `ERROR`), a missing
+procedure (-> `ERROR`), and the streaming events emitted through the `StreamingEventEmitter` (started + result events for the precondition
+and the step, in order — the HTTP + SSE transport itself is covered by the `agent_core` suite).
+
+The suite pins the unified result-status contract shared with the API agent: `FAILED` is reserved for failed verifications, while any
+execution error yields `ERROR` — `mergeAtomicResults` preserves an atomic-level `ERROR` instead of flattening it into `FAILURE`.
 
 The tests are tagged `@Tag("smoke")` and are **excluded from the default build** (`mvn package` / `mvn test`) via the parent POM's
 `excludedGroups`. Run them explicitly:
