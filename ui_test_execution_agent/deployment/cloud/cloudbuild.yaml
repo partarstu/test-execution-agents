@@ -180,12 +180,12 @@ steps:
 # Empty values will use defaults from config.properties at runtime.
 substitutions:
   # --- GCP Configuration ---
-  _REGION: 'us-central1'
-  _ZONE: 'us-central1-a'
+  _REGION: 'us-east1'
+  _ZONE: 'us-east1-c'
   _INSTANCE_NAME: 'ui-test-execution-agent-vm'
   _NETWORK_NAME: 'agent-network'
   _SUBNET_NAME: 'agent-network'
-  _MACHINE_TYPE: 't2d-standard-2'
+  _MACHINE_TYPE: 'e2-standard-2'
   _SERVICE_NAME: 'ui-test-execution-agent'
   _IMAGE_TAG: 'latest'
   _BUILD_BASE_IMAGE: 'false'
@@ -267,7 +267,7 @@ substitutions:
   _BOOT_DISK_SIZE: '20GB'
   _BOOT_DISK_TYPE: 'pd-balanced'
   _GRACEFUL_SHUTDOWN_DURATION: '1m'
-  _MAX_VM_RUN_DURATION: '3600s'
+  _MAX_VM_RUN_DURATION: '10800s'
   _INSTANCE_STATUS_CHECK_INTERVAL: '5'
   _SECRET_REPLICATION_POLICY: 'automatic'
   _NETWORK_SUBNET_MODE: 'auto'

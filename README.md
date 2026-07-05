@@ -150,7 +150,7 @@ The core module provides shared abstractions that both UI and API agents extend:
   `GET /.well-known/agent-card.json` discovery endpoint stays public. If no token is configured the endpoint is unauthenticated and a
   startup `WARN` is logged — set a token for any non-local deployment.
 - **Test Case Extraction**: AI-powered parsing of natural language test cases into structured format.
-- **Budget Management**: Token and time budget controls to prevent runaway executions.
+- **Budget Management**: Token, time and tool-call budget controls to prevent runaway executions.
 - **Structured Logging**: Execution logs captured and streamed live during execution. Only the application's own logger
   (`org.tarik.ta`) is streamed to clients, so framework/third-party lines never enter the client stream. The optional
   `model.logging.enabled`, `api.request.logging.enabled`, and `api.response.logging.enabled` toggles default to `false` because
@@ -204,6 +204,49 @@ To build specifically the API agent executable:
 ```bash
 mvn clean package -pl api_test_execution_agent -am -DskipTests
 ```
+
+### Smoke Tests
+
+A hermetic, end-to-end smoke suite drives the real agent flow while mocking only the external boundaries
+(LLM, target HTTP API, screen/OS, Neo4j). The tests are tagged `@Tag("smoke")` and are **excluded from the
+default build**; they run in a dedicated GitHub Actions workflow (`.github/workflows/smoke.yml`) and can be
+run locally with:
+
+```bash
+mvn -B test -P linux -Dtest.excluded.groups= -Dgroups=smoke
+```
+
+Both agents share the same result-status contract: `FAILED` is reserved for failed step verifications, while any
+execution error (tool exception, budget exhaustion, aborted step, a model response without a tool call) and any
+precondition failure (the test never got a fair run) yields `ERROR`.
+
+Four suites are implemented:
+
+- **API agent** (`api_test_execution_agent`) — drives the real `ApiTestAgent` flow against a local WireMock
+  server with a scripted `ChatModel` standing in for the LLM (see
+  [its README](api_test_execution_agent/README.md#smoke-tests)).
+- **UI agent** (`ui_test_execution_agent`) — drives the real `UiTestAgent` knowledge-based execution flow
+  (`UiTestAgent` -> `KnowledgeBasedExecutionOrchestrator` -> `StepExecutionOrchestrator` ->
+  `VerificationTools`) with the LLM agents, `KnowledgeService` (Neo4j) and the screen mocked, so it runs
+  headless (see [its README](ui_test_execution_agent/README.md#smoke-tests)).
+- **Shared A2A surface** (`agent_core`) — `org.tarik.ta.core.smoke.CoreA2aSmokeTest` starts the real
+  `AbstractServer` over HTTP and exercises the JSON-RPC + Server-Sent-Events transport end to end through a
+  small SSE-parsing test client (`A2aTestClient`): public agent-card discovery (advertising `streaming`),
+  bearer-token auth, `message/send`, `message/stream`, failure propagation (a throwing executor fails the
+  task on both `message/send` and the stream), JSON-RPC error mapping for malformed bodies (-32700) and
+  unknown methods (-32601), the `tasks/get`, `tasks/cancel` and `tasks/resubscribe` task lifecycle (including
+  their unknown-task and terminal-state error responses), and completion of a task whose domain-level result
+  is `FAILED` (a failed test is a completed task carrying `FAILED` in its `final_result` artifact, not a
+  failed task). Only the agent's test-execution body is a recording stand-in.
+- **Full-stack transport-to-agent** (`api_test_execution_agent`) —
+  `org.tarik.ta.smoke.ApiAgentA2aSmokeTest` closes the seam the other suites leave open: one `message/stream`
+  request travels HTTP → `AgentExecutionResource` → executor → the real `ApiTestAgent` with real tools →
+  WireMock, asserting the streamed step and final-result events over SSE. It reuses `A2aTestClient` via
+  `agent_core`'s test-jar.
+
+The smoke workflow is hardened with a 15-minute job timeout, a per-ref `concurrency` group that cancels
+superseded runs, `-Djacoco.skip=true` (nothing consumes the coverage data there) and `paths-ignore` for
+docs-only (`**/*.md`) changes.
 
 ## Configuration
 
@@ -366,7 +409,7 @@ The consolidated `TestExecutionResult` contains:
 | Field                     | Description                           |
 |---------------------------|---------------------------------------|
 | `testCaseName`            | Name of the executed test case        |
-| `testExecutionStatus`     | PASSED, FAILED, or ERROR              |
+| `testExecutionStatus`     | PASSED, FAILED (a verification failed), or ERROR (an execution error occurred) |
 | `preconditionResults`     | Results for each precondition         |
 | `stepResults`             | Results for each test step            |
 | `executionStartTimestamp` | When execution started                |

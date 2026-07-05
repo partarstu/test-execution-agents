@@ -21,20 +21,20 @@ import org.a2aproject.sdk.spec.AgentCard;
 import io.avaje.inject.Bean;
 import io.avaje.inject.Factory;
 import jakarta.inject.Singleton;
-import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.UiTestAgentConfig;
 
 @Factory
 public class UiAgentCardFactory {
 
-    private final AgentConfig agentConfig;
+    private final UiTestAgentConfig agentConfig;
 
-    public UiAgentCardFactory(AgentConfig agentConfig) {
+    public UiAgentCardFactory(UiTestAgentConfig agentConfig) {
         this.agentConfig = agentConfig;
     }
 
     @Bean
     @Singleton
     public AgentCard agentCard() {
-        return new AgentCardProducer(agentConfig.getExternalUrl()).agentCard();
+        return new AgentCardProducer(agentConfig.getExternalUrl(), agentConfig).agentCard();
     }
 }

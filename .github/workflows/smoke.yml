@@ -1,0 +1,56 @@
+name: Smoke Tests
+
+# Docs-only changes don't touch anything the smoke suite exercises. Safe because this workflow is not a
+# required PR check (verified against the main branch protection on 2026-07-03); if it ever becomes one,
+# drop paths-ignore so the check cannot stay pending.
+on:
+  push:
+    branches: [ "main" ]
+    paths-ignore:
+      - '**/*.md'
+  pull_request:
+    branches: [ "main" ]
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+# Superseded pushes to the same branch cancel the in-flight run instead of burning runners.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 26
+        uses: actions/setup-java@v5
+        with:
+          java-version: '26'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      # The UI agent's smoke suite mocks the screen, but any AWT/Swing class that loads still needs a
+      # display on headless Linux, so the run happens under a virtual X server (xvfb-run) rather than
+      # with -Djava.awt.headless=true, which would break the agent's AWT Robot paths.
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      # Smoke tests are excluded from the default build (excludedGroups=smoke); here that exclusion is
+      # cleared and we opt in with -Dgroups=smoke so ONLY @Tag("smoke") tests run. -P linux pulls the
+      # Linux-native OpenCV/JavaCV binaries the UI module needs to compile and load. -T 1C parallelizes
+      # the reactor across modules: the single-threaded constraint (junit-platform.properties) is
+      # intra-JVM and Surefire forks one JVM per module, so the api and ui modules can safely build and
+      # test concurrently once agent_core is done.
+      # -Djacoco.skip=true drops the JaCoCo instrumentation + report: nothing consumes them in this workflow.
+      - name: Run smoke tests
+        run: >
+          xvfb-run -a mvn -B -T 1C test -P linux
+          -Dtest.excluded.groups=
+          -Dgroups=smoke
+          -Djacoco.skip=true

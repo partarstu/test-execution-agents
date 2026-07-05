@@ -183,7 +183,12 @@ a part of this framework for executing a sample test case inside Google Cloud.
       Javalin web server is started. The agent registers its capabilities and listens for A2A JSON-RPC requests on the root endpoint (`/`) (
       port configured via `port` in `config.properties`). The endpoint serves the streaming `message/stream` (and `tasks/resubscribe`)
       methods as a Server-Sent Events (SSE) stream and all other methods as a single JSON-RPC response; the agent card advertises
-      `capabilities.streaming = true`. The server accepts only one test case execution at a time (the agent has been
+      `capabilities.streaming = true`, exposes a test-execution skill in its `skills` list, and uses an HTML-friendly description that
+      lists each sub-agent together with its configured model. The advertised name embeds the active `execution.mode` (e.g.
+      `UI Test Execution Agent (supervised)` or `UI Test Execution Agent (unattended)`). The advertised skill depends on `execution.mode`:
+      an unattended agent exposes the `ui_test_execution_unattended` skill (tag `unattended`) while a supervised agent exposes
+      `ui_test_execution_supervised` (tag `supervised`), so CI/CD selectors can pick only unattended agents for automatic execution. The server accepts only one test case
+      execution at a time (the agent has been
       designed as a static utility for simplicity purposes). Upon receiving a valid request when idle, it returns `200 OK` and starts the
       test case execution. If busy, it returns `429 Too Many Requests`.
     * The runtime request lifecycle now mirrors the API agent: [UiAgentExecutor](src/main/java/org/tarik/ta/a2a/UiAgentExecutor.java)
@@ -626,6 +631,41 @@ mvn exec:java -pl ui_test_execution_agent \
 
 The HTML report includes a color-coded summary card per health category (green=OK, yellow=WARNING, red=CRITICAL) and collapsible detail
 sections listing individual findings. All finding text is HTML-escaped to prevent XSS when procedure names contain special characters.
+
+## Smoke Tests
+
+`src/test/java/org/tarik/ta/smoke/UiAgentSmokeTest` is a hermetic, end-to-end smoke suite that drives the **real** knowledge-based
+execution flow (`UiTestAgent` -> `KnowledgeBasedExecutionOrchestrator` -> `StepExecutionOrchestrator` -> `VerificationTools`, plus the real
+execution queue, state tracker and prefetch coordinator) and mocks only the external boundaries:
+
+- the four LLM agents (test-step / precondition action + verification) are Mockito mocks, stubbed at `executeAndGetResult`, so the real
+  orchestration, result-merging and `UiTestExecutionResult` contract all run unchanged;
+- `KnowledgeService` (the Neo4j boundary) is a mock that returns in-memory `Procedure` matches;
+- the screen is mocked via a `MockedStatic` of `UiCommonUtils.captureScreen()`, which sits above every AWT `Robot` call, so the suite is
+  xvfb/headless-safe;
+- the config, `ScreenRecorder`, `LogCapture` and the remaining knowledge-graph services are Mockito mocks.
+
+The whole object graph is wired by hand (no Avaje DI bootstrap) and the agent runs fully unattended, so no supervised-mode Swing dialogs
+appear. Coverage: single-step and multi-step happy paths (asserting `SystemInfo`, logs and the recording path on the result), a composite
+procedure decomposed into its atomic children (both executed), composite variants where a child's verification fails (-> `FAILED`) or a
+child's action agent throws (-> `ERROR`), a step verification that fails once and recovers on its retry attempt, a failing precondition
+action or verification (-> `ERROR`), a failed step verification (-> `FAILED`, with the screenshot attached to the step result), an
+unexpected action-agent exception (-> `ERROR`), a budget-exhaustion exception propagated with its message preserved (-> `ERROR`), a missing
+procedure (-> `ERROR`), and the streaming events emitted through the `StreamingEventEmitter` (started + result events for the precondition
+and the step, in order — the HTTP + SSE transport itself is covered by the `agent_core` suite).
+
+The suite pins the unified result-status contract shared with the API agent: `FAILED` is reserved for failed verifications, while any
+execution error yields `ERROR` — `mergeAtomicResults` preserves an atomic-level `ERROR` instead of flattening it into `FAILURE`.
+
+The tests are tagged `@Tag("smoke")` and are **excluded from the default build** (`mvn package` / `mvn test`) via the parent POM's
+`excludedGroups`. Run them explicitly:
+
+```bash
+mvn -B test -P linux -Dtest.excluded.groups= -Dgroups=smoke
+```
+
+The suite uses process-global test doubles (the `MockedStatic` screen stub plus background prefetch threads), so it runs **single-threaded**
+(`src/test/resources/junit-platform.properties`).
 
 ## Deployment
 

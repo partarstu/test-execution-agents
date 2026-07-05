@@ -18,14 +18,18 @@
 package org.tarik.ta.core.tools;
 
 import dev.langchain4j.agent.tool.Tool;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.invocation.InvocationContext;
 import dev.langchain4j.service.tool.DefaultToolExecutor;
+import dev.langchain4j.service.tool.ToolExecutionResult;
 import dev.langchain4j.service.tool.ToolExecutor;
 import dev.langchain4j.service.tool.ToolProvider;
 import dev.langchain4j.service.tool.ToolProviderRequest;
 import dev.langchain4j.service.tool.ToolProviderResult;
 import org.jetbrains.annotations.NotNull;
 import org.tarik.ta.core.dto.FinalResult;
+import org.tarik.ta.core.manager.BudgetManager;
 
 import java.lang.reflect.Method;
 import java.util.*;
@@ -90,6 +94,28 @@ public class InheritanceAwareToolProvider<T extends FinalResult> implements Tool
                 .wrapToolArgumentsExceptions(true)
                 .propagateToolExecutionExceptions(true)
                 .build();
-        resultBuilder.add(specification, executor);
+        resultBuilder.add(specification, withToolCallBudgetTracking(executor));
+    }
+
+    /**
+     * Counts every tool execution against the tool-call budget, so that {@code BudgetManager.checkToolCallBudget()} can
+     * actually trigger. Both entry points must be overridden: overriding only {@code execute} would lose the delegate's
+     * {@code executeWithContext} behavior (the propagation of the tool result object, which the agents' result
+     * extraction relies on).
+     */
+    private static ToolExecutor withToolCallBudgetTracking(ToolExecutor delegate) {
+        return new ToolExecutor() {
+            @Override
+            public String execute(ToolExecutionRequest request, Object memoryId) {
+                BudgetManager.getInstance().consumeToolCalls(1);
+                return delegate.execute(request, memoryId);
+            }
+
+            @Override
+            public ToolExecutionResult executeWithContext(ToolExecutionRequest request, InvocationContext context) {
+                BudgetManager.getInstance().consumeToolCalls(1);
+                return delegate.executeWithContext(request, context);
+            }
+        };
     }
 }

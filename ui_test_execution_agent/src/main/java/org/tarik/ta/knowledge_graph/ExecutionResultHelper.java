@@ -32,6 +32,7 @@ import java.util.Objects;
 
 import static java.time.Instant.now;
 import static java.util.stream.Collectors.joining;
+import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.ERROR;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.FAILURE;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.SUCCESS;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
@@ -48,7 +49,8 @@ final class ExecutionResultHelper {
         if (results.isEmpty()) {
             var errorMessage = "Execution of test step '%s' was aborted.".formatted(testStep.stepDescription());
             LOG.error(errorMessage);
-            return new UiTestStepResult(testStep, FAILURE, errorMessage, "No atomic steps executed", null, now(), now());
+            // An abort is not a failed verification, so it surfaces as ERROR per the unified status contract.
+            return new UiTestStepResult(testStep, ERROR, errorMessage, "No atomic steps executed", null, now(), now());
         }
 
         boolean allSuccess = results.stream().allMatch(r -> r.getExecutionStatus() == SUCCESS);
@@ -64,7 +66,10 @@ final class ExecutionResultHelper {
             LOG.error("Got a situation when procedure results are OK, but one of them has error message. It means there's a bug in the " +
                     "corresponding code. The steps affected:\n <{}>", results);
         }
-        var finalStatus = isBlank(finalError) ? SUCCESS : FAILURE;
+        // ERROR must survive the merge: FAILURE is reserved for failed verifications, while any executor error makes
+        // the whole step (and thus the test case) an ERROR.
+        boolean anyError = results.stream().anyMatch(r -> r.getExecutionStatus() == ERROR);
+        var finalStatus = isBlank(finalError) ? SUCCESS : anyError ? ERROR : FAILURE;
         var finalActualResult = results.stream()
                 .map(TestStepResult::getActualResult)
                 .filter(Objects::nonNull)

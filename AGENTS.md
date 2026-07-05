@@ -47,6 +47,7 @@ working with agentic systems. Use skills located in @.agents folder if needed fo
 * You must use Java 25 for development.
 * Never reformat the code which you haven't modified!
 * Do not wrap lines that are under 140 characters, even if it improves readability.
+* Do not hard warp Markdown or text files.
 * Every time you use web search, always fetch ALL URLs which contain the most relevant to your request information after you get the web
   search results, use CURL Windows command for that.
 * If any skill requires using web search, always do it.

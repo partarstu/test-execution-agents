@@ -37,6 +37,7 @@ or nested scope creation resolves all required dependencies consistently.
 |-------|-------------|
 | `Server` | Thin bootstrap entry point that creates the root `BeanScope` and starts the injected `AbstractServer` |
 | `ApiAgentCardFactory` | Produces the singleton A2A `AgentCard` bean from injected configuration |
+| `AgentCardProducer` | Builds the A2A `AgentCard`: advertises the test-execution skill in the `skills` list and renders an HTML-friendly description listing each sub-agent and its configured model |
 | `ApiAgentExecutor` | Handles A2A task execution, extends `AbstractAgentExecutor` |
 | `ApiAgentRequestScopeFactory` | Centralizes creation of API request-scoped child `BeanScope` instances |
 | `ApiTestAgent` | Main orchestrator for API test execution |
@@ -227,6 +228,52 @@ The API Test Execution Agent uses the following tools:
 
 - `loadJsonData(filePath, variableName)` - Loads JSON data into context
 - `loadCsvData(filePath, variableName)` - Loads CSV data into context
+
+## Smoke Tests
+
+`src/test/java/org/tarik/ta/smoke/ApiAgentSmokeTest` is a hermetic, end-to-end smoke suite that drives the
+**real** agent flow (`ApiTestAgent` -> step / precondition agents -> real `ApiRequestTools` /
+`ApiAssertionTools`) and mocks only the external boundaries:
+
+- the LLM is replaced by `smoke/ScriptedChatModel`, a deterministic `ChatModel` that returns a scripted
+  sequence of real tool calls (so the real tool-calling loop, tools and result extraction all run unchanged);
+  it implements `doChat()` + `listeners()` and reports a fixed `TokenUsage` per response, so the production
+  `ChatModelEventListener` can be attached and real token accounting runs against the `BudgetManager`;
+- the target API is a local **WireMock** server, which records the requests that actually left the agent;
+- the config, `TestCaseExtractor` and `LogCapture` are Mockito mocks.
+
+Coverage: happy path, precondition + step (full `TestExecutionResult` contract), failed verification,
+verification retry recovery (fail -> retry -> pass), POST with a JSON body (header merging, default
+Content-Type injection, body `${var}` resolution), a 5xx response read back through `getLastApiResponse`,
+a network fault recovered through the tool-error retry path, Basic / Bearer / API-Key auth headers,
+`${var}` substitution, cross-step data flow through the real `storeVariableIntoContext` tool, cookie
+propagation, JSON-schema validation (matching and mismatching bodies), OpenAPI validation via
+`validateOpenApi` (conformant and spec-violating bodies), base-URI resolution of relative URLs, loading
+file data through the real `loadJsonData` / `loadCsvData` tools, an unextractable test case (-> `ERROR`
+without any model interaction), the SSRF guard, `uploadFile` confinement, time-, token- and
+tool-call-budget exhaustion, the three precondition failure paths (action error, no result from the model
+and failed verification — each -> `ERROR`, per the shared status contract), a step answered with plain text
+instead of a tool call (-> `ERROR`), and HTTPS against WireMock's self-signed certificate (rejected without
+`relaxedHttpsValidation`, accepted with it).
+
+`src/test/java/org/tarik/ta/smoke/ApiAgentA2aSmokeTest` additionally covers the full production stack in one
+test: an HTTP `message/stream` request travels `AgentExecutionResource` -> executor -> the real
+`ApiTestAgent` with real tools -> WireMock, and the step + final-result events are asserted over the SSE
+stream (using `A2aTestClient` from `agent_core`'s test-jar).
+
+The tests are tagged `@Tag("smoke")` and are **excluded from the default build** (`mvn package` /
+`mvn test`) via the parent POM's `excludedGroups`. Run them explicitly:
+
+```bash
+# Run from the reactor root so agent_core is compiled with -parameters and used fresh.
+mvn -B test -P linux -Dtest.excluded.groups= -Dgroups=smoke
+```
+
+Notes:
+- Auth credentials are injected as **system properties** (the agent reads them through
+  `CommonUtils.getEnvironmentVariable`, which falls back to system properties), not real environment variables.
+- The suite shares process-global state (the `BudgetManager` singleton and a static WireMock server), so it
+  runs **single-threaded** (`src/test/resources/junit-platform.properties`).
 
 ## Deployment
 

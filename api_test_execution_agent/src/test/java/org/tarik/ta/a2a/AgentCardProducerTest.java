@@ -19,18 +19,37 @@ package org.tarik.ta.a2a;
 
 import org.a2aproject.sdk.spec.AgentCard;
 import org.junit.jupiter.api.Test;
+import org.tarik.ta.ApiTestAgentConfig;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class AgentCardProducerTest {
 
     @Test
     void testAgentCard() {
         String agentUrl = "https://agent.example.test";
-        AgentCard card = new AgentCardProducer().agentCard(agentUrl);
+        ApiTestAgentConfig config = mock(ApiTestAgentConfig.class);
+        when(config.getTestStepActionAgentModelName()).thenReturn("test-step-model");
+        when(config.getPreconditionActionAgentModelName()).thenReturn("precondition-model");
+
+        AgentCard card = new AgentCardProducer(agentUrl, config).agentCard();
 
         assertThat(card.name()).isEqualTo("API Test Execution Agent");
         assertThat(card.supportedInterfaces()).hasSize(1);
         assertThat(card.supportedInterfaces().getFirst().url()).isEqualTo(agentUrl);
+        assertThat(card.description())
+                .startsWith("Uses the following sub-agents:<br>")
+                .contains("<ol>")
+                .contains("<li>Test Step Action Agent — test-step-model</li>")
+                .contains("<li>Precondition Action Agent — precondition-model</li>")
+                .contains("</ol>")
+                .doesNotContain("Can execute API tests in a fully automated mode");
+        assertThat(card.skills()).singleElement().satisfies(skill -> {
+            assertThat(skill.id()).isEqualTo("api_test_execution");
+            assertThat(skill.name()).isEqualTo("API Test Execution");
+            assertThat(skill.description()).isEqualTo("Can execute API tests in a fully automated mode");
+        });
     }
 }

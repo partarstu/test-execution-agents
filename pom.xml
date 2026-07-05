@@ -44,6 +44,8 @@
         <maven.shade.plugin.version>3.6.0</maven.shade.plugin.version>
         <maven.compiler.plugin.version>3.15.0</maven.compiler.plugin.version>
         <maven.surefire.plugin.version>3.5.3</maven.surefire.plugin.version>
+        <!-- Tags excluded from the default test run; the smoke workflow clears this and opts in via -Dgroups=smoke. -->
+        <test.excluded.groups>smoke</test.excluded.groups>
         <mockito.version>5.16.1</mockito.version>
         <slf4j.version>2.0.13</slf4j.version>
         <javalin.version>7.0.0-beta.1</javalin.version>
@@ -304,6 +306,7 @@
                         <argLine>
                             @{argLine} -javaagent:${org.mockito:mockito-core:jar}
                         </argLine>
+                        <excludedGroups>${test.excluded.groups}</excludedGroups>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -313,6 +316,8 @@
                     <configuration>
                         <source>${jdk.version}</source>
                         <target>${jdk.version}</target>
+                        <!-- Retain method parameter names so langchain4j tool schemas expose readable arg names. -->
+                        <parameters>true</parameters>
                         <annotationProcessorPaths>
                             <path>
                                 <groupId>io.avaje</groupId>

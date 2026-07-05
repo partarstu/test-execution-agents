@@ -103,22 +103,23 @@ export DOCKER_CONFIG=/tmp/.docker
 docker-credential-gcr configure-docker
 
 # --- Install Google Cloud SDK (using containerized gcloud) ---
+# The image is only used to read secrets, so the tiny :alpine variant (core gcloud) is enough.
 echo "Pulling google/cloud-sdk image..."
-docker pull google/cloud-sdk:latest
+docker pull google/cloud-sdk:alpine
 
 # --- Fetch Secrets ---
 echo "Fetching secrets from Secret Manager..."
-GROQ_API_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="GROQ_API_KEY" --project="${PROJECT_ID}")
-GROQ_ENDPOINT=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="GROQ_ENDPOINT" --project="${PROJECT_ID}")
-VECTOR_DB_URL=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="VECTOR_DB_URL" --project="${PROJECT_ID}")
-VECTOR_DB_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="VECTOR_DB_KEY" --project="${PROJECT_ID}")
-VNC_PW=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="VNC_PW" --project="${PROJECT_ID}")
-ANTHROPIC_API_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="ANTHROPIC_API_KEY" --project="${PROJECT_ID}")
-ANTHROPIC_ENDPOINT=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="ANTHROPIC_ENDPOINT" --project="${PROJECT_ID}")
-GOOGLE_API_KEY=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="GOOGLE_API_KEY" --project="${PROJECT_ID}")
-NEO4J_USERNAME=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="NEO4J_USERNAME" --project="${PROJECT_ID}" 2>/dev/null || echo "")
+GROQ_API_KEY=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="GROQ_API_KEY" --project="${PROJECT_ID}")
+GROQ_ENDPOINT=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="GROQ_ENDPOINT" --project="${PROJECT_ID}")
+VECTOR_DB_URL=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="VECTOR_DB_URL" --project="${PROJECT_ID}")
+VECTOR_DB_KEY=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="VECTOR_DB_KEY" --project="${PROJECT_ID}")
+VNC_PW=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="VNC_PW" --project="${PROJECT_ID}")
+ANTHROPIC_API_KEY=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="ANTHROPIC_API_KEY" --project="${PROJECT_ID}")
+ANTHROPIC_ENDPOINT=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="ANTHROPIC_ENDPOINT" --project="${PROJECT_ID}")
+GOOGLE_API_KEY=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="GOOGLE_API_KEY" --project="${PROJECT_ID}")
+NEO4J_USERNAME=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="NEO4J_USERNAME" --project="${PROJECT_ID}" 2>/dev/null || echo "")
 # Optional: when set, the agent requires this shared secret as a Bearer token on the main endpoint. Empty disables auth.
-AGENT_AUTH_TOKEN=$(docker run --rm google/cloud-sdk:latest gcloud secrets versions access latest --secret="AGENT_AUTH_TOKEN" --project="${PROJECT_ID}" 2>/dev/null || echo "")
+AGENT_AUTH_TOKEN=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="AGENT_AUTH_TOKEN" --project="${PROJECT_ID}" 2>/dev/null || echo "")
 
 # --- Creating Log Directory on Host ---
 echo "Creating log directory on the host..."
@@ -194,3 +195,9 @@ docker run -d --name ${SERVICE_NAME} --shm-size=4g --log-driver=gcplogs \
     gcr.io/${PROJECT_ID}/${SERVICE_NAME}:${IMAGE_TAG} ${JAVA_APP_STARTUP_SCRIPT}
 
 echo "Container '${SERVICE_NAME}' is starting."
+
+# Reclaim boot-disk space now that the agent container is running and its image is referenced (so it is kept): drop the
+# spent cloud-sdk image used for secrets and any superseded versions. Pruning only after the container starts is what
+# keeps the agent image; doing it earlier would delete the cached image and force a needless re-pull.
+echo "Pruning unused Docker images to reclaim boot-disk space..."
+docker image prune -af || true
