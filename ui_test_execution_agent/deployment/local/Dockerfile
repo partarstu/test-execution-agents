@@ -23,7 +23,7 @@ FROM ui-testing-agent-base:latest
 ARG APP_DIR=/app
 ARG APP_LOG_DIR=${APP_DIR}/log
 ARG APP_SCREENSHOTS_DIR=${APP_DIR}/screenshots
-ARG SOURCE_JAR_PATH=target/ui-test-execution-agent-2.1.0-SNAPSHOT.jar
+ARG SOURCE_JAR_PATH=target/ui-test-execution-agent-2.1.0.jar
 ARG DESTINATION_JAR_PATH=${APP_DIR}/app.jar
 ARG SOURCE_START_SCRIPT=deployment/agent_startup.sh
 ARG DESTINATION_START_SCRIPT=${APP_DIR}/agent_startup.sh
