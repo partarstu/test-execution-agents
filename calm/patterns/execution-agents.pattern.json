@@ -1,0 +1,251 @@
+{
+    "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
+    "$id": "https://github.com/partarstu/test-execution-agents/blob/main/calm/patterns/execution-agents.pattern.json",
+    "title": "Test Execution Agents Architecture Pattern",
+    "description": "Governance pattern requiring the nodes and relationships owned by, or directly integrated with, this repository.",
+    "type": "object",
+    "properties": {
+        "nodes": {
+            "type": "array",
+            "minItems": 8,
+            "maxItems": 8,
+            "prefixItems": [
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "ui-test-execution-agent" },
+                        "node-type": { "const": "service" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" }
+                    },
+                    "required": ["name", "description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "api-test-execution-agent" },
+                        "node-type": { "const": "service" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" }
+                    },
+                    "required": ["name", "description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "neo4j" },
+                        "node-type": { "const": "database" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" }
+                    },
+                    "required": ["name", "description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "orchestrator" },
+                        "node-type": { "const": "system" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" }
+                    },
+                    "required": ["name", "description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "llm-provider" },
+                        "node-type": { "const": "system" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" }
+                    },
+                    "required": ["name", "description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "system-under-test" },
+                        "node-type": { "const": "system" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" }
+                    },
+                    "required": ["name", "description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "gce-vm" },
+                        "node-type": { "const": "system" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" }
+                    },
+                    "required": ["name", "description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "cloud-run" },
+                        "node-type": { "const": "system" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" }
+                    },
+                    "required": ["name", "description"]
+                }
+            ]
+        },
+        "relationships": {
+            "type": "array",
+            "minItems": 8,
+            "maxItems": 8,
+            "prefixItems": [
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-orchestrator-a2a-agents" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "interacts": {
+                                    "actor": "orchestrator",
+                                    "nodes": [
+                                        "ui-test-execution-agent",
+                                        "api-test-execution-agent"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-ui-agent-neo4j" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "connects": {
+                                    "source": { "node": "ui-test-execution-agent" },
+                                    "destination": { "node": "neo4j" }
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-ui-agent-llm" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "connects": {
+                                    "source": { "node": "ui-test-execution-agent" },
+                                    "destination": { "node": "llm-provider" }
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-api-agent-llm" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "connects": {
+                                    "source": { "node": "api-test-execution-agent" },
+                                    "destination": { "node": "llm-provider" }
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-ui-agent-sut" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "connects": {
+                                    "source": { "node": "ui-test-execution-agent" },
+                                    "destination": { "node": "system-under-test" }
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-api-agent-sut" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "connects": {
+                                    "source": { "node": "api-test-execution-agent" },
+                                    "destination": { "node": "system-under-test" }
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-ui-deployed-gce" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "deployed-in": {
+                                    "container": "gce-vm",
+                                    "nodes": ["ui-test-execution-agent"]
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-api-deployed-cloud-run" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "deployed-in": {
+                                    "container": "cloud-run",
+                                    "nodes": ["api-test-execution-agent"]
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                }
+            ]
+        }
+    },
+    "required": ["nodes", "relationships"]
+}

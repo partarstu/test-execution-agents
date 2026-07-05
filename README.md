@@ -589,6 +589,52 @@ The project includes AI assistant skills in `.agents/skills/` to help with commo
 | **PR Review**          | Reviews an open GitHub PR for the current branch, applying project-specific and Java best practice criteria                                                          |
 | **Commit and Push**    | Allows to commit all files and push them to the remote repository                                                                                                    |
 
+## Architecture model (CALM)
+
+The repository's own architecture is modeled as [FINOS CALM](https://calm.finos.org/) (Common Architecture Language Model) documents under
+`calm/`. The model is self-contained: it covers only what this repository owns or directly integrates with (the two deployable agents,
+Neo4j, the LLM provider, the system under test, and the hosting runtimes). The orchestrator that calls the agents over A2A is modeled only
+as an external `system` node — the model has no reference to any file or identifier of the orchestrator repository, and validation runs
+fully offline against the meta-schemas bundled with `calm-cli`.
+
+```
+calm/
+├── architecture/
+│   └── execution-agents.arch.json    (the architecture instance: nodes, relationships, descriptions)
+└── patterns/
+    └── execution-agents.pattern.json (governance pattern requiring every node/relationship listed above)
+```
+
+### Validating locally
+
+```shell
+npx -y @finos/calm-cli@1.46.0 validate -p calm/patterns/execution-agents.pattern.json -a calm/architecture/execution-agents.arch.json --strict -f pretty
+```
+
+This is the exact command run by the blocking `Architecture (CALM)` CI job (`.github/workflows/architecture.yml`) on every push/PR to
+`main`.
+
+### Changing the model
+
+* Add or change a node/relationship in `calm/architecture/execution-agents.arch.json`, then add the matching required entry (fixed
+  `unique-id`/`node-type`/`relationship-type`, free-form `name`/`description`) to `calm/patterns/execution-agents.pattern.json` and bump
+  the `minItems`/`maxItems` counts — the pattern requires every node and relationship listed in the architecture, so the two files must
+  stay in lockstep.
+* Run the validation command above before committing; it must exit `0` with `No issues found.`.
+
+### Design decisions
+
+* **Controls deferred**: the bearer-token authentication enforced by `AbstractServer.requireValidToken`
+  (`Authorization: Bearer <AGENT_AUTH_TOKEN>` on the main A2A endpoint, 401 on mismatch, open with a logged warning when the token is unset
+  for local runs) is documented in the `ui-test-execution-agent`/`api-test-execution-agent` node descriptions instead of formal CALM
+  controls. Formal controls need their own requirement schemas, a repo-owned URL namespace, and a URL-mapping file for offline resolution —
+  three files of scaffolding for a single control. Introduce them once a second control appears or machine-checkable governance is
+  actually needed.
+* **No duplicate Cloud Build validation stage**: `cloudbuild.yaml` does not run this validation. It would run the identical command,
+  restructure the existing stage dependency graph (`deploy-neo4j` starts immediately today), and needlessly block `_DEPLOY_TARGET=neo4j`
+  deployments. CI (`.github/workflows/architecture.yml`) is the only gate; bypassing it via a manual `gcloud builds submit` is an accepted
+  risk for a single-maintainer repo.
+
 ## Documentation
 
 * For detailed documentation on the UI Test Execution Agent, see **[UI Agent README](ui_test_execution_agent/README.md)**.
