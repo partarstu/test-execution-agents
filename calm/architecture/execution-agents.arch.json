@@ -1,0 +1,146 @@
+{
+    "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
+    "$id": "https://github.com/partarstu/test-execution-agents/blob/main/calm/architecture/execution-agents.arch.json",
+    "unique-id": "execution-agents",
+    "name": "AI-Powered Test Execution Agents",
+    "description": "Self-contained architecture of the UI and API test execution agents owned by this repository. The orchestrator, LLM provider and system under test are modeled only as external systems.",
+    "nodes": [
+        {
+            "unique-id": "ui-test-execution-agent",
+            "node-type": "service",
+            "name": "UI Test Execution Agent",
+            "description": "Drives the system under test via computer vision and mouse/keyboard control, using a Neo4j-backed knowledge graph for UI element and procedure grounding. The main A2A endpoint requires an `Authorization: Bearer <AGENT_AUTH_TOKEN>` header; a missing or mismatched token is rejected with 401. If AGENT_AUTH_TOKEN is unset, the endpoint is open and a warning is logged (local development only)."
+        },
+        {
+            "unique-id": "api-test-execution-agent",
+            "node-type": "service",
+            "name": "API Test Execution Agent",
+            "description": "Drives the system under test by calling its HTTP APIs. The main A2A endpoint requires an `Authorization: Bearer <AGENT_AUTH_TOKEN>` header; a missing or mismatched token is rejected with 401. If AGENT_AUTH_TOKEN is unset, the endpoint is open and a warning is logged (local development only)."
+        },
+        {
+            "unique-id": "neo4j",
+            "node-type": "database",
+            "name": "Neo4j Knowledge Graph",
+            "description": "Knowledge graph database storing UI elements and procedures used by the UI test execution agent for element grounding."
+        },
+        {
+            "unique-id": "orchestrator",
+            "node-type": "system",
+            "name": "QuAIA Orchestrator",
+            "description": "External QuAIA orchestrator that routes test-execution tasks to both agents over the A2A protocol. Owned and operated outside this repository."
+        },
+        {
+            "unique-id": "llm-provider",
+            "node-type": "system",
+            "name": "LLM Provider",
+            "description": "External LLM provider (Google Gemini) used by both agents for vision grounding, test case extraction, and step/precondition execution decisions."
+        },
+        {
+            "unique-id": "system-under-test",
+            "node-type": "system",
+            "name": "System Under Test",
+            "description": "External application under test, driven by the UI agent through UI interaction and by the API agent through its HTTP APIs."
+        },
+        {
+            "unique-id": "gce-vm",
+            "node-type": "system",
+            "name": "GCE VM",
+            "description": "Google Compute Engine VM hosting the UI test execution agent, providing VNC access for interactive debugging."
+        },
+        {
+            "unique-id": "cloud-run",
+            "node-type": "system",
+            "name": "Cloud Run",
+            "description": "Google Cloud Run service hosting the API test execution agent."
+        }
+    ],
+    "relationships": [
+        {
+            "unique-id": "rel-orchestrator-a2a-agents",
+            "description": "Orchestrator routes test-execution tasks to both agents over A2A (HTTPS).",
+            "relationship-type": {
+                "interacts": {
+                    "actor": "orchestrator",
+                    "nodes": [
+                        "ui-test-execution-agent",
+                        "api-test-execution-agent"
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "rel-ui-agent-neo4j",
+            "description": "UI agent reads/writes the knowledge graph (Bolt).",
+            "relationship-type": {
+                "connects": {
+                    "source": { "node": "ui-test-execution-agent" },
+                    "destination": { "node": "neo4j" }
+                }
+            }
+        },
+        {
+            "unique-id": "rel-ui-agent-llm",
+            "description": "UI agent calls the LLM provider (HTTPS).",
+            "relationship-type": {
+                "connects": {
+                    "source": { "node": "ui-test-execution-agent" },
+                    "destination": { "node": "llm-provider" }
+                }
+            }
+        },
+        {
+            "unique-id": "rel-api-agent-llm",
+            "description": "API agent calls the LLM provider (HTTPS).",
+            "relationship-type": {
+                "connects": {
+                    "source": { "node": "api-test-execution-agent" },
+                    "destination": { "node": "llm-provider" }
+                }
+            }
+        },
+        {
+            "unique-id": "rel-ui-agent-sut",
+            "description": "UI agent drives the system under test via UI interaction.",
+            "relationship-type": {
+                "connects": {
+                    "source": { "node": "ui-test-execution-agent" },
+                    "destination": { "node": "system-under-test" }
+                }
+            }
+        },
+        {
+            "unique-id": "rel-api-agent-sut",
+            "description": "API agent calls the system under test HTTP APIs.",
+            "relationship-type": {
+                "connects": {
+                    "source": { "node": "api-test-execution-agent" },
+                    "destination": { "node": "system-under-test" }
+                }
+            }
+        },
+        {
+            "unique-id": "rel-ui-deployed-gce",
+            "description": "UI agent runs on the GCE VM.",
+            "relationship-type": {
+                "deployed-in": {
+                    "container": "gce-vm",
+                    "nodes": [
+                        "ui-test-execution-agent"
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "rel-api-deployed-cloud-run",
+            "description": "API agent runs on Cloud Run.",
+            "relationship-type": {
+                "deployed-in": {
+                    "container": "cloud-run",
+                    "nodes": [
+                        "api-test-execution-agent"
+                    ]
+                }
+            }
+        }
+    ]
+}

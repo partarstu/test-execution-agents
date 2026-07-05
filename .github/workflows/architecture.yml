@@ -1,0 +1,24 @@
+name: Architecture (CALM)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  validate:
+    name: Architecture (CALM)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate CALM architecture model
+        run: npx -y @finos/calm-cli@1.46.0 validate -p calm/patterns/execution-agents.pattern.json -a calm/architecture/execution-agents.arch.json --strict -f pretty
