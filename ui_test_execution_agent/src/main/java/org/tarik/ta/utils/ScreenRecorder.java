@@ -33,15 +33,16 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static java.awt.image.BufferedImage.TYPE_3BYTE_BGR;
 import static java.nio.file.Files.createDirectories;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.tarik.ta.core.utils.CommonUtils.shutDownGracefully;
 import static org.tarik.ta.utils.UiCommonUtils.getMouseLocation;
 
 @UiAgentRequestScope
@@ -134,15 +135,7 @@ public class ScreenRecorder {
         }
 
         if (executorService != null) {
-            executorService.shutdown();
-            try {
-                if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
-                    executorService.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                executorService.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
+            shutDownGracefully(executorService, Duration.ofSeconds(5));
         }
 
         try {

@@ -22,7 +22,7 @@ import java.util.List;
 /**
  * A single health-check category containing findings and a computed severity level.
  */
-public record HealthCheckCategory(String name, String description, List<String> findings, Severity severity) {
+public record HealthCheckCategory(String name, String description, List<HealthFinding> findings, Severity severity) {
 
     public enum Severity { OK, WARNING, CRITICAL }
 
@@ -30,7 +30,7 @@ public record HealthCheckCategory(String name, String description, List<String> 
         findings = List.copyOf(findings);
     }
 
-    public static HealthCheckCategory of(String name, String description, List<String> findings,
+    public static HealthCheckCategory of(String name, String description, List<HealthFinding> findings,
                                    int warningThreshold, int criticalThreshold) {
         int count = findings.size();
         var severity = count >= criticalThreshold ? Severity.CRITICAL

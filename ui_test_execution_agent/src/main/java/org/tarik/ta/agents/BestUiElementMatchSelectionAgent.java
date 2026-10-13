@@ -17,17 +17,21 @@
  */
 package org.tarik.ta.agents;
 
-
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.dto.BestUiElementVisualMatchResult;
-import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.model.ImageContentCreator;
 
-public interface BestUiElementMatchSelectionAgent extends BaseUiAgent<BestUiElementVisualMatchResult> {
+import java.util.List;
+
+public interface BestUiElementMatchSelectionAgent extends BaseUiAgent<BestUiElementVisualMatchResult>, VisionBasedAgent {
     Result<String> selectBestElement(
-            @UserMessage String prompt,
+            @UserMessage List<Content> prompt,
             @UserMessage ImageContent screenshot,
             @V("bounding_box_color") String boundingBoxColor);
 
@@ -35,6 +39,10 @@ public interface BestUiElementMatchSelectionAgent extends BaseUiAgent<BestUiElem
     default String getAgentTaskDescription() {
         return "Selecting the best matching to the description UI element based on the screenshot and found bounding boxes";
     }
+
+    @Override
+    default @NotNull ImageContentCreator getImageContentCreator(@NotNull UiTestAgentConfig config) {
+        return new ImageContentCreator(config.getUiElementVisualMatchAgentImageDetailLevel(),
+                config.getUiElementVisualMatchAgentModelProvider(), config.getMaxModelImagePixels());
+    }
 }
-
-

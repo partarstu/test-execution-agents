@@ -20,7 +20,7 @@
 setlocal
 
 if "%JAVA_HOME%"=="" (
-    echo ERROR: JAVA_HOME is not set. Please configure Java 25.
+    echo ERROR: JAVA_HOME is not set. Please configure Java 27.
     exit /b 1
 )
 

@@ -22,14 +22,25 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE_IF_LAST;
+import static java.util.Objects.requireNonNullElse;
+
 import java.util.List;
 
 @Description("A test case extracted from the user's request.")
 public record TestCase(
         @Description("The name of the test case, summarizing its purpose.") String name,
-        @Description("All preconditions which need to be fulfilled before the test execution can be started.") List<String> preconditions,
+        @Description("All preconditions which need to be fulfilled before the test execution can be started.")
+        List<Precondition> preconditions,
+        @Description({"The test case data table, as key/value entries taken verbatim from the test case. It is available to every ",
+                "precondition and test step. Allowed to be empty."})
+        List<DataEntry> testData,
         @Description("A list of test steps that make up the test case.") List<TestStep> testSteps)
         implements FinalResult {
+
+    public TestCase {
+        preconditions = List.copyOf(requireNonNullElse(preconditions, List.of()));
+        testData = List.copyOf(requireNonNullElse(testData, List.of()));
+    }
 
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE_IF_LAST)
     public static TestCase endExecutionAndGetFinalResult(

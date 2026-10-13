@@ -22,7 +22,7 @@ import org.tarik.ta.core.tools.AbstractTools;
 
 public class UiAbstractTools extends AbstractTools {
     public static final String AGENT_PATH = "common/ui_state_checker";
-    public static final String UI_STATE_CHECKER_PROMPT_FILE = "ui_state_checker_prompt.txt";
+    public static final String UI_STATE_CHECKER_PROMPT_FILE = "ui_state_checker_prompt.md";
     protected final UiStateCheckAgent uiStateCheckAgent;
 
     protected UiAbstractTools(UiStateCheckAgent uiStateCheckAgent) {

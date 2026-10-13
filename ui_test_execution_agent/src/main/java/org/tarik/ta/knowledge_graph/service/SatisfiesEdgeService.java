@@ -17,12 +17,13 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
-import jakarta.inject.Singleton;
+import org.tarik.ta.config.scopes.UiAgentRequestScope;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge;
+import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository;
 
@@ -33,7 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-@Singleton
+@UiAgentRequestScope
 public class SatisfiesEdgeService {
     private static final Logger LOG = LoggerFactory.getLogger(SatisfiesEdgeService.class);
     private static final int SATISFIES_TOP_N = 50;
@@ -88,6 +89,17 @@ public class SatisfiesEdgeService {
                 "Unmet prerequisite '{}': best effect similarity score = {} for effect '{}' (threshold = {})",
                 p.phrase(), p.bestScore(), p.bestEffectPhrase(), threshold));
         return unmet;
+    }
+
+    /** Returns the ids of the given current effect nodes that the procedure's negated effects semantically match. */
+    public Set<UUID> findNegatedEffectNodeIds(Procedure procedure, Set<UUID> effectNodeIds) {
+        if (procedure.negatedEffects().isEmpty() || effectNodeIds.isEmpty()) {
+            return Set.of();
+        }
+        var negated = phraseEmbeddingRepository.findEffectNodesNegatedBy(procedure.id(), effectNodeIds,
+                config.getSatisfiesSimilarityThreshold());
+        LOG.debug("Procedure {} negates {} of {} current effect(s)", procedure.id(), negated.size(), effectNodeIds.size());
+        return negated;
     }
 
     public boolean hasSatisfiesEdges() {

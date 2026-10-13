@@ -27,7 +27,7 @@ ARG SOURCE_JAR_PATH=target/ui-test-execution-agent-2.2.0-SNAPSHOT.jar
 ARG DESTINATION_JAR_PATH=${APP_DIR}/app.jar
 ARG SOURCE_START_SCRIPT=deployment/agent_startup.sh
 ARG DESTINATION_START_SCRIPT=${APP_DIR}/agent_startup.sh
-ARG JAVA_VERSION=26
+ARG JAVA_VERSION=27
 
 # Switch to root user to install software
 USER 0
@@ -38,13 +38,14 @@ USER 0
 # '-y' answers yes to any prompts.
 # '&&' chains commands together.
 # 'apt-get clean' removes downloaded package files to keep the image small.
-RUN apt-get update
-RUN wget https://download.oracle.com/java/${JAVA_VERSION}/latest/jdk-${JAVA_VERSION}_linux-x64_bin.deb
-RUN dpkg -i jdk-${JAVA_VERSION}_linux-x64_bin.deb
+RUN wget -qO - https://apt.corretto.aws/corretto.key | gpg --dearmor -o /usr/share/keyrings/corretto-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/corretto-keyring.gpg] https://apt.corretto.aws stable main" > /etc/apt/sources.list.d/corretto.list \
+    && apt-get update \
+    && apt-get install -y java-${JAVA_VERSION}-amazon-corretto-jdk \
+    && apt-get install --reinstall libgtk2.0-0 -y \
+    && apt-get clean
 RUN java --version
 RUN update-alternatives --list java
-RUN apt-get install --reinstall libgtk2.0-0 -y
-RUN apt-get clean
 
 # --- Application Setup ---
 # Copy Java application JAR file into the container.
@@ -67,6 +68,11 @@ ENV LOG_DIR=${APP_LOG_DIR}
 ENV DEPLOYMENT_ENV="local"
 ENV SCREEN_RECORDING_FOLDER="${APP_DIR}/log/videos"
 
+# Operator panel: plain HTTP, published on the host's loopback only; PANEL_PASSWORD is passed at runtime
+ENV PANEL_HOST="0.0.0.0"
+ENV VNC_SOCKET_PATH="/tmp/xvnc.sock"
+EXPOSE 8005 8443
+
 # Screenshot and bounding box settings
 ENV BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS="5000"
 ENV BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS="10"
@@ -76,7 +82,12 @@ ENV BOUNDING_BOX_ALREADY_NORMALIZED="true"
 ENV DEBUG_MODE="true"
 ENV LOG_LEVEL="DEBUG"
 ENV logging.level.dev.langchain4j="INFO"
-ENV UNATTENDED_MODE="true"
+ENV EXECUTION_MODE="UNATTENDED"
+
+# DB Element Selection Agent
+ENV DB_ELEMENT_SELECTION_AGENT_MODEL_NAME="gemini-3.5-flash"
+ENV DB_ELEMENT_SELECTION_AGENT_MODEL_PROVIDER="google"
+ENV ELEMENT_CANDIDATE_SELECTION_AGENT_PROMPT_VERSION="v1.0.0"
 
 # Element Bounding Box Agent
 ENV ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME="gemini-3.5-flash"
@@ -88,20 +99,25 @@ ENV ELEMENT_SELECTION_AGENT_MODEL_NAME="gemini-3.5-flash"
 ENV ELEMENT_SELECTION_AGENT_MODEL_PROVIDER="google"
 ENV ELEMENT_SELECTION_AGENT_PROMPT_VERSION="v1.0.0"
 
-# Page Description Agent
-ENV PAGE_DESCRIPTION_AGENT_MODEL_NAME="gemini-3.5-flash"
-ENV PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER="google"
-ENV PAGE_DESCRIPTION_AGENT_PROMPT_VERSION="v1.0.0"
+# Knowledge Collection Element Resolution Agent
+ENV KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_NAME="gemini-3.5-flash"
+ENV KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_PROVIDER="google"
+ENV KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_PROMPT_VERSION="v1.0.0"
+
+# Knowledge Suggestion Agent
+ENV KNOWLEDGE_SUGGESTION_AGENT_MODEL_NAME="gemini-3.5-flash"
+ENV KNOWLEDGE_SUGGESTION_AGENT_MODEL_PROVIDER="google"
+ENV KNOWLEDGE_SUGGESTION_AGENT_PROMPT_VERSION="v1.0.0"
 
 # Precondition Agent
 ENV PRECONDITION_AGENT_MODEL_NAME="gemini-3.5-flash"
 ENV PRECONDITION_AGENT_MODEL_PROVIDER="google"
-ENV PRECONDITION_AGENT_PROMPT_VERSION="v1.0.0"
+ENV PRECONDITION_AGENT_PROMPT_VERSION="v1.1.0"
 
 # Precondition Verification Agent
 ENV PRECONDITION_VERIFICATION_AGENT_MODEL_NAME="gemini-3.5-flash"
 ENV PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER="google"
-ENV PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION="v1.0.0"
+ENV PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION="v1.1.0"
 
 # Test Case Extraction Agent
 ENV TEST_CASE_EXTRACTION_AGENT_MODEL_NAME="gemini-3.5-flash"
@@ -111,17 +127,22 @@ ENV TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION="v1.0.0"
 # Test Step Action Agent
 ENV TEST_STEP_ACTION_AGENT_MODEL_NAME="gemini-3.5-flash"
 ENV TEST_STEP_ACTION_AGENT_MODEL_PROVIDER="google"
-ENV TEST_STEP_ACTION_AGENT_PROMPT_VERSION="v1.0.0"
+ENV TEST_STEP_ACTION_AGENT_PROMPT_VERSION="v1.1.0"
 
 # Test Step Verification Agent
 ENV TEST_STEP_VERIFICATION_AGENT_MODEL_NAME="gemini-3.5-flash"
 ENV TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER="google"
-ENV TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION="v1.0.0"
+ENV TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION="v1.1.0"
 
-# UI Element Description Agent
-ENV UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME="gemini-3.5-flash"
-ENV UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER="google"
-ENV UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION="v1.0.0"
+# UI Element Description Extraction Agent
+ENV UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_MODEL_NAME="gemini-3.5-flash"
+ENV UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_MODEL_PROVIDER="google"
+ENV UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_PROMPT_VERSION="v1.0.0"
+
+# UI Element Description Matcher Agent
+ENV UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME="gemini-3.5-flash"
+ENV UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_PROVIDER="google"
+ENV UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_PROMPT_VERSION="v1.0.0"
 
 # UI State Check Agent
 ENV UI_STATE_CHECK_AGENT_MODEL_NAME="gemini-3.5-flash"

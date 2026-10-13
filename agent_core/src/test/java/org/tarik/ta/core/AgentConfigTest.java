@@ -33,6 +33,7 @@ class AgentConfigTest {
         assertThat(config.getHost()).isEqualTo("localhost");
         assertThat(config.getExternalUrl()).isEqualTo("http://localhost:7070");
         assertThat(config.isDebugMode()).isFalse();
+        assertThat(config.getAgentVersion()).isEqualTo("1.0.0");
     }
 
     @Test
@@ -124,9 +125,26 @@ class AgentConfigTest {
         assertThat(config.getModelProvider("google")).isEqualTo(AgentConfig.ModelProvider.GOOGLE);
         assertThat(config.getModelProvider("GOOGLE")).isEqualTo(AgentConfig.ModelProvider.GOOGLE);
         assertThat(config.getModelProvider("openai")).isEqualTo(AgentConfig.ModelProvider.OPENAI);
+        assertThat(config.getModelProvider("hcompany")).isEqualTo(AgentConfig.ModelProvider.HCOMPANY);
+        assertThat(config.getModelProvider("HCOMPANY")).isEqualTo(AgentConfig.ModelProvider.HCOMPANY);
+        assertThat(config.getModelProvider("qwen")).isEqualTo(AgentConfig.ModelProvider.QWEN);
+        assertThat(config.getModelProvider("QWEN")).isEqualTo(AgentConfig.ModelProvider.QWEN);
 
         assertThatThrownBy(() -> config.getModelProvider("unknown"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("unknown is not a valid ModelProvider value");
+    }
+
+    @Test
+    void testHCompanyConfig() {
+        assertThat(config.getHCompanyApiKey()).isEqualTo("dummy_hcompany_key");
+        assertThat(config.getHCompanyEndpoint()).isEqualTo("https://api.hcompany.ai/v1/");
+    }
+
+    @Test
+    void testQwenConfig() {
+        assertThat(config.getQwenApiKey()).isEqualTo("dummy_qwen_key");
+        assertThat(config.getQwenEndpoint()).isEqualTo("https://dummy-qwen-endpoint/v1/");
+        assertThat(config.isQwenAgentThinkingEnabled()).isTrue();
     }
 }

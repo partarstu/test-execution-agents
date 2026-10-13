@@ -1,0 +1,73 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Why a procedure was chosen: the candidates as a compact table that scrolls inside the narrow timeline */
+@layer components {
+  .resolution {
+    display: grid;
+    gap: var(--space-2);
+    margin-block-start: var(--space-2);
+    font-size: var(--text-sm);
+  }
+
+  .resolution-note {
+    color: var(--muted);
+  }
+
+  .candidates-scroll {
+    min-inline-size: 0;
+    overflow-x: auto;
+  }
+
+  .candidates {
+    inline-size: 100%;
+    font-size: var(--text-xs);
+
+    & caption {
+      padding-block-end: var(--space-1);
+      color: var(--muted);
+      text-align: start;
+    }
+
+    & th,
+    & td {
+      padding: var(--space-1) var(--space-2);
+      text-align: start;
+      vertical-align: top;
+      border-block-start: 1px solid var(--rule);
+    }
+
+    & thead th {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    & tbody th {
+      font-weight: 400;
+    }
+
+    & tr[aria-current="true"] th {
+      font-weight: 650;
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+  }
+
+  .candidate-unmet {
+    display: block;
+    color: var(--warning);
+  }
+}

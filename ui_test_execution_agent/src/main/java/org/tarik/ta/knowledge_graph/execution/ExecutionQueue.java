@@ -61,10 +61,8 @@ public class ExecutionQueue {
         requireNonNull(testCase, "testCase");
         var items = new ArrayList<ExecutionItem>();
 
-        if (startingStepIndex == 0 && testCase.preconditions() != null) {
-            for (String precondition : testCase.preconditions()) {
-                items.add(new PreconditionItem(precondition));
-            }
+        if (startingStepIndex == 0) {
+            testCase.preconditions().forEach(precondition -> items.add(new PreconditionItem(precondition)));
         }
 
         var testSteps = testCase.testSteps();

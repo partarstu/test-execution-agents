@@ -1,0 +1,75 @@
+#
+# ui-test-execution-agent - Agent specializing in execution of UI tests.
+# Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# Builds the Holo grounding image with the model weights baked in, and keeps GCS as the source of truth for them.
+# Submit from this directory:
+#   gcloud builds submit --config cloudbuild.yaml --project "$PROJECT_ID" .
+substitutions:
+  _MODEL_REPO: Hcompany/Holo-3.1-35B-A3B-NVFP4
+  _MODEL_DIR: Holo-3.1-35B-A3B-NVFP4
+  _IMAGE: europe-west4-docker.pkg.dev/${PROJECT_ID}/holo/holo-35b-nvfp4:vllm-8efa13b
+  _WEIGHTS_BUCKET: gs://${PROJECT_ID}-holo-weights
+
+steps:
+  - id: download-weights
+    name: python:3.14-slim
+    env:
+      - MODEL_REPO=${_MODEL_REPO}
+    script: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      pip install --no-cache-dir --quiet "huggingface_hub==2.0.0"
+      python - <<'PY'
+      import os
+      from huggingface_hub import snapshot_download
+
+      snapshot_download(
+          os.environ["MODEL_REPO"],
+          local_dir="/workspace/model",
+          # Everything vLLM needs to serve, without the repo's documentation and git metadata.
+          allow_patterns=["*.json", "*.safetensors", "*.jinja"],
+          max_workers=8,
+      )
+      PY
+      du -sh /workspace/model
+
+  - id: mirror-weights-to-gcs
+    name: gcr.io/cloud-builders/gcloud
+    args:
+      - storage
+      - rsync
+      - --recursive
+      - /workspace/model
+      - ${_WEIGHTS_BUCKET}/${_MODEL_DIR}
+
+  - id: build-image
+    name: gcr.io/cloud-builders/docker
+    args: [build, --tag, '${_IMAGE}', --file, Dockerfile, .]
+
+images:
+  - '${_IMAGE}'
+
+options:
+  # Lets the substitutions above expand the built-in ${PROJECT_ID} on a manually submitted build.
+  dynamicSubstitutions: true
+  machineType: E2_HIGHCPU_32
+  # The weights land on disk three times over: downloaded, sent to the docker daemon as build context, and stored
+  # again in the image layer.
+  diskSizeGb: 300
+
+timeout: 7200s

@@ -20,7 +20,7 @@ package org.tarik.ta.tools;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
+import org.tarik.ta.config.scopes.UiAgentRequestScope;
 import org.apache.commons.math3.ml.clustering.Cluster;
 import org.apache.commons.math3.ml.clustering.Clusterable;
 import org.apache.commons.math3.ml.clustering.DBSCANClusterer;
@@ -31,7 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.BestUiElementMatchSelectionAgent;
-import org.tarik.ta.agents.UiElementBoundingBoxAgent;
+import org.tarik.ta.agents.UiElementGrounder;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.dto.*;
 import org.tarik.ta.exceptions.ElementLocationException;
@@ -39,12 +39,10 @@ import org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
+import org.tarik.ta.knowledge_graph.service.UiElementAliasRegistry;
 import org.tarik.ta.knowledge_graph.service.UiElementCache;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
-import org.tarik.ta.user_dialogs.SpinnerManager;
 import org.tarik.ta.utils.UiCommonUtils;
-
-import static org.tarik.ta.utils.ImageUtils.singleImageContent;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -60,7 +58,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static java.lang.Math.min;
 import static java.lang.Thread.currentThread;
 import static java.nio.file.Files.createDirectories;
 import static java.time.Duration.between;
@@ -80,19 +77,29 @@ import static java.util.stream.Stream.concat;
 import static javax.imageio.ImageIO.write;
 import static org.tarik.ta.utils.BoundingBoxUtil.*;
 import static org.tarik.ta.utils.ImageUtils.*;
+import static org.tarik.ta.utils.NormalizedCoordinates.normalize;
+import static org.tarik.ta.utils.NormalizedCoordinates.toNormalizedRegion;
 import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
+import static org.tarik.ta.core.utils.MarkdownSections.SECTION_LEVEL;
+import static org.tarik.ta.core.utils.MarkdownSections.bulletList;
+import static org.tarik.ta.core.utils.MarkdownSections.heading;
+import static org.tarik.ta.core.utils.MarkdownSections.joinSections;
+import static org.tarik.ta.core.utils.MarkdownSections.section;
+import static org.tarik.ta.core.utils.MarkdownSections.userMessageContents;
+import static org.tarik.ta.utils.UserMessageSections.SCREENSHOT_LABEL;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithORB;
 import static org.tarik.ta.utils.ImageMatchingUtil.findMatchingRegionsWithTemplateMatching;
 
-@Singleton
+@UiAgentRequestScope
 public class ElementLocatorTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(ElementLocatorTools.class);
 
     private final UiElementCache uiElementCache;
     private final UiElementRepository elementRepository;
-    private final UiElementBoundingBoxAgent uiElementBoundingBoxAgent;
+    private final UiElementGrounder uiElementGrounder;
     private final BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent;
+    private final UiElementAliasRegistry uiElementAliasRegistry;
     private final LocationHistoryRecorder locationHistoryRecorder;
     private final UiTestAgentConfig uiTestAgentConfig;
     private final Color boundingBoxColor;
@@ -101,14 +108,16 @@ public class ElementLocatorTools extends UiAbstractTools {
     @Inject
     public ElementLocatorTools(UiElementCache uiElementCache, UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
                                LocationHistoryRecorder locationHistoryRecorder,
-                               UiElementBoundingBoxAgent uiElementBoundingBoxAgent,
+                               UiElementGrounder uiElementGrounder,
                                BestUiElementMatchSelectionAgent bestUiElementMatchSelectionAgent,
+                               UiElementAliasRegistry uiElementAliasRegistry,
                                UiTestAgentConfig uiTestAgentConfig) {
         super(uiStateCheckAgent);
         this.uiElementCache = requireNonNull(uiElementCache, "uiElementCache");
         this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
-        this.uiElementBoundingBoxAgent = requireNonNull(uiElementBoundingBoxAgent, "uiElementBoundingBoxAgent");
+        this.uiElementGrounder = requireNonNull(uiElementGrounder, "uiElementGrounder");
         this.bestUiElementMatchSelectionAgent = requireNonNull(bestUiElementMatchSelectionAgent, "bestUiElementMatchSelectionAgent");
+        this.uiElementAliasRegistry = requireNonNull(uiElementAliasRegistry, "uiElementAliasRegistry");
         this.locationHistoryRecorder = locationHistoryRecorder != null ?
                 locationHistoryRecorder : (elementId, located, locationTimeMs) -> {
         };
@@ -119,16 +128,22 @@ public class ElementLocatorTools extends UiAbstractTools {
     }
 
     /**
-     * Execution flow: locates a known UI element by its UUID
+     * Execution flow: locates a known UI element by the ID under which the model was shown it
      */
     @Tool("Locates UI element on the screen, first retrieving it from DB based on its ID")
     public LocatedElementInfo locateKnownElementById(
             @P("ID of the UI element to locate")
-            UUID elementId,
-            @P(value = "Any data relevant for this element or action which involves this element", required = false)
-            String elementSpecificData) {
-        requireNonNull(elementId, "elementId");
+            String elementIdOrAlias,
+            @P(value = "Data which is needed for locating this UI element, e.g. specific names, values, positions etc. This parameter is " +
+                    "only required if the UI element depends on data", required = false)
+            String dataRelevantForLocatingTheElement) {
+        requireNonNull(elementIdOrAlias, "elementIdOrAlias");
         try {
+            var elementId = uiElementAliasRegistry.resolve(elementIdOrAlias)
+                    .orElseThrow(() -> new ElementLocationException(
+                            ("No UI element with ID '%s' exists. Use only the target UI element ID given in the task; if none " +
+                                    "was given, this tool must not be called.").formatted(elementIdOrAlias),
+                            ElementLocationStatus.UNKNOWN_ELEMENT_ID));
             var uiElement = uiElementCache.get(elementId)
                     .or(() -> elementRepository.findById(elementId))
                     .orElseThrow(() -> new ElementLocationException("UI element with id %s not found in the database".formatted(elementId),
@@ -137,7 +152,7 @@ public class ElementLocatorTools extends UiAbstractTools {
             long startMs = System.currentTimeMillis();
             try {
                 var result = findElementAndProcessLocationResult(
-                        () -> getFinalElementLocation(uiElement, elementSpecificData), uiElement.name());
+                        () -> getFinalElementLocation(uiElement, dataRelevantForLocatingTheElement), uiElement.name());
                 locationHistoryRecorder.record(elementId, true, System.currentTimeMillis() - startMs);
                 return result;
             } catch (ElementLocationException e) {
@@ -151,45 +166,28 @@ public class ElementLocatorTools extends UiAbstractTools {
         }
     }
 
-    private String getElementBoundingBoxUserMessage(UiElement uiElement, String elementTestData) {
-        if (isNotBlank(elementTestData) && uiElement.isDataDependent()) {
-            return """
-                    The target element:
-                    "%s. %s %s"
-                    
-                    This element is data-dependent.
-                    Available specific data for this element: "%s"
-                    """.formatted(uiElement.name(), uiElement.description(), uiElement.locationDetails(),
-                    elementTestData);
+    private String getElementInfo(UiElement uiElement, String elementTestData) {
+        return elementInfo(uiElement.name(), uiElement.description(), uiElement.locationDetails(),
+                uiElement.isDataDependent() ? elementTestData : null);
+    }
+
+    static String elementInfo(String name, String description, String locationDetails, @Nullable String elementTestData) {
+        if (isNotBlank(elementTestData)) {
+            return "%s. %s. %s. This element is data-dependent, available specific data for this element: %s"
+                    .formatted(name, description, locationDetails, elementTestData);
         } else {
-            return """
-                    The target element:
-                    "%s. %s %s"
-                    """.formatted(uiElement.name(), uiElement.description(), uiElement.locationDetails());
+            return "%s. %s. %s".formatted(name, description, locationDetails);
         }
     }
 
-    private String getBestElementVisualMatchUserMessage(UiElement uiElement, String elementTestData, List<String> boundingBoxIds) {
-        String boundingBoxIdsString = "Bounding box IDs: %s.".formatted(String.join(", ", boundingBoxIds));
-        if (isNotBlank(elementTestData) && uiElement.isDataDependent()) {
-            return """
-                    The target element:
-                    "%s. %s %s"
-                    
-                    This element is data-dependent.
-                    Available specific data for this element: "%s"
-                    
-                    %s
-                    """.formatted(uiElement.name(), uiElement.description(), uiElement.locationDetails(),
-                    elementTestData, boundingBoxIdsString);
-        } else {
-            return """
-                    The target element: "%s. %s %s"
-                    
-                    %s
-                    """.formatted(uiElement.name(), uiElement.description(), uiElement.locationDetails(),
-                    boundingBoxIdsString);
-        }
+    static String getBestElementVisualMatchUserMessage(UiElement uiElement, String elementTestData, List<String> boundingBoxIds) {
+        var elementSpecificData = uiElement.isDataDependent() ? elementTestData : null;
+        return joinSections(
+                section(SECTION_LEVEL, "Target element",
+                        "%s. %s %s".formatted(uiElement.name(), uiElement.description(), uiElement.locationDetails())),
+                section(SECTION_LEVEL, "Specific data of this data-dependent element", elementSpecificData),
+                section(SECTION_LEVEL, "Bounding box IDs", bulletList(boundingBoxIds)),
+                heading(SECTION_LEVEL, SCREENSHOT_LABEL));
     }
 
     private LocatedElementInfo findElementAndProcessLocationResult(Supplier<UiElementLocationInternalResult> resultSupplier,
@@ -203,9 +201,12 @@ public class ElementLocatorTools extends UiAbstractTools {
     private LocatedElementInfo processSuccessfulMatchCase(UiElementLocationInternalResult locationResult, String elementDescription) {
         var boundingBox = locationResult.boundingBox();
         LOG.info("The best visual match for the description '{}' has been located at: {}", elementDescription, boundingBox);
-        var screenRegion = new ScreenRegion(boundingBox.x, boundingBox.y, boundingBox.width, boundingBox.height);
-        return new LocatedElementInfo(locationResult.elementUsedForLocation().name(), locationResult.elementUsedForLocation().id(),
-                (int) boundingBox.getCenterX(), (int) boundingBox.getCenterY(), screenRegion);
+        int screenshotWidth = locationResult.screenshot().getWidth();
+        int screenshotHeight = locationResult.screenshot().getHeight();
+        return new LocatedElementInfo(locationResult.elementUsedForLocation().name(),
+                uiElementAliasRegistry.aliasFor(locationResult.elementUsedForLocation().id()),
+                normalize((int) boundingBox.getCenterX(), screenshotWidth), normalize((int) boundingBox.getCenterY(), screenshotHeight),
+                toNormalizedRegion(boundingBox, screenshotWidth, screenshotHeight));
     }
 
     private ElementLocationException processNoVisualMatchCase(UiElementLocationInternalResult locationResult, String elementDescription) {
@@ -235,27 +236,44 @@ public class ElementLocatorTools extends UiAbstractTools {
                                                                     String elementTestData) {
         var elementScreenshot =
                 elementRetrievedFromMemory.screenshot() != null ? elementRetrievedFromMemory.screenshot().toBufferedImage() : null;
-        var previousState = SpinnerManager.hideIfVisible();
-        BufferedImage wholeScreenshot;
-        try {
-            wholeScreenshot = captureScreen();
-        } finally {
-            previousState.restoreIfWasVisible();
+        BufferedImage wholeScreenshot = captureScreen();
+        boolean isAlgorithmicSearchAllowed = uiTestAgentConfig.isAlgorithmicSearchEnabled()
+                && !elementRetrievedFromMemory.isDataDependent();
+        var result = getUiElementLocationResult(elementRetrievedFromMemory, elementTestData, wholeScreenshot,
+                elementScreenshot, isAlgorithmicSearchAllowed && elementScreenshot != null);
+        if (isAlgorithmicSearchAllowed && !result.algorithmicMatchFound() && !result.visualGroundingMatchFound()) {
+            return locateByExpiredAppearances(elementRetrievedFromMemory, elementTestData, wholeScreenshot).orElse(result);
         }
-        boolean useAlgorithmicSearch = uiTestAgentConfig.isAlgorithmicSearchEnabled()
-                && !(elementRetrievedFromMemory.isDataDependent()) && elementScreenshot != null;
-        return getUiElementLocationResult(elementRetrievedFromMemory, elementTestData, wholeScreenshot,
-                elementScreenshot, useAlgorithmicSearch);
+        return result;
     }
 
-
-    @NotNull
-    private Rectangle getRescaledBox(Rectangle scaledBox, double scaleFactor) {
-        int rescaledX = (int) (scaledBox.x / scaleFactor);
-        int rescaledY = (int) (scaledBox.y / scaleFactor);
-        int rescaledWidth = (int) (scaledBox.width / scaleFactor);
-        int rescaledHeight = (int) (scaledBox.height / scaleFactor);
-        return new Rectangle(rescaledX, rescaledY, rescaledWidth, rescaledHeight);
+    /**
+     * Matches the screenshots of the element's expired appearances algorithmically, since the UI may have returned to an earlier
+     * look, and lets the model validate the merged candidates.
+     */
+    private Optional<UiElementLocationInternalResult> locateByExpiredAppearances(UiElement element, String elementTestData,
+                                                                                 BufferedImage wholeScreenshot) {
+        List<Rectangle> featureMatchedBoundingBoxes = new ArrayList<>();
+        List<Rectangle> templateMatchedBoundingBoxes = new ArrayList<>();
+        for (var appearance : elementRepository.findExpiredAppearances(element.id())) {
+            if (appearance.screenshot() == null) {
+                continue;
+            }
+            var expiredScreenshot = appearance.screenshot().toBufferedImage();
+            var featureMatches = findMatchingRegionsWithORB(wholeScreenshot, expiredScreenshot, uiTestAgentConfig);
+            var templateMatches = mergeOverlappingRectangles(
+                    findMatchingRegionsWithTemplateMatching(wholeScreenshot, expiredScreenshot, uiTestAgentConfig));
+            if (!featureMatches.isEmpty() || !templateMatches.isEmpty()) {
+                LOG.info("UiElement '{}' matched its appearance that expired at {}", element.name(), appearance.validTo());
+            }
+            featureMatchedBoundingBoxes.addAll(featureMatches);
+            templateMatchedBoundingBoxes.addAll(templateMatches);
+        }
+        if (featureMatchedBoundingBoxes.isEmpty() && templateMatchedBoundingBoxes.isEmpty()) {
+            return empty();
+        }
+        return of(chooseBestAlgorithmicMatch(element, elementTestData, wholeScreenshot, featureMatchedBoundingBoxes,
+                templateMatchedBoundingBoxes));
     }
 
 
@@ -405,33 +423,24 @@ public class ElementLocatorTools extends UiAbstractTools {
         var startTime = Instant.now();
         LOG.info("Asking sub-agent to identify bounding boxes for element '{}'.", element.name());
         try {
-            var scalingRatio = getScalingRatio(wholeScreenshot);
+            var scalingRatio = getScalingRatio(wholeScreenshot, uiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels(),
+                    uiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels());
             var imageToSend = scalingRatio < 1.0 ? scaleImage(wholeScreenshot, scalingRatio) : wholeScreenshot;
-            var prompt = getElementBoundingBoxUserMessage(element, elementTestData);
+            var elementInfo = getElementInfo(element, elementTestData);
             int voteCount = uiTestAgentConfig.getElementLocatorVisualGroundingVoteCount();
+            var screenshotBounds = new Rectangle(wholeScreenshot.getWidth(), wholeScreenshot.getHeight());
             try (var executor = newVirtualThreadPerTaskExecutor()) {
-                List<Callable<List<BoundingBox>>> tasks = range(0, voteCount)
-                        .mapToObj(_ -> (Callable<List<BoundingBox>>) () -> {
-                            var executionResult = uiElementBoundingBoxAgent.executeAndGetResult(
-                                    () -> uiElementBoundingBoxAgent.identifyBoundingBoxes(prompt,
-                                            singleImageContent(imageToSend, uiTestAgentConfig.getElementBoundingBoxAgentImageDetailLevel())));
-                            var payload = executionResult.getResultPayload();
-                            if (!executionResult.isSuccess() || payload == null) {
-                                throw new IllegalStateException(
-                                        "Vision model failed to identify bounding boxes: %s".formatted(executionResult.getMessage()));
-                            }
-                            return payload.boundingBoxes();
-                        })
+                List<Callable<List<Rectangle>>> tasks = range(0, voteCount)
+                        .mapToObj(_ -> (Callable<List<Rectangle>>) () -> uiElementGrounder.locate(elementInfo, imageToSend))
                         .toList();
                 List<Rectangle> allBoundingBoxes = executor.invokeAll(tasks).stream()
                         .map(future -> getFutureResult(future, "getting bounding boxes from vision model"))
                         .flatMap(Optional::stream)
                         .flatMap(Collection::stream)
-                        .map(bb -> {
-                            Rectangle rectOnScaledImage = bb.getActualBoundingBox(imageToSend.getWidth(), imageToSend.getHeight(),
-                                    uiTestAgentConfig.isBoundingBoxAlreadyNormalized());
-                            return scalingRatio < 1.0 ? getRescaledBox(rectOnScaledImage, scalingRatio) : rectOnScaledImage;
-                        })
+                        .map(bb -> scalingRatio < 1.0 ? getRescaledBox(bb, scalingRatio) : bb)
+                        // A model answering in another coordinate space than configured yields boxes off the screen
+                        .filter(bb -> screenshotBounds.contains(bb.getCenterX(), bb.getCenterY()))
+                        .map(screenshotBounds::intersection)
                         .filter(bb -> bb.width > 0 && bb.height > 0)
                         .toList();
 
@@ -561,8 +570,10 @@ public class ElementLocatorTools extends UiAbstractTools {
 
             List<Callable<BestUiElementVisualMatchResult>> tasks = range(0, uiTestAgentConfig.getElementLocatorValidationVoteCount())
                     .mapToObj(_ -> (Callable<BestUiElementVisualMatchResult>) () -> bestUiElementMatchSelectionAgent.executeAndGetResult(
-                            () -> bestUiElementMatchSelectionAgent.selectBestElement(prompt,
-                                    singleImageContent(resultingScreenshot, uiTestAgentConfig.getUiElementVisualMatchAgentImageDetailLevel()), boundingBoxColorName)
+                            () -> bestUiElementMatchSelectionAgent.selectBestElement(userMessageContents(prompt),
+                                    bestUiElementMatchSelectionAgent.getImageContentCreator(uiTestAgentConfig)
+                                            .createImageContent(resultingScreenshot),
+                                    boundingBoxColorName)
                     ).getResultPayload())
                     .toList();
             return executor.invokeAll(tasks).stream()
@@ -637,24 +648,6 @@ public class ElementLocatorTools extends UiAbstractTools {
             Rectangle r2 = new Rectangle((int) b[0], (int) b[1], (int) b[2], (int) b[3]);
             return 1 - calculateIoU(r1, r2);
         }
-    }
-
-    private double getScalingRatio(BufferedImage image) {
-        int originalWidth = image.getWidth();
-        int originalHeight = image.getHeight();
-        int longestSide = Math.max(originalWidth, originalHeight);
-        int longestAllowed = uiTestAgentConfig.getBboxScreenshotLongestAllowedDimensionPixels();
-        double maxMegapixels = uiTestAgentConfig.getBboxScreenshotMaxSizeMegapixels();
-        double downscaleRatio = 1.0;
-        if (longestSide > longestAllowed) {
-            downscaleRatio = ((double) longestAllowed) / longestSide;
-        }
-
-        double originalSizeMegapixels = originalWidth * originalHeight / 1_000_000d;
-        if (originalSizeMegapixels > maxMegapixels) {
-            downscaleRatio = min(downscaleRatio, Math.sqrt(maxMegapixels / originalSizeMegapixels));
-        }
-        return downscaleRatio;
     }
 
     private boolean saveImage(BufferedImage resultingScreenshot, String postfix) {

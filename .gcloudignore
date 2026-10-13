@@ -39,3 +39,7 @@ Dockerfile_local
 CONTRIBUTING.md
 README.md
 flow_diagram.puml
+
+# Frontend toolchain, installed by the Maven build
+node_modules/
+/ui_test_execution_agent/src/main/frontend/node/

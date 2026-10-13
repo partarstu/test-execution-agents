@@ -35,6 +35,8 @@ import org.tarik.ta.agents.ApiPreconditionActionAgent;
 import org.tarik.ta.agents.ApiTestStepActionAgent;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.a2a.StreamingEventEmitter;
+import org.tarik.ta.core.dto.DataEntry;
+import org.tarik.ta.core.dto.Precondition;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
@@ -42,7 +44,9 @@ import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.manager.BudgetManager;
+import io.opentelemetry.api.OpenTelemetry;
 import org.tarik.ta.core.model.ChatModelEventListener;
+import org.tarik.ta.core.telemetry.GenAiMetrics;
 import org.tarik.ta.core.model.DefaultToolErrorHandler;
 import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
@@ -62,6 +66,8 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -76,6 +82,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -189,6 +196,29 @@ class ApiAgentSmokeTest {
     }
 
     @Test
+    @DisplayName("A request batched with the final result in one response ends the step without another model turn")
+    void requestBatchedWithFinalResultEndsStepInOneModelCall() {
+        wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(aResponse().withStatus(200).withBody("pong")));
+
+        var testCase = singleStepTestCase("Batched result", "Send a GET request to /ping", "Status is 200");
+        var modelCalls = new AtomicInteger();
+        Script script = (userText, round, priorResults) -> {
+            modelCalls.incrementAndGet();
+            return round == 0
+                    ? sendGet(wireMock.baseUrl() + "/ping").batchedWith(result(true, "Status was 200"))
+                    : ScriptedToolCall.plainText("A wrap-up turn which must not be requested");
+        };
+
+        TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        assertThat(result.getStepResults()).singleElement()
+                .satisfies(stepResult -> assertThat(stepResult.getActualResult()).isEqualTo("Status was 200"));
+        assertThat(modelCalls).hasValue(1);
+        wireMock.verify(1, getRequestedFor(urlEqualTo("/ping")));
+    }
+
+    @Test
     @DisplayName("Precondition + step happy path passes and carries the full result contract")
     void preconditionAndStepHappyPathFillsContract() {
         wireMock.stubFor(get(urlEqualTo("/setup")).willReturn(aResponse().withStatus(200).withBody("ready")));
@@ -197,15 +227,31 @@ class ApiAgentSmokeTest {
 
         var precondition = "The resource endpoint is reachable";
         var step = new TestStep("Send a GET request to /resource", List.of(), "Status is 200");
-        var testCase = new TestCase("Full contract", List.of(precondition), List.of(step));
+        var testCase = new TestCase("Full contract", List.of(new Precondition(precondition, List.of())), List.of(), List.of(step));
 
-        Function<String, List<ScriptedToolCall>> script = userText -> userText.contains("Precondition:")
-                ? List.of(sendGet(wireMock.baseUrl() + "/setup"), result(true, "setup complete"))
-                : List.of(sendGet(wireMock.baseUrl() + "/resource"), result(true, "Status was 200"));
+        var userTexts = new CopyOnWriteArrayList<String>();
+        Function<String, List<ScriptedToolCall>> script = userText -> {
+            userTexts.addIfAbsent(userText);
+            return userText.startsWith("## Precondition\n")
+                    ? List.of(sendGet(wireMock.baseUrl() + "/setup"), result(true, "setup complete"))
+                    : List.of(sendGet(wireMock.baseUrl() + "/resource"), result(true, "Status was 200"));
+        };
 
         TestExecutionResult result = execute(testCase, model(script));
 
         assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        assertThat(userTexts).containsExactly("## Precondition\nThe resource endpoint is reachable", """
+                ## Test step action
+                Send a GET request to /resource
+
+                ## Expected results to verify
+                Status is 200
+
+                ## Test execution context data
+                [{"step":{"number":1,"type":"precondition","description":"The resource endpoint is reachable"},\
+                "belongsToCurrentStep":false,"entries":[\
+                {"name":"_last_request_method","value":"GET","source":"stored during execution"},\
+                {"name":"_last_request_path","value":"%s/setup","source":"stored during execution"}]}]""".formatted(wireMock.baseUrl()));
         assertThat(result.getTestCaseName()).isEqualTo("Full contract");
         assertThat(result.getGeneralErrorMessage()).isNull();
         // The API agent never populates SystemInfo (that is the UI agent's responsibility).
@@ -338,6 +384,31 @@ class ApiAgentSmokeTest {
     }
 
     @Test
+    @DisplayName("Malformed final-result arguments are handed back to the model, which corrects them and the step passes")
+    void malformedResultArgumentsAreFedBackAndCorrected() {
+        wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(aResponse().withStatus(200).withBody("pong")));
+
+        var testCase = singleStepTestCase("Malformed arguments", "Send a GET request to /ping", "Status is 200");
+        // Round 1 passes the result object as an unbalanced JSON string, the way a self-hosted model did through a vLLM tool parser.
+        var parseErrorFedBackToModel = new AtomicReference<String>();
+        Script script = (userText, round, priorResults) -> switch (round) {
+            case 0 -> sendGet(wireMock.baseUrl() + "/ping");
+            case 1 -> new ScriptedToolCall(RESULT_TOOL, """
+                    {"%s":"{\\"success\\":true,\\"message\\":\\"Status was 200\\""}""".formatted(RESULT_PARAM));
+            default -> {
+                parseErrorFedBackToModel.set(priorResults.getLast().text());
+                yield result(true, "Status was 200");
+            }
+        };
+
+        TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        assertThat(parseErrorFedBackToModel.get()).startsWith("The arguments of this tool call could not be parsed:");
+        wireMock.verify(1, getRequestedFor(urlEqualTo("/ping")));
+    }
+
+    @Test
     @DisplayName("BASIC auth attaches the credentials to the outgoing request")
     void basicAuthReachesStub() {
         System.setProperty(BASIC_USERNAME_ENV, "alice");
@@ -406,6 +477,88 @@ class ApiAgentSmokeTest {
     }
 
     @Test
+    @DisplayName("Step data holding a {{…}} placeholder reaches the model verbatim in its own section instead of failing the step")
+    void templatePlaceholderInStepDataReachesTheModelVerbatim() {
+        wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(aResponse().withStatus(200).withBody("pong")));
+        var step = new TestStep("Send a GET request to /ping", List.of("comment=use {{orderId}} of the previous step"), "Status is 200");
+        var testCase = new TestCase("Placeholder in data", List.of(), List.of(), List.of(step));
+        var userTexts = new CopyOnWriteArrayList<String>();
+        Function<String, List<ScriptedToolCall>> script = userText -> {
+            userTexts.addIfAbsent(userText);
+            return List.of(sendGet(wireMock.baseUrl() + "/ping"), result(true, "Received status 200"));
+        };
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        assertThat(userTexts).singleElement().isEqualTo("""
+                ## Test step action
+                Send a GET request to /ping
+
+                ## Expected results to verify
+                Status is 200
+
+                ## Data related to the test step
+                - comment=use {{orderId}} of the previous step
+
+                ## Test execution context data
+                [{"step":{"number":1,"type":"test step","description":"Send a GET request to /ping"},"belongsToCurrentStep":true,\
+                "entries":[{"name":"comment","value":"use {{orderId}} of the previous step","source":"test step data"}]}]""");
+    }
+
+    @Test
+    @DisplayName("A data-table secret reaches the target through the URL and a header, while the model and the logs see only its placeholder")
+    void secretInUrlAndHeaderReachesTheTargetButOnlyItsPlaceholderReachesTheModel() {
+        wireMock.stubFor(get(urlPathEqualTo("/orders")).willReturn(aResponse().withStatus(200).withBody("ok")));
+        var testCase = new TestCase("Secret in URL and header", List.of(), List.of(new DataEntry("apiToken", "s3cr3t-4711")),
+                List.of(new TestStep("Fetch the orders with the API token", List.of(), "Status is 200")));
+        var userTexts = new CopyOnWriteArrayList<String>();
+        Function<String, List<ScriptedToolCall>> script = userText -> {
+            userTexts.addIfAbsent(userText);
+            return List.of(new ScriptedToolCall(SEND_REQUEST_TOOL, """
+                            {"method":"GET","url":"%s","headers":[{"name":"Authorization","value":"Bearer {{secret:apiToken}}"}]}"""
+                            .formatted(wireMock.baseUrl() + "/orders?token={{secret:apiToken}}")),
+                    result(true, "Received status 200"));
+        };
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        wireMock.verify(getRequestedFor(urlPathEqualTo("/orders"))
+                .withQueryParam("token", equalTo("s3cr3t-4711"))
+                .withHeader("Authorization", equalTo("Bearer s3cr3t-4711")));
+        assertThat(userTexts).noneMatch(text -> text.contains("s3cr3t-4711")).anyMatch(text -> text.contains("{{secret:apiToken}}"));
+        assertThat(result.getLogs()).noneMatch(line -> line.contains("s3cr3t-4711"));
+    }
+
+    @Test
+    @DisplayName("The data of an earlier step reaches a later step attributed to the earlier step and marked as not belonging to the current one")
+    void earlierStepDataReachesALaterStepAttributedToTheEarlierStep() {
+        wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(aResponse().withStatus(200).withBody("pong")));
+        var firstStep = new TestStep("Open the panel", List.of("Panel = 'Bar gauge'"), null);
+        var secondStep = new TestStep("Send a GET request to /ping", List.of("Dashboard name is 'State timeline'"), "Status is 200");
+        var testCase = new TestCase("Step attribution", List.of(), List.of(), List.of(firstStep, secondStep));
+        var userTexts = new CopyOnWriteArrayList<String>();
+        Function<String, List<ScriptedToolCall>> script = userText -> {
+            userTexts.addIfAbsent(userText);
+            return userText.startsWith("## Test step action\nOpen the panel")
+                    ? List.of(result(true, "Panel opened"))
+                    : List.of(sendGet(wireMock.baseUrl() + "/ping"), result(true, "Received status 200"));
+        };
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        assertThat(userTexts).hasSize(2);
+        assertThat(userTexts.getLast()).endsWith("""
+                ## Test execution context data
+                [{"step":{"number":1,"type":"test step","description":"Open the panel"},"belongsToCurrentStep":false,\
+                "entries":[{"name":"Panel","value":"'Bar gauge'","source":"test step data"}]},\
+                {"step":{"number":2,"type":"test step","description":"Send a GET request to /ping"},"belongsToCurrentStep":true,\
+                "entries":[{"value":"Dashboard name is 'State timeline'","source":"test step data"}]}]""");
+    }
+
+    @Test
     @DisplayName("POST with a JSON body resolves body variables, merges headers and injects the default Content-Type")
     void postWithBodyAndCustomHeaderReachesStub() {
         wireMock.stubFor(post(urlEqualTo("/orders")).willReturn(aResponse().withStatus(201).withBody("created")));
@@ -414,7 +567,7 @@ class ApiAgentSmokeTest {
         var testCase = singleStepTestCase("Post order", "Create an order for the stored item", "Status is 201");
         Function<String, List<ScriptedToolCall>> script = userText -> List.of(
                 new ScriptedToolCall(SEND_REQUEST_TOOL, """
-                        {"method":"POST","url":"%s","headers":{"X-Request-Source":"smoke"},\
+                        {"method":"POST","url":"%s","headers":[{"name":"X-Request-Source","value":"smoke"}],\
                         "body":"{\\"itemId\\":\\"${itemId}\\",\\"quantity\\":2}"}"""
                         .formatted(wireMock.baseUrl() + "/orders")),
                 result(true, "Order created"));
@@ -436,11 +589,12 @@ class ApiAgentSmokeTest {
 
         var storeStep = new TestStep("Store the resource id", List.of(), "The id is stored");
         var fetchStep = new TestStep("Fetch the stored item", List.of(), "Status is 200");
-        var testCase = new TestCase("Cross-step data flow", List.of(), List.of(storeStep, fetchStep));
+        var testCase = new TestCase("Cross-step data flow", List.of(), List.of(), List.of(storeStep, fetchStep));
 
         var storeToolResponse = new AtomicReference<String>();
         Script script = (userText, round, priorResults) -> {
-            if (userText.contains(storeStep.stepDescription())) {
+            // The later step's message names this step too, as the step its stored value belongs to.
+            if (userText.startsWith("## Test step action\n" + storeStep.stepDescription())) {
                 if (round == 0) {
                     return storeVariable("resourceId", "42");
                 }
@@ -567,6 +721,24 @@ class ApiAgentSmokeTest {
     }
 
     @Test
+    @DisplayName("SSRF guard refuses to follow a redirect from an allowed host to a host outside the allow-list")
+    void ssrfGuardBlocksARedirectToAHostOutsideTheAllowList() {
+        wireMock.stubFor(get(urlEqualTo("/redirect"))
+                .willReturn(aResponse().withStatus(302).withHeader("Location", "http://169.254.169.254/latest/meta-data/")));
+        var testCase = singleStepTestCase("SSRF redirect", "Send a GET request to /redirect", "Metadata is returned");
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(sendGet(wireMock.baseUrl() + "/redirect"));
+
+        TestExecutionResult result = execute(testCase, model(script));
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(ERROR);
+        assertThat(result.getStepResults()).singleElement().satisfies(stepResult -> {
+            assertThat(stepResult.getExecutionStatus()).isEqualTo(TestStepResultStatus.ERROR);
+            assertThat(stepResult.getErrorMessage()).contains("Host '169.254.169.254' is not in the configured outbound allow-list");
+        });
+        wireMock.verify(1, getRequestedFor(urlEqualTo("/redirect")));
+    }
+
+    @Test
     @DisplayName("uploadFile is refused when no upload base directory is configured")
     void uploadFileRefusedWhenBaseDirUnset() throws Exception {
         Path file = Files.writeString(tempDir.resolve("payload.txt"), "data");
@@ -659,7 +831,8 @@ class ApiAgentSmokeTest {
         Function<String, List<ScriptedToolCall>> script = userText -> List.of(
                 sendGet(wireMock.baseUrl() + "/tokens"), result(false, "Status was not 201 yet"));
         var model = new ScriptedChatModel(ScriptedChatModel.ofSequence(script),
-                List.of(new ChatModelEventListener(BudgetManager.getInstance())));
+                List.of(new ChatModelEventListener(BudgetManager.getInstance(), new GenAiMetrics(OpenTelemetry.noop()),
+                        "test_step_action", "openai", "scripted-model", null)));
 
         TestExecutionResult result = execute(testCase, model);
 
@@ -832,7 +1005,8 @@ class ApiAgentSmokeTest {
 
         var precondition = "The metadata endpoint is reachable";
         var step = new TestStep("Send a GET request to /resource", List.of(), "Status is 200");
-        var testCase = new TestCase("Precondition action error", List.of(precondition), List.of(step));
+        var testCase = new TestCase("Precondition action error", List.of(new Precondition(precondition, List.of())), List.of(),
+                List.of(step));
         Function<String, List<ScriptedToolCall>> script = userText -> List.of(
                 sendGet("http://169.254.169.254/latest/meta-data/"));
 
@@ -852,7 +1026,8 @@ class ApiAgentSmokeTest {
     void preconditionNoModelResultYieldsError() {
         var precondition = "The resource endpoint is reachable";
         var step = new TestStep("Send a GET request to /resource", List.of(), "Status is 200");
-        var testCase = new TestCase("Precondition without tool call", List.of(precondition), List.of(step));
+        var testCase = new TestCase("Precondition without tool call", List.of(new Precondition(precondition, List.of())), List.of(),
+                List.of(step));
         Function<String, List<ScriptedToolCall>> script = userText -> List.of(
                 ScriptedToolCall.plainText("The precondition is met."));
 
@@ -874,7 +1049,8 @@ class ApiAgentSmokeTest {
 
         var precondition = "The resource endpoint is reachable";
         var step = new TestStep("Send a GET request to /resource", List.of(), "Status is 200");
-        var testCase = new TestCase("Precondition verification failure", List.of(precondition), List.of(step));
+        var testCase = new TestCase("Precondition verification failure", List.of(new Precondition(precondition, List.of())), List.of(),
+                List.of(step));
         Function<String, List<ScriptedToolCall>> script = userText -> List.of(
                 sendGet(wireMock.baseUrl() + "/setup"), result(false, "Setup endpoint returned 500"));
 
@@ -913,15 +1089,15 @@ class ApiAgentSmokeTest {
         wireMockHttps.stubFor(get(urlEqualTo("/secure-ping")).willReturn(aResponse().withStatus(200).withBody("pong")));
 
         var testCase = singleStepTestCase("Strict HTTPS", "Send a GET request to the HTTPS endpoint", "Status is 200");
-        // The certificate rejection surfaces as a tool error fed back to the model; the repeating error then exhausts
-        // the retry policy, so the step ends as an action error rather than a failed verification.
+        // The certificate rejection surfaces as a tool error fed back to the model, which keeps re-sending the request
+        // until the repeating error exhausts the retry policy of this invocation, so the step ends as an action error
+        // rather than a failed verification.
         var toolErrorFedBackToModel = new AtomicReference<String>();
         Script script = (userText, round, priorResults) -> {
-            if (round == 0) {
-                return sendGet(wireMockHttps.baseUrl() + "/secure-ping");
+            if (round > 0) {
+                toolErrorFedBackToModel.set(priorResults.getLast().text());
             }
-            toolErrorFedBackToModel.set(priorResults.getLast().text());
-            return result(false, "The HTTPS request could not be sent");
+            return sendGet(wireMockHttps.baseUrl() + "/secure-ping");
         };
 
         TestExecutionResult result = execute(testCase, new ScriptedChatModel(script));
@@ -959,7 +1135,7 @@ class ApiAgentSmokeTest {
     }
 
     private static TestCase singleStepTestCase(@NotNull String name, @NotNull String stepDescription, @NotNull String expectedResults) {
-        return new TestCase(name, List.of(), List.of(new TestStep(stepDescription, List.of(), expectedResults)));
+        return new TestCase(name, List.of(), List.of(), List.of(new TestStep(stepDescription, List.of(), expectedResults)));
     }
 
     private static ScriptedChatModel model(@NotNull Function<String, List<ScriptedToolCall>> sequenceByUserMessage) {
@@ -1064,6 +1240,12 @@ class ApiAgentSmokeTest {
         lenient().when(config.getBearerTokenEnv()).thenReturn(BEARER_TOKEN_ENV);
         lenient().when(config.getApiKeyNameEnv()).thenReturn(API_KEY_NAME_ENV);
         lenient().when(config.getApiKeyValueEnv()).thenReturn(API_KEY_VALUE_ENV);
+        // The context data tools confine every file they load to this folder, so it must be a real path.
+        lenient().when(config.getTestDataFolder()).thenReturn(System.getProperty("java.io.tmpdir"));
+        lenient().when(config.getApiSchemaFolder()).thenReturn(System.getProperty("java.io.tmpdir"));
+        // The production key convention, which the agent applies to the secret registry at the start of every run.
+        lenient().when(config.getSensitiveDataKeyPattern())
+                .thenReturn(Pattern.compile("(?i).*(password|passwd|pwd|pin|token|secret|api[_-]?key|credential).*"));
         return config;
     }
 
@@ -1075,8 +1257,8 @@ class ApiAgentSmokeTest {
     static ApiTestAgent buildAgent(ScriptedChatModel model, ApiTestAgentConfig config, ApiContext apiContext,
                                    TestExecutionContext executionContext, TestCaseExtractor testCaseExtractor, LogCapture logCapture) {
         var requestTools = new ApiRequestTools(apiContext, executionContext, config);
-        var assertionTools = new ApiAssertionTools(apiContext, executionContext);
-        var dataTools = new TestContextDataTools(executionContext);
+        var assertionTools = new ApiAssertionTools(apiContext, executionContext, config);
+        var dataTools = new TestContextDataTools(executionContext, config);
         var toolProvider = new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools),
                 VerificationExecutionResult.class);
 
@@ -1085,6 +1267,7 @@ class ApiAgentSmokeTest {
                 .systemMessageProvider(request -> "You are an API test execution agent.")
                 .toolProvider(toolProvider)
                 .toolExecutionErrorHandler(new DefaultToolErrorHandler(config.getActionRetryPolicy()))
+                .toolArgumentsErrorHandler(DefaultToolErrorHandler.forToolArguments(config.getActionRetryPolicy()))
                 .maxToolCallingRoundTrips(10)
                 .build();
         ApiPreconditionActionAgent preconditionAgent = AiServices.builder(ApiPreconditionActionAgent.class)
@@ -1092,6 +1275,7 @@ class ApiAgentSmokeTest {
                 .systemMessageProvider(request -> "You are an API test execution agent.")
                 .toolProvider(toolProvider)
                 .toolExecutionErrorHandler(new DefaultToolErrorHandler(config.getActionRetryPolicy()))
+                .toolArgumentsErrorHandler(DefaultToolErrorHandler.forToolArguments(config.getActionRetryPolicy()))
                 .maxToolCallingRoundTrips(10)
                 .build();
 

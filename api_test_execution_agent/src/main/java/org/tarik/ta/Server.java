@@ -23,8 +23,9 @@ import org.tarik.ta.core.AbstractServer;
 public class Server {
 
     public static void main() {
-        try (BeanScope scope = BeanScope.builder().shutdownHook(true).build()) {
-            scope.get(AbstractServer.class).start();
-        }
+        // Not closed here: the server keeps serving after start() returns, and closing the scope would shut down the beans it
+        // owns, such as the OpenTelemetry SDK. The shutdown hook closes it when the JVM exits.
+        BeanScope scope = BeanScope.builder().shutdownHook(true).build();
+        scope.get(AbstractServer.class).start();
     }
 }

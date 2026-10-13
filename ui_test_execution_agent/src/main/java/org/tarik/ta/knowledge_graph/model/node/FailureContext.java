@@ -1,5 +1,5 @@
 /*
- * ui-test-execution-agent - ${project.description}
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
  * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -41,6 +41,7 @@ public record FailureContext(
     public static final String PROP_OCCURRENCES = "occurrences";
     public static final String PROP_LAST_OCCURRED = "lastOccurred";
     public static final String PROP_MODE = "mode";
+    public static final String PROP_EXPIRED_AT = "expiredAt";
 
     public enum Mode {
         SUPERVISED,

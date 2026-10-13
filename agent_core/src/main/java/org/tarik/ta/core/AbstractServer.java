@@ -17,11 +17,9 @@
  */
 package org.tarik.ta.core;
 
-import org.a2aproject.sdk.spec.AgentCard;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.UnauthorizedResponse;
-import io.javalin.json.JavalinJackson;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.jetbrains.annotations.NotNull;
@@ -32,7 +30,6 @@ import org.tarik.ta.core.a2a.AgentExecutionResource;
 import java.security.MessageDigest;
 import java.util.Optional;
 
-import static io.javalin.Javalin.create;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
@@ -65,20 +62,12 @@ public class AbstractServer {
                     + "unauthenticated requests. Configure a token for any non-local deployment.");
         }
 
-        Javalin app = create(config -> {
+        Javalin app = JavalinAppFactory.create(config -> {
             config.http.maxRequestSize = MAX_REQUEST_SIZE;
-            config.jsonMapper(new JavalinJackson());
             // The agent-card discovery endpoint stays public; only the high-privilege main endpoint is guarded.
             authToken.ifPresent(token -> config.routes.before(MAIN_PATH, context -> requireValidToken(context, token)));
             config.routes.post(MAIN_PATH, agentExecutionResource::handle);
             config.routes.get(AGENT_CARD_PATH, agentExecutionResource::getAgentCard);
-            // Guard against the recycled-response failure mode: once a response is recycled, Javalin's default
-            // error handling reads from the (also recycled) request and throws again, which it then re-handles
-            // recursively in an unbounded loop that floods the log. Handling the IllegalStateException here
-            // without touching the recycled context breaks that recursion.
-            config.routes.exception(IllegalStateException.class, (exception, context) ->
-                    LOG.warn("Suppressing an IllegalStateException from a recycled/committed response to "
-                            + "prevent a cascading exception-handler loop.", exception));
         }).start(host, port);
 
         LOG.info("Agent server started on {}:{}", host, port);

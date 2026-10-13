@@ -17,27 +17,28 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.dto.UiElementIdentificationResult;
+import org.tarik.ta.model.ImageContentCreator;
 
-public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElementIdentificationResult> {
-    @UserMessage("""
-            Target Element Description: {{target_element_description}}
-            
-            Relevant Data Context: {{relevant_data}}
-            
-            The screenshot is attached.
-            """)
-    Result<String> describeUiElement(
-            @V("target_element_description") String targetElementDescription,
-            @V("relevant_data") String relevantData,
-            @UserMessage ImageContent screenshot);
+import java.util.List;
+
+public interface UiElementExtendedDescriptionAgent extends BaseUiAgent<UiElementIdentificationResult>, VisionBasedAgent {
+    Result<String> describeUiElement(@UserMessage List<Content> userMessage, @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {
         return "Describing the UI element based on description";
+    }
+
+    @Override
+    default @NotNull ImageContentCreator getImageContentCreator(@NotNull UiTestAgentConfig config) {
+        return new ImageContentCreator(config.getUiElementDescriptionMatcherAgentImageDetailLevel(),
+                config.getUiElementDescriptionMatcherAgentModelProvider(), config.getMaxModelImagePixels());
     }
 }

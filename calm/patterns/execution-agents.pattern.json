@@ -7,8 +7,8 @@
     "properties": {
         "nodes": {
             "type": "array",
-            "minItems": 8,
-            "maxItems": 8,
+            "minItems": 10,
+            "maxItems": 10,
             "prefixItems": [
                 {
                     "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
@@ -17,9 +17,26 @@
                         "unique-id": { "const": "ui-test-execution-agent" },
                         "node-type": { "const": "service" },
                         "name": { "type": "string" },
-                        "description": { "type": "string" }
+                        "description": { "type": "string" },
+                        "interfaces": {
+                            "type": "array",
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "prefixItems": [
+                                {
+                                    "type": "object",
+                                    "properties": { "unique-id": { "const": "ui-agent-a2a" } },
+                                    "required": ["unique-id"]
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": { "unique-id": { "const": "ui-agent-panel" } },
+                                    "required": ["unique-id"]
+                                }
+                            ]
+                        }
                     },
-                    "required": ["name", "description"]
+                    "required": ["name", "description", "interfaces"]
                 },
                 {
                     "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
@@ -28,9 +45,21 @@
                         "unique-id": { "const": "api-test-execution-agent" },
                         "node-type": { "const": "service" },
                         "name": { "type": "string" },
-                        "description": { "type": "string" }
+                        "description": { "type": "string" },
+                        "interfaces": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 1,
+                            "prefixItems": [
+                                {
+                                    "type": "object",
+                                    "properties": { "unique-id": { "const": "api-agent-a2a" } },
+                                    "required": ["unique-id"]
+                                }
+                            ]
+                        }
                     },
-                    "required": ["name", "description"]
+                    "required": ["name", "description", "interfaces"]
                 },
                 {
                     "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
@@ -97,13 +126,35 @@
                         "description": { "type": "string" }
                     },
                     "required": ["name", "description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "otel-collector" },
+                        "node-type": { "const": "system" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" }
+                    },
+                    "required": ["name", "description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/node",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "operator" },
+                        "node-type": { "const": "actor" },
+                        "name": { "type": "string" },
+                        "description": { "type": "string" }
+                    },
+                    "required": ["name", "description"]
                 }
             ]
         },
         "relationships": {
             "type": "array",
-            "minItems": 8,
-            "maxItems": 8,
+            "minItems": 11,
+            "maxItems": 11,
             "prefixItems": [
                 {
                     "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
@@ -238,6 +289,57 @@
                                 "deployed-in": {
                                     "container": "cloud-run",
                                     "nodes": ["api-test-execution-agent"]
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-ui-agent-otel" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "connects": {
+                                    "source": { "node": "ui-test-execution-agent" },
+                                    "destination": { "node": "otel-collector" }
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-api-agent-otel" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "connects": {
+                                    "source": { "node": "api-test-execution-agent" },
+                                    "destination": { "node": "otel-collector" }
+                                }
+                            }
+                        }
+                    },
+                    "required": ["description"]
+                },
+                {
+                    "$ref": "https://calm.finos.org/release/1.2/meta/core.json#/defs/relationship",
+                    "type": "object",
+                    "properties": {
+                        "unique-id": { "const": "rel-operator-panel" },
+                        "description": { "type": "string" },
+                        "relationship-type": {
+                            "const": {
+                                "interacts": {
+                                    "actor": "operator",
+                                    "nodes": ["ui-test-execution-agent"]
                                 }
                             }
                         }

@@ -46,7 +46,7 @@ public class AgentCardProducer {
         return AgentCard.builder()
                 .name(AGENT_NAME)
                 .description(buildDescription())
-                .version("1.0.0")
+                .version(config.getAgentVersion())
                 .capabilities(AgentCapabilities.builder()
                         .streaming(true)
                         .pushNotifications(false)

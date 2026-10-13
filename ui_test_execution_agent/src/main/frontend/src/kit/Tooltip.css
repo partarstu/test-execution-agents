@@ -1,0 +1,50 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* A tooltip above its trigger, below it when there is no room; ink on panel inverts the theme's text for both themes */
+@layer components {
+  .tooltip {
+    inset: auto;
+    max-inline-size: 20rem;
+    margin: 0 0 var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    color: var(--panel);
+    background: var(--ink);
+    border: 0;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-2);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.4;
+    position-area: block-start;
+    position-try-fallbacks: flip-block;
+
+    @media (forced-colors: active) {
+      border: 1px solid CanvasText;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition: opacity 120ms, display 120ms allow-discrete, overlay 120ms allow-discrete;
+
+      @starting-style {
+        &:popover-open {
+          opacity: 0;
+        }
+      }
+    }
+  }
+}

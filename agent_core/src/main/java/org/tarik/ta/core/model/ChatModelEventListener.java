@@ -23,38 +23,81 @@ import dev.langchain4j.model.chat.listener.ChatModelRequestContext;
 import dev.langchain4j.model.chat.listener.ChatModelResponseContext;
 import dev.langchain4j.model.chat.listener.ChatModelErrorContext;
 import dev.langchain4j.model.output.TokenUsage;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.ChatResponseMetadata;
-import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.manager.BudgetManager;
+import org.tarik.ta.core.security.SecretRegistry;
+import org.tarik.ta.core.telemetry.GenAiMetrics;
+import org.tarik.ta.core.telemetry.TokenUsageRecord;
+import org.tarik.ta.core.utils.TestCaseExtractor;
 
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.IntStream;
 
+import static java.lang.System.nanoTime;
 import static java.util.Optional.ofNullable;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
 
-@Singleton
+/**
+ * Logs the traffic of one sub-agent's model and accounts for what it costs. One instance is created per sub-agent
+ * model, so every token and every call duration is attributed to the operation it belongs to.
+ */
 public class ChatModelEventListener implements ChatModelListener {
     private static final Logger LOG = LoggerFactory.getLogger(ChatModelEventListener.class);
     private static final String MESSAGE_SEPARATOR = "---------------------------------------------------------------------";
+    private static final String REQUEST_START_NANOS_ATTRIBUTE = "request.start.nanos";
+    private static final String UNKNOWN_MODEL = "Unknown";
+    // The test case is extracted before its secret values are known and registered for redaction, so whatever that call
+    // sends and receives is never logged.
+    private static final Set<String> OPERATIONS_WITHOUT_CONTENT_LOGGING = Set.of(TestCaseExtractor.OPERATION_NAME);
 
     private final BudgetManager budgetManager;
+    private final GenAiMetrics metrics;
+    private final String operationName;
+    private final String providerName;
+    private final String requestModel;
+    private final String serverAddress;
+    private final boolean contentLoggingEnabled;
 
-    @Inject
-    public ChatModelEventListener(BudgetManager budgetManager) {
+    public ChatModelEventListener(@NotNull BudgetManager budgetManager, @NotNull GenAiMetrics metrics,
+                                  @NotNull String operationName, @NotNull String providerName,
+                                  @NotNull String requestModel, @Nullable String serverAddress) {
         this.budgetManager = budgetManager;
+        this.metrics = metrics;
+        this.operationName = operationName;
+        this.providerName = providerName;
+        this.requestModel = requestModel;
+        this.serverAddress = serverAddress;
+        this.contentLoggingEnabled = !OPERATIONS_WITHOUT_CONTENT_LOGGING.contains(operationName);
     }
 
     @Override
     public void onResponse(ChatModelResponseContext responseContext) {
         var chatResponse = responseContext.chatResponse();
-        var aiMessage = chatResponse.aiMessage();
+        if (contentLoggingEnabled) {
+            logResponseContent(chatResponse);
+        }
 
+        long durationMillis = elapsedMillis(responseContext.attributes()).orElse(0L);
+        ChatResponseMetadata metadata = chatResponse.metadata();
+        if (metadata == null) {
+            LOG.debug("Got a response without metadata from operation '{}', call duration = {} ms", operationName, durationMillis);
+            return;
+        }
+        recordUsage(metadata, durationMillis);
+    }
+
+    private static void logResponseContent(ChatResponse chatResponse) {
+        var aiMessage = chatResponse.aiMessage();
         if (isNotBlank(aiMessage.text())) {
             logWithSeparator("Received model text response", aiMessage.text());
         }
@@ -68,36 +111,40 @@ public class ChatModelEventListener implements ChatModelListener {
         if (isBlank(aiMessage.text()) && isBlank(aiMessage.thinking()) && aiMessage.toolExecutionRequests().isEmpty()) {
             LOG.warn("Got an empty response from the model. Original Response: {}", chatResponse);
         }
+    }
 
-        ChatResponseMetadata metadata = chatResponse.metadata();
-        if (metadata != null) {
-            var metadataInfo = "Got response from model '%s'".formatted(metadata.modelName());
-            TokenUsage tokenUsage = metadata.tokenUsage();
-            if (tokenUsage != null) {
-                int input = ofNullable(tokenUsage.inputTokenCount()).orElse(0);
-                int output = ofNullable(tokenUsage.outputTokenCount()).orElse(0);
-                int total = ofNullable(tokenUsage.totalTokenCount()).orElse(0);
-                int cached = 0;
-                String modelName = metadata.modelName() != null ? metadata.modelName() : "Unknown";
-                budgetManager.consumeTokens(modelName, input, output, cached);
-                metadataInfo = ("%s, input tokens = %d, output tokens = %d, total tokens = %d. " +
-                        "Accumulated during the test case execution: input = %d, output = %d, cached = %d, total = %d")
-                        .formatted(metadataInfo, input, output, total,
-                                budgetManager.getAccumulatedInputTokens(modelName),
-                                budgetManager.getAccumulatedOutputTokens(modelName),
-                                budgetManager.getAccumulatedCachedTokens(modelName),
-                                budgetManager.getAccumulatedTotalTokens(modelName));
-            }
-            LOG.debug(metadataInfo);
+    /**
+     * Turns the provider's token counts into the record which feeds the log line, the metrics and - once the task
+     * finishes - the usage artifact.
+     */
+    private void recordUsage(ChatResponseMetadata metadata, long durationMillis) {
+        var responseModel = metadata.modelName() != null ? metadata.modelName() : UNKNOWN_MODEL;
+        TokenUsage tokenUsage = metadata.tokenUsage();
+        if (tokenUsage == null) {
+            LOG.debug("Got a response without token usage from operation '{}' (model '{}'), call duration = {} ms",
+                    operationName, responseModel, durationMillis);
+            return;
         }
+        var callUsage = new TokenUsageRecord(operationName, providerName, requestModel, responseModel, serverAddress,
+                ofNullable(tokenUsage.inputTokenCount()).orElse(0), ofNullable(tokenUsage.outputTokenCount()).orElse(0),
+                CachedTokenReader.cachedTokens(tokenUsage), durationMillis);
+        var attributes = callUsage.toAttributes();
+        metrics.recordTokenUsage(attributes, callUsage.inputTokens(), callUsage.outputTokens(), callUsage.cachedTokens());
+        metrics.recordOperationDuration(attributes, durationMillis);
+        var accumulated = budgetManager.consumeTokens(callUsage);
+        LOG.debug("Model call finished: {}. Accumulated for this operation: {}", callUsage.toLogLine(), accumulated.toLogLine());
     }
 
     @Override
     public void onRequest(ChatModelRequestContext requestContext) {
+        requestContext.attributes().put(REQUEST_START_NANOS_ATTRIBUTE, nanoTime());
         var chatRequest = requestContext.chatRequest();
         var messages = chatRequest.messages();
 
         LOG.debug("Sending {} messages to the model", messages.size());
+        if (!contentLoggingEnabled) {
+            return;
+        }
         if (messages.size() > 2) {
             // System and user messages were already logged on the first request. Log only the messages which were sent,
             // i.e. every message that follows the last AiMessage (which may be multiple when the model issued
@@ -114,8 +161,17 @@ public class ChatModelEventListener implements ChatModelListener {
         }
     }
 
+    /** The duration of the whole non-streamed round trip rather than the time to the first token. */
+    private static Optional<Long> elapsedMillis(@NotNull Map<Object, Object> attributes) {
+        return ofNullable(attributes.get(REQUEST_START_NANOS_ATTRIBUTE))
+                .filter(Long.class::isInstance)
+                .map(Long.class::cast)
+                .map(startNanos -> NANOSECONDS.toMillis(nanoTime() - startNanos));
+    }
+
     private static void logWithSeparator(String typeOfMessage, String content) {
-        LOG.debug("{}:\n{}\n{}\n{}", typeOfMessage, MESSAGE_SEPARATOR, content, MESSAGE_SEPARATOR);
+        // Prompts and tool results are logged verbatim, so a secret that slipped into one is replaced by its placeholder.
+        LOG.debug("{}:\n{}\n{}\n{}", typeOfMessage, MESSAGE_SEPARATOR, SecretRegistry.global().redact(content), MESSAGE_SEPARATOR);
     }
 
     private static void logMessage(ChatMessage chatMessage) {
@@ -145,11 +201,14 @@ public class ChatModelEventListener implements ChatModelListener {
     public void onError(ChatModelErrorContext errorContext) {
         Throwable error = errorContext.error();
         Map<Object, Object> attributes = errorContext.attributes();
+        var durationInfo = elapsedMillis(attributes)
+                .map(" after %d ms"::formatted)
+                .orElse("");
         if (error != null) {
-            String message = "Chat model invocation failed: %s".formatted(error.toString());
+            String message = "Chat model invocation failed%s: %s".formatted(durationInfo, error.toString());
             LOG.error(message, error);
         } else {
-            LOG.error("Chat model invocation failed without a propagated error. Error context attributes: {}", attributes);
+            LOG.error("Chat model invocation failed{} without a propagated error. Error context attributes: {}", durationInfo, attributes);
         }
     }
 }

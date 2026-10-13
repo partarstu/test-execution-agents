@@ -18,46 +18,212 @@
 package org.tarik.ta.core.model;
 
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.core.AgentConfig;
+import io.opentelemetry.api.OpenTelemetry;
 import org.tarik.ta.core.manager.BudgetManager;
+import org.tarik.ta.core.telemetry.GenAiMetrics;
 
+import com.sun.net.httpserver.HttpServer;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static dev.langchain4j.model.chat.request.ToolChoice.REQUIRED;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
 class ModelFactoryTest {
+    private static final String MINIMAL_CHAT_COMPLETION = """
+            {"id": "1", "object": "chat.completion", "created": 0, "model": "Qwen/Qwen3.8-27B",
+             "choices": [{"index": 0, "message": {"role": "assistant", "content": "pong"}, "finish_reason": "stop"}]}""";
 
     private final AgentConfig agentConfig = new AgentConfig();
     private final BudgetManager budgetManager = new BudgetManager(agentConfig);
-    private final ChatModelEventListener chatModelEventListener = new ChatModelEventListener(budgetManager);
-    private final ModelFactory modelFactory = new ModelFactory(agentConfig, chatModelEventListener);
+    private final ModelFactory modelFactory = new ModelFactory(agentConfig, budgetManager, new GenAiMetrics(OpenTelemetry.noop()));
 
     @Test
     void shouldGetGoogleModel() {
-        GenAiModel model = modelFactory.getModel("gemini-pro", AgentConfig.ModelProvider.GOOGLE);
+        GenAiModel model = modelFactory.getModel("test_operation", "gemini-pro", AgentConfig.ModelProvider.GOOGLE);
         assertThat(model).isNotNull();
         assertThat(model.chatModel()).isNotNull();
     }
 
     @Test
     void shouldGetOpenAiModel() {
-        GenAiModel model = modelFactory.getModel("gpt-5.4", AgentConfig.ModelProvider.OPENAI);
+        GenAiModel model = modelFactory.getModel("test_operation", "gpt-5.4", AgentConfig.ModelProvider.OPENAI);
         assertThat(model).isNotNull();
         assertThat(model.chatModel()).isNotNull();
     }
 
     @Test
     void shouldGetGroqModel() {
-        GenAiModel model = modelFactory.getModel("mixtral-8x7b", AgentConfig.ModelProvider.GROQ);
+        GenAiModel model = modelFactory.getModel("test_operation", "mixtral-8x7b", AgentConfig.ModelProvider.GROQ);
         assertThat(model).isNotNull();
     }
 
     @Test
     void shouldGetAnthropicModel() {
-        GenAiModel model = modelFactory.getModel("claude-3", AgentConfig.ModelProvider.ANTHROPIC);
+        GenAiModel model = modelFactory.getModel("test_operation", "claude-3", AgentConfig.ModelProvider.ANTHROPIC);
         assertThat(model).isNotNull();
+    }
+
+    @Test
+    void shouldSendNoTemperatureToAnthropic() {
+        var config = spy(new AgentConfig());
+        when(config.getTemperature()).thenReturn(0.3);
+        when(config.getAnthropicApiKey()).thenReturn("test-key");
+        var factory = new ModelFactory(config, new BudgetManager(config), new GenAiMetrics(OpenTelemetry.noop()));
+
+        var model = factory.getModel("test_operation", "claude-haiku-5-5", AgentConfig.ModelProvider.ANTHROPIC);
+
+        assertThat(model.chatModel().defaultRequestParameters().temperature()).isNull();
+    }
+
+    @Test
+    void shouldGetHCompanyModel() {
+        GenAiModel model = modelFactory.getModel("test_operation", "holo3-1-35b-a3b", AgentConfig.ModelProvider.HCOMPANY);
+        assertThat(model).isNotNull();
+        assertThat(model.chatModel()).isNotNull();
+    }
+
+    @Test
+    void shouldGetQwenModel() {
+        GenAiModel model = modelFactory.getModel("test_operation", "Qwen/Qwen3.8-27B", AgentConfig.ModelProvider.QWEN);
+        assertThat(model).isNotNull();
+        assertThat(model.chatModel()).isNotNull();
+    }
+
+    @Test
+    void shouldGetSchemaConstrainedGroundingModelForEverySelfHostedProvider() {
+        assertThat(modelFactory.getSchemaConstrainedGroundingModel("test_operation", "holo3-1-35b-a3b", AgentConfig.ModelProvider.HCOMPANY)
+                .chatModel()).isNotNull();
+        assertThat(modelFactory.getSchemaConstrainedGroundingModel("test_operation", "Qwen/Qwen3.8-27B", AgentConfig.ModelProvider.QWEN)
+                .chatModel()).isNotNull();
+    }
+
+    /**
+     * Pins that the shared H Company endpoint is asked with thinking on for a sub-agent, which otherwise never reaches the
+     * final-result tool, and off for grounding, whose schema-constrained answer would otherwise arrive empty inside the think
+     * block.
+     */
+    @Test
+    void shouldAskHCompanyDifferentlyForAnAgentThanForGrounding() {
+        var agentParameters = openAiParametersOf(
+                modelFactory.getModel("test_operation", "holo3-1-35b-a3b", AgentConfig.ModelProvider.HCOMPANY));
+        var groundingParameters = openAiParametersOf(
+                modelFactory.getSchemaConstrainedGroundingModel("test_operation", "holo3-1-35b-a3b", AgentConfig.ModelProvider.HCOMPANY));
+
+        assertThat(thinkingEnabledIn(agentParameters)).isEqualTo(agentConfig.isHCompanyAgentThinkingEnabled());
+        assertThat(agentParameters.temperature()).isEqualTo(agentConfig.getHCompanyAgentTemperature());
+        assertThat(thinkingEnabledIn(groundingParameters)).isFalse();
+        assertThat(groundingParameters.temperature()).isEqualTo(agentConfig.getTemperature());
+    }
+
+    @Test
+    void shouldGroundOnHCompanyAtTheConfiguredGlobalTemperature() {
+        var config = spy(new AgentConfig());
+        when(config.getTemperature()).thenReturn(0.3);
+        var factory = new ModelFactory(config, new BudgetManager(config), new GenAiMetrics(OpenTelemetry.noop()));
+
+        var parameters = openAiParametersOf(
+                factory.getSchemaConstrainedGroundingModel("test_operation", "holo3-1-35b-a3b", AgentConfig.ModelProvider.HCOMPANY));
+
+        assertThat(parameters.temperature()).isEqualTo(0.3);
+    }
+
+    @Test
+    void shouldAskQwenWithTheConfiguredAgentThinkingAtTheGlobalTemperature() {
+        var config = spy(new AgentConfig());
+        when(config.isQwenAgentThinkingEnabled()).thenReturn(false);
+        var factory = new ModelFactory(config, new BudgetManager(config), new GenAiMetrics(OpenTelemetry.noop()));
+
+        var defaultParameters = openAiParametersOf(
+                modelFactory.getModel("test_operation", "Qwen/Qwen3.8-27B", AgentConfig.ModelProvider.QWEN));
+        var configuredParameters = openAiParametersOf(
+                factory.getModel("test_operation", "Qwen/Qwen3.8-27B", AgentConfig.ModelProvider.QWEN));
+
+        assertThat(thinkingEnabledIn(defaultParameters)).isTrue();
+        assertThat(thinkingEnabledIn(configuredParameters)).isFalse();
+        assertThat(configuredParameters.temperature()).isEqualTo(config.getTemperature());
+    }
+
+    /** vLLM rejects a tool choice on a request without tools, which a schema-constrained grounding request always is. */
+    @Test
+    void shouldSendNoToolChoiceWhenQwenGrounds() {
+        var agentParameters = openAiParametersOf(
+                modelFactory.getModel("test_operation", "Qwen/Qwen3.8-27B", AgentConfig.ModelProvider.QWEN));
+        var groundingParameters = openAiParametersOf(
+                modelFactory.getSchemaConstrainedGroundingModel("test_operation", "Qwen/Qwen3.8-27B", AgentConfig.ModelProvider.QWEN));
+
+        assertThat(agentParameters.toolChoice()).isEqualTo(REQUIRED);
+        assertThat(groundingParameters.toolChoice()).isNull();
+        assertThat(thinkingEnabledIn(groundingParameters)).isFalse();
+    }
+
+    /** vLLM's uvicorn drops the body of a request that offers an h2c upgrade, so a cleartext endpoint must never get that offer. */
+    @Test
+    void getModel_shouldSendBodyWithoutH2cUpgrade_whenSelfHostedEndpointIsCleartext() throws IOException {
+        var receivedRequest = new AtomicReference<ReceivedRequest>();
+        var server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/v1/chat/completions", exchange -> {
+            var body = new String(exchange.getRequestBody().readAllBytes(), UTF_8);
+            receivedRequest.set(new ReceivedRequest(exchange.getRequestHeaders().containsKey("Upgrade"), body));
+            var response = MINIMAL_CHAT_COMPLETION.getBytes(UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var config = mock(AgentConfig.class);
+            var address = server.getAddress();
+            when(config.getQwenEndpoint()).thenReturn("http://%s:%d/v1/".formatted(address.getHostString(), address.getPort()));
+            when(config.getQwenApiKey()).thenReturn("test-key");
+            var factory = new ModelFactory(config, budgetManager, new GenAiMetrics(OpenTelemetry.noop()));
+
+            var answer = factory.getModel("test_operation", "Qwen/Qwen3.8-27B", AgentConfig.ModelProvider.QWEN).chatModel()
+                    .chat("ping");
+
+            assertThat(answer).isEqualTo("pong");
+            assertThat(receivedRequest.get().offeredUpgrade()).isFalse();
+            assertThat(receivedRequest.get().body()).contains("Qwen/Qwen3.8-27B", "ping");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private record ReceivedRequest(boolean offeredUpgrade, String body) {
+    }
+
+    private static OpenAiChatRequestParameters openAiParametersOf(GenAiModel model) {
+        assertThat(model.chatModel().defaultRequestParameters()).isInstanceOf(OpenAiChatRequestParameters.class);
+        return (OpenAiChatRequestParameters) model.chatModel().defaultRequestParameters();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean thinkingEnabledIn(OpenAiChatRequestParameters parameters) {
+        var chatTemplateKwargs = (Map<String, Object>) parameters.customParameters().get("chat_template_kwargs");
+        return (boolean) chatTemplateKwargs.get("enable_thinking");
+    }
+
+    @Test
+    void shouldRejectSchemaConstrainedGroundingForHostedProvider() {
+        assertThatThrownBy(
+                () -> modelFactory.getSchemaConstrainedGroundingModel("test_operation", "gemini-pro", AgentConfig.ModelProvider.GOOGLE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("GOOGLE");
     }
 
     @Test

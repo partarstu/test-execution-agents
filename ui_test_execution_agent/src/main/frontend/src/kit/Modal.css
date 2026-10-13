@@ -1,0 +1,102 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Native dialogs for questions that must block; they rise into place when opened, unless motion is reduced */
+@layer components {
+  .modal {
+    inline-size: min(34rem, calc(100vw - 2rem));
+    max-block-size: calc(100dvh - 2rem);
+    padding: var(--space-5);
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-3);
+
+    & > * + * {
+      margin-block-start: var(--space-4);
+    }
+
+    &::backdrop {
+      background: var(--backdrop);
+      backdrop-filter: blur(2px);
+    }
+
+    /*
+     * A modal prompt is the dialog's whole content, so the dialog is its frame; the prompt keeps the padding, so the pointer anywhere
+     * on the dialog is on the prompt, and its fuse runs along the dialog's top edge
+     */
+    &:has(> .prompt) {
+      padding: 0;
+    }
+
+    & .prompt {
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      overflow: visible;
+      animation: none;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition: opacity 160ms, translate 160ms, display 160ms allow-discrete, overlay 160ms allow-discrete;
+
+      &::backdrop {
+        transition: opacity 160ms, display 160ms allow-discrete, overlay 160ms allow-discrete;
+      }
+
+      @starting-style {
+        &[open] {
+          opacity: 0;
+          translate: 0 8px;
+        }
+
+        &[open]::backdrop {
+          opacity: 0;
+        }
+      }
+    }
+  }
+
+  .modal-wide {
+    inline-size: min(48rem, calc(100vw - 2rem));
+  }
+
+  /*
+   * The agent's screen behind a question about the step stays readable, and on a wide window in sight above the docked dialog;
+   * an accent edge and halo set the dialog apart from the page it floats over, which is dimmed only lightly
+   */
+  .modal-see-through {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-3), 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+
+    @media (width >= 48rem) {
+      margin-block: auto var(--space-4);
+      max-block-size: min(60dvh, calc(100dvh - 2rem));
+    }
+
+    &::backdrop {
+      background: color-mix(in srgb, var(--backdrop) 60%, transparent);
+      backdrop-filter: none;
+    }
+  }
+
+  .modal-title {
+    font-size: var(--text-xl);
+    font-weight: 700;
+  }
+}

@@ -1,0 +1,237 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Map: search and lens on the left, the focus in the middle, details on the right */
+@layer components {
+  .map {
+    display: grid;
+    grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr) minmax(16rem, 23rem);
+    gap: var(--space-4);
+    align-items: start;
+
+    @container (width < 72rem) {
+      grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+
+      & .details {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @container (width < 48rem) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .map-side,
+  .map-canvas-column {
+    display: grid;
+    gap: var(--space-3);
+    min-inline-size: 0;
+  }
+
+  .map-canvas-column {
+    container-type: inline-size;
+  }
+
+  .lens {
+    display: grid;
+    gap: var(--space-2);
+    padding-block-start: var(--space-3);
+    border-block-start: 1px solid var(--rule);
+
+    & ol {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding-inline-start: 1.25rem;
+    }
+  }
+
+  .focus-stage {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .focus-parents {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .focus-caption {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin: 0;
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+
+  /* The enablers, the focus and what it enables read left to right, and top to bottom where the column is narrow */
+  .focus-flow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.2fr) auto minmax(0, 1fr);
+    gap: var(--space-2);
+    align-items: start;
+
+    &.focus-flow-single {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    @container (width < 44rem) {
+      grid-template-columns: minmax(0, 1fr);
+
+      & .focus-arrow {
+        justify-self: center;
+        rotate: 90deg;
+      }
+    }
+  }
+
+  .focus-arrow {
+    align-self: center;
+    color: var(--muted);
+  }
+
+  .focus-column,
+  .focus-centre {
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+    min-inline-size: 0;
+
+    & h3,
+    & h4 {
+      margin: 0;
+    }
+
+    & h4 {
+      font-size: var(--text-sm);
+    }
+  }
+
+  .focus-centre {
+    padding: var(--space-3);
+    background: var(--raised);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-lg);
+
+    & > h4 {
+      margin-block-start: var(--space-2);
+    }
+  }
+
+  .focus-group {
+    display: grid;
+    gap: var(--space-1);
+    justify-items: start;
+
+    & > h4 {
+      color: var(--muted);
+      font-weight: 500;
+      font-style: italic;
+    }
+  }
+
+  .focus-group ul,
+  .focus-list {
+    display: grid;
+    gap: var(--space-1);
+    inline-size: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  ol.focus-list {
+    padding-inline-start: 1.5rem;
+    list-style: decimal;
+  }
+
+  .focus-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    inline-size: 100%;
+    min-block-size: var(--control-height-small);
+    padding: var(--space-2);
+    color: var(--ink);
+    font-weight: 400;
+    text-align: start;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-1);
+
+    & > .kind-swatch {
+      margin-block-start: 0.3em;
+    }
+
+    &:hover {
+      border-color: var(--accent);
+    }
+  }
+
+  .focus-card-text {
+    display: grid;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .focus-facts {
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+
+  .focus-card,
+  .focus-centre {
+    &[data-severity='warning'] {
+      border-color: var(--warning);
+      border-inline-start-width: 4px;
+    }
+
+    &[data-severity='failed'] {
+      border-color: var(--failed);
+      border-inline-start-width: 4px;
+    }
+
+    &[data-active] {
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    &[data-lens] {
+      outline: 2px dotted var(--ink);
+      outline-offset: 2px;
+    }
+  }
+
+  .map-legend {
+    font-size: var(--text-sm);
+
+    & > summary {
+      min-block-size: var(--control-height-small);
+      font-weight: 600;
+    }
+
+    &[open] > .legend {
+      display: grid;
+      gap: var(--space-1);
+      padding-block: var(--space-1) var(--space-2);
+    }
+  }
+}

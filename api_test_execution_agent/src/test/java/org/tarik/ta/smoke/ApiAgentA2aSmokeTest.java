@@ -20,6 +20,9 @@ package org.tarik.ta.smoke;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import io.javalin.Javalin;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 import org.a2aproject.sdk.spec.AgentCapabilities;
 import org.a2aproject.sdk.spec.AgentCard;
 import org.a2aproject.sdk.spec.AgentInterface;
@@ -31,6 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.tarik.ta.ApiTestAgent;
 import org.tarik.ta.ApiTestAgentConfig;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.AbstractServer;
@@ -41,7 +45,10 @@ import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.manager.BudgetManager;
+import org.tarik.ta.core.model.ChatModelEventListener;
 import org.tarik.ta.core.model.TestExecutionContext;
+import org.tarik.ta.core.telemetry.GenAiAttributes;
+import org.tarik.ta.core.telemetry.GenAiMetrics;
 import org.tarik.ta.core.smoke.A2aTestClient;
 import org.tarik.ta.core.smoke.A2aTestClient.SseStream;
 import org.tarik.ta.core.utils.LogCapture;
@@ -50,7 +57,10 @@ import org.tarik.ta.smoke.ScriptedChatModel.ScriptedToolCall;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -93,6 +103,8 @@ class ApiAgentA2aSmokeTest {
     private ScriptedChatModel model;
     private Javalin server;
     private A2aTestClient client;
+    /** Makes the sub-agent providers throw, which is how a real run reaches the agent's outer failure path. */
+    private boolean failSubAgentCreation;
 
     @BeforeAll
     static void startWireMock() {
@@ -112,6 +124,7 @@ class ApiAgentA2aSmokeTest {
         new BudgetManager(config);
         testCaseExtractor = mock(TestCaseExtractor.class);
         logCapture = mock(LogCapture.class);
+        failSubAgentCreation = false;
         lenient().when(logCapture.getLogs()).thenReturn(List.of());
     }
 
@@ -128,7 +141,7 @@ class ApiAgentA2aSmokeTest {
     void messageStreamRunsRealApiAgentEndToEnd() {
         wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(aResponse().withStatus(200).withBody("pong")));
         var step = new TestStep("Send a GET request to /ping", List.of(), "Status is 200");
-        var testCase = new TestCase("Full stack ping", List.of(), List.of(step));
+        var testCase = new TestCase("Full stack ping", List.of(), List.of(), List.of(step));
         when(testCaseExtractor.extractTestCase("run")).thenReturn(Optional.of(testCase));
         Function<String, List<ScriptedToolCall>> script = userText -> List.of(
                 sendGet(wireMock.baseUrl() + "/ping"), result(true, "Received status 200"));
@@ -146,6 +159,95 @@ class ApiAgentA2aSmokeTest {
                     .contains("PASSED").contains("Full stack ping");
         }
         wireMock.verify(getRequestedFor(urlEqualTo("/ping")));
+    }
+
+    @Test
+    @DisplayName("The finished task carries a token_usage artifact and records one metric data point per token type")
+    void finishedTaskReportsItsTokenUsage() {
+        wireMock.stubFor(get(urlEqualTo("/ping")).willReturn(aResponse().withStatus(200).withBody("pong")));
+        var step = new TestStep("Send a GET request to /ping", List.of(), "Status is 200");
+        var testCase = new TestCase("Token usage", List.of(), List.of(), List.of(step));
+        when(testCaseExtractor.extractTestCase("run")).thenReturn(Optional.of(testCase));
+        Function<String, List<ScriptedToolCall>> script = userText -> List.of(
+                sendGet(wireMock.baseUrl() + "/ping"), result(true, "Received status 200"));
+        // The real listener of the test-step action operation, so the run accounts for its tokens exactly as in production.
+        var metricReader = InMemoryMetricReader.create();
+        try (var meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()) {
+            var metrics = new GenAiMetrics(OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build());
+            model = new ScriptedChatModel(ScriptedChatModel.ofSequence(script),
+                    List.of(new ChatModelEventListener(BudgetManager.getInstance(), metrics, "test_step_action", "openai",
+                            "scripted-model", null)));
+            startServer();
+
+            try (SseStream stream = client.openSse(streamBody("run"), null)) {
+                assertThat(stream.await(inState("TASK_STATE_COMPLETED"), STREAM_TIMEOUT)).isPresent();
+
+                // The step costs one model call per invocation, so the artifact carries the sum over all of them.
+                assertThat(combine(stream)).contains("token_usage").contains("test_step_action")
+                        .containsPattern("\\\\\"inputTokens\\\\\":[1-9][0-9]*")
+                        .containsPattern("\\\\\"outputTokens\\\\\":[1-9][0-9]*");
+            }
+
+            var dataPoints = metricReader.collectAllMetrics().stream()
+                    .filter(metric -> metric.getName().equals("gen_ai.client.token.usage"))
+                    .flatMap(metric -> metric.getHistogramData().getPoints().stream())
+                    .toList();
+            assertThat(dataPoints)
+                    .as("one data point per token type the scripted model reports, all under the executed operation")
+                    .hasSize(2)
+                    .allSatisfy(point -> assertThat(point.getAttributes().get(GenAiAttributes.OPERATION_NAME))
+                            .isEqualTo("test_step_action"))
+                    .extracting(point -> point.getAttributes().get(GenAiAttributes.TOKEN_TYPE))
+                    .containsExactlyInAnyOrder("input", "output");
+        }
+    }
+
+    @Test
+    @DisplayName("An execution that throws still streams the captured logs to the caller")
+    void throwingExecutionStillStreamsCapturedLogs() {
+        var step = new TestStep("Send a GET request to /ping", List.of(), "Status is 200");
+        var testCase = new TestCase("Full stack failure", List.of(), List.of(), List.of(step));
+        when(testCaseExtractor.extractTestCase("run")).thenReturn(Optional.of(testCase));
+        when(logCapture.getLogs()).thenReturn(List.of("captured line before the failure"));
+        // No sub-agent can be produced, so the exception escapes the step loop and hits the agent's outer failure path.
+        failSubAgentCreation = true;
+        model = new ScriptedChatModel(ScriptedChatModel.ofSequence(userText -> List.of()));
+        startServer();
+
+        try (SseStream stream = client.openSse(streamBody("run"), null)) {
+            assertThat(stream.await(inState("TASK_STATE_COMPLETED"), STREAM_TIMEOUT))
+                    .as("the run must still produce a result rather than a bare task failure").isPresent();
+
+            String allEvents = combine(stream);
+            assertThat(allEvents).contains("final_result").contains("ERROR")
+                    .contains("Unexpected error during test case execution")
+                    .contains("execution_logs_full_stack_failure.log");
+            assertThat(decodedFileParts(stream))
+                    .as("the logs captured before the failure must reach the caller")
+                    .anySatisfy(content -> assertThat(content).contains("captured line before the failure"));
+        }
+    }
+
+    /**
+     * Decodes the base64 file parts of the protobuf-JSON stream, where a {@code FileWithBytes} part is serialized as {@code raw},
+     * {@code filename} and {@code mediaType} instead of the Java record's component names.
+     */
+    private static List<String> decodedFileParts(@NotNull SseStream stream) {
+        var decoded = new ArrayList<String>();
+        stream.received().forEach(event -> collectDecodedBytes(event, decoded));
+        return decoded;
+    }
+
+    private static void collectDecodedBytes(@NotNull JsonNode node, @NotNull List<String> decoded) {
+        var raw = node.get("raw");
+        if (raw != null && raw.isTextual()) {
+            try {
+                decoded.add(new String(Base64.getDecoder().decode(raw.asText()), StandardCharsets.UTF_8));
+            } catch (IllegalArgumentException _) {
+                // Not a base64 payload - nothing of interest to decode at this node.
+            }
+        }
+        node.forEach(child -> collectDecodedBytes(child, decoded));
     }
 
     private void startServer() {
@@ -231,6 +333,12 @@ class ApiAgentA2aSmokeTest {
         protected TestExecutionResult executeTestCase(String message, StreamingEventEmitter eventEmitter) {
             var executionContext = new TestExecutionContext(eventEmitter);
             var apiContext = new ApiContext(config);
+            if (failSubAgentCreation) {
+                return new ApiTestAgent(config, testCaseExtractor, BudgetManager.getInstance(), executionContext, logCapture,
+                        () -> { throw new IllegalStateException("no precondition agent available"); },
+                        () -> { throw new IllegalStateException("no test step agent available"); })
+                        .executeTestCase(message);
+            }
             return buildAgent(model, config, apiContext, executionContext, testCaseExtractor, logCapture)
                     .executeTestCase(message);
         }

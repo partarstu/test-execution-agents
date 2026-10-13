@@ -50,7 +50,7 @@ class UiTestStepVerificationUiTestAgentTest {
     void setUp() {
         closeable = MockitoAnnotations.openMocks(this);
         commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS);
-        commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
+        commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB));
 
         
         lenient().when(configMock.isFullyUnattended()).thenReturn(false);

@@ -71,21 +71,17 @@ public class InheritanceAwareToolProvider<T extends FinalResult> implements Tool
     @Override
     public ToolProviderResult provideTools(ToolProviderRequest request) {
         var resultBuilder = ToolProviderResult.builder();
-        Set<String> immediateToolReturnResults = new HashSet<>();
         toolObjects.forEach(toolObject -> Arrays.stream(toolObject.getClass().getMethods())
                 .filter(method -> method.isAnnotationPresent(Tool.class))
-                .forEach(toolMethod -> addToolProvider(toolObject, toolMethod, resultBuilder)));
+                .forEach(toolMethod -> addToolProvider(toolObject, toolMethod, resultBuilder, true)));
         Arrays.stream(resultClass.getMethods())
                 .filter(method -> method.isAnnotationPresent(Tool.class))
-                .forEach(toolMethod -> {
-                    addToolProvider(resultClass, toolMethod, resultBuilder);
-                    immediateToolReturnResults.add(toolMethod.getName());
-                });
-        resultBuilder.immediateReturnToolNames(immediateToolReturnResults);
+                .forEach(toolMethod -> addToolProvider(resultClass, toolMethod, resultBuilder, false));
         return resultBuilder.build();
     }
 
-    private static void addToolProvider(Object toolObject, Method toolMethod, ToolProviderResult.Builder resultBuilder) {
+    private static void addToolProvider(Object toolObject, Method toolMethod, ToolProviderResult.Builder resultBuilder,
+                                        boolean checksRunBudgets) {
         ToolSpecification specification = toolSpecificationFrom(toolMethod);
         ToolExecutor executor = DefaultToolExecutor.builder()
                 .object(toolObject)
@@ -94,28 +90,41 @@ public class InheritanceAwareToolProvider<T extends FinalResult> implements Tool
                 .wrapToolArgumentsExceptions(true)
                 .propagateToolExecutionExceptions(true)
                 .build();
-        resultBuilder.add(specification, withToolCallBudgetTracking(executor));
+        resultBuilder.add(specification, withToolCallBudgetTracking(executor, checksRunBudgets),
+                toolMethod.getAnnotation(Tool.class).returnBehavior());
     }
 
     /**
-     * Counts every tool execution against the tool-call budget, so that {@code BudgetManager.checkToolCallBudget()} can
-     * actually trigger. Both entry points must be overridden: overriding only {@code execute} would lose the delegate's
-     * {@code executeWithContext} behavior (the propagation of the tool result object, which the agents' result
-     * extraction relies on).
+     * Counts every tool execution against the tool-call budget and, if requested, checks the run-wide time and token budgets before
+     * it runs, so that a long agent invocation stops when either is exhausted instead of only before the next one.
      */
-    private static ToolExecutor withToolCallBudgetTracking(ToolExecutor delegate) {
+    private static ToolExecutor withToolCallBudgetTracking(ToolExecutor delegate, boolean checksRunBudgets) {
+        // Both entry points are overridden: overriding only execute would lose the delegate's executeWithContext behavior (the
+        // propagation of the tool result object, which the agents' result extraction relies on).
         return new ToolExecutor() {
             @Override
             public String execute(ToolExecutionRequest request, Object memoryId) {
-                BudgetManager.getInstance().consumeToolCalls(1);
+                consumeToolCall(checksRunBudgets);
                 return delegate.execute(request, memoryId);
             }
 
             @Override
             public ToolExecutionResult executeWithContext(ToolExecutionRequest request, InvocationContext context) {
-                BudgetManager.getInstance().consumeToolCalls(1);
+                consumeToolCall(checksRunBudgets);
                 return delegate.executeWithContext(request, context);
             }
         };
+    }
+
+    // The tool-call budget is a budget per step, which the agents check before each invocation; within one invocation the
+    // model's tool-calling round trips are bounded by the agent framework instead. The final-result tools skip the run-wide checks,
+    // so that a result the model has already produced is kept instead of being discarded by a budget exhausted on its last turn.
+    private static void consumeToolCall(boolean checksRunBudgets) {
+        var budgetManager = BudgetManager.getInstance();
+        budgetManager.consumeToolCalls(1);
+        if (checksRunBudgets) {
+            budgetManager.checkTimeBudget();
+            budgetManager.checkTokenBudget();
+        }
     }
 }

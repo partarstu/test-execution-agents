@@ -17,27 +17,40 @@
  */
 package org.tarik.ta.core.model;
 
+import dev.langchain4j.service.tool.ToolArgumentsErrorHandler;
 import dev.langchain4j.service.tool.ToolErrorContext;
 import dev.langchain4j.service.tool.ToolErrorHandlerResult;
 import dev.langchain4j.service.tool.ToolExecutionErrorHandler;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.error.ErrorCategory;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.error.RetryState;
+import org.tarik.ta.core.exceptions.BudgetExceededException;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 import static org.tarik.ta.core.error.ErrorCategory.*;
 
 public class DefaultToolErrorHandler implements ToolExecutionErrorHandler {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultToolErrorHandler.class);
     private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT);
+    private static final String INVALID_ARGUMENTS_MESSAGE = "The arguments of this tool call could not be parsed: %s. Call the tool " +
+            "again with arguments which are valid JSON matching the tool's parameter schema, passing every object parameter as a JSON " +
+            "object, not as a string.";
     private final RetryPolicy retryPolicy;
-    private final ThreadLocal<RetryState> retryState = ThreadLocal.withInitial(RetryState::new);
+    private final ThreadLocal<InvocationRetryState> retryState =
+            ThreadLocal.withInitial(() -> new InvocationRetryState(null, new RetryState()));
     private final boolean failOnTimeout;
+
+    // The retry budget belongs to one AI service invocation: a budget used up by an earlier step must not fail the next one.
+    private record InvocationRetryState(@Nullable UUID invocationId, RetryState state) {
+    }
 
     public DefaultToolErrorHandler(RetryPolicy retryPolicy) {
         this(retryPolicy, true);
@@ -46,6 +59,14 @@ public class DefaultToolErrorHandler implements ToolExecutionErrorHandler {
     public DefaultToolErrorHandler(RetryPolicy retryPolicy, boolean failOnTimeout) {
         this.retryPolicy = retryPolicy;
         this.failOnTimeout = failOnTimeout;
+    }
+
+    /**
+     * Returns malformed tool-call arguments to the model, which can correct them itself, until the retry policy is exhausted.
+     */
+    public static @NotNull ToolArgumentsErrorHandler forToolArguments(@NotNull RetryPolicy retryPolicy) {
+        var handler = new DefaultToolErrorHandler(retryPolicy);
+        return (error, context) -> handler.handleRetryableToolError(context, INVALID_ARGUMENTS_MESSAGE.formatted(error.getMessage()), true);
     }
 
     public void reset() {
@@ -62,29 +83,51 @@ public class DefaultToolErrorHandler implements ToolExecutionErrorHandler {
             if (getTerminalErrors().contains(toolExecutionException.getErrorCategory())) {
                 throw toolExecutionException;
             } else {
-                return handleRetryableToolError(toolExecutionException.getMessage());
+                return handleRetryableToolError(context, toolExecutionException.getMessage());
             }
         } else {
-            throw new RuntimeException(error);
+            throw unhandledError(error);
         }
     }
 
-    protected ToolErrorHandlerResult handleRetryableToolError(String message) throws ToolExecutionException {
-        var state = retryState.get();
+    /**
+     * Ends the agent invocation with an error which is not given back to the model, keeping an exhausted budget's own message.
+     */
+    protected static RuntimeException unhandledError(@Nullable Throwable error) {
+        return error instanceof BudgetExceededException budgetExceeded ? budgetExceeded : new RuntimeException(error);
+    }
+
+    protected ToolErrorHandlerResult handleRetryableToolError(ToolErrorContext context, String message) throws ToolExecutionException {
+        return handleRetryableToolError(context, message, failOnTimeout);
+    }
+
+    protected ToolErrorHandlerResult handleRetryableToolError(ToolErrorContext context, String message, boolean failWhenExhausted)
+            throws ToolExecutionException {
+        var state = retryStateOf(context);
         state.startIfNotStarted();
         int attempts = state.incrementAttempts();
         long elapsedTime = state.getElapsedTime();
         boolean isTimeout = retryPolicy.timeoutMillis() > 0 && elapsedTime > retryPolicy.timeoutMillis();
         boolean isMaxRetriesReached = attempts > retryPolicy.maxRetries();
 
-        if (isTimeout && failOnTimeout) {
+        if (isTimeout && failWhenExhausted) {
             throw new ToolExecutionException("Retry policy exceeded because of timeout. Original error: " + message, TIMEOUT);
-        } else if (isMaxRetriesReached && failOnTimeout) {
+        } else if (isMaxRetriesReached && failWhenExhausted) {
             throw new ToolExecutionException("Retry policy exceeded because of max retries. Original error: " + message, TIMEOUT);
         } else {
             LOG.info("Passing the following tool execution error to the agent: '{}'", message);
             return new ToolErrorHandlerResult(message);
         }
+    }
+
+    private RetryState retryStateOf(ToolErrorContext context) {
+        var invocationId = context.invocationContext() != null ? context.invocationContext().invocationId() : null;
+        var current = retryState.get();
+        if (!Objects.equals(current.invocationId(), invocationId)) {
+            current = new InvocationRetryState(invocationId, new RetryState());
+            retryState.set(current);
+        }
+        return current.state();
     }
 
     @Override

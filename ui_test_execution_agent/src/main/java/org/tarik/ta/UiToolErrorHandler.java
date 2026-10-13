@@ -21,23 +21,23 @@ import dev.langchain4j.service.tool.ToolErrorContext;
 import dev.langchain4j.service.tool.ToolErrorHandlerResult;
 import org.tarik.ta.core.error.ErrorCategory;
 import org.tarik.ta.core.error.RetryPolicy;
-import org.tarik.ta.core.error.RetryState;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.core.model.DefaultToolErrorHandler;
 import org.tarik.ta.exceptions.ElementLocationException;
+import org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus;
 
 import java.util.List;
 
 
 import static org.tarik.ta.core.error.ErrorCategory.*;
 
-class UiToolErrorHandler extends DefaultToolErrorHandler {
+public class UiToolErrorHandler extends DefaultToolErrorHandler {
     private static final List<ErrorCategory> terminalErrors = List.of(NON_RETRYABLE_ERROR, TIMEOUT,
             TERMINATION_BY_USER);
 
     private final UiTestAgentConfig config;
 
-    UiToolErrorHandler(RetryPolicy retryPolicy, UiTestAgentConfig config) {
+    public UiToolErrorHandler(RetryPolicy retryPolicy, UiTestAgentConfig config) {
         super(retryPolicy, config.isFullyUnattended());
         this.config = config;
     }
@@ -51,7 +51,12 @@ class UiToolErrorHandler extends DefaultToolErrorHandler {
     public ToolErrorHandlerResult handle(Throwable error, ToolErrorContext context) {
         switch (error) {
             case ElementLocationException locationException -> {
-                // In SUPERVISED mode, all element location failures are terminal — propagate
+                // An invented or mistyped ID is a mistake the model corrects itself, so it goes back to the model in both modes;
+                // the retry policy bounds it so a model which keeps guessing still ends on the terminal path.
+                if (locationException.getStatus() == ElementLocationStatus.UNKNOWN_ELEMENT_ID) {
+                    return handleRetryableToolError(context, locationException.getMessage(), true);
+                }
+                // In SUPERVISED mode, all other element location failures are terminal — propagate
                 // to executeAtomicStep for HITL retry.
                 if (config.isSupervised()) {
                     throw locationException;
@@ -61,7 +66,7 @@ class UiToolErrorHandler extends DefaultToolErrorHandler {
                 return switch (locationException.getStatus()) {
                     case ELEMENT_NOT_FOUND_ON_SCREEN_VISUAL_AND_ALGORITHMIC_FAILED,
                             ELEMENT_NOT_FOUND_ON_SCREEN_VALIDATION_FAILED ->
-                        handleRetryableToolError(locationException.getMessage());
+                        handleRetryableToolError(context, locationException.getMessage());
                     default -> throw locationException;
                 };
             }
@@ -69,10 +74,10 @@ class UiToolErrorHandler extends DefaultToolErrorHandler {
                 if (config.isSupervised() || getTerminalErrors().contains(toolExecutionException.getErrorCategory())) {
                     throw toolExecutionException;
                 } else {
-                    return handleRetryableToolError(toolExecutionException.getMessage());
+                    return handleRetryableToolError(context, toolExecutionException.getMessage());
                 }
             }
-            case null, default -> throw new RuntimeException(error);
+            case null, default -> throw unhandledError(error);
         }
     }
 }

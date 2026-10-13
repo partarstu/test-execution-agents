@@ -1,5 +1,5 @@
 /*
- * ui-test-execution-agent - ${project.description}
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
  * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -28,11 +28,12 @@ import static java.util.Objects.requireNonNull;
 public record PhraseEmbedding(UUID id, String phrase, float[] embedding, PhraseType type) implements Embeddable {
 
     public static final String LABEL = "PhraseEmbedding";
+    public static final String VECTOR_INDEX = "phrase_embedding_vector_index";
     public static final String PROP_PHRASE = "phrase";
     public static final String PROP_TYPE = "type";
 
     public enum PhraseType {
-        PREREQUISITE, EFFECT
+        PREREQUISITE, EFFECT, NEGATED_EFFECT
     }
 
     public PhraseEmbedding {
@@ -48,6 +49,10 @@ public record PhraseEmbedding(UUID id, String phrase, float[] embedding, PhraseT
 
     public static PhraseEmbedding createEffect(String phrase, float[] embedding) {
         return new PhraseEmbedding(UUID.randomUUID(), phrase, embedding, PhraseType.EFFECT);
+    }
+
+    public static PhraseEmbedding createNegatedEffect(String phrase, float[] embedding) {
+        return new PhraseEmbedding(UUID.randomUUID(), phrase, embedding, PhraseType.NEGATED_EFFECT);
     }
 
     @Override

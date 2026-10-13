@@ -22,19 +22,24 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.tarik.ta.agents.UiStateCheckAgent;
+import org.tarik.ta.core.security.SecretRegistry;
 import org.tarik.ta.core.utils.CommonUtils;
 import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.KeyEvent;
+import java.util.regex.Pattern;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
@@ -106,6 +111,46 @@ class KeyboardToolsTest {
         verify(robot, times(1)).keyRelease(KeyEvent.VK_B);
         verify(robot, times(1)).keyPress(KeyEvent.VK_C);
         verify(robot, times(1)).keyRelease(KeyEvent.VK_C);
+    }
+
+    @Test
+    @DisplayName("typeText resolves a secret placeholder into the real value at the keyboard")
+    void typeTextShouldResolveSecretPlaceholder() {
+        SecretRegistry.global().reset(Pattern.compile("(?i).*password.*"));
+        try {
+            SecretRegistry.global().register("password", "abcd");
+
+            keyboardTools.typeText("{{secret:password}}", "false");
+
+            // The real value is typed character by character, while the placeholder's braces and colon would have gone
+            // through the clipboard fallback instead.
+            verify(robot, times(1)).keyPress(KeyEvent.VK_A);
+            verify(robot, times(1)).keyPress(KeyEvent.VK_B);
+            verify(robot, times(1)).keyPress(KeyEvent.VK_C);
+            verify(robot, times(1)).keyPress(KeyEvent.VK_D);
+            verifyNoInteractions(clipboard);
+        } finally {
+            SecretRegistry.global().reset(Pattern.compile("(?!)"));
+        }
+    }
+
+    @Test
+    @DisplayName("pasteText resolves a secret placeholder into the real value at the clipboard")
+    void pasteTextShouldResolveSecretPlaceholder() {
+        SecretRegistry.global().reset(Pattern.compile("(?i).*password.*"));
+        try {
+            SecretRegistry.global().register("password", "s3cr3t-value");
+            var pasted = ArgumentCaptor.forClass(StringSelection.class);
+
+            keyboardTools.pasteText("{{secret:password}}", "false");
+
+            verify(clipboard).setContents(pasted.capture(), any());
+            assertThat(pasted.getValue().getTransferData(DataFlavor.stringFlavor)).isEqualTo("s3cr3t-value");
+        } catch (Exception e) {
+            throw new AssertionError("The pasted content could not be read", e);
+        } finally {
+            SecretRegistry.global().reset(Pattern.compile("(?!)"));
+        }
     }
 
     @Test

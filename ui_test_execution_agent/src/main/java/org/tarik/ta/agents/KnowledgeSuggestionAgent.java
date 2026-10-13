@@ -17,36 +17,32 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.agents.GenericAiAgent;
 import org.tarik.ta.dto.KnowledgeSuggestionResult;
+import org.tarik.ta.model.ImageContentCreator;
+
+import java.util.List;
 
 /**
  * AI agent that suggests preconditions, effects, and child steps for new procedures whose knowledge is being collected.
  */
-public interface KnowledgeSuggestionAgent extends GenericAiAgent<KnowledgeSuggestionResult> {
-    @UserMessage("""
-            Test case scenario: {{description}}
-
-            Context:
-            {{context}}
-
-            Test Data: {{testData}}
-
-            Expected Results: {{expectedResults}}
-            """)
-    Result<String> suggest(
-            @V("description") String description,
-            @V("context") String context,
-            @V("testData") String testData,
-            @V("expectedResults") String expectedResults,
-            @UserMessage ImageContent screenshot);
+public interface KnowledgeSuggestionAgent extends GenericAiAgent<KnowledgeSuggestionResult>, VisionBasedAgent {
+    Result<String> suggest(@UserMessage List<Content> userMessage, @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {
         return "Suggesting information about the procedure (decomposition, effects/preconditions, test data etc.)";
+    }
+
+    @Override
+    default @NotNull ImageContentCreator getImageContentCreator(@NotNull UiTestAgentConfig config) {
+        return new ImageContentCreator(config.getKnowledgeSuggestionAgentImageDetailLevel(),
+                config.getKnowledgeSuggestionAgentModelProvider(), config.getMaxModelImagePixels());
     }
 }

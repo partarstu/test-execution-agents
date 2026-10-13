@@ -17,21 +17,33 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
+import org.tarik.ta.model.ImageContentCreator;
+
+import java.util.List;
 
 /**
  * Agent responsible for executing test case preconditions.
  */
-public interface UiPreconditionActionAgent extends BaseUiAgent<EmptyExecutionResult> {
+public interface UiPreconditionActionAgent extends BaseUiAgent<EmptyExecutionResult>, VisionBasedAgent {
     Result<String> execute(
-            @UserMessage String userMessage,
+            @UserMessage List<Content> userMessage,
             @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {
         return "Executing precondition action related to UI";
+    }
+
+    @Override
+    default @NotNull ImageContentCreator getImageContentCreator(@NotNull UiTestAgentConfig config) {
+        return new ImageContentCreator(config.getPreconditionActionAgentImageDetailLevel(),
+                config.getPreconditionActionAgentModelProvider(), config.getMaxModelImagePixels());
     }
 }

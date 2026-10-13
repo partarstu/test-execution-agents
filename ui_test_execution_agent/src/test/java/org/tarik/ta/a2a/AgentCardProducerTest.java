@@ -22,6 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.tarik.ta.ExecutionMode;
 import org.tarik.ta.UiTestAgentConfig;
 
+import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -49,27 +51,51 @@ class AgentCardProducerTest {
             assertThat(skill.id()).isEqualTo("ui_test_execution_supervised");
             assertThat(skill.name()).isEqualTo("Supervised UI Test Execution");
             assertThat(skill.tags()).contains("supervised");
+            assertThat(skill.description()).contains("not suitable for CI/CD");
         });
     }
 
     @Test
-    void descriptionListsSubAgentModels() {
+    void descriptionListsSubAgentModelsAndVersionComesFromConfig() {
         UiTestAgentConfig config = mock(UiTestAgentConfig.class);
         when(config.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
         when(config.getTestStepActionAgentModelName()).thenReturn("test-step-model");
+        when(config.getTestCaseExtractionAgentModelName()).thenReturn("extraction-model");
+        when(config.getAgentVersion()).thenReturn("1.0.0");
 
         AgentCard card = new AgentCardProducer("https://agent.example.test", config).agentCard();
 
+        assertThat(card.version()).isEqualTo("1.0.0");
         assertThat(card.description())
                 .startsWith("Uses the following sub-agents:<br>")
                 .contains("<ol>")
                 .contains("<li>Test Step Action Agent — test-step-model</li>")
+                .contains("<li>Test Case Extraction Agent — extraction-model</li>")
                 .contains("</ol>");
+    }
+
+    @Test
+    void descriptionEndsWithThePanelUrlAsPlainText_whenAnExternalPanelUrlIsConfigured() {
+        UiTestAgentConfig config = mock(UiTestAgentConfig.class);
+        when(config.getExecutionMode()).thenReturn(ExecutionMode.SUPERVISED);
+        when(config.getAgentVersion()).thenReturn("1.0.0");
+        when(config.getPanelExternalUrl()).thenReturn(Optional.of("https://203.0.113.7:8443"));
+
+        AgentCard card = new AgentCardProducer("https://agent.example.test", config).agentCard();
+
+        assertThat(card.description()).endsWith("</ol>\nOperator panel: https://203.0.113.7:8443");
+        assertThat(card.skills()).singleElement().satisfies(skill -> assertThat(skill.description()).contains("operator panel"));
+    }
+
+    @Test
+    void descriptionHasNoPanelLine_whenNoExternalPanelUrlIsConfigured() {
+        assertThat(cardForMode(ExecutionMode.UNATTENDED).description()).endsWith("</ol>").doesNotContain("Operator panel");
     }
 
     private AgentCard cardForMode(ExecutionMode mode) {
         UiTestAgentConfig config = mock(UiTestAgentConfig.class);
         when(config.getExecutionMode()).thenReturn(mode);
+        when(config.getAgentVersion()).thenReturn("1.0.0");
         return new AgentCardProducer("https://agent.example.test", config).agentCard();
     }
 }

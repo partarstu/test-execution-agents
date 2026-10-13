@@ -17,72 +17,58 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import org.tarik.ta.core.dto.Precondition;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
-import org.tarik.ta.model.UiTestExecutionContext;
 
 import java.util.List;
 
 import static java.lang.String.join;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.IntStream.range;
+import static org.tarik.ta.core.utils.MarkdownSections.joinLines;
+import static org.tarik.ta.core.utils.MarkdownSections.listItem;
+import static org.tarik.ta.core.utils.MarkdownSections.nestedList;
 
 /**
  * Builds projected execution graph context strings for AI suggestion prompts.
  */
 public class ExecutionGraphContextBuilder {
+    private static final String NO_PROCEDURES_EXECUTED = "No procedures have executed yet — this is likely the first step being defined.";
 
     private ExecutionGraphContextBuilder() {
     }
 
     /**
-     * Builds the projected execution graph context for the AI suggestions agent.
-     * Lists every atomic procedure already executed and to be executed, in chronological order.
+     * Renders the test case and every atomic procedure already executed and to be executed, in chronological order, as Markdown
+     * list items for the AI suggestions agent.
      *
-     * @param executionContext  the current test case context
      * @param executedAtomics   atomic procedures already executed during this test run, in order
      * @param precedingAtomics  atomic procedures that will execute before the new one (preceding siblings, flattened)
      */
-    public static String buildExecutionGraphContext(TestCase testCase, UiTestExecutionContext executionContext,
-                                                    List<Procedure> executedAtomics,
+    public static String buildExecutionGraphContext(TestCase testCase, List<Procedure> executedAtomics,
                                                     List<Procedure> precedingAtomics) {
-        var sb = new StringBuilder();
-        appendTestCaseContext(sb, testCase);
-
-        if (executedAtomics.isEmpty() && precedingAtomics.isEmpty()) {
-            sb.append("\nNo procedures have executed yet — this is likely the first step being defined.\n");
-            return sb.toString();
-        }
-
-        if (!executedAtomics.isEmpty()) {
-            sb.append("\nAlready executed atomic steps (scenarios) (in execution order):\n");
-            for (int i = 0; i < executedAtomics.size(); i++) {
-                appendAtomicEntry(sb, i + 1, executedAtomics.get(i));
-            }
-        }
-
-        if (!precedingAtomics.isEmpty()) {
-            sb.append("\nAtomic steps (scenarios) that are planned to be executed (in execution order):\n");
-            int offset = executedAtomics.size();
-            for (int i = 0; i < precedingAtomics.size(); i++) {
-                appendAtomicEntry(sb, offset + i + 1, precedingAtomics.get(i));
-            }
-        }
-
-        return sb.toString();
+        var preconditions = testCase.preconditions().stream().map(Precondition::description).toList();
+        var executedSteps = executedAtomics.isEmpty() && precedingAtomics.isEmpty()
+                ? NO_PROCEDURES_EXECUTED
+                : renderAtomicEntries(executedAtomics, 1);
+        return joinLines(
+                listItem("Test case", testCase.name()),
+                nestedList("Test case preconditions", preconditions),
+                listItem("Already executed atomic steps (scenarios) (in execution order)", executedSteps),
+                listItem("Atomic steps (scenarios) that are planned to be executed (in execution order)",
+                        renderAtomicEntries(precedingAtomics, executedAtomics.size() + 1)));
     }
 
-    private static void appendAtomicEntry(StringBuilder sb, int index, Procedure procedure) {
-        sb.append("%d. %s".formatted(index, procedure.description()));
+    private static String renderAtomicEntries(List<Procedure> atomics, int firstNumber) {
+        return range(0, atomics.size())
+                .mapToObj(index -> renderAtomicEntry(firstNumber + index, atomics.get(index)))
+                .collect(joining("\n"));
+    }
+
+    private static String renderAtomicEntry(int number, Procedure procedure) {
+        var entry = "%d. %s".formatted(number, procedure.description());
         var effects = procedure.effects();
-        if (!effects.isEmpty()) {
-            sb.append(" → effects: [%s]".formatted(join(", ", effects)));
-        }
-        sb.append("\n");
-    }
-
-    private static void appendTestCaseContext(StringBuilder sb, TestCase testCase) {
-        sb.append("Test case: %s\n".formatted(testCase.name()));
-        if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
-            sb.append("Test case preconditions: %s\n".formatted(join(", ", testCase.preconditions())));
-        }
+        return effects.isEmpty() ? entry : "%s → effects: [%s]".formatted(entry, join(", ", effects));
     }
 }

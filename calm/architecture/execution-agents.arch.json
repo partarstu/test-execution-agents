@@ -9,19 +9,50 @@
             "unique-id": "ui-test-execution-agent",
             "node-type": "service",
             "name": "UI Test Execution Agent",
-            "description": "Drives the system under test via computer vision and mouse/keyboard control, using a Neo4j-backed knowledge graph for UI element and procedure grounding. The main A2A endpoint requires an `Authorization: Bearer <AGENT_AUTH_TOKEN>` header; a missing or mismatched token is rejected with 401. If AGENT_AUTH_TOKEN is unset, the endpoint is open and a warning is logged (local development only)."
+            "description": "Drives the system under test via computer vision and mouse/keyboard control, using a Neo4j-backed knowledge graph for UI element and procedure grounding. It serves two endpoints on two ports. The A2A endpoint is reachable only from inside the VPC and requires an `Authorization: Bearer <AGENT_AUTH_TOKEN>` header; a missing or mismatched token is rejected with 401. If AGENT_AUTH_TOKEN is unset, the endpoint is open and a warning is logged (local development only). The operator panel is public, served over HTTPS with the PEM pair from PANEL_TLS_CERT/PANEL_TLS_KEY (plain HTTP with a warning on local runs) and protected by a password login (PANEL_PASSWORD) with a session cookie; it carries every operator interaction (timeline, prompts, the live screen relayed from Xvnc over a Unix domain socket inside the container, knowledge graph health and exploration).",
+            "interfaces": [
+                {
+                    "unique-id": "ui-agent-a2a",
+                    "description": "A2A endpoint called by the orchestrator. The GCE VM sets PORT=443.",
+                    "protocol": "A2A JSON-RPC over HTTP",
+                    "port": 8005,
+                    "port-env": "PORT",
+                    "authentication": "Bearer token (AGENT_AUTH_TOKEN)",
+                    "exposure": "internal"
+                },
+                {
+                    "unique-id": "ui-agent-panel",
+                    "description": "Operator panel: the web page, its REST API, the SSE event stream and the WebSocket relay of the live screen.",
+                    "protocol": "HTTPS with SSE and WebSocket (plain HTTP on local runs)",
+                    "port": 8443,
+                    "port-env": "PANEL_PORT",
+                    "authentication": "Password login (PANEL_PASSWORD) with a session cookie",
+                    "exposure": "public"
+                }
+            ]
         },
         {
             "unique-id": "api-test-execution-agent",
             "node-type": "service",
             "name": "API Test Execution Agent",
-            "description": "Drives the system under test by calling its HTTP APIs. The main A2A endpoint requires an `Authorization: Bearer <AGENT_AUTH_TOKEN>` header; a missing or mismatched token is rejected with 401. If AGENT_AUTH_TOKEN is unset, the endpoint is open and a warning is logged (local development only)."
+            "description": "Drives the system under test by calling its HTTP APIs. The main A2A endpoint requires an `Authorization: Bearer <AGENT_AUTH_TOKEN>` header; a missing or mismatched token is rejected with 401. If AGENT_AUTH_TOKEN is unset, the endpoint is open and a warning is logged (local development only).",
+            "interfaces": [
+                {
+                    "unique-id": "api-agent-a2a",
+                    "description": "A2A endpoint called by the orchestrator. On Cloud Run the container listens on PORT=8005 behind the service's HTTPS URL with internal ingress.",
+                    "protocol": "A2A JSON-RPC over HTTP (HTTPS through Cloud Run)",
+                    "port": 8006,
+                    "port-env": "PORT",
+                    "authentication": "Bearer token (AGENT_AUTH_TOKEN)",
+                    "exposure": "internal"
+                }
+            ]
         },
         {
             "unique-id": "neo4j",
             "node-type": "database",
             "name": "Neo4j Knowledge Graph",
-            "description": "Knowledge graph database storing UI elements and procedures used by the UI test execution agent for element grounding."
+            "description": "Knowledge graph database storing UI elements and procedures used by the UI test execution agent for element grounding, and the history of its execution runs with their step resolutions."
         },
         {
             "unique-id": "orchestrator",
@@ -33,7 +64,7 @@
             "unique-id": "llm-provider",
             "node-type": "system",
             "name": "LLM Provider",
-            "description": "External LLM provider (Google Gemini) used by both agents for vision grounding, test case extraction, and step/precondition execution decisions."
+            "description": "LLM provider used by both agents for vision grounding, test case extraction, and step/precondition execution decisions: a vendor API (Google Gemini, OpenAI, Groq, Anthropic) or a self-hosted OpenAI-compatible model service (Holo3.1, Qwen3.8) on Cloud Run, which the agents call with a Google identity token, or Qwen3.8 on a Compute Engine Spot VM reached through an IAP tunnel and called with an API key."
         },
         {
             "unique-id": "system-under-test",
@@ -45,19 +76,31 @@
             "unique-id": "gce-vm",
             "node-type": "system",
             "name": "GCE VM",
-            "description": "Google Compute Engine VM hosting the UI test execution agent, providing VNC access for interactive debugging."
+            "description": "Google Compute Engine VM hosting the UI test execution agent in a Docker container. It publishes two ports: the A2A port (443), which the firewall opens to the VPC only, and the operator panel port (8443), open to the panel's source ranges. The X display is served by Xvnc on a Unix domain socket inside the container, so no VNC or noVNC port is published."
         },
         {
             "unique-id": "cloud-run",
             "node-type": "system",
             "name": "Cloud Run",
-            "description": "Google Cloud Run service hosting the API test execution agent."
+            "description": "Google Cloud Run hosting the API test execution agent and the self-hosted Holo3.1 and Qwen3.8 model services (Holo3.1 from ui_test_execution_agent/deployment/holo)."
+        },
+        {
+            "unique-id": "otel-collector",
+            "node-type": "system",
+            "name": "OpenTelemetry Collector",
+            "description": "External OpenTelemetry collector receiving the GenAI token-usage and call-duration metrics of both agents over OTLP. Configured through the standard OTEL_* environment variables and not provisioned by this repository; with no endpoint configured the agents export nothing."
+        },
+        {
+            "unique-id": "operator",
+            "node-type": "actor",
+            "name": "Operator",
+            "description": "The person who supervises the UI agent's runs in a browser: answers its prompts, watches or drives the live screen and reviews the knowledge graph. The panel credential belongs to one person, so the panel has no user identities."
         }
     ],
     "relationships": [
         {
             "unique-id": "rel-orchestrator-a2a-agents",
-            "description": "Orchestrator routes test-execution tasks to both agents over A2A (HTTPS).",
+            "description": "Orchestrator routes test-execution tasks to both agents over A2A (HTTPS to the API agent on Cloud Run, HTTP inside the VPC to the UI agent).",
             "relationship-type": {
                 "interacts": {
                     "actor": "orchestrator",
@@ -120,7 +163,7 @@
         },
         {
             "unique-id": "rel-ui-deployed-gce",
-            "description": "UI agent runs on the GCE VM.",
+            "description": "UI agent runs in a Docker container on the GCE VM, which publishes the A2A port to the VPC only and the operator panel port publicly; no VNC or noVNC port is published.",
             "relationship-type": {
                 "deployed-in": {
                     "container": "gce-vm",
@@ -138,6 +181,38 @@
                     "container": "cloud-run",
                     "nodes": [
                         "api-test-execution-agent"
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "rel-ui-agent-otel",
+            "description": "UI agent exports its GenAI metrics to the OpenTelemetry collector (OTLP).",
+            "relationship-type": {
+                "connects": {
+                    "source": { "node": "ui-test-execution-agent" },
+                    "destination": { "node": "otel-collector" }
+                }
+            }
+        },
+        {
+            "unique-id": "rel-api-agent-otel",
+            "description": "API agent exports its GenAI metrics to the OpenTelemetry collector (OTLP).",
+            "relationship-type": {
+                "connects": {
+                    "source": { "node": "api-test-execution-agent" },
+                    "destination": { "node": "otel-collector" }
+                }
+            }
+        },
+        {
+            "unique-id": "rel-operator-panel",
+            "description": "Operator supervises runs, answers prompts, reviews the knowledge graph health and explores the knowledge graph through the operator panel over HTTPS with a password login.",
+            "relationship-type": {
+                "interacts": {
+                    "actor": "operator",
+                    "nodes": [
+                        "ui-test-execution-agent"
                     ]
                 }
             }

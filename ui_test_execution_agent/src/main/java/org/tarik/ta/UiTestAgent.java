@@ -25,14 +25,18 @@ import org.tarik.ta.config.scopes.UiAgentRequestScope;
 import org.tarik.ta.core.dto.*;
 import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.core.model.TestExecutionContext;
+import org.tarik.ta.core.security.SecretRegistry;
 import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 import org.tarik.ta.dto.UiTestExecutionResult;
 import org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator;
+import org.tarik.ta.knowledge_graph.model.node.ExecutionRun;
+import org.tarik.ta.knowledge_graph.service.ExecutionRunService;
 import org.tarik.ta.knowledge_graph.service.ExecutionStateTracker;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService;
-import org.tarik.ta.model.UiTestExecutionContext;
-import org.tarik.ta.user_dialogs.knowledge.TestStepSelectionPopup;
+import org.tarik.ta.model.VisualStateHolder;
+import org.tarik.ta.panel.OperatorPrompts;
+import org.tarik.ta.panel.RunObserver;
 import org.tarik.ta.utils.ScreenRecorder;
 
 import java.awt.image.BufferedImage;
@@ -57,20 +61,28 @@ public class UiTestAgent {
     private final UiTestAgentConfig uiTestAgentConfig;
     private final TestCaseExtractor testCaseExtractor;
     private final BudgetManager budgetManager;
-    private final UiTestExecutionContext context;
+    private final TestExecutionContext context;
     private final ScreenRecorder screenRecorder;
     private final LogCapture logCapture;
     private final ExecutionStateTracker stateTracker;
+    private final VisualStateHolder visualState;
+    private final RunObserver runObserver;
+    private final OperatorPrompts operatorPrompts;
+    private final ExecutionRunService executionRunService;
 
     public UiTestAgent(KnowledgeBasedExecutionOrchestrator knowledgeBasedExecutionOrchestrator,
                        KnowledgeService knowledgeService,
                        UiTestAgentConfig uiTestAgentConfig,
                        TestCaseExtractor testCaseExtractor,
                        BudgetManager budgetManager,
-                       UiTestExecutionContext context,
+                       TestExecutionContext context,
                        ScreenRecorder screenRecorder,
                        LogCapture logCapture,
-                       ExecutionStateTracker stateTracker) {
+                       ExecutionStateTracker stateTracker,
+                       VisualStateHolder visualState,
+                       RunObserver runObserver,
+                       OperatorPrompts operatorPrompts,
+                       ExecutionRunService executionRunService) {
         this.knowledgeBasedExecutionOrchestrator = knowledgeBasedExecutionOrchestrator;
         this.knowledgeService = knowledgeService;
         this.uiTestAgentConfig = uiTestAgentConfig;
@@ -80,6 +92,10 @@ public class UiTestAgent {
         this.screenRecorder = screenRecorder;
         this.logCapture = logCapture;
         this.stateTracker = stateTracker;
+        this.visualState = visualState;
+        this.runObserver = runObserver;
+        this.operatorPrompts = operatorPrompts;
+        this.executionRunService = executionRunService;
     }
 
     public TestExecutionResult executeTestCase(String receivedMessage) {
@@ -88,8 +104,10 @@ public class UiTestAgent {
 
         try {
             budgetManager.reset();
+            SecretRegistry.global().reset(uiTestAgentConfig.getSensitiveDataKeyPattern());
             if (uiTestAgentConfig.isFullyUnattended()) {
                 budgetManager.activateTimeBudget();
+                budgetManager.activateToolCallBudget();
             }
             var extractedTestCase = testCaseExtractor.extractTestCase(receivedMessage);
             if (extractedTestCase.isEmpty()) {
@@ -103,27 +121,23 @@ public class UiTestAgent {
 
             TestCase testCase = extractedTestCase.get();
             LOG.info("Starting execution of the test case '{}'", testCase.name());
+            // Seeded before the first executed item so that the data table is available even when the operator starts
+            // the run from a later step.
+            context.seedFromDataTable(testCase.testData());
+            // After seeding, so that the secrets of the data table are registered before the panel shows the test case
+            runObserver.taskStarted(testCase);
             systemInfo = getSystemInfo();
             screenRecorder.beginScreenCapture();
             logCapture.start();
 
+            executionRunService.start(testCase.name());
             try {
-                int startingStepIndex = 0;
-                if (!uiTestAgentConfig.isFullyUnattended()) {
-                    startingStepIndex = TestStepSelectionPopup.displayAndGetSelection(testCase.testSteps(), uiTestAgentConfig);
-                    if (startingStepIndex < 0) {
-                        LOG.info("Operator selected to abort execution from the step selection dialog.");
-                        return new UiTestExecutionResult(testCase.name(), ERROR, List.of(), List.of(), captureScreen(),
-                                systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs(),
-                                testExecutionStartTimestamp, now(),
-                                "Execution was cancelled by the operator in the step selection dialog.");
-                    } else if (startingStepIndex > 0) {
-                        LOG.info("Operator selected to start from step #{} (0-indexed)", startingStepIndex);
-                    }
-                }
-
-                return executeWithKnowledgeFlow(context, testCase, startingStepIndex, testExecutionStartTimestamp,
-                        systemInfo, screenRecorder, logCapture, stateTracker);
+                var result = executeFromStartingStep(testCase, testExecutionStartTimestamp, systemInfo);
+                executionRunService.finish(runStatusOf(result.getTestExecutionStatus()));
+                return result;
+            } catch (RuntimeException e) {
+                executionRunService.finish(runStatusOf(ERROR));
+                throw e;
             } finally {
                 LOG.info("Finished execution of the test case '{}'", testCase.name());
             }
@@ -132,18 +146,52 @@ public class UiTestAgent {
             if (systemInfo == null) {
                 systemInfo = getSystemInfo();
             }
+            // Whatever was captured before the failure is what makes the failure diagnosable, so the logs and the
+            // recording are reported here exactly as they are on every other exit path. Both are empty/null when the
+            // failure happened before capturing started.
             return new UiTestExecutionResult("Unknown Test Case", ERROR, List.of(), List.of(), captureScreen(),
-                    systemInfo, null, List.of(),
+                    systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs(),
                     testExecutionStartTimestamp, now(),
                     "Unexpected error during test case execution: " + e.getMessage());
         }
+    }
+
+    private UiTestExecutionResult executeFromStartingStep(TestCase testCase, Instant testExecutionStartTimestamp, SystemInfo systemInfo) {
+        int startingStepIndex = 0;
+        if (!uiTestAgentConfig.isFullyUnattended()) {
+            startingStepIndex = operatorPrompts.selectStartingStep(testCase.testSteps());
+            if (startingStepIndex < 0) {
+                LOG.info("Operator selected to abort execution from the step selection dialog.");
+                return new UiTestExecutionResult(testCase.name(), ERROR, List.of(), List.of(), captureScreen(),
+                        systemInfo, screenRecorder.getCurrentRecordingPath(), logCapture.getLogs(),
+                        testExecutionStartTimestamp, now(),
+                        "Execution was cancelled by the operator in the step selection dialog.");
+            } else if (startingStepIndex > 0) {
+                LOG.info("Operator selected to start from step #{} (0-indexed)", startingStepIndex);
+            }
+        }
+
+        return executeWithKnowledgeFlow(context, testCase, startingStepIndex, testExecutionStartTimestamp,
+                systemInfo, screenRecorder, logCapture, stateTracker);
+    }
+
+    // A cancelled run still returns a result, after the interrupt that cancelled it
+    private static ExecutionRun.Status runStatusOf(TestExecutionResult.TestExecutionStatus status) {
+        if (Thread.currentThread().isInterrupted()) {
+            return ExecutionRun.Status.ABORTED;
+        }
+        return switch (status) {
+            case PASSED -> ExecutionRun.Status.PASSED;
+            case FAILED -> ExecutionRun.Status.FAILED;
+            case ERROR -> ExecutionRun.Status.ERROR;
+        };
     }
 
     /**
      * Runs the knowledge-based execution flow. The request scope has already
      * been created above.
      */
-    private UiTestExecutionResult executeWithKnowledgeFlow(UiTestExecutionContext context, TestCase testCase,
+    private UiTestExecutionResult executeWithKnowledgeFlow(TestExecutionContext context, TestCase testCase,
                                                            int startingStepIndex, Instant testExecutionStartTimestamp,
                                                            SystemInfo systemInfo,
                                                            ScreenRecorder screenRecorder, LogCapture logCapture,
@@ -167,7 +215,7 @@ public class UiTestAgent {
                     String errorMessage = failedPrecondition.map(PreconditionResult::getErrorMessage)
                             .orElse("Unknown error during knowledge-based execution");
                     return buildErrorResult(testCase.name(), context, ERROR, testExecutionStartTimestamp, errorMessage,
-                            context.getVisualState().screenshot(), systemInfo, screenRecorder.getCurrentRecordingPath(),
+                            visualState.get().screenshot(), systemInfo, screenRecorder.getCurrentRecordingPath(),
                             logCapture.getLogs());
                 }
             } else {

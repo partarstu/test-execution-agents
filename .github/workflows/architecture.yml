@@ -13,12 +13,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Validate CALM architecture model
-        run: npx -y @finos/calm-cli@1.46.0 validate -p calm/patterns/execution-agents.pattern.json -a calm/architecture/execution-agents.arch.json --strict -f pretty
+        run: npx -y @finos/calm-cli@1.60.1 validate -p calm/patterns/execution-agents.pattern.json -a calm/architecture/execution-agents.arch.json --strict -f pretty

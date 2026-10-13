@@ -21,12 +21,7 @@ package org.tarik.ta;
  * Defines the execution modes for the UI test agent.
  */
 public enum ExecutionMode {
-    /**
-     * Supervised mode where the agent operates autonomously but allows
-     * the operator to halt execution at any time through a countdown popup.
-     * On halt, errors, or verification failures, the operator is notified
-     * and only then she can choose any of available actions.
-     */
+    /** The agent runs on its own, while the operator confirms, halts or redirects it through the prompts of the operator panel. */
     SUPERVISED,
 
     /**

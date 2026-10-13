@@ -1,5 +1,5 @@
 /*
- * ui-test-execution-agent - ${project.description}
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
  * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -31,6 +31,7 @@ import static org.tarik.ta.utils.ImageUtils.*;
 public class UiElement implements IEntity {
 
     public static final String LABEL = "UiElement";
+    public static final String VECTOR_INDEX = "ui_element_embedding_index";
     public static final String PROP_NAME = "name";
     public static final String PROP_OWN_DESCRIPTION = "ownDescription";
     public static final String PROP_ANCHORS_DESCRIPTION = "anchorsDescription";
@@ -43,6 +44,7 @@ public class UiElement implements IEntity {
     public static final String PROP_AVG_LOCATION_TIME_MS = "avgLocationTimeMs";
     public static final String PROP_FAILED_LOCATION_COUNT = "locationRetriesCount";
     public static final String PROP_LAST_LOCATED_AT = "lastLocatedAt";
+    public static final String PROP_UPDATED_AT = "updatedAt";
 
     private final UUID id;
     private final String name;

@@ -1,20 +1,11 @@
-<configuration debug="true">
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-        </encoder>
-    </appender>
+<configuration>
+    <!-- Safety net: every log message is written with the registered secrets replaced by their placeholders. -->
+    <conversionRule conversionWord="redactedMsg" class="org.tarik.ta.core.security.SecretRedactingMessageConverter"/>
+    <conversionRule conversionWord="redactedEx" class="org.tarik.ta.core.security.SecretRedactingThrowableConverter"/>
 
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_DIR:-log}/app.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_DIR:-log}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
-            <maxHistory>1</maxHistory>
-        </rollingPolicy>
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-        </encoder>
-    </appender>
+    <!-- "json" gives one JSON object per event for the cloud log collectors; anything else keeps the readable pattern. -->
+    <property name="LOG_FORMAT" value="${LOG_FORMAT:-text}"/>
+    <include resource="logback-appenders-${LOG_FORMAT}.xml"/>
 
     <root level="${LOG_LEVEL:-INFO}">
         <appender-ref ref="STDOUT"/>

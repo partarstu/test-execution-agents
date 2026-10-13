@@ -1,0 +1,91 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* The entry screens: the splash while the session is probed, the unreachable agent and the login */
+@layer components {
+  .splash,
+  .login {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: var(--space-4);
+    min-block-size: 100dvh;
+    padding: var(--space-4);
+    background:
+      radial-gradient(60rem 30rem at 50% -10%, var(--accent-soft), transparent 70%),
+      var(--surface);
+  }
+
+  .login .notice {
+    inline-size: min(26rem, 100%);
+    margin: 0;
+  }
+
+  .splash-title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-lg);
+  }
+
+  .login-form {
+    display: grid;
+    gap: var(--space-2);
+    inline-size: min(26rem, 100%);
+    padding: var(--space-6) var(--space-5) var(--space-5);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-3);
+
+    & > label {
+      margin-block-start: var(--space-2);
+      font-weight: 600;
+    }
+
+    & > button[type="submit"] {
+      margin-block-start: var(--space-3);
+      min-block-size: 2.5rem;
+    }
+  }
+
+  .login-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+
+    & .signal-mark {
+      inline-size: 24px;
+      block-size: 36px;
+    }
+  }
+
+  /* The reveal button sits inside the field's end, which keeps its text clear of it */
+  .password-field {
+    position: relative;
+
+    & input {
+      min-block-size: 2.75rem;
+      padding-inline-end: 2.75rem;
+    }
+
+    & button {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-end: var(--space-1);
+      margin-block: auto;
+    }
+  }
+}

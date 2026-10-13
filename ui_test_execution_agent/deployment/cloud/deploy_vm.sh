@@ -33,13 +33,21 @@ fi
 
 echo "Using GCP Project ID: $PROJECT_ID"
 
+# The panel can drive the agent's screen and change its knowledge, so opening it to the internet must be a deliberate choice
+if [ -z "$FIREWALL_PANEL_SOURCE_RANGES" ]; then
+  echo "Error: FIREWALL_PANEL_SOURCE_RANGES (substitution _FIREWALL_PANEL_SOURCE_RANGES) is not set."
+  echo "Set it to the comma-separated CIDR ranges allowed to reach the operator panel, e.g. your office or VPN egress range."
+  exit 1
+fi
+
 # All environment variables are expected to be set by the calling script or cloudbuild.yaml substitutions.
 # Only APP_LOG_FINAL_FOLDER is a constant that doesn't need to be configurable.
 export APP_LOG_FINAL_FOLDER="/app/log"
 
 # --- Prerequisites ---
 echo "Step 1: Enabling necessary GCP services..."
-gcloud services enable ${GCP_SERVICES} --project=${PROJECT_ID}
+source "$(dirname "$0")/../gcp_services.sh"
+enable_missing_gcp_services "${PROJECT_ID}" ${GCP_SERVICES}
 
 # --- Secret Management (IMPORTANT) ---
 echo "Step 2: Setting up secrets in Google Secret Manager..."
@@ -48,8 +56,12 @@ echo " - GROQ_API_KEY"
 echo " - GROQ_ENDPOINT"
 echo " - VECTOR_DB_URL"
 echo " - VECTOR_DB_KEY"
-echo " - VNC_PW"
+echo " - PANEL_PASSWORD (at least 16 characters, e.g. openssl rand -base64 32)"
+echo " - PANEL_TLS_CERT (PEM certificate chain of the operator panel, self-signed or CA-signed)"
+echo " - PANEL_TLS_KEY (PEM private key of that certificate)"
 echo " - GOOGLE_API_KEY"
+echo " - HCOMPANY_ENDPOINT (optional)"
+echo " - QWEN_ENDPOINT (optional)"
 
 # --- Networking ---
 echo "Step 3: Setting up VPC network and firewall rules..."
@@ -68,11 +80,18 @@ else
     echo "VPC network '${NETWORK_NAME}' already exists."
 fi
 
-if ! gcloud compute firewall-rules describe allow-novnc --project=${PROJECT_ID} &>/dev/null; then
-    echo "Creating firewall rule 'allow-novnc' for port ${NO_VNC_PORT}..."
-    gcloud compute firewall-rules create allow-novnc --network=${NETWORK_NAME} --allow=tcp:${NO_VNC_PORT} --source-ranges=${FIREWALL_NOVNC_SOURCE_RANGES} --project=${PROJECT_ID}
+# The operator panel replaced noVNC, so its port stays closed
+if gcloud compute firewall-rules describe allow-novnc --project=${PROJECT_ID} &>/dev/null; then
+    echo "Deleting the obsolete firewall rule 'allow-novnc'..."
+    gcloud compute firewall-rules delete allow-novnc --project=${PROJECT_ID} --quiet
+fi
+
+if ! gcloud compute firewall-rules describe allow-panel --project=${PROJECT_ID} &>/dev/null; then
+    echo "Creating firewall rule 'allow-panel' for port ${PANEL_PORT}..."
+    gcloud compute firewall-rules create allow-panel --network=${NETWORK_NAME} --allow=tcp:${PANEL_PORT} --source-ranges=${FIREWALL_PANEL_SOURCE_RANGES} --project=${PROJECT_ID}
 else
-    echo "Firewall rule 'allow-novnc' already exists."
+    echo "Updating firewall rule 'allow-panel' to port ${PANEL_PORT} and the configured source ranges..."
+    gcloud compute firewall-rules update allow-panel --allow=tcp:${PANEL_PORT} --source-ranges=${FIREWALL_PANEL_SOURCE_RANGES} --project=${PROJECT_ID}
 fi
 
 if ! gcloud compute firewall-rules describe allow-app-internal --project=${PROJECT_ID} &>/dev/null; then
@@ -82,11 +101,13 @@ else
     echo "Firewall rule 'allow-app-internal' already exists."
 fi
 
+# The A2A port is reachable only from inside the VPC; an existing rule is updated, because it may still allow 0.0.0.0/0
 if ! gcloud compute firewall-rules describe allow-agent-server --project=${PROJECT_ID} &>/dev/null; then
     echo "Creating firewall rule 'allow-agent-server' for port ${AGENT_SERVER_PORT}..."
-    gcloud compute firewall-rules create allow-agent-server --network=${NETWORK_NAME} --allow=tcp:${AGENT_SERVER_PORT} --source-ranges=${FIREWALL_AGENT_SERVER_SOURCE_RANGES} --project=${PROJECT_ID}
+    gcloud compute firewall-rules create allow-agent-server --network=${NETWORK_NAME} --allow=tcp:${AGENT_SERVER_PORT} --source-ranges=${FIREWALL_APP_INTERNAL_SOURCE_RANGES} --project=${PROJECT_ID}
 else
-    echo "Firewall rule 'allow-agent-server' already exists."
+    echo "Updating firewall rule 'allow-agent-server' to the internal source ranges..."
+    gcloud compute firewall-rules update allow-agent-server --allow=tcp:${AGENT_SERVER_PORT} --source-ranges=${FIREWALL_APP_INTERNAL_SOURCE_RANGES} --project=${PROJECT_ID}
 fi
 
 if ! gcloud compute firewall-rules describe allow-ssh --project=${PROJECT_ID} &>/dev/null; then
@@ -116,27 +137,35 @@ METADATA="enable-osconfig=TRUE"
 METADATA+=",gcp-project-id=${PROJECT_ID}"
 METADATA+=",gcp-service-name=${SERVICE_NAME}"
 METADATA+=",gcp-image-tag=${IMAGE_TAG}"
-METADATA+=",no-vnc-port=${NO_VNC_PORT}"
-METADATA+=",vnc-port=${VNC_PORT}"
 METADATA+=",agent-server-port=${AGENT_SERVER_PORT}"
+METADATA+=",panel-port=${PANEL_PORT}"
 METADATA+=",app-final-log-folder=${APP_LOG_FINAL_FOLDER}"
 METADATA+=",VNC_RESOLUTION=${VNC_RESOLUTION}"
 METADATA+=",LOG_LEVEL=${LOG_LEVEL}"
-METADATA+=",UNATTENDED_MODE=${UNATTENDED_MODE}"
+METADATA+=",LOG_FORMAT=${LOG_FORMAT}"
+METADATA+=",EXECUTION_MODE=${EXECUTION_MODE}"
+METADATA+=",PANEL_LIVE_CONTROL_ENABLED=${PANEL_LIVE_CONTROL_ENABLED}"
 METADATA+=",DEBUG_MODE=${DEBUG_MODE}"
+METADATA+=",SCREEN_RECORDING_ENABLED=${SCREEN_RECORDING_ENABLED}"
 METADATA+=",java-app-startup-script=${JAVA_APP_STARTUP_SCRIPT}"
 METADATA+=",BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS=${BBOX_SCREENSHOT_LONGEST_ALLOWED_DIMENSION_PIXELS}"
 METADATA+=",BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS=${BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS}"
 METADATA+=",BOUNDING_BOX_ALREADY_NORMALIZED=${BOUNDING_BOX_ALREADY_NORMALIZED}"
+METADATA+=",DB_ELEMENT_SELECTION_AGENT_MODEL_NAME=${DB_ELEMENT_SELECTION_AGENT_MODEL_NAME}"
+METADATA+=",DB_ELEMENT_SELECTION_AGENT_MODEL_PROVIDER=${DB_ELEMENT_SELECTION_AGENT_MODEL_PROVIDER}"
+METADATA+=",ELEMENT_CANDIDATE_SELECTION_AGENT_PROMPT_VERSION=${ELEMENT_CANDIDATE_SELECTION_AGENT_PROMPT_VERSION}"
 METADATA+=",ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME=${ELEMENT_BOUNDING_BOX_AGENT_MODEL_NAME}"
 METADATA+=",ELEMENT_BOUNDING_BOX_AGENT_MODEL_PROVIDER=${ELEMENT_BOUNDING_BOX_AGENT_MODEL_PROVIDER}"
 METADATA+=",ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION=${ELEMENT_BOUNDING_BOX_AGENT_PROMPT_VERSION}"
 METADATA+=",ELEMENT_SELECTION_AGENT_MODEL_NAME=${ELEMENT_SELECTION_AGENT_MODEL_NAME}"
 METADATA+=",ELEMENT_SELECTION_AGENT_MODEL_PROVIDER=${ELEMENT_SELECTION_AGENT_MODEL_PROVIDER}"
 METADATA+=",ELEMENT_SELECTION_AGENT_PROMPT_VERSION=${ELEMENT_SELECTION_AGENT_PROMPT_VERSION}"
-METADATA+=",PAGE_DESCRIPTION_AGENT_MODEL_NAME=${PAGE_DESCRIPTION_AGENT_MODEL_NAME}"
-METADATA+=",PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER=${PAGE_DESCRIPTION_AGENT_MODEL_PROVIDER}"
-METADATA+=",PAGE_DESCRIPTION_AGENT_PROMPT_VERSION=${PAGE_DESCRIPTION_AGENT_PROMPT_VERSION}"
+METADATA+=",KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_NAME=${KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_NAME}"
+METADATA+=",KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_PROVIDER=${KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_MODEL_PROVIDER}"
+METADATA+=",KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_PROMPT_VERSION=${KNOWLEDGE_COLLECTION_ELEMENT_RESOLUTION_AGENT_PROMPT_VERSION}"
+METADATA+=",KNOWLEDGE_SUGGESTION_AGENT_MODEL_NAME=${KNOWLEDGE_SUGGESTION_AGENT_MODEL_NAME}"
+METADATA+=",KNOWLEDGE_SUGGESTION_AGENT_MODEL_PROVIDER=${KNOWLEDGE_SUGGESTION_AGENT_MODEL_PROVIDER}"
+METADATA+=",KNOWLEDGE_SUGGESTION_AGENT_PROMPT_VERSION=${KNOWLEDGE_SUGGESTION_AGENT_PROMPT_VERSION}"
 METADATA+=",PRECONDITION_AGENT_MODEL_NAME=${PRECONDITION_AGENT_MODEL_NAME}"
 METADATA+=",PRECONDITION_AGENT_MODEL_PROVIDER=${PRECONDITION_AGENT_MODEL_PROVIDER}"
 METADATA+=",PRECONDITION_AGENT_PROMPT_VERSION=${PRECONDITION_AGENT_PROMPT_VERSION}"
@@ -152,15 +181,23 @@ METADATA+=",TEST_STEP_ACTION_AGENT_PROMPT_VERSION=${TEST_STEP_ACTION_AGENT_PROMP
 METADATA+=",TEST_STEP_VERIFICATION_AGENT_MODEL_NAME=${TEST_STEP_VERIFICATION_AGENT_MODEL_NAME}"
 METADATA+=",TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER=${TEST_STEP_VERIFICATION_AGENT_MODEL_PROVIDER}"
 METADATA+=",TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION=${TEST_STEP_VERIFICATION_AGENT_PROMPT_VERSION}"
-METADATA+=",UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME=${UI_ELEMENT_DESCRIPTION_AGENT_MODEL_NAME}"
-METADATA+=",UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER=${UI_ELEMENT_DESCRIPTION_AGENT_MODEL_PROVIDER}"
-METADATA+=",UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION=${UI_ELEMENT_DESCRIPTION_AGENT_PROMPT_VERSION}"
+METADATA+=",UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_MODEL_NAME=${UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_MODEL_NAME}"
+METADATA+=",UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_MODEL_PROVIDER=${UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_MODEL_PROVIDER}"
+METADATA+=",UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_PROMPT_VERSION=${UI_ELEMENT_DESCRIPTION_EXTRACTION_AGENT_PROMPT_VERSION}"
+METADATA+=",UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME=${UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_NAME}"
+METADATA+=",UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_PROVIDER=${UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_MODEL_PROVIDER}"
+METADATA+=",UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_PROMPT_VERSION=${UI_ELEMENT_DESCRIPTION_MATCHER_AGENT_PROMPT_VERSION}"
 METADATA+=",UI_STATE_CHECK_AGENT_MODEL_NAME=${UI_STATE_CHECK_AGENT_MODEL_NAME}"
 METADATA+=",UI_STATE_CHECK_AGENT_MODEL_PROVIDER=${UI_STATE_CHECK_AGENT_MODEL_PROVIDER}"
 METADATA+=",UI_STATE_CHECK_AGENT_PROMPT_VERSION=${UI_STATE_CHECK_AGENT_PROMPT_VERSION}"
 METADATA+=",GROQ_ENDPOINT=${GROQ_ENDPOINT}"
 METADATA+=",GOOGLE_LOCATION=${GOOGLE_LOCATION}"
 METADATA+=",GOOGLE_PROJECT=${GOOGLE_PROJECT}"
+# OpenTelemetry metrics export. Empty values keep the export off, which is the default of the agent.
+METADATA+=",OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME}"
+METADATA+=",OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}"
+METADATA+=",OTEL_METRICS_EXPORTER=${OTEL_METRICS_EXPORTER}"
+METADATA+=",OTEL_METRIC_EXPORT_INTERVAL=${OTEL_METRIC_EXPORT_INTERVAL}"
 
 # Create new instance
 gcloud beta compute instances create ${INSTANCE_NAME} \
@@ -172,7 +209,8 @@ gcloud beta compute instances create ${INSTANCE_NAME} \
     --instance-termination-action=${INSTANCE_TERMINATION_ACTION} \
     --service-account=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')-compute@developer.gserviceaccount.com \
     --scopes=${CLOUD_PLATFORM_SCOPE} \
-    --image=${GCE_IMAGE} \
+    --image-family=${GCE_IMAGE_FAMILY} \
+    --image-project=${GCE_IMAGE_PROJECT} \
     --boot-disk-size=${BOOT_DISK_SIZE} \
     --boot-disk-type=${BOOT_DISK_TYPE} \
     --boot-disk-device-name=${INSTANCE_NAME} \
@@ -196,5 +234,5 @@ echo "--- Deployment Summary ---"
 echo "Agent VM '${INSTANCE_NAME}' created."
 echo "Agent is running on ${AGENT_SERVER_PORT} port."
 echo "In order to get the internal Agent host name, execute the following command inside the VM: 'curl \"http://metadata.google.internal/computeMetadata/v1/instance/hostname\" -H \"Metadata-Flavor: Google\"'"
-echo "To access the Agent via noVNC, connect to https://${EXTERNAL_IP}:${NO_VNC_PORT}/vnc.html"
+echo "To supervise the Agent, open the operator panel at https://${EXTERNAL_IP}:${PANEL_PORT}"
 echo "It may take a few minutes for the VM to start and agent to be available."

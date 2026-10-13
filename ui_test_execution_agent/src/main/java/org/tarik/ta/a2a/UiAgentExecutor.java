@@ -30,6 +30,7 @@ import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.dto.UiTestExecutionResult;
 import org.tarik.ta.dto.UiTestStepResult;
 import org.tarik.ta.model.VisualState;
+import org.tarik.ta.panel.RunObserver;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
@@ -41,15 +42,27 @@ import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
 public class UiAgentExecutor extends AbstractAgentExecutor {
     public static final String SCREENSHOT_FORMAT = "png";
     private final UiAgentRequestScopeFactory requestScopeFactory;
+    private final RunObserver runObserver;
 
-    public UiAgentExecutor(UiAgentRequestScopeFactory requestScopeFactory) {
+    public UiAgentExecutor(UiAgentRequestScopeFactory requestScopeFactory, RunObserver runObserver) {
         this.requestScopeFactory = requestScopeFactory;
+        this.runObserver = runObserver;
     }
 
     @Override
     protected TestExecutionResult executeTestCase(String message, StreamingEventEmitter eventEmitter) {
-        try (var requestScope = requestScopeFactory.create(new VisualState(captureScreen()), eventEmitter)) {
-            return requestScope.get(UiTestAgent.class).executeTestCase(message);
+        var observedEmitter = runObserver.observe(eventEmitter);
+        TestExecutionResult result = null;
+        try (var requestScope = requestScopeFactory.create(new VisualState(captureScreen()), observedEmitter)) {
+            result = requestScope.get(UiTestAgent.class).executeTestCase(message);
+            return result;
+        } finally {
+            // A cancel interrupts the run, which then still returns an ERROR result; the panel shows it aborted, as A2A does
+            if (result == null || isCancelled()) {
+                runObserver.taskAborted();
+            } else {
+                runObserver.taskFinished(result);
+            }
         }
     }
 

@@ -1,0 +1,135 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  .run-segments {
+    display: flex;
+    gap: 3px;
+    block-size: 0.625rem;
+  }
+
+  .run-segment {
+    flex: 1 1 0;
+    min-inline-size: 2px;
+    border-radius: 999px;
+    background: var(--rule);
+  }
+
+  .run-segment-passed {
+    background: var(--passed);
+  }
+
+  .run-segment-failed {
+    background: var(--failed);
+  }
+
+  /* Hatched, so an error stays apart from a failure without its colour */
+  .run-segment-error {
+    background: repeating-linear-gradient(135deg, var(--error) 0 3px, color-mix(in srgb, var(--error) 35%, transparent) 3px 6px);
+  }
+
+  .run-segment-running {
+    background: var(--accent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation: run-segment-pulse 1.6s ease-in-out infinite;
+    }
+  }
+
+  .run-segment-current {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* The actions of a step, grouped by the top-level parts of its procedure */
+  .run-segments-grouped {
+    gap: var(--space-4);
+    block-size: 0.75rem;
+  }
+
+  .run-segment-group {
+    display: flex;
+    flex: 1 1 0;
+    gap: 3px;
+  }
+
+  .run-segment-skipped,
+  .run-segment-abandoned {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--field-border);
+  }
+
+  .run-segment-waiting {
+    background: var(--warning);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--warning) 70%, transparent);
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation: run-segment-pulse 1.6s ease-in-out infinite;
+    }
+  }
+
+  .run-segment-completed {
+    background: var(--passed);
+  }
+
+  @keyframes run-segment-pulse {
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  .run-chip {
+    gap: var(--space-2);
+    padding-inline: var(--space-1) var(--space-2);
+  }
+
+  .run-chip-count {
+    color: var(--muted);
+    font-size: var(--text-sm);
+    font-weight: 650;
+  }
+
+  /* Forced colours paint backgrounds away; ended items stay solid, the rest outlined */
+  @media (forced-colors: active) {
+    .run-segment {
+      forced-color-adjust: none;
+      background: Canvas;
+      border: 1px solid CanvasText;
+    }
+
+    .run-segment-passed,
+    .run-segment-completed,
+    .run-segment-failed {
+      background: CanvasText;
+    }
+
+    .run-segment-skipped,
+    .run-segment-abandoned {
+      border-style: dashed;
+    }
+
+    .run-segment-error {
+      background: repeating-linear-gradient(135deg, CanvasText 0 3px, Canvas 3px 6px);
+    }
+
+    .run-segment-running,
+    .run-segment-waiting {
+      background: Highlight;
+    }
+  }
+}

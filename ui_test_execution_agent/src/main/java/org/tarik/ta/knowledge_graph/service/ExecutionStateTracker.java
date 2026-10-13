@@ -22,29 +22,37 @@ import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.config.scopes.UiAgentRequestScope;
+import org.tarik.ta.knowledge_graph.execution.ClosingComposite;
 import org.tarik.ta.knowledge_graph.execution.ExecutionStateSnapshot;
 import jakarta.annotation.PreDestroy;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.SequencedMap;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toCollection;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.tarik.ta.UiTestAgentConfig;
 
 /**
  * Current-state representation and precondition checking for PDDL-Lite planning.
  *
  * <p>Maintains a thread-safe scope stack of effect node UUIDs representing the current execution state.
- * After each successful atomic step execution, effects are added to the state.</p>
+ * After each successful atomic step execution, the effects it negates are removed from the state and its effects are added.</p>
  *
  * <p>Effect node IDs are stored from {@link PhraseEmbedding} objects for graph-based semantic checks.</p>
  */
@@ -52,8 +60,38 @@ import org.tarik.ta.UiTestAgentConfig;
 public class ExecutionStateTracker {
     private static final Logger LOG = LoggerFactory.getLogger(ExecutionStateTracker.class);
 
+    // Guarded by stateLock; the encounter order is the order in which the effects were produced.
     private static class ScopeFrame {
-        Set<UUID> effectNodeIds = ConcurrentHashMap.newKeySet();
+        SequencedMap<UUID, String> effectPhrasesById = new LinkedHashMap<>();
+
+        boolean addEffect(PhraseEmbedding effect) {
+            return effectPhrasesById.putLast(effect.id(), effect.phrase()) == null;
+        }
+
+        int addEffects(@Nullable List<PhraseEmbedding> effects) {
+            if (effects == null) {
+                return 0;
+            }
+            int addedCount = 0;
+            for (var effect : effects) {
+                if (effect != null && effect.id() != null && addEffect(effect)) {
+                    addedCount++;
+                }
+            }
+            return addedCount;
+        }
+
+        int removeEffects(Set<UUID> effectNodeIds) {
+            int sizeBefore = effectPhrasesById.size();
+            effectPhrasesById.keySet().removeAll(effectNodeIds);
+            return sizeBefore - effectPhrasesById.size();
+        }
+
+        ScopeFrame copy() {
+            var copy = new ScopeFrame();
+            copy.effectPhrasesById.putAll(effectPhrasesById);
+            return copy;
+        }
     }
 
     private final List<ScopeFrame> scopeStack = new CopyOnWriteArrayList<>();
@@ -77,21 +115,36 @@ public class ExecutionStateTracker {
         requireNonNull(effects, "effects");
         stateLock.writeLock().lock();
         try {
-            ScopeFrame currentFrame = scopeStack.getLast();
-            int addedCount = 0;
-            for (var effect : effects) {
-                if (effect != null && effect.id() != null) {
-                    if (currentFrame.effectNodeIds.add(effect.id())) {
-                        addedCount++;
-                    }
-                }
-            }
+            int addedCount = scopeStack.getLast().addEffects(effects);
             if (addedCount > 0) {
                 LOG.debug("Added {} effect(s) to current scope", addedCount);
             }
         } finally {
             stateLock.writeLock().unlock();
         }
+    }
+
+    /** Removes the given effect node IDs from every scope frame, since an effect negated inside a composite may live in an outer frame. */
+    public void removeEffects(Set<UUID> effectNodeIds) {
+        requireNonNull(effectNodeIds, "effectNodeIds");
+        if (effectNodeIds.isEmpty()) {
+            return;
+        }
+        stateLock.writeLock().lock();
+        try {
+            int removedCount = removeFromAllFrames(scopeStack, effectNodeIds);
+            LOG.debug("Removed {} negated effect(s) from the current state", removedCount);
+        } finally {
+            stateLock.writeLock().unlock();
+        }
+    }
+
+    private static int removeFromAllFrames(List<ScopeFrame> frames, Set<UUID> effectNodeIds) {
+        int removedCount = 0;
+        for (var frame : frames) {
+            removedCount += frame.removeEffects(effectNodeIds);
+        }
+        return removedCount;
     }
 
     public void enterCompositeScope(Procedure procedure) {
@@ -104,25 +157,22 @@ public class ExecutionStateTracker {
         }
     }
 
-    public void closeCompositeScope(List<PhraseEmbedding> compositeEffects) {
+    /** Closes the innermost composite scope, removing the effects the composite negates before promoting its own effects. */
+    public void closeCompositeScope(List<PhraseEmbedding> compositeEffects, Set<UUID> negatedEffectIds) {
         stateLock.writeLock().lock();
         try {
-            scopeStack.removeLast();
-            ScopeFrame newTop = scopeStack.getLast();
-            int promotedCount = 0;
-            if (compositeEffects != null) {
-                for (PhraseEmbedding effect : compositeEffects) {
-                    if (effect != null && effect.id() != null) {
-                        if (newTop.effectNodeIds.add(effect.id())) {
-                            promotedCount++;
-                        }
-                    }
-                }
-            }
+            int promotedCount = closeScope(scopeStack, compositeEffects, negatedEffectIds);
             LOG.debug("Closed composite scope, promoted {} effect(s) to parent scope", promotedCount);
         } finally {
             stateLock.writeLock().unlock();
         }
+    }
+
+    private static int closeScope(List<ScopeFrame> frames, @Nullable List<PhraseEmbedding> compositeEffects,
+                                  Set<UUID> negatedEffectIds) {
+        frames.removeLast();
+        removeFromAllFrames(frames, negatedEffectIds);
+        return frames.getLast().addEffects(compositeEffects);
     }
 
     public void abandonCompositeScope() {
@@ -158,6 +208,46 @@ public class ExecutionStateTracker {
             return List.copyOf(executedAtomicProcedures);
         } finally {
             stateLock.readLock().unlock();
+        }
+    }
+
+    /** Captures the effects of every scope and the execution log, so that a failed attempt of a test step can be rolled back. */
+    public Checkpoint checkpoint() {
+        stateLock.readLock().lock();
+        try {
+            return new Checkpoint(copyOf(scopeStack), executedAtomicProcedures.size());
+        } finally {
+            stateLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Restores the state captured by the checkpoint before the whole test step is rerun, so that the effects the failed attempt
+     * added are dropped and the ones it negated are back.
+     */
+    public void restore(@NotNull Checkpoint checkpoint) {
+        stateLock.writeLock().lock();
+        try {
+            scopeStack.clear();
+            scopeStack.addAll(copyOf(checkpoint.frames));
+            int currentSize = executedAtomicProcedures.size();
+            if (currentSize > checkpoint.executedAtomicCount) {
+                executedAtomicProcedures.subList(checkpoint.executedAtomicCount, currentSize).clear();
+            }
+            LOG.debug("Restored the execution state, rolled back {} executed atomic procedure(s)",
+                    Math.max(0, currentSize - checkpoint.executedAtomicCount));
+        } finally {
+            stateLock.writeLock().unlock();
+        }
+    }
+
+    public static final class Checkpoint {
+        private final List<ScopeFrame> frames;
+        private final int executedAtomicCount;
+
+        private Checkpoint(List<ScopeFrame> frames, int executedAtomicCount) {
+            this.frames = frames;
+            this.executedAtomicCount = executedAtomicCount;
         }
     }
 
@@ -221,14 +311,39 @@ public class ExecutionStateTracker {
     public Set<UUID> getEffectNodeIds() {
         stateLock.readLock().lock();
         try {
-            Set<UUID> visibleEffects = new HashSet<>();
-            for (ScopeFrame frame : scopeStack) {
-                visibleEffects.addAll(frame.effectNodeIds);
-            }
-            return Set.copyOf(visibleEffects);
+            return Set.copyOf(visibleEffectIds(scopeStack));
         } finally {
             stateLock.readLock().unlock();
         }
+    }
+
+    /**
+     * Returns the phrases of the currently visible effects in the order in which they were produced.
+     */
+    public List<String> getEffectPhrasesInExecutionOrder() {
+        stateLock.readLock().lock();
+        try {
+            return phrasesOf(scopeStack);
+        } finally {
+            stateLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Returns the phrases of the effects produced before the currently executed item in the order in which they were produced,
+     * which are the only effects a procedure replacing that item sees after a rerun.
+     */
+    public List<String> getEffectPhrasesBeforeCurrentItem() {
+        stateLock.readLock().lock();
+        try {
+            return phrasesOf(List.of(scopeStack.getFirst()));
+        } finally {
+            stateLock.readLock().unlock();
+        }
+    }
+
+    private static List<String> phrasesOf(List<ScopeFrame> frames) {
+        return frames.stream().flatMap(frame -> frame.effectPhrasesById.values().stream()).toList();
     }
 
     /**
@@ -237,17 +352,61 @@ public class ExecutionStateTracker {
     public ExecutionStateSnapshot snapshot() {
         stateLock.readLock().lock();
         try {
-            Set<UUID> visibleEffects = new HashSet<>();
-            for (ScopeFrame frame : scopeStack) {
-                visibleEffects.addAll(frame.effectNodeIds);
-            }
-            return new ExecutionStateSnapshot(
-                visibleEffects,
-                new ArrayList<>(recentParentIds),
-                new ArrayList<>(executedAtomicProcedures)
-            );
+            return snapshotOf(scopeStack, recentParentIds, executedAtomicProcedures);
         } finally {
             stateLock.readLock().unlock();
         }
+    }
+
+    /**
+     * Captures the current state and returns the snapshot it will have once the currently executed atomic procedure succeeds and
+     * the composites it is the last child of close, given innermost first; their effects and negations are resolved only when it
+     * is called.
+     */
+    public Supplier<ExecutionStateSnapshot> projectedSnapshot(@NotNull List<PhraseEmbedding> atomicEffects,
+                                                              @NotNull Set<UUID> atomicNegatedEffectIds,
+                                                              @NotNull List<ClosingComposite> closingComposites) {
+        List<ScopeFrame> framesAfterAtomic;
+        List<UUID> capturedRecentParentIds;
+        List<Procedure> capturedExecutedAtomicProcedures;
+        stateLock.readLock().lock();
+        try {
+            framesAfterAtomic = copyOf(scopeStack);
+            capturedRecentParentIds = List.copyOf(recentParentIds);
+            capturedExecutedAtomicProcedures = List.copyOf(executedAtomicProcedures);
+        } finally {
+            stateLock.readLock().unlock();
+        }
+        removeFromAllFrames(framesAfterAtomic, atomicNegatedEffectIds);
+        framesAfterAtomic.getLast().addEffects(atomicEffects);
+        return () -> {
+            List<ScopeFrame> projectedFrames = copyOf(framesAfterAtomic);
+            closingComposites.forEach(composite -> {
+                var negatedEffectIds = composite.negatedEffectIds().apply(visibleEffectIds(projectedFrames));
+                closeScope(projectedFrames, composite.effects().get(), negatedEffectIds);
+            });
+            return snapshotOf(projectedFrames, capturedRecentParentIds, capturedExecutedAtomicProcedures);
+        };
+    }
+
+    private static List<ScopeFrame> copyOf(List<ScopeFrame> frames) {
+        return frames.stream().map(ScopeFrame::copy).collect(toCollection(ArrayList::new));
+    }
+
+    private static Set<UUID> visibleEffectIds(List<ScopeFrame> frames) {
+        Set<UUID> visibleEffects = new HashSet<>();
+        for (ScopeFrame frame : frames) {
+            visibleEffects.addAll(frame.effectPhrasesById.keySet());
+        }
+        return visibleEffects;
+    }
+
+    private static ExecutionStateSnapshot snapshotOf(List<ScopeFrame> frames, Collection<UUID> recentParentIds,
+                                                     List<Procedure> executedAtomicProcedures) {
+        return new ExecutionStateSnapshot(
+            visibleEffectIds(frames),
+            new ArrayList<>(recentParentIds),
+            new ArrayList<>(executedAtomicProcedures)
+        );
     }
 }

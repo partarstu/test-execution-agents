@@ -26,28 +26,41 @@ import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.ChatResponseMetadata;
 import dev.langchain4j.model.output.TokenUsage;
+import io.opentelemetry.api.common.Attributes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.manager.BudgetManager;
+import org.tarik.ta.core.telemetry.GenAiMetrics;
+import org.tarik.ta.core.utils.TestCaseExtractor;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static org.tarik.ta.core.LoggedMessages.loggedMessagesOf;
+import static org.tarik.ta.core.telemetry.GenAiAttributes.OPERATION_NAME;
+import static org.tarik.ta.core.telemetry.GenAiAttributes.PROVIDER_NAME;
+import static org.tarik.ta.core.telemetry.GenAiAttributes.REQUEST_MODEL;
+import static org.tarik.ta.core.telemetry.GenAiAttributes.RESPONSE_MODEL;
+import static org.tarik.ta.core.telemetry.GenAiAttributes.SERVER_ADDRESS;
 
 class ChatModelEventListenerTest {
 
     private BudgetManager budgetManager;
+    private GenAiMetrics metrics;
     private ChatModelEventListener listener;
 
     @BeforeEach
     void setUp() {
         budgetManager = new BudgetManager(new AgentConfig());
         budgetManager.reset();
-        listener = new ChatModelEventListener(budgetManager);
+        metrics = mock(GenAiMetrics.class);
+        listener = new ChatModelEventListener(budgetManager, metrics, "test_step_action", "openai", "gpt-test", "api.example.org");
     }
 
     @Test
@@ -66,8 +79,34 @@ class ChatModelEventListenerTest {
 
         listener.onResponse(responseContext);
 
-        assertThat(budgetManager.getAccumulatedInputTokens("test-model")).isEqualTo(10);
-        assertThat(budgetManager.getAccumulatedOutputTokens("test-model")).isEqualTo(20);
+        assertThat(budgetManager.getAccumulatedInputTokens()).isEqualTo(10);
+        assertThat(budgetManager.getAccumulatedOutputTokens()).isEqualTo(20);
+    }
+
+    @Test
+    void onResponse_shouldRecordTheUsageOfItsOwnOperation() {
+        ChatModelResponseContext responseContext = mock(ChatModelResponseContext.class);
+        ChatResponse chatResponse = mock(ChatResponse.class);
+        ChatResponseMetadata metadata = ChatResponseMetadata.builder()
+                .modelName("gpt-test-0815")
+                .tokenUsage(new TokenUsage(10, 20))
+                .build();
+
+        when(responseContext.chatResponse()).thenReturn(chatResponse);
+        when(chatResponse.aiMessage()).thenReturn(AiMessage.from("response text"));
+        when(chatResponse.metadata()).thenReturn(metadata);
+
+        listener.onResponse(responseContext);
+
+        var attributes = Attributes.builder()
+                .put(OPERATION_NAME, "test_step_action")
+                .put(PROVIDER_NAME, "openai")
+                .put(REQUEST_MODEL, "gpt-test")
+                .put(RESPONSE_MODEL, "gpt-test-0815")
+                .put(SERVER_ADDRESS, "api.example.org")
+                .build();
+        verify(metrics).recordTokenUsage(eq(attributes), eq(10), eq(20), eq(0));
+        verify(metrics).recordOperationDuration(eq(attributes), anyLong());
     }
 
     @Test
@@ -170,5 +209,43 @@ class ChatModelEventListenerTest {
         when(errorContext.attributes()).thenReturn(Map.of("my-attribute", "val"));
 
         listener.onError(errorContext);
+    }
+
+    @Test
+    void onRequestAndOnResponse_shouldNotLogTheContent_whenTheOperationExtractsTheTestCase() {
+        var extractionListener = new ChatModelEventListener(budgetManager, metrics, TestCaseExtractor.OPERATION_NAME, "openai",
+                "gpt-test", null);
+
+        var loggedMessages = loggedMessagesOf(ChatModelEventListener.class, () -> {
+            extractionListener.onRequest(requestWith(UserMessage.from("password = s3cr3t-value")));
+            extractionListener.onResponse(responseWith(AiMessage.from(List.of(ToolExecutionRequest.builder()
+                    .id("1").name("endExecutionAndGetFinalResult").arguments("{\"password\":\"s3cr3t-value\"}").build()))));
+        });
+
+        assertThat(loggedMessages).isNotEmpty().noneMatch(message -> message.contains("s3cr3t-value"));
+    }
+
+    @Test
+    void onRequest_shouldLogTheContent_whenTheOperationIsNotTheTestCaseExtraction() {
+        var loggedMessages = loggedMessagesOf(ChatModelEventListener.class,
+                () -> listener.onRequest(requestWith(UserMessage.from("Click the 'Save' button"))));
+
+        assertThat(loggedMessages).anyMatch(message -> message.contains("Click the 'Save' button"));
+    }
+
+    private static ChatModelRequestContext requestWith(ChatMessage message) {
+        var requestContext = mock(ChatModelRequestContext.class);
+        var chatRequest = mock(ChatRequest.class);
+        when(requestContext.chatRequest()).thenReturn(chatRequest);
+        when(chatRequest.messages()).thenReturn(List.of(message));
+        return requestContext;
+    }
+
+    private static ChatModelResponseContext responseWith(AiMessage aiMessage) {
+        var responseContext = mock(ChatModelResponseContext.class);
+        var chatResponse = mock(ChatResponse.class);
+        when(responseContext.chatResponse()).thenReturn(chatResponse);
+        when(chatResponse.aiMessage()).thenReturn(aiMessage);
+        return responseContext;
     }
 }

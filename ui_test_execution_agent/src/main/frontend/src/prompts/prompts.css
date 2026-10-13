@@ -1,0 +1,388 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/*
+ * Prompts: the one lit lever in the room. A question the run waits on is the only surface of the Run tab framed in the signal
+ * teal, headed by what kind of question it is, with a fuse along its top edge and a ring that drain towards the default and turn
+ * amber in the last seconds; its answers are cards that say what each one does.
+ */
+@layer components {
+  .prompt {
+    position: relative;
+    display: grid;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    /* Clipping rather than hiding keeps the prompt from becoming a scroll container, so the editor's footer can stick */
+    overflow: clip;
+    overflow-wrap: anywhere;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-2);
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 4px;
+    }
+
+    &[aria-busy="true"] {
+      cursor: progress;
+    }
+
+    @container (width < 30rem) {
+      padding: var(--space-4);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation: prompt-arrive var(--duration-slow) var(--ease-out);
+    }
+  }
+
+  @keyframes prompt-arrive {
+    from {
+      opacity: 0;
+      translate: 0 0.5rem;
+    }
+  }
+
+  .prompt-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .prompt-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: var(--radius-lg);
+
+    .prompt-message:has(.aspect-warning) &,
+    .prompt-verification-failure & {
+      color: var(--warning);
+      background: var(--warning-soft);
+    }
+
+    .prompt-message:has(.aspect-failed) & {
+      color: var(--failed);
+      background: var(--failed-soft);
+    }
+  }
+
+  .prompt-heading {
+    display: grid;
+    gap: 0.125rem;
+    min-inline-size: 0;
+  }
+
+  .prompt-title {
+    font-size: var(--text-xl);
+    font-weight: 700;
+  }
+
+  .prompt-activity {
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+
+  .waiting {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    color: var(--muted);
+    background: var(--raised);
+    border-radius: var(--radius-lg);
+    font-size: var(--text-sm);
+
+    & p {
+      display: grid;
+      flex: 1 1 12rem;
+    }
+
+    & strong {
+      color: var(--ink);
+      font-size: var(--text-md);
+      font-weight: 650;
+    }
+  }
+
+  .waiting-urgent {
+    background: var(--warning-soft);
+  }
+
+  .ring {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+
+    & svg {
+      position: absolute;
+      inset: 0;
+      rotate: -90deg;
+    }
+  }
+
+  .ring-track {
+    fill: none;
+    stroke: var(--rule);
+    stroke-width: 4;
+  }
+
+  .ring-fill {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 4;
+    stroke-linecap: round;
+
+    @media (prefers-reduced-motion: no-preference) {
+      transition: stroke-dashoffset 250ms linear, stroke 250ms;
+    }
+
+    .ring-urgent & {
+      stroke: var(--warning);
+    }
+  }
+
+  .ring-text {
+    color: var(--ink);
+    font: 700 var(--text-sm) / 1 var(--font-mono);
+  }
+
+  /* The fuse sits on the frame's top edge and burns from right to left */
+  .fuse {
+    position: absolute;
+    inset: 0 0 auto 0;
+    block-size: 5px;
+    background: var(--accent-soft);
+
+    & span {
+      display: block;
+      block-size: 100%;
+      background: var(--accent);
+      transform-origin: left center;
+
+      @media (prefers-reduced-motion: no-preference) {
+        transition: transform 250ms linear, background-color 250ms;
+      }
+    }
+  }
+
+  .fuse-urgent span {
+    background: var(--warning);
+  }
+
+  @media (forced-colors: active) {
+    .fuse span {
+      forced-color-adjust: none;
+      background: CanvasText;
+    }
+
+    .ring-fill {
+      stroke: CanvasText;
+    }
+
+    .ring-track {
+      stroke: GrayText;
+    }
+  }
+
+  /* Answers as cards: what each one does, its number for the keys 1 to 9, the safe one lit and the irreversible one in red */
+  .options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+    gap: var(--space-2);
+  }
+
+  .option {
+    justify-content: flex-start;
+    gap: var(--space-3);
+    min-block-size: 4rem;
+    padding: var(--space-3);
+    text-align: start;
+    background: var(--panel);
+    border-color: var(--rule);
+    border-radius: var(--radius-lg);
+
+    &:hover:not(:disabled) {
+      background: var(--raised);
+      border-color: var(--field-border);
+      box-shadow: var(--shadow-1);
+    }
+  }
+
+  .option-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    inline-size: 2.25rem;
+    block-size: 2.25rem;
+    color: var(--muted);
+    background: var(--raised);
+    border-radius: var(--radius);
+  }
+
+  .option-text {
+    display: grid;
+    flex: 1;
+    gap: 0.125rem;
+  }
+
+  .option-label {
+    font-weight: 650;
+  }
+
+  .option-hint {
+    color: var(--muted);
+    font-size: var(--text-sm);
+    font-weight: 400;
+  }
+
+  .option-key {
+    align-self: flex-start;
+  }
+
+  .option-primary {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+
+    &:hover:not(:disabled) {
+      background: var(--accent-soft);
+      border-color: var(--accent-strong);
+    }
+
+    & .option-icon {
+      color: var(--on-accent);
+      background: var(--accent);
+    }
+  }
+
+  .option-danger {
+    & .option-label {
+      color: var(--failed);
+    }
+
+    & .option-icon {
+      color: var(--failed);
+      background: var(--failed-soft);
+    }
+
+    &:hover:not(:disabled) {
+      border-color: var(--failed);
+    }
+  }
+
+  /* What the question is about */
+  .item-context {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--space-1) var(--space-4);
+    padding: var(--space-3);
+    background: var(--raised);
+    border-inline-start: 3px solid var(--rule);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+
+    & dt {
+      color: var(--muted);
+    }
+  }
+
+  .fact-strong {
+    font-size: var(--text-lg);
+    font-weight: 650;
+  }
+
+  .chain {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    & li + li::before {
+      content: "›";
+      margin: 0 0.45rem;
+      color: var(--muted);
+    }
+  }
+
+  .severity-label {
+    justify-self: start;
+  }
+
+  /* The start buttons stay at the top of the scrolling prompt while a long list of steps scrolls under them */
+  .start-step-answers {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    padding-block: var(--space-2);
+    background: var(--panel);
+    border-block-end: 1px solid var(--rule);
+  }
+
+  /* Tables and lists to choose from */
+  .steps {
+    inline-size: 100%;
+    font-size: var(--text-sm);
+
+    & th {
+      padding: var(--space-1) var(--space-2);
+      color: var(--muted);
+      font-weight: 600;
+      text-align: start;
+      border-block-end: 1px solid var(--rule);
+    }
+
+    & td {
+      padding: var(--space-2);
+      vertical-align: top;
+      border-block-end: 1px solid var(--rule);
+      cursor: pointer;
+
+      &:first-child {
+        white-space: nowrap;
+      }
+    }
+
+    & tr.selected td {
+      background: var(--accent-soft);
+    }
+  }
+
+  .subview {
+    display: grid;
+    gap: var(--space-3);
+
+    & > button:not(.back) {
+      justify-self: start;
+    }
+  }
+
+  .list-state {
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+}

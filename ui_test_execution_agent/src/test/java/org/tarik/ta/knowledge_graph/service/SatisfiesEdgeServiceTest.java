@@ -26,14 +26,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge;
+import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository;
 import org.tarik.ta.knowledge_graph.repository.SatisfiesEdgeRepository.UnsatisfiedPrerequisite;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -57,8 +60,31 @@ class SatisfiesEdgeServiceTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(configMock.getSatisfiesSimilarityThreshold()).thenReturn(0.85);
+        lenient().when(configMock.getSatisfiesSimilarityThreshold()).thenReturn(0.90);
         satisfiesEdgeService = new SatisfiesEdgeService(mockSatisfiesEdgeRepository, mockPhraseEmbeddingRepository, configMock);
+    }
+
+    @Test
+    void findNegatedEffectNodeIds_shouldResolveTheNegationsAgainstTheCurrentEffects_whenTheProcedureDeclaresSome() {
+        var procedure = Procedure.createAtomic("Close dialog", List.of(), "", List.of(), List.of(), false)
+                .withNegatedEffects(List.of("the dialog is open"));
+        var negatedEffectId = UUID.randomUUID();
+        var currentEffects = Set.of(negatedEffectId, UUID.randomUUID());
+        when(mockPhraseEmbeddingRepository.findEffectNodesNegatedBy(procedure.id(), currentEffects, 0.90)).thenReturn(Set.of(negatedEffectId));
+
+        var result = satisfiesEdgeService.findNegatedEffectNodeIds(procedure, currentEffects);
+
+        assertThat(result).containsExactly(negatedEffectId);
+    }
+
+    @Test
+    void findNegatedEffectNodeIds_shouldNotQuery_whenTheProcedureDeclaresNoNegatedEffects() {
+        var procedure = Procedure.createAtomic("Open dialog", List.of(), "", List.of(), List.of(), false);
+
+        var result = satisfiesEdgeService.findNegatedEffectNodeIds(procedure, Set.of(UUID.randomUUID()));
+
+        assertThat(result).isEmpty();
+        verify(mockPhraseEmbeddingRepository, never()).findEffectNodesNegatedBy(any(), any(), anyDouble());
     }
 
     @Test

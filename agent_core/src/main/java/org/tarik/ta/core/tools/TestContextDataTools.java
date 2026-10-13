@@ -22,48 +22,47 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVReader;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.core.model.TestExecutionContext;
 import org.tarik.ta.core.config.scopes.BaseAgentRequestScope;
 import jakarta.inject.Inject;
 
-import java.io.File;
-import java.io.FileReader;
 import java.util.*;
 
 import static java.lang.Math.min;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
 import java.nio.file.Files;
+import java.nio.file.Path;
 
 @BaseAgentRequestScope
 public class TestContextDataTools extends AbstractTools {
     private final TestExecutionContext context;
+    private final Path testDataFolder;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Inject
-    public TestContextDataTools(TestExecutionContext context) {
+    public TestContextDataTools(TestExecutionContext context, AgentConfig agentConfig) {
         this.context = context;
+        this.testDataFolder = Path.of(agentConfig.getTestDataFolder()).toAbsolutePath().normalize();
     }
 
     @Tool("Loads data from a file as a JSON string, validating it, and stores it in the test context.")
     public String loadJsonData(
-            @P("Path to the JSON file") String filePath,
+            @P("Path to the JSON file, relative to the configured test data folder") String filePath,
             @P("Variable name under which the data will be stored in the test context") String variableName) {
-        if (isBlank(filePath)) {
-            throw new ToolExecutionException("File path cannot be null or empty", TRANSIENT_TOOL_ERROR);
-        }
         if (isBlank(variableName)) {
             throw new ToolExecutionException("Variable name cannot be null or empty", TRANSIENT_TOOL_ERROR);
         }
+        var file = resolveInTestDataFolder(filePath);
 
         try {
-            File file = new File(filePath);
-            if (!file.exists()) {
+            if (!Files.exists(file)) {
                 throw new ToolExecutionException("File does not exist: " + filePath, TRANSIENT_TOOL_ERROR);
             }
 
-            String content = Files.readString(file.toPath());
+            String content = Files.readString(file);
 
             if (!content.trim().isEmpty()) {
                 objectMapper.readTree(content);
@@ -76,18 +75,20 @@ public class TestContextDataTools extends AbstractTools {
         }
     }
 
+    private Path resolveInTestDataFolder(String filePath) {
+        return resolveWithinFolder(testDataFolder, filePath, "test data folder");
+    }
+
     @Tool("Loads CSV data from a file into a list of maps (dictionaries) where keys are column names, and stores it in the test context.")
     public String loadCsvData(
-            @P("Path to the CSV file") String filePath,
+            @P("Path to the CSV file, relative to the configured test data folder") String filePath,
             @P("Variable name to store data") String variableName) {
-        if (isBlank(filePath)) {
-            throw new ToolExecutionException("File path cannot be null or empty", TRANSIENT_TOOL_ERROR);
-        }
         if (isBlank(variableName)) {
             throw new ToolExecutionException("Variable name cannot be null or empty", TRANSIENT_TOOL_ERROR);
         }
+        var file = resolveInTestDataFolder(filePath);
 
-        try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
+        try (CSVReader reader = new CSVReader(Files.newBufferedReader(file))) {
             List<String[]> allRows = reader.readAll();
             if (allRows.isEmpty()) {
                 throw new ToolExecutionException("CSV file is empty: " + filePath, TRANSIENT_TOOL_ERROR);

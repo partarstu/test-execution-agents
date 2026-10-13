@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.core.model.TestExecutionContext;
 
@@ -32,12 +33,16 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import org.mockito.ArgumentMatchers;
 
 class TestContextDataToolsTest {
 
     @Mock
     private TestExecutionContext context;
+
+    @Mock
+    private AgentConfig agentConfig;
 
     private TestContextDataTools tools;
 
@@ -47,7 +52,8 @@ class TestContextDataToolsTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        tools = new TestContextDataTools(context);
+        when(agentConfig.getTestDataFolder()).thenReturn(tempDir.toString());
+        tools = new TestContextDataTools(context, agentConfig);
     }
 
     @Test
@@ -147,5 +153,34 @@ class TestContextDataToolsTest {
     void loadCsvData_emptyVarName_shouldThrowException() {
         assertThrows(ToolExecutionException.class, () ->
                 tools.loadCsvData("path/to/file.csv", ""));
+    }
+
+    @Test
+    void loadJsonData_shouldResolveRelativePathAgainstTheTestDataFolder() throws Exception {
+        Files.writeString(tempDir.resolve("relative.json"), "{\"key\": \"value\"}");
+
+        String result = tools.loadJsonData("relative.json", "myVar");
+
+        assertThat(result).contains("Loaded JSON data");
+        verify(context).addSharedData("myVar", "{\"key\": \"value\"}");
+    }
+
+    @Test
+    void loadJsonData_shouldThrowException_whenPathEscapesTheTestDataFolder() throws Exception {
+        Path outside = tempDir.getParent().resolve("outside.json");
+        Files.writeString(outside, "{\"key\": \"value\"}");
+
+        var exception = assertThrows(ToolExecutionException.class, () ->
+                tools.loadJsonData("../" + outside.getFileName(), "myVar"));
+
+        assertThat(exception.getMessage()).contains("outside of the test data folder");
+    }
+
+    @Test
+    void loadCsvData_shouldThrowException_whenPathEscapesTheTestDataFolder() {
+        var exception = assertThrows(ToolExecutionException.class, () ->
+                tools.loadCsvData("../../etc/passwd", "myCsvVar"));
+
+        assertThat(exception.getMessage()).contains("outside of the test data folder");
     }
 }

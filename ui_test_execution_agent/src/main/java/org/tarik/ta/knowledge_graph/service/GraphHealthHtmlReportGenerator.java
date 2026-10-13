@@ -21,12 +21,13 @@ import jakarta.inject.Singleton;
 
 import org.tarik.ta.knowledge_graph.health.GraphHealthReport;
 import org.tarik.ta.knowledge_graph.health.HealthCheckCategory;
+import org.tarik.ta.knowledge_graph.health.HealthFinding;
 
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-import static org.tarik.ta.utils.HtmlUtils.escapeHtml;
+import static com.google.common.html.HtmlEscapers.htmlEscaper;
 
 /**
  * Generates a self-contained HTML health report from a {@link GraphHealthReport}.
@@ -117,9 +118,9 @@ class GraphHealthHtmlReportGenerator {
                 </div>
                 """.formatted(
                 severityCssClass(category.severity()),
-                escapeHtml(category.name()),
+                htmlEscaper().escape(category.name()),
                 category.findings().size(),
-                escapeHtml(category.description())
+                htmlEscaper().escape(category.description())
         );
     }
 
@@ -138,7 +139,7 @@ class GraphHealthHtmlReportGenerator {
                   %s
                 </details>
                 """.formatted(
-                escapeHtml(category.name()),
+                htmlEscaper().escape(category.name()),
                 severityCssClass(category.severity()),
                 category.severity().name(),
                 category.findings().size(),
@@ -146,13 +147,13 @@ class GraphHealthHtmlReportGenerator {
         );
     }
 
-    private static String buildFindingsList(List<String> findings) {
+    private static String buildFindingsList(List<HealthFinding> findings) {
         if (findings.isEmpty()) {
             return "<p class=\"no-issues\">No issues found.</p>";
         }
         var items = new StringBuilder("<ul>");
         for (var finding : findings) {
-            items.append("<li>%s</li>".formatted(escapeHtml(finding)));
+            items.append("<li>%s</li>".formatted(htmlEscaper().escape(finding.text())));
         }
         items.append("</ul>");
         return items.toString();

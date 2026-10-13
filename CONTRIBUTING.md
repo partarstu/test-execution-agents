@@ -4,13 +4,15 @@ Contributions to the current project should be made in the form of GitHub pull r
 repository's owner or any of the core contributors. If you need to refer to the reviewer explicitly, just type @ and reviewer's name in 
 the comment to the PR.
 
+Java code must follow the [Java Development Guidelines](JAVA_GUIDELINES.md).
+
 IntelliJ's default Code Formatter is currently being used in this project. The corresponding config has been exported into 
 [this XML](code_style/intellij_code_style.xml) for IntelliJ users.
 
-Commits should be small and compilable.
+Commits should be small and compilable. A commit message is a single subject line in the imperative mood (e.g. "Add effect picker to the prerequisites list"), without a body.
 
-In order to start any contribution work, first you need to create a custom branch from the master branch. After your changes are completed, 
-merge the master branch into yours before submitting your PR. Any conflicts will have to be resolved in order to achieve this.
+In order to start any contribution work, first you need to create a custom branch from the main branch. After your changes are completed, 
+merge the main branch into yours before submitting your PR. Any conflicts will have to be resolved in order to achieve this.
 
 Please add unit tests for the implemented feature or bug fix, unless you pull request contains no code changes (e.g. docs updates etc.).
 

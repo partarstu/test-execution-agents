@@ -27,10 +27,20 @@ steps:
   # ============================================
   # Stage 1: Build all Maven modules
   # ============================================
-  - name: 'maven:3.9.15-eclipse-temurin-26'
+  # glibc-based, because the Node binaries the UI module's frontend build downloads do not run on Alpine's musl; they also need libatomic.
+  - name: 'amazoncorretto:27-al2023'
     id: 'maven-build'
     dir: '/workspace'
-    args: [ 'mvn', 'clean', 'install', '-DskipTests', '-P', 'linux' ]
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        set -e
+        dnf install -y -q tar gzip libatomic
+        curl -fsSLo /tmp/maven.tar.gz https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.tar.gz
+        echo "$$(curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.tar.gz.sha512)  /tmp/maven.tar.gz" | sha512sum -c -
+        tar xzf /tmp/maven.tar.gz -C /opt
+        /opt/apache-maven-3.9.16/bin/mvn clean install -DskipTests -P linux
 
   # ============================================
   # Stage 2: Neo4j Knowledge Persistence VM
@@ -67,7 +77,7 @@ steps:
         if [ "$_DEPLOY_TARGET" = "all" ] || [ "$_DEPLOY_TARGET" = "ui" ]; then
           echo "Deploying UI agent..."
           gcloud builds submit --config=ui_test_execution_agent/deployment/cloud/cloudbuild.yaml \
-            --substitutions=_SERVICE_NAME=$_UI_AGENT_SERVICE_NAME,_IMAGE_TAG=$_IMAGE_TAG \
+            "--substitutions=^;^_SERVICE_NAME=$_UI_AGENT_SERVICE_NAME;_IMAGE_TAG=$_IMAGE_TAG;_FIREWALL_PANEL_SOURCE_RANGES=$_FIREWALL_PANEL_SOURCE_RANGES" \
             .
         else
           echo "Skipping UI agent deployment (_DEPLOY_TARGET=$_DEPLOY_TARGET)"
@@ -100,6 +110,7 @@ steps:
 substitutions:
   _DEPLOY_TARGET: 'all'  # Options: 'all', 'ui', 'api', 'neo4j'
   _UI_AGENT_SERVICE_NAME: 'ui-test-execution-agent'
+  _FIREWALL_PANEL_SOURCE_RANGES: ''  # Required for 'all' and 'ui': CIDR ranges allowed to reach the operator panel
   _API_AGENT_SERVICE_NAME: 'api-test-execution-agent'
   _IMAGE_TAG: 'latest'
   _REGION: 'us-central1'

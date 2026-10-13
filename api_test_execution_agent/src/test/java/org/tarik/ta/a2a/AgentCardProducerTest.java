@@ -33,10 +33,12 @@ class AgentCardProducerTest {
         ApiTestAgentConfig config = mock(ApiTestAgentConfig.class);
         when(config.getTestStepActionAgentModelName()).thenReturn("test-step-model");
         when(config.getPreconditionActionAgentModelName()).thenReturn("precondition-model");
+        when(config.getAgentVersion()).thenReturn("1.0.0");
 
         AgentCard card = new AgentCardProducer(agentUrl, config).agentCard();
 
         assertThat(card.name()).isEqualTo("API Test Execution Agent");
+        assertThat(card.version()).isEqualTo("1.0.0");
         assertThat(card.supportedInterfaces()).hasSize(1);
         assertThat(card.supportedInterfaces().getFirst().url()).isEqualTo(agentUrl);
         assertThat(card.description())

@@ -26,14 +26,21 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Set up JDK 26
-        uses: actions/setup-java@v5
+      - name: Set up JDK 27
+        uses: actions/setup-java@v6
         with:
-          java-version: '26'
-          distribution: 'temurin'
+          java-version: '27'
+          distribution: 'corretto'
           cache: 'maven'
+
+      # The Maven cache above already holds the Node archive the frontend build downloads; this caches npm's packages.
+      - name: Cache npm packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('ui_test_execution_agent/src/main/frontend/package-lock.json') }}
 
       # The UI agent's smoke suite mocks the screen, but any AWT/Swing class that loads still needs a
       # display on headless Linux, so the run happens under a virtual X server (xvfb-run) rather than

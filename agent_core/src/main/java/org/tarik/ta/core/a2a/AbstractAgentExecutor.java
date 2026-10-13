@@ -21,6 +21,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.a2aproject.sdk.server.agentexecution.AgentExecutor;
 import org.a2aproject.sdk.server.agentexecution.RequestContext;
 import org.a2aproject.sdk.server.tasks.AgentEmitter;
 import org.a2aproject.sdk.spec.*;
@@ -32,28 +33,28 @@ import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.dto.TestStepResult;
+import org.tarik.ta.core.manager.BudgetManager;
+import org.tarik.ta.core.security.SecretRegistry;
 import org.tarik.ta.core.utils.CommonUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static org.a2aproject.sdk.spec.TaskState.TASK_STATE_WORKING;
+import static java.util.Objects.requireNonNull;
 import static java.lang.Thread.currentThread;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static java.util.stream.Collectors.joining;
+import static org.a2aproject.sdk.spec.TaskState.*;
 
 public abstract class AbstractAgentExecutor implements AgentExecutor {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractAgentExecutor.class);
@@ -65,6 +66,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
     private static final String PRECONDITION_RESULT_ARTIFACT = "precondition_result";
     private static final String FINAL_RESULT_ARTIFACT = "final_result";
     private static final String LOG_ARTIFACT = "execution_log";
+    private static final String TOKEN_USAGE_ARTIFACT = "token_usage";
     private static final String STREAMED_LOG_FILE_NAME = "execution_log.log";
 
     private final ExecutorService taskExecutor = newSingleThreadExecutor();
@@ -72,7 +74,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
     private volatile boolean cancelled = false;
 
     @Override
-    public void execute(RequestContext context, AgentEmitter emitter) throws A2AError {
+    public void execute(RequestContext context, @NotNull AgentEmitter emitter) throws A2AError {
         if (context.getTask() == null) {
             emitter.submit();
         }
@@ -81,13 +83,15 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
         LOG.info("Received test case execution request. Submitting to the execution queue.");
         // Only a single execution may be running at a time. The future is kept so that cancel() can interrupt the
         // running execution thread, which the inner taskExecutor would otherwise keep running after the caller returns.
-        Future<?> execution = taskExecutor.submit(() -> {
+        // It is published before the task is handed over, so a cancel that arrives as soon as the task starts still finds it.
+        FutureTask<Void> execution = new FutureTask<>(() -> {
             var taskId = context.getTaskId();
             LOG.info("Starting task {} from the queue.", taskId);
             try {
                 emitter.startWork();
-                extractTextFromMessage(context.getMessage())
-                        .ifPresentOrElse(userMessage -> runTestCase(userMessage, emitter),
+                BudgetManager.getInstance().beginTask(taskId);
+                extractTextFromMessage(requireNonNull(context.getMessage()))
+                        .ifPresentOrElse(userMessage -> runTestCase(userMessage, emitter, taskId),
                                 () -> {
                                     var message = "Request for test case execution failed either contained no valid test " +
                                             "case or insufficient information in order to execute it.";
@@ -98,8 +102,9 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                 LOG.error("Error while processing test case execution request for task {}", taskId, e);
                 failTask(emitter, "Couldn't start the task %s".formatted(taskId));
             }
-        });
+        }, null);
         runningExecution.set(execution);
+        taskExecutor.execute(execution);
         try {
             execution.get();
         } catch (CancellationException e) {
@@ -120,22 +125,42 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
         }
     }
 
-    private void runTestCase(String message, AgentEmitter emitter) {
+    /**
+     * Runs the execution and turns its outcome into the task's terminal event, flushing the buffered logs before it on both
+     * paths.
+     */
+    private void runTestCase(String message, AgentEmitter emitter, String taskId) {
+        // A completed or failed task accepts no further artifact, so logs flushed after the terminal event would never reach the
+        // caller.
         var eventEmitter = new AgentBackedStreamingEventEmitter(emitter);
-        var result = getTestExecutionResult(message, emitter, eventEmitter);
-        eventEmitter.flushLogs();
-        result.ifPresent(r -> completeWithResult(r, emitter));
-    }
-
-    private Optional<TestExecutionResult> getTestExecutionResult(String message, AgentEmitter emitter,
-                                                                 StreamingEventEmitter eventEmitter) {
         try {
-            return ofNullable(executeTestCase(message, eventEmitter));
+            var result = ofNullable(executeTestCase(message, eventEmitter));
+            eventEmitter.flushLogs();
+            emitTokenUsage(emitter, taskId);
+            result.ifPresent(r -> completeWithResult(r, emitter));
         } catch (Exception e) {
             LOG.error("Got exception during the execution of the test case.", e);
+            eventEmitter.flushLogs();
+            emitTokenUsage(emitter, taskId);
             failTask(emitter, "Got exception while executing the test case, no results available. " +
                     "Before re-sending please investigate the root cause based on the agent's logs.");
-            return empty();
+        }
+    }
+
+    /**
+     * Reports the task's usage, one entry per sub-agent operation, before the terminal event and frees its usage buckets even
+     * when the report cannot be emitted.
+     */
+    private void emitTokenUsage(AgentEmitter emitter, String taskId) {
+        var usage = BudgetManager.getInstance().releaseTask(taskId);
+        if (cancelled || usage.isEmpty()) {
+            return;
+        }
+        try {
+            usage.forEach(record -> LOG.info("Token usage of task {}: {}", taskId, record.toLogLine()));
+            emitter.addArtifact(List.of(new TextPart(OBJECT_MAPPER.writeValueAsString(usage))), null, TOKEN_USAGE_ARTIFACT, null);
+        } catch (Exception e) {
+            LOG.error("Failed to report the token usage of task {}.", taskId, e);
         }
     }
 
@@ -154,7 +179,9 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
             return;
         }
         try {
-            String resultJson = OBJECT_MAPPER.writeValueAsString(result);
+            // Last sink before the result leaves the agent: any secret that reached a step result, an error message or
+            // a captured log line is replaced by its placeholder.
+            String resultJson = SecretRegistry.global().redact(OBJECT_MAPPER.writeValueAsString(result));
             List<Part<?>> parts = new ArrayList<>();
             parts.add(new TextPart(resultJson));
             parts.addAll(buildFinalArtifactParts(result));
@@ -214,20 +241,18 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
     }
 
     @Override
-    public void cancel(RequestContext context, AgentEmitter emitter) throws A2AError {
-        Task task = context.getTask();
-
-        if (task.status().state() == TaskState.TASK_STATE_CANCELED) {
+    public void cancel(RequestContext context, @NotNull AgentEmitter emitter) throws A2AError {
+        Task task = requireNonNull(context.getTask());
+        if (List.of(TASK_STATE_CANCELED, TASK_STATE_COMPLETED).contains(task.status().state())) {
             throw new TaskNotCancelableError();
         }
-
-        if (task.status().state() == TaskState.TASK_STATE_COMPLETED) {
-            throw new TaskNotCancelableError();
-        }
-
         cancelled = true;
         interruptRunningExecution();
         emitter.cancel();
+    }
+
+    protected boolean isCancelled() {
+        return cancelled;
     }
 
     private void interruptRunningExecution() {
@@ -288,11 +313,20 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
                 case TEST_STEP -> "Executing test step: %s".formatted(activity.description());
                 case PRECONDITION -> "Handling precondition: %s".formatted(activity.description());
             };
+            emitWorkingStatus(description);
+        }
+
+        @Override
+        public void emitStatus(@NotNull String message) {
+            emitWorkingStatus(message);
+        }
+
+        private void emitWorkingStatus(String message) {
             lock.lock();
             try {
-                agentEmitter.updateStatus(TASK_STATE_WORKING, agentEmitter.newAgentMessage(List.of(new TextPart(description)), null));
+                agentEmitter.updateStatus(TASK_STATE_WORKING, agentEmitter.newAgentMessage(List.of(new TextPart(message)), null));
             } catch (Exception e) {
-                LOG.warn("Failed to stream the current activity to the caller.", e);
+                LOG.warn("Failed to stream a working status to the caller.", e);
             } finally {
                 lock.unlock();
             }
@@ -379,7 +413,7 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
 
         private Optional<String> serializeToJson(Object value) {
             try {
-                return of(OBJECT_MAPPER.writeValueAsString(value));
+                return of(SecretRegistry.global().redact(OBJECT_MAPPER.writeValueAsString(value)));
             } catch (JsonProcessingException e) {
                 String error = "Failed to serialize %s for streaming.".formatted(value.getClass().getSimpleName());
                 LOG.error(error, e);

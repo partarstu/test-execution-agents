@@ -17,17 +17,23 @@
  */
 package org.tarik.ta.core.model;
 
+import dev.langchain4j.invocation.InvocationContext;
+import dev.langchain4j.service.tool.ToolArgumentsErrorHandler;
 import dev.langchain4j.service.tool.ToolErrorContext;
 import dev.langchain4j.service.tool.ToolErrorHandlerResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.core.error.ErrorCategory;
 import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.core.exceptions.BudgetExceededException;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.util.UUID;
 
 class DefaultToolErrorHandlerTest {
 
@@ -57,6 +63,13 @@ class DefaultToolErrorHandlerTest {
         ToolErrorHandlerResult result = handler.handle(retryableError, context);
 
         assertThat(result.text()).isEqualTo("Retryable");
+    }
+
+    @Test
+    void handle_shouldRethrowTheBudgetError_whenABudgetIsExhausted() {
+        var budgetError = new BudgetExceededException("Execution time budget exceeded: 44s > 5s");
+
+        assertThatThrownBy(() -> handler.handle(budgetError, mock(ToolErrorContext.class))).isSameAs(budgetError);
     }
 
     @Test
@@ -101,6 +114,58 @@ class DefaultToolErrorHandlerTest {
         assertThatThrownBy(() -> handler.handle(retryableError, context))
                 .isInstanceOf(ToolExecutionException.class)
                 .hasMessageContaining("Retry policy exceeded because of timeout")
+                .extracting(e -> ((ToolExecutionException) e).getErrorCategory())
+                .isEqualTo(ErrorCategory.TIMEOUT);
+    }
+
+    @Test
+    void handle_shouldStartAFreshRetryBudget_whenTheInvocationChanges() {
+        handler = new DefaultToolErrorHandler(new RetryPolicy(1, 100, 1000));
+        ToolExecutionException retryableError = new ToolExecutionException("Retryable", ErrorCategory.TRANSIENT_TOOL_ERROR);
+        ToolErrorContext firstInvocation = contextOfInvocation(UUID.randomUUID());
+        ToolErrorContext secondInvocation = contextOfInvocation(UUID.randomUUID());
+
+        handler.handle(retryableError, firstInvocation);
+        assertThatThrownBy(() -> handler.handle(retryableError, firstInvocation))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("Retry policy exceeded because of max retries");
+
+        ToolErrorHandlerResult result = handler.handle(retryableError, secondInvocation);
+
+        assertThat(result.text()).isEqualTo("Retryable");
+    }
+
+    private static ToolErrorContext contextOfInvocation(UUID invocationId) {
+        InvocationContext invocationContext = mock(InvocationContext.class);
+        when(invocationContext.invocationId()).thenReturn(invocationId);
+        ToolErrorContext context = mock(ToolErrorContext.class);
+        when(context.invocationContext()).thenReturn(invocationContext);
+        return context;
+    }
+
+    @Test
+    void forToolArguments_shouldReturnTheParseErrorToTheModel() {
+        ToolArgumentsErrorHandler argumentsHandler = DefaultToolErrorHandler.forToolArguments(retryPolicy);
+
+        ToolErrorHandlerResult result = argumentsHandler.handle(new IllegalArgumentException("Unexpected end-of-input"),
+                mock(ToolErrorContext.class));
+
+        assertThat(result.text()).isEqualTo("The arguments of this tool call could not be parsed: Unexpected end-of-input. Call " +
+                "the tool again with arguments which are valid JSON matching the tool's parameter schema, passing every object " +
+                "parameter as a JSON object, not as a string.");
+    }
+
+    @Test
+    void forToolArguments_shouldThrowOnMaxRetriesReached() {
+        ToolArgumentsErrorHandler argumentsHandler = DefaultToolErrorHandler.forToolArguments(new RetryPolicy(1, 100, 1000));
+        IllegalArgumentException parseError = new IllegalArgumentException("Unexpected end-of-input");
+        ToolErrorContext context = mock(ToolErrorContext.class);
+
+        argumentsHandler.handle(parseError, context);
+
+        assertThatThrownBy(() -> argumentsHandler.handle(parseError, context))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("Retry policy exceeded because of max retries")
                 .extracting(e -> ((ToolExecutionException) e).getErrorCategory())
                 .isEqualTo(ErrorCategory.TIMEOUT);
     }

@@ -46,6 +46,7 @@ public class DecompositionService {
     private final ProcedureRepository repository;
     private final UiTestAgentConfig config;
     private final ConcurrentHashMap<UUID, List<Procedure>> cache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, List<Procedure>> childrenCache = new ConcurrentHashMap<>();
 
     public DecompositionService(ProcedureRepository repository, UiTestAgentConfig config) {
         this.repository = requireNonNull(repository, "repository");
@@ -75,10 +76,20 @@ public class DecompositionService {
     }
 
     /**
+     * Returns a composite's direct children from the traversal {@link #decompose(UUID)} already performed, falling back to the
+     * repository when the parent was not traversed yet, for callers executing a decomposition this service just produced.
+     */
+    public List<Procedure> getChildrenOrdered(UUID parentId) {
+        requireNonNull(parentId, "parentId");
+        return childrenCache.computeIfAbsent(parentId, repository::findChildrenOrdered);
+    }
+
+    /**
      * Invalidates the entire decomposition cache (e.g., on session end).
      */
     public void invalidateCache() {
         cache.clear();
+        childrenCache.clear();
         LOG.debug("Decomposition cache fully invalidated");
     }
 
@@ -95,7 +106,7 @@ public class DecompositionService {
             return;
         }
 
-        var children = repository.findChildrenOrdered(current.id());
+        var children = getChildrenOrdered(current.id());
         if (children.isEmpty()) {
             var fullPath = new ArrayList<>(path);
             fullPath.add(current);

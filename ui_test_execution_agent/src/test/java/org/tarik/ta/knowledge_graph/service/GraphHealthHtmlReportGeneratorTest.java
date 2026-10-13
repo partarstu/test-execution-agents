@@ -21,8 +21,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.knowledge_graph.health.GraphHealthReport;
 import org.tarik.ta.knowledge_graph.health.HealthCheckCategory;
+import org.tarik.ta.knowledge_graph.health.HealthFinding;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,17 +37,21 @@ class GraphHealthHtmlReportGeneratorTest {
         return new GraphHealthReport(categories, Instant.parse("2026-03-19T10:00:00Z"));
     }
 
+    private static List<HealthFinding> findings(String... texts) {
+        return Arrays.stream(texts).map(text -> new HealthFinding(text, List.of())).toList();
+    }
+
     private static HealthCheckCategory okCategory(String name) {
         return HealthCheckCategory.of(name, "desc", List.of(), 3, 10);
     }
 
     private static HealthCheckCategory warningCategory(String name) {
-        return HealthCheckCategory.of(name, "desc", List.of("f1", "f2", "f3", "f4", "f5"), 3, 10);
+        return HealthCheckCategory.of(name, "desc", findings("f1", "f2", "f3", "f4", "f5"), 3, 10);
     }
 
     private static HealthCheckCategory criticalCategory(String name) {
         return HealthCheckCategory.of(name, "desc",
-                List.of("f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11"), 3, 10);
+                findings("f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11"), 3, 10);
     }
 
     @Test
@@ -75,7 +81,7 @@ class GraphHealthHtmlReportGeneratorTest {
     @DisplayName("Finding text containing HTML tags is escaped")
     void generateHtml_escapesFindingText_preventXss() {
         var xssFinding = "<script>alert(1)</script>";
-        var category = HealthCheckCategory.of("XSS Cat", "desc", List.of(xssFinding), 3, 10);
+        var category = HealthCheckCategory.of("XSS Cat", "desc", findings(xssFinding), 3, 10);
         var html = generator.generateHtml(reportWith(List.of(category)));
 
         assertThat(html).doesNotContain("<script>");
@@ -86,7 +92,7 @@ class GraphHealthHtmlReportGeneratorTest {
     @DisplayName("All category names appear in the generated HTML")
     void generateHtml_allCategoriesPresent() {
         var names = List.of("Orphaned UI Elements", "Leaf Procedures", "Deep Hierarchies",
-                "Disconnected Procedures", "Missing Effects", "Stale SATISFIES Edges", "Orphaned Failure Contexts");
+                "Unused Procedures", "Missing Effects", "Stale SATISFIES Edges", "Orphaned Failure Contexts");
         var categories = names.stream().map(GraphHealthHtmlReportGeneratorTest::okCategory).toList();
         var html = generator.generateHtml(reportWith(categories));
 

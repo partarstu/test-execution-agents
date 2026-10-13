@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.tools;
 
+import org.bytedeco.javacpp.Loader;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,17 +30,20 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.agents.BestUiElementMatchSelectionAgent;
-import org.tarik.ta.agents.UiElementBoundingBoxAgent;
-import org.tarik.ta.dto.BoundingBoxes;
+import org.tarik.ta.agents.UiElementGrounder;
 import org.tarik.ta.dto.LocatedElementInfo;
-import org.tarik.ta.dto.UiOperationExecutionResult;
+import org.tarik.ta.dto.ScreenRegion;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.model.node.UiElementAppearance;
+import org.tarik.ta.knowledge_graph.service.UiElementAliasRegistry;
 import org.tarik.ta.knowledge_graph.service.UiElementCache;
+import org.tarik.ta.utils.ImageMatchingUtil;
 import org.tarik.ta.utils.UiCommonUtils;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -52,7 +56,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
-import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -65,7 +68,7 @@ class ElementLocatorToolsTest {
     @Mock
     private UiElementCache mockUiElementCache;
     @Mock
-    private UiElementBoundingBoxAgent mockBBoxAgent;
+    private UiElementGrounder mockGrounder;
 
     @Mock
     private BestUiElementMatchSelectionAgent mockSelectionAgent;
@@ -76,33 +79,28 @@ class ElementLocatorToolsTest {
     @Mock
     private UiTestAgentConfig configMock;
 
+    private final UiElementAliasRegistry aliasRegistry = new UiElementAliasRegistry();
+
     private MockedStatic<UiCommonUtils> uiCommonUtilsMock;
-    private MockedStatic<org.tarik.ta.user_dialogs.SpinnerManager> spinnerManagerMock;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() {
         uiCommonUtilsMock = mockStatic(UiCommonUtils.class);
 
-        spinnerManagerMock = mockStatic(org.tarik.ta.user_dialogs.SpinnerManager.class);
-        spinnerManagerMock.when(org.tarik.ta.user_dialogs.SpinnerManager::hideIfVisible)
-                .thenReturn(mock(org.tarik.ta.user_dialogs.SpinnerState.class));
-
         lenient().when(configMock.getElementBoundingBoxColorName()).thenReturn("red");
         lenient().when(configMock.getElementLocatorVisualGroundingVoteCount()).thenReturn(1);
         lenient().when(configMock.getBboxClusteringMinIntersectionRatio()).thenReturn(0.9);
         lenient().when(configMock.getBboxScreenshotLongestAllowedDimensionPixels()).thenReturn(5000);
         lenient().when(configMock.getBboxScreenshotMaxSizeMegapixels()).thenReturn(10.0);
-        lenient().when(configMock.isBoundingBoxAlreadyNormalized()).thenReturn(false);
 
         elementLocatorTools = new ElementLocatorTools(mockUiElementCache, mockRepository, mockUiStateCheckAgent,
-                mockLocationHistoryRecorder, mockBBoxAgent, mockSelectionAgent, configMock);
+                mockLocationHistoryRecorder, mockGrounder, mockSelectionAgent, aliasRegistry, configMock);
     }
 
     @AfterEach
     void tearDown() {
         uiCommonUtilsMock.close();
-        spinnerManagerMock.close();
     }
 
     @Test
@@ -116,24 +114,32 @@ class ElementLocatorToolsTest {
 
         BufferedImage mockScreen = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
         uiCommonUtilsMock.when(UiCommonUtils::captureScreen).thenReturn(mockScreen);
-        uiCommonUtilsMock.when(() -> UiCommonUtils.getScaledBoundingBox(any(Rectangle.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
         uiCommonUtilsMock.when(() -> UiCommonUtils.getColorByName(anyString())).thenReturn(Color.RED);
 
-        BoundingBoxes boundingBoxes = new BoundingBoxes(List.of(new org.tarik.ta.dto.BoundingBox(10, 10, 20, 20)));
-        UiOperationExecutionResult<BoundingBoxes> executionResult =
-                new UiOperationExecutionResult<>(SUCCESS, "success", boundingBoxes, null);
-
-        when(mockBBoxAgent.executeAndGetResult(any())).thenReturn(executionResult);
+        when(mockGrounder.locate(any(), any())).thenReturn(List.of(new Rectangle(10, 10, 10, 10)));
         lenient().when(configMock.skipBestUiElementMatchSelection()).thenReturn(true);
 
-        LocatedElementInfo result = elementLocatorTools.locateKnownElementById(id, "some data");
+        String alias = aliasRegistry.aliasFor(id);
+        LocatedElementInfo result = elementLocatorTools.locateKnownElementById(alias, "some data");
 
         assertThat(result).isNotNull();
         assertThat(result.name()).isEqualTo("test-element");
-        assertThat(result.elementId()).isEqualTo(id);
-        assertThat(result.centerXCoordinate()).isEqualTo(15);
-        assertThat(result.centerYCoordinate()).isEqualTo(15);
+        assertThat(result.elementId()).isEqualTo(alias);
+        assertThat(result.centerXCoordinate()).isEqualTo(150);
+        assertThat(result.centerYCoordinate()).isEqualTo(150);
+        assertThat(result.elementScreenRegion()).isEqualTo(new ScreenRegion(100, 100, 100, 100));
+    }
+
+    @Test
+    @DisplayName("locateKnownElementById should throw UNKNOWN_ELEMENT_ID with guidance when the ID is neither an alias nor a UUID")
+    void locateKnownElementById_shouldThrowUnknownElementId_whenIdIsInvented() {
+        assertThatThrownBy(() -> elementLocatorTools.locateKnownElementById("wrapHeaderTextToggle", null))
+                .isInstanceOf(ElementLocationException.class)
+                .hasMessage("No UI element with ID 'wrapHeaderTextToggle' exists. Use only the target UI element ID given in the " +
+                        "task; if none was given, this tool must not be called.")
+                .satisfies(e -> assertThat(((ElementLocationException) e).getStatus())
+                        .isEqualTo(ElementLocationStatus.UNKNOWN_ELEMENT_ID));
+        verifyNoInteractions(mockUiElementCache, mockRepository, mockGrounder, mockLocationHistoryRecorder);
     }
 
     @Test
@@ -143,9 +149,114 @@ class ElementLocatorToolsTest {
         when(mockUiElementCache.get(id)).thenReturn(Optional.empty());
         when(mockRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> elementLocatorTools.locateKnownElementById(id, null))
+        assertThatThrownBy(() -> elementLocatorTools.locateKnownElementById(id.toString(), null))
                 .isInstanceOf(ElementLocationException.class)
                 .satisfies(e -> assertThat(((ElementLocationException) e).getStatus())
                         .isEqualTo(ElementLocationStatus.NO_ELEMENTS_FOUND_IN_DB));
+    }
+
+    @Test
+    void locateKnownElementById_shouldMatchTheExpiredAppearances_whenTheCurrentAppearanceYieldsNoCandidate() {
+        var element = new UiElement(UUID.randomUUID(), "Save", "The save button.", "Bottom", "Form", null, false);
+        var expiredScreenshot = UiElement.Screenshot.fromBufferedImage(new BufferedImage(4, 4, BufferedImage.TYPE_INT_RGB), "png");
+        var appearance = new UiElementAppearance(UUID.randomUUID(), "The old save button.", "Bottom", "Form", expiredScreenshot, null,
+                Instant.parse("2026-09-01T10:00:00Z"));
+        givenElementNotFoundByVision(element);
+        when(configMock.isAlgorithmicSearchEnabled()).thenReturn(true);
+        when(mockRepository.findExpiredAppearances(element.id())).thenReturn(List.of(appearance));
+
+        try (var imageMatching = mockStatic(ImageMatchingUtil.class);
+             var _ = mockStatic(Loader.class)) {
+            imageMatching.when(() -> ImageMatchingUtil.findMatchingRegionsWithORB(any(), any(), any()))
+                    .thenReturn(List.of(new Rectangle(10, 10, 10, 10)));
+            imageMatching.when(() -> ImageMatchingUtil.findMatchingRegionsWithTemplateMatching(any(), any(), any())).thenReturn(List.of());
+
+            assertThatThrownBy(() -> elementLocatorTools.locateKnownElementById(aliasRegistry.aliasFor(element.id()), null))
+                    .isInstanceOf(ElementLocationException.class)
+                    .satisfies(e -> assertThat(((ElementLocationException) e).getStatus())
+                            .isEqualTo(ElementLocationStatus.ELEMENT_NOT_FOUND_ON_SCREEN_VALIDATION_FAILED));
+            imageMatching.verify(() -> ImageMatchingUtil.findMatchingRegionsWithORB(any(),
+                    argThat((BufferedImage image) -> image.getWidth() == 4), any()));
+        }
+    }
+
+    @Test
+    void locateKnownElementById_shouldNotLoadTheExpiredAppearances_whenAlgorithmicSearchIsDisabled() {
+        var element = new UiElement(UUID.randomUUID(), "Save", "The save button.", "Bottom", "Form", null, false);
+        givenElementNotFoundByVision(element);
+        when(configMock.isAlgorithmicSearchEnabled()).thenReturn(false);
+
+        assertThatThrownBy(() -> elementLocatorTools.locateKnownElementById(aliasRegistry.aliasFor(element.id()), null))
+                .isInstanceOf(ElementLocationException.class)
+                .satisfies(e -> assertThat(((ElementLocationException) e).getStatus())
+                        .isEqualTo(ElementLocationStatus.ELEMENT_NOT_FOUND_ON_SCREEN_VISUAL_AND_ALGORITHMIC_FAILED));
+        verify(mockRepository, never()).findExpiredAppearances(any());
+    }
+
+    @Test
+    void locateKnownElementById_shouldReportNotFound_whenTheGroundedBoxIsCenteredOutsideTheScreen() {
+        var element = new UiElement(UUID.randomUUID(), "Options pane", "The options pane.", "Right", "Editor", null, false);
+        givenElementGroundedAt(element, new Rectangle(150, 10, 30, 10));
+        when(configMock.isAlgorithmicSearchEnabled()).thenReturn(false);
+
+        assertThatThrownBy(() -> elementLocatorTools.locateKnownElementById(aliasRegistry.aliasFor(element.id()), null))
+                .isInstanceOf(ElementLocationException.class)
+                .satisfies(e -> assertThat(((ElementLocationException) e).getStatus())
+                        .isEqualTo(ElementLocationStatus.ELEMENT_NOT_FOUND_ON_SCREEN_VISUAL_AND_ALGORITHMIC_FAILED));
+    }
+
+    @Test
+    void locateKnownElementById_shouldClipTheGroundedBoxToTheScreen_whenItReachesPastTheEdge() {
+        var element = new UiElement(UUID.randomUUID(), "Options pane", "The options pane.", "Right", "Editor", null, false);
+        givenElementGroundedAt(element, new Rectangle(70, 10, 40, 10));
+        when(configMock.skipBestUiElementMatchSelection()).thenReturn(true);
+
+        var result = elementLocatorTools.locateKnownElementById(aliasRegistry.aliasFor(element.id()), null);
+
+        assertThat(result.centerXCoordinate()).isEqualTo(850);
+        assertThat(result.elementScreenRegion()).isEqualTo(new ScreenRegion(700, 100, 300, 100));
+    }
+
+    private void givenElementNotFoundByVision(UiElement element) {
+        givenElementGroundedAt(element);
+    }
+
+    private void givenElementGroundedAt(UiElement element, Rectangle... groundedBoxes) {
+        when(mockUiElementCache.get(element.id())).thenReturn(Optional.of(element));
+        uiCommonUtilsMock.when(UiCommonUtils::captureScreen).thenReturn(new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB));
+        uiCommonUtilsMock.when(() -> UiCommonUtils.getColorByName(anyString())).thenReturn(Color.RED);
+        uiCommonUtilsMock.when(() -> UiCommonUtils.getColorName(any())).thenReturn("red");
+        when(mockGrounder.locate(any(), any())).thenReturn(List.of(groundedBoxes));
+    }
+
+    @Test
+    @DisplayName("The best match message renders the target element, its specific data and the bounding box IDs as sections")
+    void getBestElementVisualMatchUserMessage_shouldRenderTheSpecificData_whenElementIsDataDependent() {
+        var element = new UiElement(UUID.randomUUID(), "day cell", "A day of the calendar.", "In the grid", "Calendar", null, true);
+
+        var message = ElementLocatorTools.getBestElementVisualMatchUserMessage(element, "30", List.of("1", "2"));
+
+        assertThat(message).isEqualTo("""
+                ## Target element
+                day cell. A day of the calendar. In the grid
+
+                ## Specific data of this data-dependent element
+                30
+
+                ## Bounding box IDs
+                - 1
+                - 2
+
+                ## Screenshot""");
+    }
+
+    @Test
+    @DisplayName("The best match message leaves out the specific data of an element which does not depend on data")
+    void getBestElementVisualMatchUserMessage_shouldLeaveOutTheSpecificData_whenElementIsNotDataDependent() {
+        var element = new UiElement(UUID.randomUUID(), "Save", "The save button.", "Bottom", "Form", null, false);
+
+        var message = ElementLocatorTools.getBestElementVisualMatchUserMessage(element, "30", List.of("1"));
+
+        assertThat(message).doesNotContain("Specific data").contains("## Bounding box IDs\n- 1\n\n## Screenshot");
     }
 }

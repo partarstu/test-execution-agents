@@ -30,15 +30,34 @@ NEO4J_BOLT_PORT="${NEO4J_BOLT_PORT:-7687}"
 DATA_DISK_NAME=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/DATA_DISK_NAME" -H "Metadata-Flavor: Google")
 DATA_DISK_NAME="${DATA_DISK_NAME:-neo4j-data-disk}"
 
+# Registry pulls on a freshly booted VM fail transiently while the network settles, and with `set -e` a single failed pull
+# would abort the whole boot.
+PULL_ATTEMPTS=10
+PULL_RETRY_DELAY_SECONDS=15
+retry() {
+    local attempt
+    for ((attempt = 1; attempt <= PULL_ATTEMPTS; attempt++)); do
+        if "$@"; then
+            return 0
+        fi
+        echo "Attempt ${attempt}/${PULL_ATTEMPTS} of '$*' failed, retrying in ${PULL_RETRY_DELAY_SECONDS}s..."
+        sleep "${PULL_RETRY_DELAY_SECONDS}"
+    done
+    echo "'$*' failed after ${PULL_ATTEMPTS} attempts."
+    return 1
+}
+
 # --- Install Google Cloud SDK (using containerized gcloud) ---
-# The image is only used to read secrets, so the tiny :alpine variant (core gcloud) is enough.
-echo "Pulling google/cloud-sdk image..."
-docker pull google/cloud-sdk:alpine
+# The image is only used to read secrets, so the tiny :alpine variant (core gcloud) is enough. The image from Google's own
+# registry avoids Docker Hub, which rate-limits anonymous pulls.
+CLOUD_SDK_IMAGE="gcr.io/google.com/cloudsdktool/google-cloud-cli:alpine"
+echo "Pulling ${CLOUD_SDK_IMAGE} image..."
+retry docker pull "${CLOUD_SDK_IMAGE}"
 
 # --- Fetch Authentication Credentials ---
 echo "Fetching Neo4j credentials from Secret Manager..."
-NEO4J_USERNAME=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="NEO4J_USERNAME" --project="${PROJECT_ID}" 2>/dev/null)
-VECTOR_DB_KEY=$(docker run --rm google/cloud-sdk:alpine gcloud secrets versions access latest --secret="VECTOR_DB_KEY" --project="${PROJECT_ID}" 2>/dev/null)
+NEO4J_USERNAME=$(docker run --rm "${CLOUD_SDK_IMAGE}" gcloud secrets versions access latest --secret="NEO4J_USERNAME" --project="${PROJECT_ID}" 2>/dev/null)
+VECTOR_DB_KEY=$(docker run --rm "${CLOUD_SDK_IMAGE}" gcloud secrets versions access latest --secret="VECTOR_DB_KEY" --project="${PROJECT_ID}" 2>/dev/null)
 
 if [ -z "${NEO4J_USERNAME}" ]; then
     echo "ERROR: NEO4J_USERNAME secret not found or empty in project '${PROJECT_ID}'." >&2
@@ -86,48 +105,167 @@ mount -o discard,defaults "${DATA_DISK_DEVICE}" "${DATA_MOUNT_POINT}"
 chmod 777 "${DATA_MOUNT_POINT}"
 echo "Data disk mounted at ${DATA_MOUNT_POINT}"
 
-# --- Start Neo4j Container ---
-echo "Starting Neo4j container with authentication enabled..."
+NEO4J_IMAGE="neo4j:2026.09.0-community"
+retry docker pull "${NEO4J_IMAGE}"
 NEO4J_CONTAINER_NAME="neo4j-knowledge"
+CONVERSION_CONTAINER_NAME="neo4j-cypher25-conversion"
+MIGRATION_DIR="${DATA_MOUNT_POINT}/cypher25-migration"
 
-docker rm -f "${NEO4J_CONTAINER_NAME}" >/dev/null 2>&1 || true
-docker run -d \
-    --name "${NEO4J_CONTAINER_NAME}" \
-    --restart unless-stopped \
-    --log-driver=gcplogs \
-    -p ${NEO4J_BOLT_PORT}:${NEO4J_BOLT_PORT} \
-    -p 7474:7474 \
-    -v "${DATA_MOUNT_POINT}:/data" \
-    -e NEO4J_AUTH="${NEO4J_USERNAME}/${VECTOR_DB_KEY}" \
-    -e NEO4J_dbms_security_auth__enabled="true" \
-    -e NEO4J_server_memory_heap_initial__size="${NEO4J_HEAP_SIZE}" \
-    -e NEO4J_server_memory_heap_max__size="${NEO4J_HEAP_SIZE}" \
-    -e NEO4J_server_memory_pagecache_size="${NEO4J_PAGECACHE_SIZE}" \
-    -e NEO4J_server_default__listen__address="0.0.0.0" \
-    neo4j:2026.01.3-community
+# A failed conversion must not leave its container running on the store; Neo4j then stays down until the next boot resumes.
+trap 'docker rm -f "${CONVERSION_CONTAINER_NAME}" >/dev/null 2>&1 || true' EXIT
 
-# --- Wait for Neo4j Readiness ---
-echo "Waiting for Neo4j to become ready..."
-MAX_RETRIES=60
-RETRY_COUNT=0
-while ! docker exec "${NEO4J_CONTAINER_NAME}" neo4j status 2>/dev/null | grep -q "running"; do
-    if [ "${RETRY_COUNT}" -ge "${MAX_RETRIES}" ]; then
-        echo "ERROR: Neo4j did not start within ${MAX_RETRIES} seconds." >&2
-        docker logs "${NEO4J_CONTAINER_NAME}" >&2
+start_neo4j_container() {
+    local name="$1"
+    shift
+    NEO4J_AUTH="${NEO4J_USERNAME}/${VECTOR_DB_KEY}" docker run -d \
+        --name "${name}" \
+        --log-driver=gcplogs \
+        "$@" \
+        -v "${DATA_MOUNT_POINT}:/data" \
+        -e NEO4J_AUTH \
+        -e NEO4J_dbms_security_auth__enabled="true" \
+        -e NEO4J_server_memory_heap_initial__size="${NEO4J_HEAP_SIZE}" \
+        -e NEO4J_server_memory_heap_max__size="${NEO4J_HEAP_SIZE}" \
+        -e NEO4J_server_memory_pagecache_size="${NEO4J_PAGECACHE_SIZE}" \
+        -e NEO4J_server_default__listen__address="0.0.0.0" \
+        -e NEO4J_db_query_default__language="CYPHER_25" \
+        "${NEO4J_IMAGE}" >/dev/null
+}
+
+# The credentials travel in the environment rather than in arguments, which every user of the VM can read in the process list.
+run_cypher() {
+    NEO4J_USERNAME="${NEO4J_USERNAME}" NEO4J_PASSWORD="${VECTOR_DB_KEY}" \
+        docker exec -e NEO4J_USERNAME -e NEO4J_PASSWORD "$1" cypher-shell -d "$2" --format plain "$3"
+}
+
+# The process runs well before the database accepts queries, especially while a newer Neo4j upgrades the store.
+wait_until_database_online() {
+    local container="$1"
+    local waited=0
+    until run_cypher "${container}" system "SHOW DATABASE neo4j YIELD currentStatus" 2>/dev/null | grep -q '"online"'; do
+        if [ "${waited}" -ge 900 ]; then
+            echo "ERROR: The neo4j database did not come online within 900 seconds." >&2
+            docker logs --tail 100 "${container}" >&2
+            exit 1
+        fi
+        waited=$((waited + 5))
+        sleep 5
+    done
+}
+
+default_language_is_cypher25() {
+    run_cypher "$1" system "SHOW DATABASE neo4j YIELD defaultLanguage" | grep -q '"CYPHER 25"'
+}
+
+# Fails instead of printing a partial result, since the count is persisted and decides whether the converted database is kept.
+count_nodes() {
+    local output count
+    output=$(run_cypher "$1" neo4j "MATCH (n) RETURN count(n) AS nodes")
+    count=$(printf '%s\n' "${output}" | tail -n 1)
+    require_node_count "${count}"
+    echo "${count}"
+}
+
+require_node_count() {
+    if [[ ! "$1" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: '$1' is not a node count of the neo4j database." >&2
         exit 1
     fi
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-    sleep 1
-done
+}
 
-# --- Verify Authentication ---
-echo "Verifying Neo4j authentication..."
-AUTH_CHECK=$(docker exec "${NEO4J_CONTAINER_NAME}" cypher-shell -u "${NEO4J_USERNAME}" -p "${VECTOR_DB_KEY}" "RETURN 1 AS result" 2>&1) || true
-if echo "${AUTH_CHECK}" | grep -q "result"; then
-    echo "Neo4j authentication verified successfully."
-else
-    echo "WARNING: Neo4j authentication verification failed. Output: ${AUTH_CHECK}" >&2
-    echo "The container is running but authentication may need manual attention." >&2
+start_regular_neo4j() {
+    echo "Starting Neo4j container with authentication enabled..."
+    # This script takes no backup: whoever deploys a newer NEO4J_IMAGE must snapshot the data disk first, because a newer Neo4j
+    # upgrades the store on this disk in place on its first start, and Neo4j cannot downgrade a store.
+    docker rm -f "${NEO4J_CONTAINER_NAME}" >/dev/null 2>&1 || true
+    start_neo4j_container "${NEO4J_CONTAINER_NAME}" \
+        --restart unless-stopped \
+        -p ${NEO4J_BOLT_PORT}:${NEO4J_BOLT_PORT} \
+        -p 7474:7474
+
+    # --- Wait for Neo4j Readiness ---
+    echo "Waiting for Neo4j to become ready..."
+    MAX_RETRIES=60
+    RETRY_COUNT=0
+    while ! docker exec "${NEO4J_CONTAINER_NAME}" neo4j status 2>/dev/null | grep -q "running"; do
+        if [ "${RETRY_COUNT}" -ge "${MAX_RETRIES}" ]; then
+            echo "ERROR: Neo4j did not start within ${MAX_RETRIES} seconds." >&2
+            docker logs "${NEO4J_CONTAINER_NAME}" >&2
+            exit 1
+        fi
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        sleep 1
+    done
+    wait_until_database_online "${NEO4J_CONTAINER_NAME}"
+
+    # --- Verify Authentication ---
+    echo "Verifying Neo4j authentication..."
+    AUTH_CHECK=$(run_cypher "${NEO4J_CONTAINER_NAME}" neo4j "RETURN 1 AS result" 2>&1) || true
+    if echo "${AUTH_CHECK}" | grep -q "result"; then
+        echo "Neo4j authentication verified successfully."
+    else
+        echo "WARNING: Neo4j authentication verification failed. Output: ${AUTH_CHECK}" >&2
+        echo "The container is running but authentication may need manual attention." >&2
+    fi
+}
+
+# Community Edition cannot change the default language of an existing database (ALTER DATABASE is Enterprise only), but a new
+# system database registers the existing neo4j store with the server default, which is Cypher 25. Only the system database
+# is recreated; the original is kept in MIGRATION_DIR until the converted database is verified, so a conversion stopped at
+# any point (e.g. by a Spot stop) is finished on the next boot. The container has no published ports, so the agent cannot
+# write while the node count is compared.
+convert_to_cypher25() {
+    echo "Converting the neo4j database to the Cypher 25 default language..."
+    mkdir -p "${MIGRATION_DIR}"
+    if [ ! -f "${MIGRATION_DIR}/verified" ]; then
+        if [ ! -f "${MIGRATION_DIR}/node-count" ]; then
+            start_neo4j_container "${CONVERSION_CONTAINER_NAME}"
+            wait_until_database_online "${CONVERSION_CONTAINER_NAME}"
+            count_nodes "${CONVERSION_CONTAINER_NAME}" > "${MIGRATION_DIR}/node-count.tmp"
+            mv "${MIGRATION_DIR}/node-count.tmp" "${MIGRATION_DIR}/node-count"
+            docker rm -f "${CONVERSION_CONTAINER_NAME}" >/dev/null
+        fi
+
+        # Until verified, a system database next to the moved-aside original is an unfinished new one and is recreated.
+        local store
+        for store in databases transactions; do
+            if [ -d "${MIGRATION_DIR}/${store}-system" ]; then
+                rm -rf "${DATA_MOUNT_POINT:?}/${store}/system"
+            else
+                mv "${DATA_MOUNT_POINT}/${store}/system" "${MIGRATION_DIR}/${store}-system"
+            fi
+        done
+
+        start_neo4j_container "${CONVERSION_CONTAINER_NAME}"
+        wait_until_database_online "${CONVERSION_CONTAINER_NAME}"
+        local expected_nodes actual_nodes
+        expected_nodes=$(cat "${MIGRATION_DIR}/node-count")
+        require_node_count "${expected_nodes}"
+        actual_nodes=$(count_nodes "${CONVERSION_CONTAINER_NAME}")
+        if ! default_language_is_cypher25 "${CONVERSION_CONTAINER_NAME}" || [ "${actual_nodes}" != "${expected_nodes}" ]; then
+            echo "ERROR: The converted database failed verification (nodes: ${actual_nodes}, expected ${expected_nodes})." >&2
+            echo "The original system database is kept in ${MIGRATION_DIR}; Neo4j stays down until this is resolved." >&2
+            exit 1
+        fi
+        docker rm -f "${CONVERSION_CONTAINER_NAME}" >/dev/null
+        touch "${MIGRATION_DIR}/verified"
+    fi
+    rm -rf "${MIGRATION_DIR}/databases-system" "${MIGRATION_DIR}/transactions-system"
+    rm -rf "${MIGRATION_DIR}"
+    echo "The neo4j database now defaults to Cypher 25."
+}
+
+if [ -d "${MIGRATION_DIR}" ]; then
+    echo "Found an unfinished Cypher 25 conversion; resuming it before Neo4j starts."
+    convert_to_cypher25
+fi
+
+start_regular_neo4j
+
+if ! default_language_is_cypher25 "${NEO4J_CONTAINER_NAME}"; then
+    docker rm -f "${NEO4J_CONTAINER_NAME}" >/dev/null
+    convert_to_cypher25
+    start_regular_neo4j
 fi
 
 INTERNAL_IP=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip" -H "Metadata-Flavor: Google")

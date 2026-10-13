@@ -1,0 +1,88 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Details: what one node is, as text and lists next to the drawing */
+@layer components {
+  .details {
+    display: grid;
+    align-content: start;
+    gap: var(--space-3);
+    max-block-size: min(80vh, 54rem);
+    overflow: auto;
+
+    & h3 {
+      font-size: var(--text-lg);
+      overflow-wrap: anywhere;
+    }
+
+    & h4 {
+      margin-block-end: var(--space-1);
+      color: var(--muted);
+      font-size: var(--text-sm);
+      font-weight: 650;
+    }
+
+    & ul {
+      margin: 0;
+      padding-inline-start: 1.1rem;
+    }
+
+    & > button {
+      justify-self: start;
+    }
+  }
+
+  .details-kind {
+    color: var(--muted);
+  }
+
+  .details-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .details-facts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3);
+    background: var(--raised);
+    border-radius: var(--radius);
+    font-size: var(--text-sm);
+
+    & dt {
+      color: var(--muted);
+    }
+
+    & dd {
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .details-anomalies time,
+  .chosen-item {
+    color: var(--muted);
+  }
+
+  .details .chosen-for {
+    display: grid;
+    gap: var(--space-2);
+    padding: 0;
+    list-style: none;
+  }
+}

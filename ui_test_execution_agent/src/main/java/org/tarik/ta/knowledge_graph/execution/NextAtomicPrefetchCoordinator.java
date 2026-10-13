@@ -34,6 +34,7 @@ import org.tarik.ta.knowledge_graph.service.SatisfiesEdgeService;
 import org.tarik.ta.knowledge_graph.service.UiElementCache;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +45,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
+
+import static org.tarik.ta.core.utils.CommonUtils.shutDownGracefully;
 
 /**
  * Plain object orchestrating prediction and prefetching for the next atomic procedure
@@ -65,6 +69,7 @@ import java.util.concurrent.TimeoutException;
 public class NextAtomicPrefetchCoordinator implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(NextAtomicPrefetchCoordinator.class);
     private static final int TAKE_TIMEOUT_SECONDS = 10;
+    private static final Duration SHUTDOWN_GRACE_PERIOD = Duration.ofSeconds(5);
 
     private final ExecutionMode executionMode;
     private final KnowledgeService knowledgeService;
@@ -107,7 +112,7 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
                                             @NotNull ExecutionItem currentExecutionItem,
                                             @Nullable Procedure nextAtomicInDecomposition,
                                             @Nullable ExecutionItem nextQueueItem,
-                                            @NotNull ExecutionStateSnapshot currentSnapshot) {
+                                            @NotNull Supplier<ExecutionStateSnapshot> predictedSnapshot) {
         if (executionMode != ExecutionMode.UNATTENDED) {
             return;
         }
@@ -117,11 +122,13 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
         if (nextAtomicInDecomposition != null) {
             LOG.debug("Scheduling deterministic prefetch for next atomic '{}' in decomposition",
                     nextAtomicInDecomposition.description());
-            pendingFuture = startContextPrefetch(nextAtomicInDecomposition, currentExecutionItem, currentSnapshot);
+            pendingFuture = CompletableFuture.supplyAsync(predictedSnapshot, prefetchExecutor)
+                    .thenComposeAsync(snapshot -> startContextPrefetch(nextAtomicInDecomposition, currentExecutionItem, snapshot),
+                            prefetchExecutor);
         } else if (nextQueueItem != null) {
             LOG.debug("Scheduling semantic-search prefetch for next queue item '{}'",
                     nextQueueItem.getDescription());
-            pendingFuture = startSearchAndContextPrefetch(nextQueueItem, currentSnapshot);
+            pendingFuture = startSearchAndContextPrefetch(nextQueueItem, predictedSnapshot);
         } else {
             LOG.debug("No next atomic or queue item available for prefetch after '{}'",
                     currentAtomicProcedure.description());
@@ -217,9 +224,12 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
     @Override
     public void close() {
         invalidate("execution run ending");
-        if (prefetchExecutor != null) {
-            prefetchExecutor.shutdownNow();
+        if (prefetchExecutor == null) {
+            return;
         }
+        // Interrupting a thread inside a Neo4j query makes the driver kill the connection and log a retry warning,
+        // so in-flight reads get a short grace period first.
+        shutDownGracefully(prefetchExecutor, SHUTDOWN_GRACE_PERIOD);
     }
 
     // ---- private helpers ----
@@ -242,7 +252,7 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
      * Starts parallel prefetch tasks for a known next atomic (deterministic path).
      * Element lookup, element cache, location history, failure hints, declared effects, and
      * unsatisfied prerequisites all run concurrently. The prerequisite check uses
-     * {@code snapshot.effectNodeIds()} which already includes the current atomic's predicted effects.
+     * {@code snapshot.effectNodeIds()}, the state predicted for when the current atomic has succeeded.
      */
     private CompletableFuture<PrefetchedAtomicContext> startContextPrefetch(@NotNull Procedure nextAtomic,
                                                                              @NotNull ExecutionItem nextItem,
@@ -280,16 +290,17 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
      */
     private CompletableFuture<PrefetchedAtomicContext> startSearchAndContextPrefetch(
             @NotNull ExecutionItem nextQueueItem,
-            @NotNull ExecutionStateSnapshot snapshot) {
+            @NotNull Supplier<ExecutionStateSnapshot> predictedSnapshot) {
         pendingMatchForDescription = nextQueueItem.getDescription();
-        var matchFuture = CompletableFuture.supplyAsync(
-                () -> findMatchAndFirstAtomicForQueueItem(nextQueueItem, snapshot), prefetchExecutor);
+        var snapshotFuture = CompletableFuture.supplyAsync(predictedSnapshot, prefetchExecutor);
+        var matchFuture = snapshotFuture.thenApplyAsync(
+                snapshot -> findMatchAndFirstAtomicForQueueItem(nextQueueItem, snapshot), prefetchExecutor);
         pendingMatchFuture = matchFuture.thenApply(result -> result != null ? result.match() : null);
         return matchFuture.thenComposeAsync(result -> {
             if (result == null || result.firstAtomic() == null) {
                 return CompletableFuture.completedFuture(null);
             }
-            return startContextPrefetch(result.firstAtomic(), nextQueueItem, snapshot);
+            return startContextPrefetch(result.firstAtomic(), nextQueueItem, snapshotFuture.join());
         }, prefetchExecutor);
     }
 

@@ -25,15 +25,46 @@ class PromptUtilsTest {
 
     @Test
     void loadSystemPrompt_ShouldLoadContent_WhenFileExists() {
-        String content = PromptUtils.loadSystemPrompt("test-agent", "v1.0.0", "test-prompt.txt");
+        String content = PromptUtils.loadSystemPrompt("test-agent", "v1.0.0", "test-prompt.md");
         assertThat(content).contains("This is a test prompt.")
                            .contains("It has multiple lines.");
     }
 
     @Test
     void loadSystemPrompt_ShouldThrowException_WhenFileDoesNotExist() {
-        assertThatThrownBy(() -> PromptUtils.loadSystemPrompt("non-existent", "v1.0.0", "prompt.txt"))
+        assertThatThrownBy(() -> PromptUtils.loadSystemPrompt("non-existent", "v1.0.0", "prompt.md"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Prompt file not found");
+    }
+
+    @Test
+    void loadSystemPrompt_ShouldInjectIncludedFilesRecursively_WhenPromptContainsIncludeLines() {
+        String content = PromptUtils.loadSystemPrompt("test-agent", "v1.0.0", "test-prompt-with-include.md");
+
+        assertThat(content).isEqualTo(String.join(System.lineSeparator(),
+                "Before the fragment.", "Fragment line.", "This is a test prompt.", "It has multiple lines.", "After the fragment."));
+    }
+
+    @Test
+    void loadSystemPrompt_ShouldThrowException_WhenIncludedFileDoesNotExist() {
+        assertThatThrownBy(() -> PromptUtils.loadSystemPrompt("test-agent", "v1.0.0", "test-prompt-with-missing-include.md"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Prompt file not found: prompt_templates/system/agents/test-agent/v1.0.0/missing-fragment.md");
+    }
+
+    @Test
+    void loadSystemPrompt_ShouldThrowException_WhenPromptIncludesItself() {
+        assertThatThrownBy(() -> PromptUtils.loadSystemPrompt("test-agent", "v1.0.0", "test-prompt-including-itself.md"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Prompt include cycle: test-agent/v1.0.0/test-prompt-including-itself.md -> "
+                        + "test-agent/v1.0.0/test-prompt-including-itself.md");
+    }
+
+    @Test
+    void loadSystemPrompt_ShouldThrowException_WhenTwoPromptsIncludeEachOther() {
+        assertThatThrownBy(() -> PromptUtils.loadSystemPrompt("test-agent", "v1.0.0", "test-cycle-a.md"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Prompt include cycle: test-agent/v1.0.0/test-cycle-a.md -> test-agent/v1.0.0/test-cycle-b.md -> "
+                        + "test-agent/v1.0.0/test-cycle-a.md");
     }
 }

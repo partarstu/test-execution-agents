@@ -19,7 +19,7 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
-import jakarta.inject.Singleton;
+import org.tarik.ta.config.scopes.UiAgentRequestScope;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.apache.commons.io.IOUtils;
@@ -30,6 +30,8 @@ import java.awt.*;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.util.Map;
+import java.util.Set;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.awt.Desktop.getDesktop;
@@ -37,13 +39,14 @@ import static java.awt.Desktop.isDesktopSupported;
 import static org.tarik.ta.core.error.ErrorCategory.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
-@Singleton
+@UiAgentRequestScope
 public class CommonTools extends UiAbstractTools {
     private static final int BROWSER_OPEN_TIME_SECONDS = 1;
     private static final Logger LOG = LoggerFactory.getLogger(CommonTools.class);
     private static final String HTTP_PROTOCOL = "http://";
     private static final String OS_NAME_SYS_PROPERTY = "os.name";
     private static final String HTTPS_PROTOCOL = "https://";
+    private static final Set<String> PANEL_SECRET_ENV_VARS = Set.of("PANEL_PASSWORD", "PANEL_TLS_CERT", "PANEL_TLS_KEY");
     private static Process browserProcess;
     private static final Object LOCK = new Object();
 
@@ -86,7 +89,9 @@ public class CommonTools extends UiAbstractTools {
                 if (os.contains("linux")) {
                     String[] command = buildBrowserStartupCommand(finalUrl.toString());
                     LOG.debug("Executing command: {}", String.join(" ", command));
-                    browserProcess = new ProcessBuilder(command).start();
+                    var processBuilder = new ProcessBuilder(command);
+                    removePanelSecrets(processBuilder.environment());
+                    browserProcess = processBuilder.start();
                     if (!browserProcess.isAlive()) {
                         var errorMessage = "Failed to open browser. Error: %s\n"
                                 .formatted(IOUtils.toString(browserProcess.getErrorStream(), UTF_8));
@@ -124,6 +129,11 @@ public class CommonTools extends UiAbstractTools {
                 throw rethrowAsToolException(e, "closing browser");
             }
         }
+    }
+
+    // The agent runs the browser it drives with its own environment, which must not hand the panel secrets to the page under test
+    static void removePanelSecrets(Map<String, String> environment) {
+        environment.keySet().removeAll(PANEL_SECRET_ENV_VARS);
     }
 
     // Only reached for Linux: openBrowser uses Desktop.browse on Windows/macOS, so this builds the Linux launch command.

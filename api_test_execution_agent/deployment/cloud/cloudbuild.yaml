@@ -23,10 +23,18 @@ steps:
   # ============================================
   # Stage 1: Build Maven modules
   # ============================================
-  - name: 'maven:3.9.15-eclipse-temurin-26'
+  - name: 'amazoncorretto:27-alpine'
     id: 'maven-build'
     dir: '/workspace'
-    args: [ 'mvn', 'clean', 'install', '-DskipTests', '-P', 'linux' ]
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        set -e
+        wget -qO /tmp/maven.tar.gz https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.tar.gz
+        echo "$$(wget -qO- https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.tar.gz.sha512)  /tmp/maven.tar.gz" | sha512sum -c -
+        tar xzf /tmp/maven.tar.gz -C /opt
+        /opt/apache-maven-3.9.16/bin/mvn clean install -DskipTests -pl api_test_execution_agent -am
 
   # ============================================
   # Stage 2: Build and Push Docker Image
@@ -64,7 +72,7 @@ steps:
       - '--concurrency=$_CONCURRENCY'
       - '--min-instances=$_MIN_INSTANCES'
       - '--max-instances=$_MAX_INSTANCES'
-      - '--set-env-vars=DEPLOYMENT_ENV=cloud,AGENT_HOST=0.0.0.0,EXTERNAL_URL=$_EXTERNAL_URL'
+      - '--set-env-vars=DEPLOYMENT_ENV=cloud,AGENT_HOST=0.0.0.0,EXTERNAL_URL=$_EXTERNAL_URL,LOG_FORMAT=$_LOG_FORMAT,OTEL_SERVICE_NAME=$_OTEL_SERVICE_NAME,OTEL_EXPORTER_OTLP_ENDPOINT=$_OTEL_EXPORTER_OTLP_ENDPOINT,OTEL_METRICS_EXPORTER=$_OTEL_METRICS_EXPORTER,OTEL_METRIC_EXPORT_INTERVAL=$_OTEL_METRIC_EXPORT_INTERVAL'
       - '--set-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,AGENT_AUTH_TOKEN=AGENT_AUTH_TOKEN:latest'
     waitFor: [ 'docker-push-api-agent' ]
 
@@ -83,6 +91,14 @@ substitutions:
   _MIN_INSTANCES: '0'
   _MAX_INSTANCES: '1'
   _EXTERNAL_URL: ''
+  _LOG_FORMAT: 'json'
+
+  # --- OpenTelemetry metrics export ---
+  # No endpoint means no export: the agent then keeps its instruments in memory and sends nothing.
+  _OTEL_SERVICE_NAME: 'api-test-execution-agent'
+  _OTEL_EXPORTER_OTLP_ENDPOINT: ''
+  _OTEL_METRICS_EXPORTER: 'none'
+  _OTEL_METRIC_EXPORT_INTERVAL: '60000'
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -48,7 +48,7 @@ import static java.util.Objects.requireNonNull;
  *   <li>Persists Procedure nodes via the embedding store</li>
  *   <li>Creates CONTAINS relationships for parent-child hierarchies</li>
  *   <li>Creates TARGETS relationships for atomic steps with UI elements</li>
- *   <li>Batch-creates PhraseEmbedding nodes for all prerequisites and effects</li>
+ *   <li>Batch-creates PhraseEmbedding nodes for all prerequisites, effects and negated effects</li>
  *   <li>Invalidates the decomposition cache</li>
  * </ol>
  */
@@ -114,7 +114,7 @@ public class KnowledgeIngestionService {
                 pendingNodes.forEach(pn -> procedureRepository.save(pn.procedure(), pn.embedding().vector(), tx));
                 pendingContains.forEach(r -> procedureRepository.linkToParent(r.childId(), r.parentId(), r.sequence(), tx));
                 pendingTargets.forEach(r -> procedureRepository.linkToUiElement(r.spId(), r.elId(), tx));
-                pendingPhraseNodes.forEach(ppn -> phraseEmbeddingRepository.saveBatchForProcedure(ppn.procedureId(), ppn.prerequisites(), ppn.effects(), tx));
+                pendingPhraseNodes.forEach(ppn -> phraseEmbeddingRepository.saveBatchForProcedure(ppn.procedureId(), ppn.prerequisites(), ppn.effects(), ppn.negatedEffects(), tx));
             });
 
             decompositionService.invalidateCache();
@@ -222,7 +222,7 @@ public class KnowledgeIngestionService {
                 Procedure procedure = np.procedure();
                 Embedding embedding = embeddingIterator.next();
                 pendingNodes.add(new PendingNode(procedure, embedding));
-                pendingPhraseTexts.add(new PendingPhraseTexts(procedure.id(), procedure.prerequisites(), procedure.effects()));
+                pendingPhraseTexts.add(PendingPhraseTexts.of(procedure));
                 LOG.debug("Collected Procedure '{}' (id={}, atomic={})", procedure.description(), procedure.id(), procedure.isAtomic());
 
                 if (parentId != null) {
@@ -251,6 +251,7 @@ public class KnowledgeIngestionService {
         for (var pp : pendingPhraseTexts) {
             allPhrases.addAll(pp.prerequisites());
             allPhrases.addAll(pp.effects());
+            allPhrases.addAll(pp.negatedEffects());
         }
         if (allPhrases.isEmpty()) {
             return List.of();
@@ -264,28 +265,23 @@ public class KnowledgeIngestionService {
             offset += pp.prerequisites().size();
             var effectNodes = buildPhraseNodes(pp.effects(), phraseEmbeddings, offset, PhraseType.EFFECT);
             offset += pp.effects().size();
-            if (!prereqNodes.isEmpty() || !effectNodes.isEmpty()) {
-                result.add(new PendingPhraseNodes(pp.procedureId(), prereqNodes, effectNodes));
+            var negatedEffectNodes = buildPhraseNodes(pp.negatedEffects(), phraseEmbeddings, offset, PhraseType.NEGATED_EFFECT);
+            offset += pp.negatedEffects().size();
+            var phraseNodes = new PendingPhraseNodes(pp.procedureId(), prereqNodes, effectNodes, negatedEffectNodes);
+            if (!phraseNodes.isEmpty()) {
+                result.add(phraseNodes);
             }
         }
         return result;
     }
 
     /**
-     * Embeds the prerequisites and effects of a single procedure and returns
-     * ready-to-persist {@link PhraseEmbedding} nodes without writing to the database.
+     * Embeds the phrases of a single procedure and returns ready-to-persist {@link PhraseEmbedding} nodes without writing to the
+     * database.
      */
     private PendingPhraseNodes buildPhraseNodesForProcedure(Procedure procedure) {
-        var allPhrases = new ArrayList<String>(procedure.prerequisites().size() + procedure.effects().size());
-        allPhrases.addAll(procedure.prerequisites());
-        allPhrases.addAll(procedure.effects());
-        if (allPhrases.isEmpty()) {
-            return new PendingPhraseNodes(procedure.id(), List.of(), List.of());
-        }
-        var embeddings = embeddingService.embedBatch(allPhrases);
-        var prereqNodes = buildPhraseNodes(procedure.prerequisites(), embeddings, 0, PhraseType.PREREQUISITE);
-        var effectNodes = buildPhraseNodes(procedure.effects(), embeddings, procedure.prerequisites().size(), PhraseType.EFFECT);
-        return new PendingPhraseNodes(procedure.id(), prereqNodes, effectNodes);
+        var phraseNodes = buildAllPhraseNodes(List.of(PendingPhraseTexts.of(procedure)));
+        return phraseNodes.isEmpty() ? new PendingPhraseNodes(procedure.id(), List.of(), List.of(), List.of()) : phraseNodes.getFirst();
     }
 
     private static List<PhraseEmbedding> buildPhraseNodes(List<String> phrases, List<Embedding> embeddings, int offset, PhraseType type) {
@@ -302,9 +298,18 @@ public class KnowledgeIngestionService {
 
     private record PendingTargets(UUID spId, UUID elId) {}
 
-    private record PendingPhraseTexts(UUID procedureId, List<String> prerequisites, List<String> effects) {}
+    private record PendingPhraseTexts(UUID procedureId, List<String> prerequisites, List<String> effects, List<String> negatedEffects) {
+        static PendingPhraseTexts of(Procedure procedure) {
+            return new PendingPhraseTexts(procedure.id(), procedure.prerequisites(), procedure.effects(), procedure.negatedEffects());
+        }
+    }
 
-    private record PendingPhraseNodes(UUID procedureId, List<PhraseEmbedding> prerequisites, List<PhraseEmbedding> effects) {}
+    private record PendingPhraseNodes(UUID procedureId, List<PhraseEmbedding> prerequisites, List<PhraseEmbedding> effects,
+                                      List<PhraseEmbedding> negatedEffects) {
+        boolean isEmpty() {
+            return prerequisites.isEmpty() && effects.isEmpty() && negatedEffects.isEmpty();
+        }
+    }
 
     private void updateRecursive(UUID existingId, IngestionNode node, UUID parentId, int sequence,
                                  Iterator<Embedding> embeddingIterator) {
@@ -345,7 +350,8 @@ public class KnowledgeIngestionService {
                         satisfiesEdgeRepository.deleteSatisfiesEdges(idForTx, tx);
                         procedureRepository.update(finalProcedure, embeddingVector, tx);
                         phraseEmbeddingRepository.deleteForProcedure(idForTx, tx);
-                        phraseEmbeddingRepository.saveBatchForProcedure(idForTx, phraseNodes.prerequisites(), phraseNodes.effects(), tx);
+                        phraseEmbeddingRepository.saveBatchForProcedure(idForTx, phraseNodes.prerequisites(), phraseNodes.effects(),
+                                phraseNodes.negatedEffects(), tx);
                     });
                 } else {
                     repositorySupport.executeComplexWriteQuery(tx -> {
@@ -353,7 +359,8 @@ public class KnowledgeIngestionService {
                         if (parentId != null) {
                             procedureRepository.linkToParent(idForTx, parentId, sequence, tx);
                         }
-                        phraseEmbeddingRepository.saveBatchForProcedure(idForTx, phraseNodes.prerequisites(), phraseNodes.effects(), tx);
+                        phraseEmbeddingRepository.saveBatchForProcedure(idForTx, phraseNodes.prerequisites(), phraseNodes.effects(),
+                                phraseNodes.negatedEffects(), tx);
                     });
                 }
 
@@ -371,10 +378,11 @@ public class KnowledgeIngestionService {
 
     void createAndSavePhraseNodes(Procedure procedure) {
         var phraseNodes = buildPhraseNodesForProcedure(procedure);
-        if (phraseNodes.prerequisites().isEmpty() && phraseNodes.effects().isEmpty()) {
+        if (phraseNodes.isEmpty()) {
             return;
         }
-        phraseEmbeddingRepository.saveBatchForProcedure(procedure.id(), phraseNodes.prerequisites(), phraseNodes.effects());
+        phraseEmbeddingRepository.saveBatchForProcedure(procedure.id(), phraseNodes.prerequisites(), phraseNodes.effects(),
+                phraseNodes.negatedEffects());
     }
 
     private static String nodeDescription(IngestionNode node) {

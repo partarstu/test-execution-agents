@@ -17,11 +17,13 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
 import org.tarik.ta.core.agents.GenericAiAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
+
+import java.util.List;
 
 /**
  * Agent responsible for executing and verifying API test case preconditions.
@@ -43,14 +45,7 @@ import org.tarik.ta.core.dto.VerificationExecutionResult;
  * </ul>
  */
 public interface ApiPreconditionActionAgent extends GenericAiAgent<VerificationExecutionResult> {
-    @UserMessage("""
-            Precondition: {{precondition}}
-            
-            Test context data from previous operations: {{sharedData}}.
-            """)
-    Result<String> execute(
-            @V("precondition") String precondition,
-            @V("sharedData") String sharedData);
+    Result<String> execute(@UserMessage List<Content> userMessage);
 
     @Override
     default String getAgentTaskDescription() {

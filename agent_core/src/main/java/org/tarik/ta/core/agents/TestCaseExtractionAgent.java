@@ -17,18 +17,15 @@
  */
 package org.tarik.ta.core.agents;
 
-
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
-import org.tarik.ta.core.AgentConfig;
-import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.dto.TestCase;
 
+import java.util.List;
+
 public interface TestCaseExtractionAgent extends GenericAiAgent<TestCase> {
-    @UserMessage("{{user_request}}")
-    Result<String> extractTestCase(
-            @V("user_request") String userRequest);
+    Result<String> extractTestCase(@UserMessage List<Content> userRequest);
 
     @Override
     default String getAgentTaskDescription() {

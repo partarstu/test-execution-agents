@@ -33,12 +33,14 @@ import org.a2aproject.sdk.jsonrpc.common.wrappers.SendStreamingMessageResponse;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.StreamingJSONRPCRequest;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.SubscribeToTaskRequest;
 import org.a2aproject.sdk.server.ServerCallContext;
+import org.a2aproject.sdk.server.agentexecution.AgentExecutor;
 import org.a2aproject.sdk.server.auth.UnauthenticatedUser;
 import org.a2aproject.sdk.server.events.InMemoryQueueManager;
 import org.a2aproject.sdk.server.events.MainEventBus;
 import org.a2aproject.sdk.server.events.MainEventBusProcessor;
 import org.a2aproject.sdk.server.requesthandlers.DefaultRequestHandler;
 import org.a2aproject.sdk.server.tasks.BasePushNotificationSender;
+import org.a2aproject.sdk.server.tasks.DefaultPushNotificationUrlValidator;
 import org.a2aproject.sdk.server.tasks.InMemoryPushNotificationConfigStore;
 import org.a2aproject.sdk.server.tasks.InMemoryTaskStore;
 import org.a2aproject.sdk.server.tasks.PushNotificationConfigStore;
@@ -92,6 +94,7 @@ public class AgentExecutionResource {
     private static final Logger LOG = LoggerFactory.getLogger(AgentExecutionResource.class);
     private static final PushNotificationConfigStore pushNotificationConfigStore = new InMemoryPushNotificationConfigStore();
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+    private static final String LEGACY_PUSH_NOTIFICATION_CONFIG_FIELD = "pushNotificationConfig";
 
     /**
      * Maps the standard A2A-spec JSON-RPC method names this agent advertises (and which generic A2A clients send) to
@@ -126,7 +129,7 @@ public class AgentExecutionResource {
         var taskStore = new InMemoryTaskStore();
         var mainEventBus = new MainEventBus();
         var queueManager = new InMemoryQueueManager(taskStore, mainEventBus);
-        var pushNotificationSender = new BasePushNotificationSender(pushNotificationConfigStore);
+        var pushNotificationSender = new BasePushNotificationSender(pushNotificationConfigStore, new DefaultPushNotificationUrlValidator());
         var mainEventBusProcessor = new MainEventBusProcessor(mainEventBus, taskStore, pushNotificationSender, queueManager);
         // The SDK starts the processor's background thread from its @PostConstruct, which only runs under a Jakarta CDI
         // container. This agent wires the processor manually via avaje-inject, so that callback never fires and
@@ -135,9 +138,18 @@ public class AgentExecutionResource {
         var eventBusProcessorThread = new Thread(mainEventBusProcessor, "MainEventBusProcessor");
         eventBusProcessorThread.setDaemon(true);
         eventBusProcessorThread.start();
-        DefaultRequestHandler httpRequestHandler = DefaultRequestHandler.create(agentExecutorProvider.get(),
-                taskStore, queueManager, pushNotificationConfigStore,
-                mainEventBusProcessor, taskExecutor, eventConsumerExecutor);
+        DefaultRequestHandler httpRequestHandler = DefaultRequestHandler.builder()
+                .agentExecutor(agentExecutorProvider.get())
+                .taskStore(taskStore)
+                .queueManager(queueManager)
+                .pushConfigStore(pushNotificationConfigStore)
+                .mainEventBusProcessor(mainEventBusProcessor)
+                .executor(taskExecutor)
+                .eventConsumerExecutor(eventConsumerExecutor)
+                // Each agent serves a single tenant whose access is guarded by the bearer token of the A2A endpoint
+                .authorizationRequired(false)
+                .pushNotificationsEnabled(false)
+                .build();
         this.jsonRpcHandler = new JSONRPCHandler(agentCardProvider.get(), httpRequestHandler, taskExecutor);
     }
 
@@ -148,7 +160,7 @@ public class AgentExecutionResource {
      */
     public void handle(@NotNull Context context) {
         try {
-            A2ARequest<?> request = parseRequestBody(normalizeMethodName(context.body()), null);
+            A2ARequest<?> request = parseRequestBody(normalizeRequest(context.body()), null);
             if (request instanceof StreamingJSONRPCRequest<?> streamingRequest) {
                 handleStreamingRequest(context, streamingRequest);
             } else {
@@ -161,27 +173,50 @@ public class AgentExecutionResource {
     }
 
     /**
-     * Rewrites the request's {@code method} field from the standard A2A-spec name (e.g. {@code message/stream}) to the
-     * proto-style name the SDK parser expects (e.g. {@code SendStreamingMessage}). Bodies whose method is already a
-     * proto-style name (or any other value) are returned unchanged, as are bodies that cannot be parsed here so that
-     * the SDK parser can still raise its spec-compliant parse error.
+     * Rewrites what the SDK parser would reject although the agent can serve it: the standard A2A-spec method name and the
+     * legacy push notification field.
      */
-    private static String normalizeMethodName(@NotNull String body) {
+    private static String normalizeRequest(@NotNull String body) {
+        // A body that needs neither, or cannot be parsed here, stays unchanged so that the SDK parser raises its spec-compliant error
         try {
             if (JSON_MAPPER.readTree(body) instanceof ObjectNode root) {
-                JsonNode methodNode = root.get("method");
-                if (methodNode != null && methodNode.isTextual()) {
-                    String sdkMethod = SPEC_TO_SDK_METHOD_NAMES.get(methodNode.asText());
-                    if (sdkMethod != null) {
-                        root.put("method", sdkMethod);
-                        return JSON_MAPPER.writeValueAsString(root);
-                    }
+                boolean methodRenamed = normalizeMethodName(root);
+                boolean legacyPushConfigDropped = dropLegacyPushNotificationConfig(root);
+                if (methodRenamed || legacyPushConfigDropped) {
+                    return JSON_MAPPER.writeValueAsString(root);
                 }
             }
         } catch (IOException e) {
-            LOG.debug("Could not pre-parse the request body for method normalization; passing it through unchanged.", e);
+            LOG.debug("Could not pre-parse the request body for normalization; passing it through unchanged.", e);
         }
         return body;
+    }
+
+    /**
+     * Rewrites the request's {@code method} field from the standard A2A-spec name (e.g. {@code message/stream}) to the
+     * proto-style name the SDK parser expects (e.g. {@code SendStreamingMessage}).
+     */
+    private static boolean normalizeMethodName(@NotNull ObjectNode root) {
+        JsonNode methodNode = root.get("method");
+        if (methodNode == null || !methodNode.isTextual()) {
+            return false;
+        }
+        String sdkMethod = SPEC_TO_SDK_METHOD_NAMES.get(methodNode.asText());
+        if (sdkMethod == null) {
+            return false;
+        }
+        root.put("method", sdkMethod);
+        return true;
+    }
+
+    /**
+     * Removes the A2A 0.3 {@code configuration.pushNotificationConfig} field, which the v1 schema of the SDK parser rejects as invalid
+     * params.
+     */
+    private static boolean dropLegacyPushNotificationConfig(@NotNull ObjectNode root) {
+        // Push notifications are not supported, so the request is served with the push configuration ignored, as with the v1 field
+        return root.path("params").path("configuration") instanceof ObjectNode configuration
+                && configuration.remove(LEGACY_PUSH_NOTIFICATION_CONFIG_FIELD) != null;
     }
 
     /**

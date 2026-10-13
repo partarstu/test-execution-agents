@@ -30,6 +30,18 @@ public final class GraphRelationships {
     public static final String REL_HAS_PREREQUISITE = "HAS_PREREQUISITE";
     /** Procedure to PhraseEmbedding relationship for effects, with {@code sequence} ordering. */
     public static final String REL_HAS_EFFECT = "HAS_EFFECT";
+    /** Procedure to PhraseEmbedding relationship for effects the procedure makes false, with {@code sequence} ordering. */
+    public static final String REL_HAS_NEGATED_EFFECT = "HAS_NEGATED_EFFECT";
+    /** UI element to one of its expired {@code UiElementAppearance} nodes. */
+    public static final String REL_HAD_APPEARANCE = "HAD_APPEARANCE";
+    /** {@code ExecutionAnomaly} to the UI element or procedure it was observed on. */
+    public static final String REL_OBSERVED_ON = "OBSERVED_ON";
+    /** {@code TestCase} to one of its recorded {@code ExecutionRun}s. */
+    public static final String REL_HAS_RUN = "HAS_RUN";
+    /** {@code ExecutionRun} to the {@code StepResolution} of one of its items. */
+    public static final String REL_HAS_RESOLUTION = "HAS_RESOLUTION";
+    /** {@code StepResolution} to the procedure it chose. */
+    public static final String REL_CHOSE = "CHOSE";
 
     public static final String PROP_SEQUENCE = "sequence";
 

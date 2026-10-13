@@ -86,13 +86,24 @@ class FailureContextServiceTest {
                 "wait 3s", 1, Instant.now(), FailureContext.Mode.SUPERVISED
         );
 
-        when(mockRepository.findFailureContexts(procedureId)).thenReturn(List.of(fc1));
+        when(mockConfig.getFailureHintsMaxCount()).thenReturn(5);
+        when(mockRepository.findFailureContexts(procedureId, 5)).thenReturn(List.of(fc1));
 
         List<String> hints = failureContextService.findFailureHints(procedureId);
 
         assertThat(hints).containsExactly(
                 "[TRANSIENT_TOOL_ERROR] slow element -> wait 3s"
         );
+    }
+
+    @Test
+    void expireStaleHints_shouldExpireTheHintsOlderThanTheConfiguredDaysAndDeleteTheLongExpiredOnes() {
+        when(mockConfig.getFailureHintsStaleDays()).thenReturn(90);
+
+        failureContextService.expireStaleHints();
+
+        verify(mockRepository).expireStale(90);
+        verify(mockRepository).deleteLongExpired(90);
     }
 
     @Test

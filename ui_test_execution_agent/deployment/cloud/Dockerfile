@@ -27,9 +27,7 @@ ARG SOURCE_JAR_PATH=ui_test_execution_agent/target/ui-test-execution-agent-2.2.0
 ARG DESTINATION_JAR_PATH=${APP_DIR}/app.jar
 ARG SOURCE_START_SCRIPT=ui_test_execution_agent/deployment/agent_startup.sh
 ARG DESTINATION_START_SCRIPT=${APP_DIR}/agent_startup.sh
-ARG SOURCE_START_WEBSOCKIFY_SSL_SCRIPT=ui_test_execution_agent/deployment/cloud/start_websockify_ssl.sh
-ARG DESTINATION_START_WEBSOCKIFY_SSL_SCRIPT=${APP_DIR}/start_websockify_ssl.sh
-ARG JAVA_VERSION=26
+ARG JAVA_VERSION=27
 
 # Switch to root user to install software
 USER 0
@@ -40,28 +38,14 @@ USER 0
 # '-y' answers yes to any prompts.
 # '&&' chains commands together.
 # 'apt-get clean' removes downloaded package files to keep the image small.
-RUN apt-get update
-RUN wget https://download.oracle.com/java/${JAVA_VERSION}/latest/jdk-${JAVA_VERSION}_linux-x64_bin.deb
-RUN dpkg -i jdk-${JAVA_VERSION}_linux-x64_bin.deb
+RUN wget -qO - https://apt.corretto.aws/corretto.key | gpg --dearmor -o /usr/share/keyrings/corretto-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/corretto-keyring.gpg] https://apt.corretto.aws stable main" > /etc/apt/sources.list.d/corretto.list \
+    && apt-get update \
+    && apt-get install -y java-${JAVA_VERSION}-amazon-corretto-jdk \
+    && apt-get install --reinstall libgtk2.0-0 -y \
+    && apt-get clean
 RUN java --version
 RUN update-alternatives --list java
-RUN apt-get install --reinstall libgtk2.0-0 -y
-RUN apt-get clean
-
-# --- SSL Certificate Generation for noVNC ---
-# Install openssl for certificate generation
-RUN apt-get update && apt-get install -y openssl lsof
-
-# Create a directory for SSL certificates
-RUN mkdir -p /etc/ssl/novnc
-
-# Generate a self-signed certificate and key
-# For production, you should use a proper CA-signed certificate
-RUN openssl req -x509 -nodes -newkey rsa:2048 -keyout /etc/ssl/novnc/novnc.key -out /etc/ssl/novnc/novnc.crt -days 365 -subj "/CN=novnc"
-
-# Copy the custom websockify startup script
-COPY ${SOURCE_START_WEBSOCKIFY_SSL_SCRIPT} ${DESTINATION_START_WEBSOCKIFY_SSL_SCRIPT}
-RUN chmod +x ${DESTINATION_START_WEBSOCKIFY_SSL_SCRIPT}
 
 # --- Application Setup ---
 # Copy your Java application JAR file into the container, create logs folder with corresponding access rights.

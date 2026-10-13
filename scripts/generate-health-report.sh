@@ -20,7 +20,7 @@
 set -euo pipefail
 
 if [ -z "${JAVA_HOME:-}" ]; then
-    echo "ERROR: JAVA_HOME is not set. Please configure Java 25."
+    echo "ERROR: JAVA_HOME is not set. Please configure Java 27."
     exit 1
 fi
 

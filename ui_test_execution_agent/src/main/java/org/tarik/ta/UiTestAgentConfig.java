@@ -22,6 +22,9 @@ import jakarta.inject.Singleton;
 import org.tarik.ta.core.AgentConfig;
 import dev.langchain4j.data.message.ImageContent.DetailLevel;
 
+import java.time.Duration;
+import java.util.Optional;
+
 @Singleton
 public class UiTestAgentConfig extends AgentConfig {
 
@@ -49,9 +52,9 @@ public class UiTestAgentConfig extends AgentConfig {
         this.elementBoundingBoxColorName = getRequiredProperty(
                 "element.bounding.box.color", "BOUNDING_BOX_COLOR", false);
         this.elementRetrievalMinTargetScore = loadPropertyAsDouble(
-                "element.retrieval.min.target.score", "ELEMENT_RETRIEVAL_MIN_TARGET_SCORE", "0.85", false);
+                "element.retrieval.min.target.score", "ELEMENT_RETRIEVAL_MIN_TARGET_SCORE", "0.93", false);
         this.elementRetrievalMinGeneralScore = loadPropertyAsDouble(
-                "element.retrieval.min.general.score", "ELEMENT_RETRIEVAL_MIN_GENERAL_SCORE", "0.85", false);
+                "element.retrieval.min.general.score", "ELEMENT_RETRIEVAL_MIN_GENERAL_SCORE", "0.87", false);
         this.elementLocatorVisualSimilarityThreshold = loadPropertyAsDouble(
                 "element.locator.visual.similarity.threshold", "VISUAL_SIMILARITY_THRESHOLD", "0.8", false);
         this.elementLocatorTopVisualMatches = loadPropertyAsInteger(
@@ -73,9 +76,14 @@ public class UiTestAgentConfig extends AgentConfig {
                 "1568", false);
         this.bboxScreenshotMaxSizeMegapixels = loadPropertyAsDouble(
                 "bbox.screenshot.max.size.megapixels", "BBOX_SCREENSHOT_MAX_SIZE_MEGAPIXELS", "1.15", false);
+        this.maxModelImagePixels = loadPropertyAsInteger(
+                "model.max.image.pixels", "MODEL_MAX_IMAGE_PIXELS", "2073600", false);
         this.boundingBoxAlreadyNormalized = loadProperty(
                 "bounding.box.already.normalized", "BOUNDING_BOX_ALREADY_NORMALIZED", "false", Boolean::parseBoolean,
                 false);
+        this.groundingOutputFormat = loadProperty(
+                "element.locator.grounding.output.format", "ELEMENT_LOCATOR_GROUNDING_OUTPUT_FORMAT", "BOUNDING_BOX",
+                s -> parseEnum(GroundingOutputFormat.class, s), false);
         this.algorithmicSearchEnabled = loadProperty(
                 "element.locator.algorithmic.search.enabled", "ALGORITHMIC_SEARCH_ENABLED", "true", Boolean::parseBoolean,
                 false);
@@ -85,18 +93,14 @@ public class UiTestAgentConfig extends AgentConfig {
         this.verificationModelMaxRetries = loadProperty(
                 "verification.model.max.retries", "VERIFICATION_MODEL_MAX_RETRIES", "3", Integer::parseInt, false);
         this.skipUiElementSelectionForVision = loadProperty(
-                "element.locator.skip.model.selection.vision.only", "SKIP_UI_ELEMENT_SELECTION_FOR_VISION", "false",
+                "element.locator.skip.model.selection.vision.only", "SKIP_UI_ELEMENT_SELECTION_FOR_VISION", "true",
                 Boolean::parseBoolean, false);
-        this.dialogDefaultHorizontalGap = loadPropertyAsInteger(
-                "dialog.default.horizontal.gap", "DIALOG_DEFAULT_HORIZONTAL_GAP", "10", false);
-        this.dialogDefaultVerticalGap = loadPropertyAsInteger(
-                "dialog.default.vertical.gap", "DIALOG_DEFAULT_VERTICAL_GAP", "10", false);
-        this.dialogDefaultFontType = getProperty("dialog.default.font.type",
-                "DIALOG_DEFAULT_FONT_TYPE", "Dialog", s -> s, false);
-        this.dialogDefaultFontSize = loadPropertyAsInteger(
-                "dialog.default.font.size", "DIALOG_DEFAULT_FONT_SIZE", "13", false);
-        this.dialogHoverAsClick = loadProperty("dialog.hover.as.click",
-                "DIALOG_HOVER_AS_CLICK", "false", Boolean::parseBoolean, false);
+        this.failureContextDialogCountdownSeconds = loadPropertyAsInteger(
+                "failure.context.dialog.countdown.seconds", "FAILURE_CONTEXT_DIALOG_COUNTDOWN_SECONDS", "30", false);
+        this.elementResolutionMaxDurationMillis = loadPropertyAsInteger(
+                "element.resolution.max.duration.millis", "ELEMENT_RESOLUTION_MAX_DURATION_MILLIS", "300000", false);
+        this.mouseScrollNotchesPerAttempt = loadPropertyAsInteger(
+                "mouse.scroll.notches.per.attempt", "MOUSE_SCROLL_NOTCHES_PER_ATTEMPT", "3", false);
         this.neo4jUsername = loadProperty("neo4j.username", "NEO4J_USERNAME",
                 "neo4j", s -> s, false);
         this.neo4jDatabase = loadProperty("neo4j.database", "NEO4J_DATABASE",
@@ -116,9 +120,9 @@ public class UiTestAgentConfig extends AgentConfig {
         this.knowledgeEmbeddingModel = loadProperty(
                 "knowledge.embedding.model", "KNOWLEDGE_EMBEDDING_MODEL", "multilingual-e5-small", s -> s, false);
         this.knowledgeMatchConfidenceHigh = loadPropertyAsDouble(
-                "knowledge.match.confidence.high", "KNOWLEDGE_MATCH_CONFIDENCE_HIGH", "0.85", false);
+                "knowledge.match.confidence.high", "KNOWLEDGE_MATCH_CONFIDENCE_HIGH", "0.95", false);
         this.knowledgeMatchConfidenceLow = loadPropertyAsDouble(
-                "knowledge.match.confidence.low", "KNOWLEDGE_MATCH_CONFIDENCE_LOW", "0.5", false);
+                "knowledge.match.confidence.low", "KNOWLEDGE_MATCH_CONFIDENCE_LOW", "0.88", false);
         this.knowledgeMatchTopN = loadPropertyAsInteger(
                 "knowledge.match.top.n", "KNOWLEDGE_MATCH_TOP_N", "5", false);
         this.procedureLookupDelayMs = loadPropertyAsInteger(
@@ -177,7 +181,7 @@ public class UiTestAgentConfig extends AgentConfig {
                 "precondition.verification.agent.model.name", "PRECONDITION_VERIFICATION_AGENT_MODEL_NAME",
                 "gemini-3.5-flash", s -> s, false);
         this.preconditionVerificationAgentModelProvider = getProperty(
-                "precondition.verification.agent.model.provider", "precondition_VERIFICATION_AGENT_MODEL_PROVIDER",
+                "precondition.verification.agent.model.provider", "PRECONDITION_VERIFICATION_AGENT_MODEL_PROVIDER",
                 "google", this::getModelProvider, false);
         this.preconditionVerificationAgentPromptVersion = loadProperty(
                 "precondition.verification.agent.prompt.version", "PRECONDITION_VERIFICATION_AGENT_PROMPT_VERSION",
@@ -218,7 +222,7 @@ public class UiTestAgentConfig extends AgentConfig {
         this.timingVerificationMinDelayMs = loadPropertyAsInteger(
                 "timing.verification.min.delay.ms", "TIMING_VERIFICATION_MIN_DELAY_MS", "500", false);
         this.satisfiesSimilarityThreshold = loadPropertyAsDouble(
-                "satisfies.similarity.threshold", "SATISFIES_SIMILARITY_THRESHOLD", "0.85", false);
+                "satisfies.similarity.threshold", "SATISFIES_SIMILARITY_THRESHOLD", "0.90", false);
         this.ancestryWindowSize = loadPropertyAsInteger(
                 "ancestry.window.size", "ANCESTRY_WINDOW_SIZE", "5", false);
         this.satisfiesStaleDays = loadPropertyAsInteger(
@@ -231,6 +235,21 @@ public class UiTestAgentConfig extends AgentConfig {
                 "health.warning.threshold", "HEALTH_WARNING_THRESHOLD", "3", false);
         this.healthCriticalThreshold = loadPropertyAsInteger(
                 "health.critical.threshold", "HEALTH_CRITICAL_THRESHOLD", "10", false);
+        this.elementAppearanceHistorySize = loadPropertyAsInteger(
+                "element.appearance.history.size", "ELEMENT_APPEARANCE_HISTORY_SIZE", "3", false);
+        this.failureHintsStaleDays = loadPropertyAsInteger(
+                "failure.hints.stale.days", "FAILURE_HINTS_STALE_DAYS", "90", false);
+        this.failureHintsMaxCount = loadPropertyAsInteger(
+                "failure.hints.max.count", "FAILURE_HINTS_MAX_COUNT", "5", false);
+        this.anomalyRecordingEnabled = loadProperty(
+                "anomaly.recording.enabled", "ANOMALY_RECORDING_ENABLED", "true", Boolean::parseBoolean, false);
+        this.anomalyHistorySize = loadPropertyAsInteger(
+                "anomaly.history.size", "ANOMALY_HISTORY_SIZE", "20", false);
+        this.runHistorySize = loadPropertyAsInteger("run.history.size", "RUN_HISTORY_SIZE", "500", false);
+        this.anomalyTimingOutlierFactor = loadPropertyAsDouble(
+                "anomaly.timing.outlier.factor", "ANOMALY_TIMING_OUTLIER_FACTOR", "3.0", false);
+        this.healthRecentWindowDays = loadPropertyAsInteger(
+                "health.recent.window.days", "HEALTH_RECENT_WINDOW_DAYS", "30", false);
         this.locationHistoryAndFailureHintsCollectionEnabled = loadProperty(
                 "location.history.and.failure.hints.collection.enabled", "LOCATION_HISTORY_AND_FAILURE_HINTS_COLLECTION_ENABLED", "false",
                 Boolean::parseBoolean, false);
@@ -264,6 +283,22 @@ public class UiTestAgentConfig extends AgentConfig {
         this.testStepActionAgentImageDetailLevel = getProperty(
                 "test.step.action.agent.image.detail.level", "TEST_STEP_ACTION_AGENT_IMAGE_DETAIL_LEVEL", "medium",
                 this::getDetailLevel, false);
+        this.panelPort = loadPropertyAsInteger("panel.port", "PANEL_PORT", "8443", false);
+        this.panelHost = loadProperty("panel.host", "PANEL_HOST", "127.0.0.1", s -> s, false);
+        this.panelPassword = loadProperty("panel.password", "PANEL_PASSWORD", "", s -> s, true);
+        // Not a secret, but logging the value would print the whole multi-line PEM chain at startup
+        this.panelTlsCert = loadProperty("panel.tls.cert", "PANEL_TLS_CERT", "", s -> s, true);
+        this.panelTlsKey = loadProperty("panel.tls.key", "PANEL_TLS_KEY", "", s -> s, true);
+        this.panelExternalUrl = loadProperty("panel.external.url", "PANEL_EXTERNAL_URL", "", s -> s, false);
+        this.panelSessionIdleTimeoutMinutes = loadPropertyAsInteger(
+                "panel.session.idle.timeout.minutes", "PANEL_SESSION_IDLE_TIMEOUT_MINUTES", "30", false);
+        this.panelSessionAbsoluteTimeoutHours = loadPropertyAsInteger(
+                "panel.session.absolute.timeout.hours", "PANEL_SESSION_ABSOLUTE_TIMEOUT_HOURS", "8", false);
+        this.panelPromptMaxWaitMinutes = loadPropertyAsInteger(
+                "panel.prompt.max.wait.minutes", "PANEL_PROMPT_MAX_WAIT_MINUTES", "120", false);
+        this.panelLiveControlEnabled = loadProperty("panel.live.control.enabled", "PANEL_LIVE_CONTROL_ENABLED", "false",
+                Boolean::parseBoolean, false);
+        this.vncSocketPath = loadProperty("vnc.socket.path", "VNC_SOCKET_PATH", "", s -> s, false);
     }
 
     private DetailLevel getDetailLevel(String s) {
@@ -477,6 +512,12 @@ public class UiTestAgentConfig extends AgentConfig {
         return bboxScreenshotLongestAllowedDimensionPixels.value();
     }
 
+    private final ConfigProperty<Integer> maxModelImagePixels;
+
+    public int getMaxModelImagePixels() {
+        return maxModelImagePixels.value();
+    }
+
     private final ConfigProperty<Double> bboxScreenshotMaxSizeMegapixels;
 
     public double getBboxScreenshotMaxSizeMegapixels() {
@@ -487,6 +528,12 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public boolean isBoundingBoxAlreadyNormalized() {
         return boundingBoxAlreadyNormalized.value();
+    }
+
+    private final ConfigProperty<GroundingOutputFormat> groundingOutputFormat;
+
+    public GroundingOutputFormat getGroundingOutputFormat() {
+        return groundingOutputFormat.value();
     }
 
     private final ConfigProperty<Boolean> algorithmicSearchEnabled;
@@ -514,35 +561,30 @@ public class UiTestAgentConfig extends AgentConfig {
     }
 
     // -----------------------------------------------------
-    // User UI dialogs
-    private final ConfigProperty<Integer> dialogDefaultHorizontalGap;
+    // Operator prompts
+    private final ConfigProperty<Integer> failureContextDialogCountdownSeconds;
 
-    public int getDialogDefaultHorizontalGap() {
-        return dialogDefaultHorizontalGap.value();
+    /** Returns the countdown in seconds after which the failure-context prompt is dismissed unless the operator holds it. */
+    public int getFailureContextDialogCountdownSeconds() {
+        return failureContextDialogCountdownSeconds.value();
     }
 
-    private final ConfigProperty<Integer> dialogDefaultVerticalGap;
+    private final ConfigProperty<Integer> elementResolutionMaxDurationMillis;
 
-    public int getDialogDefaultVerticalGap() {
-        return dialogDefaultVerticalGap.value();
+    /**
+     * Returns the budget in milliseconds for a single interactive UI element resolution started from the procedure editor.
+     */
+    public int getElementResolutionMaxDurationMillis() {
+        return elementResolutionMaxDurationMillis.value();
     }
 
-    private final ConfigProperty<String> dialogDefaultFontType;
+    private final ConfigProperty<Integer> mouseScrollNotchesPerAttempt;
 
-    public String getDialogDefaultFontType() {
-        return dialogDefaultFontType.value();
-    }
-
-    private final ConfigProperty<Integer> dialogDefaultFontSize;
-
-    public int getDialogDefaultFontSize() {
-        return dialogDefaultFontSize.value();
-    }
-
-    private final ConfigProperty<Boolean> dialogHoverAsClick;
-
-    public boolean isDialogHoverAsClick() {
-        return dialogHoverAsClick.value();
+    public int getMouseScrollNotchesPerAttempt() {
+        if (mouseScrollNotchesPerAttempt.value() <= 0) {
+            throw new IllegalArgumentException("Mouse scroll notches per attempt must be a positive integer.");
+        }
+        return mouseScrollNotchesPerAttempt.value();
     }
 
     // -----------------------------------------------------
@@ -879,5 +921,147 @@ public class UiTestAgentConfig extends AgentConfig {
 
     public boolean isLocationHistoryAndFailureHintsCollectionEnabled() {
         return locationHistoryAndFailureHintsCollectionEnabled.value();
+    }
+
+    private final ConfigProperty<Integer> elementAppearanceHistorySize;
+
+    public int getElementAppearanceHistorySize() {
+        return requirePositive(elementAppearanceHistorySize, "element.appearance.history.size");
+    }
+
+    private final ConfigProperty<Integer> failureHintsStaleDays;
+
+    public int getFailureHintsStaleDays() {
+        return requirePositive(failureHintsStaleDays, "failure.hints.stale.days");
+    }
+
+    private final ConfigProperty<Integer> failureHintsMaxCount;
+
+    public int getFailureHintsMaxCount() {
+        return requirePositive(failureHintsMaxCount, "failure.hints.max.count");
+    }
+
+    private final ConfigProperty<Boolean> anomalyRecordingEnabled;
+
+    public boolean isAnomalyRecordingEnabled() {
+        return anomalyRecordingEnabled.value();
+    }
+
+    private final ConfigProperty<Integer> anomalyHistorySize;
+
+    public int getAnomalyHistorySize() {
+        return requirePositive(anomalyHistorySize, "anomaly.history.size");
+    }
+
+    private final ConfigProperty<Integer> runHistorySize;
+
+    public int getRunHistorySize() {
+        return requirePositive(runHistorySize, "run.history.size");
+    }
+
+    private final ConfigProperty<Double> anomalyTimingOutlierFactor;
+
+    public double getAnomalyTimingOutlierFactor() {
+        return requireOutlierFactor(anomalyTimingOutlierFactor.value());
+    }
+
+    // A factor of 1 or less would flag every step that is not faster than its average as a timing outlier
+    static double requireOutlierFactor(double factor) {
+        if (factor <= 1) {
+            throw new IllegalArgumentException("anomaly.timing.outlier.factor must be greater than 1, but is %s".formatted(factor));
+        }
+        return factor;
+    }
+
+    private final ConfigProperty<Integer> healthRecentWindowDays;
+
+    public int getHealthRecentWindowDays() {
+        return requirePositive(healthRecentWindowDays, "health.recent.window.days");
+    }
+
+    private final ConfigProperty<Integer> panelPort;
+
+    public int getPanelPort() {
+        return panelPort.value();
+    }
+
+    private final ConfigProperty<String> panelHost;
+
+    public String getPanelHost() {
+        return panelHost.value();
+    }
+
+    private final ConfigProperty<String> panelPassword;
+
+    public Optional<String> getPanelPassword() {
+        return nonEmpty(panelPassword);
+    }
+
+    private final ConfigProperty<String> panelTlsCert;
+
+    public Optional<String> getPanelTlsCert() {
+        return nonEmpty(panelTlsCert);
+    }
+
+    private final ConfigProperty<String> panelTlsKey;
+
+    public Optional<String> getPanelTlsKey() {
+        return nonEmpty(panelTlsKey);
+    }
+
+    public boolean isPanelTlsConfigured() {
+        return getPanelTlsCert().isPresent() && getPanelTlsKey().isPresent();
+    }
+
+    private final ConfigProperty<String> panelExternalUrl;
+
+    public Optional<String> getPanelExternalUrl() {
+        return nonEmpty(panelExternalUrl);
+    }
+
+    private final ConfigProperty<Integer> panelSessionIdleTimeoutMinutes;
+
+    public Duration getPanelSessionIdleTimeout() {
+        return Duration.ofMinutes(requirePositive(panelSessionIdleTimeoutMinutes, "panel.session.idle.timeout.minutes"));
+    }
+
+    private final ConfigProperty<Integer> panelSessionAbsoluteTimeoutHours;
+
+    public Duration getPanelSessionAbsoluteTimeout() {
+        return Duration.ofHours(requirePositive(panelSessionAbsoluteTimeoutHours, "panel.session.absolute.timeout.hours"));
+    }
+
+    private final ConfigProperty<Integer> panelPromptMaxWaitMinutes;
+
+    /** Returns how long a prompt without a countdown, or with a held one, waits before its default applies or the run fails. */
+    public Duration getPanelPromptMaxWait() {
+        return Duration.ofMinutes(requirePositive(panelPromptMaxWaitMinutes, "panel.prompt.max.wait.minutes"));
+    }
+
+    private final ConfigProperty<Boolean> panelLiveControlEnabled;
+
+    public boolean isPanelLiveControlEnabled() {
+        return panelLiveControlEnabled.value();
+    }
+
+    private final ConfigProperty<String> vncSocketPath;
+
+    public Optional<String> getVncSocketPath() {
+        return nonEmpty(vncSocketPath);
+    }
+
+    private static Optional<String> nonEmpty(ConfigProperty<String> property) {
+        return property.value().isEmpty() ? Optional.empty() : Optional.of(property.value());
+    }
+
+    private static int requirePositive(ConfigProperty<Integer> property, String propertyKey) {
+        return requirePositive(property.value(), propertyKey);
+    }
+
+    static int requirePositive(int value, String propertyKey) {
+        if (value <= 0) {
+            throw new IllegalArgumentException("%s must be a positive integer, but is %d".formatted(propertyKey, value));
+        }
+        return value;
     }
 }

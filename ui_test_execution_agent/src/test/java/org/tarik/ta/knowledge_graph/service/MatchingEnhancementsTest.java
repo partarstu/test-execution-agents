@@ -24,7 +24,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -41,7 +40,6 @@ import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
@@ -55,19 +53,19 @@ class MatchingEnhancementsTest {
     @Mock private EmbeddingService mockEmbeddingService;
     @Mock private DecompositionService mockDecompositionService;
     @Mock private PhraseEmbeddingRepository mockPhraseEmbeddingRepository;
-
     @Mock
     private UiTestAgentConfig configMock;
 
     @BeforeEach
     void setUp() {
-        
-        lenient().when(configMock.getKnowledgeMatchConfidenceLow()).thenReturn(0.5);
-        lenient().when(configMock.getKnowledgeMatchConfidenceHigh()).thenReturn(0.85);
+
+        lenient().when(configMock.getKnowledgeMatchConfidenceLow()).thenReturn(0.88);
+        lenient().when(configMock.getKnowledgeMatchConfidenceHigh()).thenReturn(0.97);
         lenient().when(configMock.getKnowledgeMatchTopN()).thenReturn(5);
         lenient().when(configMock.getStabilityPenaltyThreshold()).thenReturn(0.5);
 
-        knowledgeService = new KnowledgeService(mockRepository, mockEmbeddingService, mockDecompositionService, mockPhraseEmbeddingRepository, configMock);
+        knowledgeService = new KnowledgeService(mockRepository, mockEmbeddingService, mockDecompositionService,
+                mockPhraseEmbeddingRepository, configMock);
     }
 
     @AfterEach

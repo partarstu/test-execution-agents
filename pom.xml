@@ -33,44 +33,72 @@
     </developers>
 
     <properties>
-        <jdk.version>26</jdk.version>
+        <jdk.version>27</jdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <langchain4j.version>1.15.0</langchain4j.version>
-        <langchain4j.beta.version>1.15.0-beta25</langchain4j.beta.version>
-        <logback.version>1.5.18</logback.version>
-        <junit.version>5.12.1</junit.version>
-        <license.maven.plugin.version>5.0.0</license.maven.plugin.version>
+        <langchain4j.version>1.20.1</langchain4j.version>
+        <langchain4j.beta.version>1.20.1-beta30</langchain4j.beta.version>
+        <logback.version>1.6.4</logback.version>
+        <logstash-logback-encoder.version>8.1</logstash-logback-encoder.version>
+        <opentelemetry.version>1.66.0</opentelemetry.version>
+        <google.auth.library.version>1.37.1</google.auth.library.version>
+        <junit.version>6.1.3</junit.version>
+        <license.maven.plugin.version>5.1.2</license.maven.plugin.version>
         <assertj.version>4.0.0-M1</assertj.version>
-        <maven.shade.plugin.version>3.6.0</maven.shade.plugin.version>
-        <maven.compiler.plugin.version>3.15.0</maven.compiler.plugin.version>
-        <maven.surefire.plugin.version>3.5.3</maven.surefire.plugin.version>
-        <!-- Tags excluded from the default test run; the smoke workflow clears this and opts in via -Dgroups=smoke. -->
+        <maven.shade.plugin.version>3.6.2</maven.shade.plugin.version>
+        <maven.compiler.plugin.version>3.16.0</maven.compiler.plugin.version>
+        <maven.surefire.plugin.version>3.6.0</maven.surefire.plugin.version>
+        <maven.dependency.plugin.version>3.11.0</maven.dependency.plugin.version>
+        <maven.jar.plugin.version>3.5.1</maven.jar.plugin.version>
+        <maven.resources.plugin.version>3.5.0</maven.resources.plugin.version>
+        <maven.install.plugin.version>3.2.0</maven.install.plugin.version>
+        <maven.clean.plugin.version>3.5.0</maven.clean.plugin.version>
+        <maven.deploy.plugin.version>3.2.0</maven.deploy.plugin.version>
+        <exec.maven.plugin.version>3.6.4</exec.maven.plugin.version>
+        <frontend.maven.plugin.version>2.0.2</frontend.maven.plugin.version>
+        <build.helper.maven.plugin.version>3.6.2</build.helper.maven.plugin.version>
+        <node.version>v26.10.0</node.version>
         <test.excluded.groups>smoke</test.excluded.groups>
-        <mockito.version>5.16.1</mockito.version>
-        <slf4j.version>2.0.13</slf4j.version>
-        <javalin.version>7.0.0-beta.1</javalin.version>
-        <jackson.version>2.19.1</jackson.version>
-        <guava.version>33.4.8-jre</guava.version>
-        <opencv.version>4.10.0-1.5.11</opencv.version>
-        <openblas.version>0.3.28-1.5.11</openblas.version>
-        <bytedeco.version>1.5.11</bytedeco.version>
-        <ffmpeg.version>7.1-${bytedeco.version}</ffmpeg.version>
+        <mockito.version>5.24.0</mockito.version>
+        <bytebuddy.version>1.18.14</bytebuddy.version>
+        <slf4j.version>2.0.20</slf4j.version>
+        <javalin.version>7.2.3</javalin.version>
+        <!-- The Jetty release Javalin ${javalin.version} is built on; used for the Jetty APIs the panel calls directly -->
+        <jetty.version>12.1.12</jetty.version>
+        <jackson.version>2.22.3</jackson.version>
+        <guava.version>33.7.1-jre</guava.version>
+        <opencv.version>4.13.0-1.5.13</opencv.version>
+        <openblas.version>0.3.31-1.5.13</openblas.version>
+        <bytedeco.version>1.5.13</bytedeco.version>
+        <ffmpeg.version>8.0.1-${bytedeco.version}</ffmpeg.version>
         <javacv.version>${bytedeco.version}</javacv.version>
         <commons-math3.version>3.6.1</commons-math3.version>
-        <commons-text.version>1.13.0</commons-text.version>
-        <a2a.sdk.version>1.0.0.Final</a2a.sdk.version>
-        <jetbrains.annotations.version>24.1.0</jetbrains.annotations.version>
-        <restassured.version>5.5.6</restassured.version>
+        <commons-text.version>1.15.0</commons-text.version>
+        <a2a.sdk.version>1.3.2.Final</a2a.sdk.version>
+        <jetbrains.annotations.version>26.1.0</jetbrains.annotations.version>
+        <restassured.version>6.0.1</restassured.version>
         <opencsv.version>5.12.0</opencsv.version>
-        <swagger-request-validator.version>2.46.0</swagger-request-validator.version>
-        <jacoco.version>0.8.14</jacoco.version>
-        <avaje.inject.version>12.5-RC1</avaje.inject.version>
+        <openapi-request-validator.version>3.0.0</openapi-request-validator.version>
+        <swagger-parser.version>2.1.41</swagger-parser.version>
+        <httpclient.version>4.5.14</httpclient.version>
+        <httpcore.version>4.4.16</httpcore.version>
+        <jacoco.version>0.8.15</jacoco.version>
+        <avaje.inject.version>12.7</avaje.inject.version>
+        <neo4j.driver.version>6.3.0</neo4j.driver.version>
         <maven.compiler.proc>full</maven.compiler.proc>
 
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- OpenTelemetry: the BOM aligns the API, the SDK, the autoconfigure extension and the OTLP exporter -->
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>${opentelemetry.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
             <!-- Avaje Inject -->
             <dependency>
                 <groupId>io.avaje</groupId>
@@ -82,12 +110,6 @@
                 <artifactId>avaje-inject-generator</artifactId>
                 <version>${avaje.inject.version}</version>
                 <scope>provided</scope>
-            </dependency>
-            <dependency>
-                <groupId>io.avaje</groupId>
-                <artifactId>avaje-inject-test</artifactId>
-                <version>${avaje.inject.version}</version>
-                <scope>test</scope>
             </dependency>
 
             <!-- LangChain4j -->
@@ -104,6 +126,11 @@
             <dependency>
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-open-ai</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-http-client-jdk</artifactId>
                 <version>${langchain4j.version}</version>
             </dependency>
             <dependency>
@@ -128,16 +155,6 @@
             </dependency>
             <dependency>
                 <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-chroma</artifactId>
-                <version>${langchain4j.beta.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-qdrant</artifactId>
-                <version>${langchain4j.beta.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-embeddings</artifactId>
                 <version>${langchain4j.beta.version}</version>
             </dependency>
@@ -147,9 +164,14 @@
                 <version>${langchain4j.beta.version}</version>
             </dependency>
             <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-community-neo4j</artifactId>
-                <version>${langchain4j.beta.version}</version>
+                <groupId>org.neo4j.driver</groupId>
+                <artifactId>neo4j-java-driver</artifactId>
+                <version>${neo4j.driver.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.auth</groupId>
+                <artifactId>google-auth-library-oauth2-http</artifactId>
+                <version>${google.auth.library.version}</version>
             </dependency>
 
             <!-- Logging -->
@@ -162,6 +184,11 @@
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-classic</artifactId>
                 <version>${logback.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.logstash.logback</groupId>
+                <artifactId>logstash-logback-encoder</artifactId>
+                <version>${logstash-logback-encoder.version}</version>
             </dependency>
 
 
@@ -193,21 +220,13 @@
                 <version>${jetbrains.annotations.version}</version>
             </dependency>
 
-             <!-- Jackson -->
+             <!-- Jackson: the BOM keeps core, annotations and databind on one release, whichever library pulls them in -->
             <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-databind</artifactId>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
                 <version>${jackson.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson.module</groupId>
-                <artifactId>jackson-module-jsonSchema</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson.datatype</groupId>
-                <artifactId>jackson-datatype-jsr310</artifactId>
-                <version>${jackson.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
 
             <!-- A2A -->
@@ -238,19 +257,29 @@
                 <artifactId>javalin</artifactId>
                 <version>${javalin.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.javalin.community.ssl</groupId>
+                <artifactId>javalin-ssl</artifactId>
+                <version>${javalin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty.websocket</groupId>
+                <artifactId>jetty-websocket-jetty-api</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty.ee10.websocket</groupId>
+                <artifactId>jetty-ee10-websocket-jetty-server</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
 
             <!-- Test -->
             <dependency>
-                <groupId>org.junit.jupiter</groupId>
-                <artifactId>junit-jupiter-api</artifactId>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
                 <version>${junit.version}</version>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.junit.jupiter</groupId>
-                <artifactId>junit-jupiter-engine</artifactId>
-                <version>${junit.version}</version>
-                <scope>test</scope>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>org.mockito</groupId>
@@ -262,6 +291,18 @@
                 <groupId>org.mockito</groupId>
                 <artifactId>mockito-junit-jupiter</artifactId>
                 <version>${mockito.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>net.bytebuddy</groupId>
+                <artifactId>byte-buddy</artifactId>
+                <version>${bytebuddy.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>net.bytebuddy</groupId>
+                <artifactId>byte-buddy-agent</artifactId>
+                <version>${bytebuddy.version}</version>
                 <scope>test</scope>
             </dependency>
              <dependency>
@@ -283,14 +324,34 @@
                 <version>${restassured.version}</version>
             </dependency>
             <dependency>
+                <groupId>io.rest-assured</groupId>
+                <artifactId>json-path</artifactId>
+                <version>${restassured.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.opencsv</groupId>
                 <artifactId>opencsv</artifactId>
                 <version>${opencsv.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.atlassian.oai</groupId>
-                <artifactId>swagger-request-validator-restassured</artifactId>
-                <version>${swagger-request-validator.version}</version>
+                <artifactId>openapi-request-validator-core</artifactId>
+                <version>${openapi-request-validator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.swagger.parser.v3</groupId>
+                <artifactId>swagger-parser-core</artifactId>
+                <version>${swagger-parser.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpclient</artifactId>
+                <version>${httpclient.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpcore</artifactId>
+                <version>${httpcore.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -337,6 +398,11 @@
                             <email>partarstu@gmail.com</email>
                             <year>2025-2026</year>
                         </properties>
+                        <!-- The plugin maps "ts" to "///" comments and knows no "tsx". -->
+                        <mapping>
+                            <ts>SLASHSTAR_STYLE</ts>
+                            <tsx>SLASHSTAR_STYLE</tsx>
+                        </mapping>
                          <licenseSets>
                             <licenseSet>
                                 <header>com/mycila/maven/plugin/license/templates/AGPL-3.txt</header>
@@ -348,7 +414,17 @@
                                     <exclude>NOTICE</exclude>
                                     <exclude>**/*.properties</exclude>
                                     <exclude>**/*.txt</exclude>
+                                    <exclude>**/.npmrc</exclude>
                                 </excludes>
+                            </licenseSet>
+                            <!-- The plugin's default excludes skip every "node" directory (meant for a Node.js install),
+                                 which would leave the knowledge graph's model.node package unchecked. -->
+                            <licenseSet>
+                                <header>com/mycila/maven/plugin/license/templates/AGPL-3.txt</header>
+                                <useDefaultExcludes>false</useDefaultExcludes>
+                                <includes>
+                                    <include>src/*/java/**/node/**/*.java</include>
+                                </includes>
                             </licenseSet>
                         </licenseSets>
                     </configuration>
@@ -361,7 +437,45 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-dependency-plugin</artifactId>
-                    <version>3.8.1</version>
+                    <version>${maven.dependency.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>${maven.jar.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>${maven.resources.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-install-plugin</artifactId>
+                    <version>${maven.install.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-clean-plugin</artifactId>
+                    <version>${maven.clean.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-deploy-plugin</artifactId>
+                    <version>${maven.deploy.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>com.github.eirslett</groupId>
+                    <artifactId>frontend-maven-plugin</artifactId>
+                    <version>${frontend.maven.plugin.version}</version>
+                    <configuration>
+                        <nodeVersion>${node.version}</nodeVersion>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>build-helper-maven-plugin</artifactId>
+                    <version>${build.helper.maven.plugin.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>

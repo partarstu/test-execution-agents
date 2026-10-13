@@ -27,12 +27,16 @@ import org.neo4j.driver.SessionConfig;
 import org.neo4j.driver.TransactionCallback;
 import org.neo4j.driver.TransactionContext;
 import org.tarik.ta.UiTestAgentConfig;
+import org.tarik.ta.knowledge_graph.model.node.ExecutionAnomaly;
+import org.tarik.ta.knowledge_graph.model.node.ExecutionRun;
+import org.tarik.ta.knowledge_graph.model.node.StepResolution;
 import org.tarik.ta.knowledge_graph.model.node.FailureContext;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.SchemaVersion;
 import org.tarik.ta.knowledge_graph.model.node.TestCase;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.model.node.UiElementAppearance;
 
 import org.neo4j.driver.exceptions.ServiceUnavailableException;
 import org.neo4j.driver.exceptions.SessionExpiredException;
@@ -56,6 +60,7 @@ import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_IS_PRECONDI
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_OPTIONAL;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_PREREQUISITES;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_EFFECTS;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_NEGATED_EFFECTS;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_CREATED_AT;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_UPDATED_AT;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_AVG_EXECUTION_MS;
@@ -63,6 +68,7 @@ import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_AVG_VERIFIC
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_MAX_VERIFICATION_DELAY_MS;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_ADDITIONAL_INFO;
 import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_LAST_TIMING_UPDATE;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_SUCCESS_COUNT;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_NAME;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_OWN_DESCRIPTION;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_ANCHORS_DESCRIPTION;
@@ -84,6 +90,9 @@ import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_RESOLU
 import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_OCCURRENCES;
 import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_LAST_OCCURRED;
 import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_MODE;
+import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_EXPIRED_AT;
+import static org.tarik.ta.knowledge_graph.model.node.UiElementAppearance.PROP_VALID_FROM;
+import static org.tarik.ta.knowledge_graph.model.node.UiElementAppearance.PROP_VALID_TO;
 import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_SCORE;
 import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_EFFECT_PHRASE;
 import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_PREREQUISITE_PHRASE;
@@ -104,6 +113,8 @@ import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_LAST_VE
  */
 @Singleton
 public class Neo4jRepositorySupport {
+    /** Selects Cypher 25 regardless of the database default language, which stays Cypher 5 for databases created with it. */
+    public static final String CYPHER_VERSION_PREFIX = "CYPHER 25 ";
 
     /**
      * Maps node/relationship constant names to their values for use in {@link #cypher(String)} templates.
@@ -115,6 +126,13 @@ public class Neo4jRepositorySupport {
             Map.entry("LABEL_FAILURE_CONTEXT", FailureContext.LABEL),
             Map.entry("LABEL_TEST_CASE", TestCase.LABEL),
             Map.entry("LABEL_PHRASE_EMBEDDING", PhraseEmbedding.LABEL),
+            Map.entry("LABEL_UI_ELEMENT_APPEARANCE", UiElementAppearance.LABEL),
+            Map.entry("LABEL_EXECUTION_ANOMALY", ExecutionAnomaly.LABEL),
+            Map.entry("LABEL_EXECUTION_RUN", ExecutionRun.LABEL),
+            Map.entry("LABEL_STEP_RESOLUTION", StepResolution.LABEL),
+            Map.entry("INDEX_PHRASE_EMBEDDING", PhraseEmbedding.VECTOR_INDEX),
+            Map.entry("INDEX_PROCEDURE_EMBEDDING", Procedure.VECTOR_INDEX),
+            Map.entry("INDEX_UI_ELEMENT_EMBEDDING", UiElement.VECTOR_INDEX),
             Map.entry("REL_CONTAINS", REL_CONTAINS),
             Map.entry("REL_TARGETS", REL_TARGETS),
             Map.entry("REL_SATISFIES", REL_SATISFIES),
@@ -122,6 +140,12 @@ public class Neo4jRepositorySupport {
             Map.entry("REL_HAS_FAILURE_CONTEXT", REL_HAS_FAILURE_CONTEXT),
             Map.entry("REL_HAS_PREREQUISITE", REL_HAS_PREREQUISITE),
             Map.entry("REL_HAS_EFFECT", REL_HAS_EFFECT),
+            Map.entry("REL_HAS_NEGATED_EFFECT", REL_HAS_NEGATED_EFFECT),
+            Map.entry("REL_HAD_APPEARANCE", REL_HAD_APPEARANCE),
+            Map.entry("REL_OBSERVED_ON", REL_OBSERVED_ON),
+            Map.entry("REL_HAS_RUN", REL_HAS_RUN),
+            Map.entry("REL_HAS_RESOLUTION", REL_HAS_RESOLUTION),
+            Map.entry("REL_CHOSE", REL_CHOSE),
             Map.entry("PROP_ID", PROP_ID),
             Map.entry("PROP_EMBEDDING", PROP_EMBEDDING),
             Map.entry("PROP_NAME", PROP_NAME),
@@ -133,6 +157,7 @@ public class Neo4jRepositorySupport {
             Map.entry("PROP_OPTIONAL", PROP_OPTIONAL),
             Map.entry("PROP_PREREQUISITES", PROP_PREREQUISITES),
             Map.entry("PROP_EFFECTS", PROP_EFFECTS),
+            Map.entry("PROP_NEGATED_EFFECTS", PROP_NEGATED_EFFECTS),
             Map.entry("PROP_ADDITIONAL_INFO", PROP_ADDITIONAL_INFO),
             Map.entry("PROP_CREATED_AT", PROP_CREATED_AT),
             Map.entry("PROP_UPDATED_AT", PROP_UPDATED_AT),
@@ -140,6 +165,7 @@ public class Neo4jRepositorySupport {
             Map.entry("PROP_AVG_VERIFICATION_DELAY_MS", PROP_AVG_VERIFICATION_DELAY_MS),
             Map.entry("PROP_MAX_VERIFICATION_DELAY_MS", PROP_MAX_VERIFICATION_DELAY_MS),
             Map.entry("PROP_LAST_TIMING_UPDATE", PROP_LAST_TIMING_UPDATE),
+            Map.entry("PROP_SUCCESS_COUNT", PROP_SUCCESS_COUNT),
             Map.entry("PROP_OWN_DESCRIPTION", PROP_OWN_DESCRIPTION),
             Map.entry("PROP_ANCHORS_DESCRIPTION", PROP_ANCHORS_DESCRIPTION),
             Map.entry("PROP_PARENT_ELEMENT_SUMMARY", PROP_PARENT_ELEMENT_SUMMARY),
@@ -161,11 +187,31 @@ public class Neo4jRepositorySupport {
             Map.entry("PROP_OCCURRENCES", PROP_OCCURRENCES),
             Map.entry("PROP_LAST_OCCURRED", PROP_LAST_OCCURRED),
             Map.entry("PROP_MODE", PROP_MODE),
+            Map.entry("PROP_EXPIRED_AT", PROP_EXPIRED_AT),
+            Map.entry("PROP_VALID_FROM", PROP_VALID_FROM),
+            Map.entry("PROP_VALID_TO", PROP_VALID_TO),
+            Map.entry("PROP_KIND", ExecutionAnomaly.PROP_KIND),
+            Map.entry("PROP_SUBJECT_ID", ExecutionAnomaly.PROP_SUBJECT_ID),
+            Map.entry("PROP_OCCURRED_AT", ExecutionAnomaly.PROP_OCCURRED_AT),
+            Map.entry("PROP_TEST_CASE_NAME", ExecutionAnomaly.PROP_TEST_CASE_NAME),
+            Map.entry("PROP_DETAILS", ExecutionAnomaly.PROP_DETAILS),
             Map.entry("PROP_SCORE", PROP_SCORE),
             Map.entry("PROP_EFFECT_PHRASE", PROP_EFFECT_PHRASE),
             Map.entry("PROP_PREREQUISITE_PHRASE", PROP_PREREQUISITE_PHRASE),
             Map.entry("PROP_PREREQUISITE_NODE_ID", PROP_PREREQUISITE_NODE_ID),
-            Map.entry("PROP_LAST_VERIFIED_AT", PROP_LAST_VERIFIED_AT)
+            Map.entry("PROP_LAST_VERIFIED_AT", PROP_LAST_VERIFIED_AT),
+            Map.entry("PROP_STARTED_AT", ExecutionRun.PROP_STARTED_AT),
+            Map.entry("PROP_FINISHED_AT", ExecutionRun.PROP_FINISHED_AT),
+            Map.entry("PROP_STATUS", ExecutionRun.PROP_STATUS),
+            Map.entry("PROP_ITEM_TYPE", StepResolution.PROP_ITEM_TYPE),
+            Map.entry("PROP_ITEM_DESCRIPTION", StepResolution.PROP_ITEM_DESCRIPTION),
+            Map.entry("PROP_SOURCE", StepResolution.PROP_SOURCE),
+            Map.entry("PROP_CONFIDENCE", StepResolution.PROP_CONFIDENCE),
+            Map.entry("PROP_CANDIDATES", StepResolution.PROP_CANDIDATES),
+            Map.entry("PROP_WAS_DEMOTED", StepResolution.PROP_WAS_DEMOTED),
+            Map.entry("PROP_DEMOTED_DUE_TO_PREREQUISITES", StepResolution.PROP_DEMOTED_DUE_TO_PREREQUISITES),
+            Map.entry("PROP_OUTCOME", StepResolution.PROP_OUTCOME),
+            Map.entry("PROP_DURATION_MS", StepResolution.PROP_DURATION_MS)
     );
 
     private final Driver driver;
@@ -181,11 +227,11 @@ public class Neo4jRepositorySupport {
 
     /**
      * Resolves {@code ${CONSTANT_NAME}} tokens in a Cypher query template using the graph schema constants
-     * from node classes and {@link org.tarik.ta.knowledge_graph.model.GraphRelationships}.
+     * from node classes and {@link org.tarik.ta.knowledge_graph.model.GraphRelationships}, and selects Cypher 25.
      * Unresolved tokens are left unchanged.
      */
     public String cypher(String template) {
-        return StringSubstitutor.replace(template, QUERY_TOKENS);
+        return CYPHER_VERSION_PREFIX + StringSubstitutor.replace(template, QUERY_TOKENS);
     }
 
     public List<Record> executeSingleReadQuery(String cypher, Map<String, Object> params) {

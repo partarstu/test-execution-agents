@@ -20,7 +20,10 @@ package org.tarik.ta;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.model.AuthType;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
 class ApiTestAgentConfigTest {
 
@@ -54,5 +57,25 @@ class ApiTestAgentConfigTest {
         assertThat(config.getBearerTokenEnv()).isEqualTo("API_TOKEN");
         assertThat(config.getApiKeyNameEnv()).isEqualTo("API_KEY_NAME");
         assertThat(config.getApiKeyValueEnv()).isEqualTo("API_KEY_VALUE");
+    }
+
+    @Test
+    void configuredActionPrompts_shouldExplainTheStepAttributionOfTheContextData() {
+        var config = new ApiTestAgentConfig();
+
+        var prompts = List.of(
+                loadSystemPrompt("test_step/executor", config.getTestStepActionAgentPromptVersion(), "test_step_action_prompt.md"),
+                loadSystemPrompt("precondition/executor", config.getPreconditionAgentPromptVersion(), "precondition_execution_prompt.md"));
+
+        assertThat(config.getTestStepActionAgentPromptVersion()).isEqualTo("v1.1.0");
+        assertThat(config.getPreconditionAgentPromptVersion()).isEqualTo("v1.1.0");
+        assertThat(prompts).allSatisfy(prompt -> assertThat(prompt)
+                .contains("## Test execution context data")
+                .contains("tells whether that is the one being executed right now")
+                .contains("Never resolve an indirect reference of the current precondition or test step")
+                .contains("not even when exactly one earlier entry would fit")
+                .contains("report a failure instead and name the missing data")
+                // LangChain4j renders a system prompt as a template, so any double curly brace would demand a template variable.
+                .doesNotContain("{{"));
     }
 }

@@ -28,7 +28,8 @@ import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE_IF_LAST;
 public record EmptyExecutionResult(
         @Description("Indicates whether the execution was successful (true) or failed (false).")
         boolean executionSuccess,
-        @Description("A message describing the outcome. Required only when execution failed — must explain the root cause.")
+        @Description("A message describing the failure or error, if any. " +
+                "Required only when execution failed — must explain the root cause of the failure or error.")
         @Nullable String message)
         implements FinalResult {
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE_IF_LAST)

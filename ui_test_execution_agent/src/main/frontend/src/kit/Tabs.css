@@ -1,0 +1,57 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  .tab-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+
+    & [role="tab"] {
+      position: relative;
+      color: var(--muted);
+      font-weight: 600;
+      background: none;
+      border-color: transparent;
+
+      &:hover:not(:disabled) {
+        color: var(--ink);
+        background: var(--raised);
+        border-color: transparent;
+      }
+
+      /* Only the colour and the indicator mark the selection; a bolder weight would widen the tab and shift its neighbours */
+      &[aria-selected="true"] {
+        color: var(--ink);
+
+        &::after {
+          content: "";
+          position: absolute;
+          inset: auto var(--space-2) 0;
+          height: 3px;
+          border-radius: 3px 3px 0 0;
+          background: var(--accent);
+
+          @media (forced-colors: active) {
+            forced-color-adjust: none;
+            background: CanvasText;
+          }
+        }
+      }
+    }
+  }
+}

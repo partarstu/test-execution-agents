@@ -20,6 +20,8 @@ package org.tarik.ta.core.a2a;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.SendMessageRequest;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.SendMessageResponse;
 import org.a2aproject.sdk.jsonrpc.common.wrappers.SendStreamingMessageResponse;
+import org.a2aproject.sdk.server.agentexecution.AgentExecutor;
+import org.a2aproject.sdk.server.tasks.AgentEmitter;
 import org.a2aproject.sdk.spec.AgentCapabilities;
 import org.a2aproject.sdk.spec.AgentCard;
 import org.a2aproject.sdk.spec.AgentInterface;
@@ -29,6 +31,7 @@ import org.a2aproject.sdk.spec.TaskStatus;
 import org.a2aproject.sdk.spec.TaskStatusUpdateEvent;
 import org.a2aproject.sdk.spec.TextPart;
 import org.a2aproject.sdk.transport.jsonrpc.handler.JSONRPCHandler;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.javalin.http.Context;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -79,6 +82,25 @@ class AgentExecutionResourceTest {
     }
 
     @Test
+    void handle_shouldReturnTaskCreatedByEarlierMessage() throws Exception {
+        doAnswer(invocation -> {
+            AgentEmitter emitter = invocation.getArgument(1);
+            emitter.submit();
+            emitter.complete();
+            return null;
+        }).when(agentExecutor).execute(any(), any());
+        String sendResponse = handleNonStreaming("{\"jsonrpc\":\"2.0\",\"method\":\"message/send\",\"params\":{\"message\":" +
+                "{\"messageId\":\"msg-1\",\"role\":\"ROLE_USER\",\"parts\":[{\"text\":\"hello\"}]}},\"id\":1}");
+        String taskId = new ObjectMapper().readTree(sendResponse).at("/result/task/id").asText();
+
+        String getResponse = handleNonStreaming("{\"jsonrpc\":\"2.0\",\"method\":\"tasks/get\",\"params\":{\"id\":\"" + taskId +
+                "\"},\"id\":2}");
+
+        assertThat(taskId).as(sendResponse).isNotBlank();
+        assertThat(getResponse).doesNotContain("error").contains(taskId).contains("TASK_STATE_COMPLETED");
+    }
+
+    @Test
     void handle_shouldHandleCancelTask() {
         String response = handleNonStreaming("{\"jsonrpc\":\"2.0\",\"method\":\"CancelTask\",\"params\":{\"id\":\"123\"},\"id\":3}");
         assertThat(response).contains("jsonrpc").contains("-32001");
@@ -101,6 +123,22 @@ class AgentExecutionResourceTest {
         assertThat(parts).hasSize(1);
         assertThat(((TextPart) parts.getFirst()).text()).isEqualTo("hello");
         assertThat(response).contains("jsonrpc").contains("done");
+    }
+
+    @Test
+    void handle_shouldServeTheMessage_whenItCarriesTheLegacyPushNotificationConfig() throws Exception {
+        JSONRPCHandler mockHandler = injectMockJsonRpcHandler();
+        Message reply = new Message(Message.Role.ROLE_AGENT, List.of(new TextPart("done", null)), "msg-2", null, null,
+                null, null, null);
+        when(mockHandler.onMessageSend(any(), any())).thenReturn(new SendMessageResponse(2, reply));
+        String body = "{\"jsonrpc\":\"2.0\",\"method\":\"message/send\",\"params\":{\"message\":{\"messageId\":\"msg-1\"," +
+                "\"role\":\"ROLE_USER\",\"parts\":[{\"text\":\"hello\"}]},\"configuration\":{\"pushNotificationConfig\":" +
+                "{\"url\":\"http://localhost:9999/push\"}}},\"id\":2}";
+
+        String response = handleNonStreaming(body);
+
+        verify(mockHandler).onMessageSend(any(SendMessageRequest.class), any());
+        assertThat(response).doesNotContain("-32602").contains("done");
     }
 
     @Test

@@ -17,6 +17,33 @@
  */
 package org.tarik.ta.knowledge_graph;
 
-enum UserDecisionOutcome {
-    CONTINUE_NEXT_STEP, TERMINATE_EXECUTION, RE_FETCH_AND_RETRY, RE_DECOMPOSE_AND_RETRY
+import org.jetbrains.annotations.Nullable;
+import org.tarik.ta.knowledge_graph.model.node.Procedure;
+
+import java.util.UUID;
+
+/**
+ * Outcome of a supervised user decision around an atomic step. Every rerun outcome refetches the procedure
+ * from the DB before rerunning it — in-memory {@code Procedure} instances are never reused for a rerun.
+ */
+sealed interface UserDecisionOutcome {
+    record ContinueNextStep() implements UserDecisionOutcome {
+    }
+
+    record TerminateExecution() implements UserDecisionOutcome {
+    }
+
+    /**
+     * The atomic procedure must be re-executed. Produced only inside the step retry loop, which refetches
+     * the procedure first and carries the fresh instance here.
+     */
+    record RerunAtomicProcedure(Procedure procedure) implements UserDecisionOutcome {
+    }
+
+    /**
+     * The whole test step must be rerun from its first atomic step, abandoning any composite scopes. A non-null {@code
+     * replacementProcedureId} names a procedure created in the same dialog session to rerun instead of the current root.
+     */
+    record RerunTestStep(@Nullable UUID replacementProcedureId) implements UserDecisionOutcome {
+    }
 }

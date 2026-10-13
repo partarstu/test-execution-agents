@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.stream;
@@ -42,6 +43,8 @@ import static org.tarik.ta.core.utils.CommonUtils.parseStringAsInteger;
 public class AgentConfig {
     private static final Logger LOG = LoggerFactory.getLogger(AgentConfig.class);
     private static final String CONFIG_FILE = "config.properties";
+    private static final String DEFAULT_SENSITIVE_DATA_KEY_PATTERN =
+            "(?i).*(password|passwd|pwd|pin|token|secret|api[_-]?key|credential).*";
 
     private final Properties properties;
 
@@ -51,6 +54,7 @@ public class AgentConfig {
     private final ConfigProperty<String> externalUrl;
     private final ConfigProperty<Boolean> debugMode;
     private final ConfigProperty<String> agentAuthToken;
+    private final ConfigProperty<String> agentVersion;
 
     // RAG Config
     private final ConfigProperty<RagDbProvider> vectorDbProvider;
@@ -84,6 +88,17 @@ public class AgentConfig {
     private final ConfigProperty<String> anthropicApiKey;
     private final ConfigProperty<String> anthropicApiEndpoint;
 
+    // H Company (Holo) API Config
+    private final ConfigProperty<String> hcompanyApiKey;
+    private final ConfigProperty<String> hcompanyApiEndpoint;
+    private final ConfigProperty<Boolean> hcompanyAgentThinkingEnabled;
+    private final ConfigProperty<Double> hcompanyAgentTemperature;
+
+    // Qwen API Config
+    private final ConfigProperty<String> qwenApiKey;
+    private final ConfigProperty<String> qwenApiEndpoint;
+    private final ConfigProperty<Boolean> qwenAgentThinkingEnabled;
+
     // Timeout and Retry Config
     private final ConfigProperty<Integer> testStepExecutionRetryTimeoutMillis;
     private final ConfigProperty<Integer> testStepExecutionRetryIntervalMillis;
@@ -111,11 +126,29 @@ public class AgentConfig {
     private final ConfigProperty<ModelProvider> testCaseExtractionAgentModelProvider;
     private final ConfigProperty<String> testCaseExtractionAgentPromptVersion;
 
+    // Test Data
+    private final ConfigProperty<String> testDataFolder;
+    private final ConfigProperty<Pattern> sensitiveDataKeyPattern;
+
     public record ConfigProperty<T>(T value, boolean isSecret) {
     }
 
     public enum ModelProvider {
-        GOOGLE, OPENAI, GROQ, ANTHROPIC
+        GOOGLE(true), OPENAI(true), GROQ(true), ANTHROPIC(true), HCOMPANY(false), QWEN(false);
+
+        private final boolean imageDetailSupported;
+
+        ModelProvider(boolean imageDetailSupported) {
+            this.imageDetailSupported = imageDetailSupported;
+        }
+
+        /**
+         * Whether the provider honours the image detail hint; the vLLM-served self-hosted providers ignore it, so their images
+         * are downscaled before sending instead.
+         */
+        public boolean isImageDetailSupported() {
+            return imageDetailSupported;
+        }
     }
 
     public enum GoogleApiProvider {
@@ -141,6 +174,7 @@ public class AgentConfig {
                 "http://localhost:%s".formatted(startPort.value()), s -> s, false);
         this.debugMode = loadProperty("debug.mode", "DEBUG_MODE", "false", Boolean::parseBoolean, false);
         this.agentAuthToken = loadProperty("agent.auth.token", "AGENT_AUTH_TOKEN", "", s -> s, true);
+        this.agentVersion = getRequiredProperty("agent.version", "AGENT_VERSION", false);
 
         // RAG Config
         this.vectorDbProvider = getProperty("vector.db.provider", "VECTOR_DB_PROVIDER", "neo4j",
@@ -177,6 +211,21 @@ public class AgentConfig {
         this.anthropicApiKey = loadProperty("anthropic.api.key", "ANTHROPIC_API_KEY", "", s -> s, true);
         this.anthropicApiEndpoint = loadProperty("anthropic.endpoint", "ANTHROPIC_ENDPOINT",
                 "https://api.anthropic.com/v1/", s -> s, false);
+
+        // H Company (Holo) API Config
+        this.hcompanyApiKey = loadProperty("hcompany.api.key", "HCOMPANY_API_KEY", "", s -> s, true);
+        this.hcompanyApiEndpoint = loadProperty("hcompany.endpoint", "HCOMPANY_ENDPOINT",
+                "https://api.hcompany.ai/v1/", s -> s, false);
+        this.hcompanyAgentThinkingEnabled = loadProperty("hcompany.agent.thinking.enabled",
+                "HCOMPANY_AGENT_THINKING_ENABLED", "true", Boolean::parseBoolean, false);
+        this.hcompanyAgentTemperature = loadPropertyAsDouble("hcompany.agent.temperature", "HCOMPANY_AGENT_TEMPERATURE",
+                "0.8", false);
+
+        // Qwen API Config
+        this.qwenApiKey = loadProperty("qwen.api.key", "QWEN_API_KEY", "", s -> s, true);
+        this.qwenApiEndpoint = loadProperty("qwen.endpoint", "QWEN_ENDPOINT", "", s -> s, false);
+        this.qwenAgentThinkingEnabled = loadProperty("qwen.agent.thinking.enabled",
+                "QWEN_AGENT_THINKING_ENABLED", "true", Boolean::parseBoolean, false);
 
         // Timeout and Retry Config
         this.testStepExecutionRetryTimeoutMillis = loadPropertyAsInteger(
@@ -223,6 +272,11 @@ public class AgentConfig {
                 this::getModelProvider, false);
         this.testCaseExtractionAgentPromptVersion = loadProperty(
                 "test.case.extraction.agent.prompt.version", "TEST_CASE_EXTRACTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
+
+        // Test data
+        this.testDataFolder = loadProperty("test.data.folder", "TEST_DATA_FOLDER", "test-data", s -> s, false);
+        this.sensitiveDataKeyPattern = loadProperty("sensitive.data.key.pattern", "SENSITIVE_DATA_KEY_PATTERN",
+                DEFAULT_SENSITIVE_DATA_KEY_PATTERN, Pattern::compile, false);
     }
 
     // -----------------------------------------------------
@@ -241,6 +295,10 @@ public class AgentConfig {
 
     public boolean isDebugMode() {
         return debugMode.value();
+    }
+
+    public String getAgentVersion() {
+        return agentVersion.value();
     }
 
     /**
@@ -366,6 +424,48 @@ public class AgentConfig {
     }
 
     // -----------------------------------------------------
+    // H Company (Holo) API Config
+    public String getHCompanyApiKey() {
+        return hcompanyApiKey.value();
+    }
+
+    public String getHCompanyEndpoint() {
+        return hcompanyApiEndpoint.value();
+    }
+
+    /** Whether an H Company model driving a sub-agent thinks before it acts; grounding requests always keep thinking off. */
+    public boolean isHCompanyAgentThinkingEnabled() {
+        // Holo does not finish a tool-calling loop without planning: it reached the final-result tool 6/6 with thinking on and
+        // 0/6 with it off. Grounding must keep it off, or the schema-constrained answer lands inside the
+        // think block and the content arrives empty.
+        return hcompanyAgentThinkingEnabled.value();
+    }
+
+    /**
+     * The sampling temperature for an H Company model driving a sub-agent, deliberately separate from {@link #getTemperature}.
+     */
+    public double getHCompanyAgentTemperature() {
+        // Greedy decoding doubles this model's latency (6694 ms at 0.0 against 3263 ms at 0.8) with no accuracy gain, and H
+        // Company's agent loop documents 0.8; grounding keeps the global value it was benchmarked at.
+        return hcompanyAgentTemperature.value();
+    }
+
+    // -----------------------------------------------------
+    // Qwen API Config
+    public String getQwenApiKey() {
+        return qwenApiKey.value();
+    }
+
+    public String getQwenEndpoint() {
+        return qwenApiEndpoint.value();
+    }
+
+    /** Whether a Qwen model driving a sub-agent thinks before it acts; grounding requests always keep thinking off. */
+    public boolean isQwenAgentThinkingEnabled() {
+        return qwenAgentThinkingEnabled.value();
+    }
+
+    // -----------------------------------------------------
     // Timeout and Retry Config
     public int getMaxActionExecutionDurationMillis() {
         return maxActionExecutionDurationMillis.value();
@@ -440,6 +540,25 @@ public class AgentConfig {
 
     public String getTestCaseExtractionAgentPromptVersion() {
         return testCaseExtractionAgentPromptVersion.value();
+    }
+
+    // -----------------------------------------------------
+    // Test Data
+
+    /**
+     * The only folder the test context data tools may read files from, resolved against the agent's working directory when
+     * relative.
+     */
+    public String getTestDataFolder() {
+        return testDataFolder.value();
+    }
+
+    /**
+     * Data keys whose values are treated as secrets: they are masked everywhere except at the tool boundary that consumes
+     * them.
+     */
+    public Pattern getSensitiveDataKeyPattern() {
+        return sensitiveDataKeyPattern.value();
     }
 
     // -----------------------------------------------------

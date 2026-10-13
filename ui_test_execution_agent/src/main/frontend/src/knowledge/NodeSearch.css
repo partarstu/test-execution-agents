@@ -1,0 +1,71 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  .node-search {
+    display: grid;
+    gap: var(--space-1);
+
+    & label {
+      font-size: var(--text-sm);
+      font-weight: 600;
+    }
+  }
+
+  .node-search-row {
+    display: flex;
+    gap: var(--space-1);
+
+    & input {
+      flex: 1;
+      min-inline-size: 0;
+    }
+  }
+
+  .node-hits ul {
+    display: grid;
+    gap: var(--space-1);
+    max-block-size: 24rem;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+  }
+
+  .node-hits button {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0 var(--space-2);
+    inline-size: 100%;
+    padding: var(--space-2);
+    text-align: start;
+    font-weight: 500;
+    border-color: transparent;
+    background: var(--raised);
+  }
+
+  .node-hit-label {
+    overflow-wrap: anywhere;
+  }
+
+  .node-hit-kind {
+    grid-column: 2;
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+}

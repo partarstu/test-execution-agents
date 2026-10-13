@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.ApiPreconditionActionAgent;
 import org.tarik.ta.agents.ApiTestStepActionAgent;
+import org.tarik.ta.core.dto.Precondition;
 import org.tarik.ta.core.dto.PreconditionResult;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestExecutionResult;
@@ -31,6 +32,7 @@ import org.tarik.ta.core.dto.TestStepResult;
 import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.core.model.TestExecutionContext;
+import org.tarik.ta.core.security.SecretRegistry;
 import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 
@@ -43,7 +45,16 @@ import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.ERRO
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.FAILED;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
 import static org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus.*;
+import static org.tarik.ta.core.model.ContextEntry.StepType.PRECONDITION;
+import static org.tarik.ta.core.model.ContextEntry.StepType.TEST_STEP;
+import static org.tarik.ta.core.model.TestExecutionContext.EXECUTION_CONTEXT_DATA_LABEL;
+import static org.tarik.ta.core.model.TestExecutionContext.PRECONDITION_DATA_LABEL;
 import static org.tarik.ta.core.utils.CommonUtils.isNotBlank;
+import static org.tarik.ta.core.utils.MarkdownSections.SECTION_LEVEL;
+import static org.tarik.ta.core.utils.MarkdownSections.bulletList;
+import static org.tarik.ta.core.utils.MarkdownSections.joinSections;
+import static org.tarik.ta.core.utils.MarkdownSections.section;
+import static org.tarik.ta.core.utils.MarkdownSections.userMessageContents;
 
 @ApiAgentRequestScope
 public class ApiTestAgent {
@@ -72,7 +83,9 @@ public class ApiTestAgent {
 
     public TestExecutionResult executeTestCase(String receivedMessage) {
         budgetManager.reset();
+        SecretRegistry.global().reset(apiTestAgentConfig.getSensitiveDataKeyPattern());
         budgetManager.activateTimeBudget();
+        budgetManager.activateToolCallBudget();
         TestCase testCase = testCaseExtractor.extractTestCase(receivedMessage).orElse(null);
         if (testCase == null) {
             return new TestExecutionResult("Unknown", ERROR, List.of(), List.of(), now(), now(),
@@ -81,11 +94,11 @@ public class ApiTestAgent {
 
         LOG.info("Starting execution of the API test case '{}'", testCase.name());
         logCapture.start();
+        executionContext.seedFromDataTable(testCase.testData());
+        var testExecutionStartTimestamp = now();
 
         try {
-            var testExecutionStartTimestamp = now();
-
-            if (testCase.preconditions() != null && !testCase.preconditions().isEmpty()) {
+            if (!testCase.preconditions().isEmpty()) {
                 executePreconditions(testCase, executionContext, preconditionActionAgentProvider.get());
                 if (hasPreconditionFailures(executionContext)) {
                     var failedPrecondition = executionContext.getPreconditionExecutionHistory().getLast();
@@ -110,6 +123,12 @@ public class ApiTestAgent {
             return new TestExecutionResult(testCase.name(), PASSED, executionContext.getPreconditionExecutionHistory(),
                     executionContext.getTestStepExecutionHistory(), testExecutionStartTimestamp, now(), null,
                     null, logCapture.getLogs());
+        } catch (Exception e) {
+            // Without this boundary the exception would leave the agent without any result, and the captured logs -
+            // the only record of what the run did before it broke - would never reach the caller.
+            LOG.error("Unexpected error during the execution of the API test case '{}'", testCase.name(), e);
+            return getTestExecutionResultWithError(testCase.name(), executionContext, testExecutionStartTimestamp,
+                    "Unexpected error during test case execution: %s".formatted(e.getMessage()), logCapture.getLogs());
         } finally {
             LOG.info("Finished execution of the test case '{}'", testCase.name());
             logCapture.stop();
@@ -118,55 +137,71 @@ public class ApiTestAgent {
 
     private void executePreconditions(TestCase testCase, TestExecutionContext executionContext,
                                       ApiPreconditionActionAgent preconditionActionAgent) {
-        List<String> preconditions = testCase.preconditions();
-        if (preconditions != null && !preconditions.isEmpty()) {
-            LOG.info("Executing and verifying preconditions for test case: {}", testCase.name());
-            for (String precondition : preconditions) {
-                var executionStartTimestamp = now();
-                executionContext.getEventEmitter().emitPreconditionStarted(precondition);
-                LOG.info("Executing precondition: {}", precondition);
-                var executionResult = preconditionActionAgent.executeWithRetry(
-                        () -> preconditionActionAgent.execute(precondition, executionContext.getSharedData().toString()),
-                        r -> r == null || !r.success(), apiTestAgentConfig.getActionRetryPolicy());
-                budgetManager.resetToolCallUsage();
+        LOG.info("Executing and verifying preconditions for test case: {}", testCase.name());
+        for (Precondition precondition : testCase.preconditions()) {
+            var description = precondition.description();
+            executionContext.startStep(PRECONDITION, description, precondition.relevantData());
+            var executionStartTimestamp = now();
+            executionContext.getEventEmitter().emitPreconditionStarted(description);
+            LOG.info("Executing precondition: {}", description);
+            var executionResult = preconditionActionAgent.executeWithRetry(
+                    () -> preconditionActionAgent.execute(userMessageContents(buildPreconditionUserMessage(description,
+                            precondition.relevantData(), executionContext.renderSharedData()))),
+                    r -> r == null || !r.success(), apiTestAgentConfig.getActionRetryPolicy());
+            budgetManager.resetToolCallUsage();
 
-                if (!executionResult.isSuccess()) {
-                    var errorMessage = "Failure while executing precondition '%s'. Root cause: %s".formatted(
-                            precondition, executionResult.getMessage());
-                    executionContext.addPreconditionResult(
-                            new PreconditionResult(precondition, false, errorMessage, executionStartTimestamp,
-                                    now()));
-                    return;
-                }
-
-                var verificationResult = executionResult.getResultPayload();
-                if (verificationResult == null) {
-                    var errorMessage = "Precondition execution failed. Got no result from the model.";
-                    executionContext.addPreconditionResult(
-                            new PreconditionResult(precondition, false, errorMessage,
-                                    executionStartTimestamp, now()));
-                    return;
-                }
-                if (!verificationResult.success()) {
-                    var errorMessage = "Precondition verification failed. %s"
-                            .formatted(verificationResult.message());
-                    executionContext.addPreconditionResult(
-                            new PreconditionResult(precondition, false, errorMessage,
-                                    executionStartTimestamp, now()));
-                    return;
-                }
-                executionContext.addPreconditionResult(new PreconditionResult(precondition, true, null,
-                        executionStartTimestamp, now()));
-                LOG.info("Precondition '{}' is met.", precondition);
+            if (!executionResult.isSuccess()) {
+                var errorMessage = "Failure while executing precondition '%s'. Root cause: %s".formatted(
+                        description, executionResult.getMessage());
+                executionContext.addPreconditionResult(
+                        new PreconditionResult(description, false, errorMessage, executionStartTimestamp,
+                                now()));
+                return;
             }
-            LOG.info("All preconditions are met for test case: {}", testCase.name());
+
+            var verificationResult = executionResult.getResultPayload();
+            if (verificationResult == null) {
+                var errorMessage = "Precondition execution failed. Got no result from the model.";
+                executionContext.addPreconditionResult(
+                        new PreconditionResult(description, false, errorMessage,
+                                executionStartTimestamp, now()));
+                return;
+            }
+            if (!verificationResult.success()) {
+                var errorMessage = "Precondition verification failed. %s"
+                        .formatted(verificationResult.message());
+                executionContext.addPreconditionResult(
+                        new PreconditionResult(description, false, errorMessage,
+                                executionStartTimestamp, now()));
+                return;
+            }
+            executionContext.addPreconditionResult(new PreconditionResult(description, true, null,
+                    executionStartTimestamp, now()));
+            LOG.info("Precondition '{}' is met.", description);
         }
+        LOG.info("All preconditions are met for test case: {}", testCase.name());
+    }
+
+    static String buildPreconditionUserMessage(String description, List<String> relevantData, String sharedData) {
+        return joinSections(
+                section(SECTION_LEVEL, "Precondition", description),
+                section(SECTION_LEVEL, PRECONDITION_DATA_LABEL, bulletList(relevantData)),
+                section(SECTION_LEVEL, EXECUTION_CONTEXT_DATA_LABEL, sharedData));
+    }
+
+    static String buildTestStepUserMessage(String action, String expectedResults, List<String> testData, String sharedData) {
+        return joinSections(
+                section(SECTION_LEVEL, "Test step action", action),
+                section(SECTION_LEVEL, "Expected results to verify", expectedResults),
+                section(SECTION_LEVEL, "Data related to the test step", bulletList(testData)),
+                section(SECTION_LEVEL, EXECUTION_CONTEXT_DATA_LABEL, sharedData));
     }
 
     private void executeTestSteps(TestCase testCase, TestExecutionContext executionContext, ApiTestStepActionAgent testStepActionAgent) {
         for (TestStep testStep : testCase.testSteps()) {
             var actionInstruction = testStep.stepDescription();
-            var testData = ofNullable(testStep.testData()).map(Object::toString).orElse("");
+            var testData = ofNullable(testStep.testData()).orElse(List.of());
+            executionContext.startStep(TEST_STEP, actionInstruction, testData);
             var verificationInstruction = testStep.expectedResults();
 
             try {
@@ -176,8 +211,8 @@ public class ApiTestAgent {
                 var expectedResults = isNotBlank(verificationInstruction) ? verificationInstruction : "";
 
                 var executionResult = testStepActionAgent.executeWithRetry(
-                        () -> testStepActionAgent.execute(actionInstruction, expectedResults, testData,
-                                executionContext.getSharedData().toString()),
+                        () -> testStepActionAgent.execute(userMessageContents(buildTestStepUserMessage(actionInstruction,
+                                expectedResults, testData, executionContext.renderSharedData()))),
                         result -> result == null || !result.success(), apiTestAgentConfig.getActionRetryPolicy());
                 budgetManager.resetToolCallUsage();
 

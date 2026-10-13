@@ -17,10 +17,20 @@
  */
 package org.tarik.ta.tools;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.ProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.client.DefaultRedirectStrategy;
+import org.apache.http.protocol.HttpContext;
 import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.ApiTestAgentConfig;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 
 import java.io.IOException;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -39,6 +49,8 @@ import static org.tarik.ta.core.error.ErrorCategory.NON_RETRYABLE_ERROR;
  */
 class OutboundRequestGuard {
     private static final String CLOUD_METADATA_IP = "169.254.169.254";
+    private static final String HTTP_URL_PREFIX = "http://";
+    private static final String HTTPS_URL_PREFIX = "https://";
 
     private final Set<String> hostAllowlist;
     private final Optional<String> uploadBaseDir;
@@ -48,11 +60,23 @@ class OutboundRequestGuard {
         this.uploadBaseDir = uploadBaseDir;
     }
 
+    static OutboundRequestGuard from(@NotNull ApiTestAgentConfig config) {
+        return new OutboundRequestGuard(config.getOutboundHostAllowlist(), config.getUploadBaseDir());
+    }
+
+    static boolean isAbsoluteHttpUrl(@NotNull String url) {
+        return startsWithIgnoreCase(url, HTTP_URL_PREFIX) || startsWithIgnoreCase(url, HTTPS_URL_PREFIX);
+    }
+
+    private static boolean startsWithIgnoreCase(String text, String prefix) {
+        return text.regionMatches(true, 0, prefix, 0, prefix.length());
+    }
+
     /**
      * Rejects requests whose target host is not permitted. An explicitly configured allow-list acts as a trusted
      * override: a host on the list is allowed, a host not on it is refused. When no allow-list is configured, the
      * host's resolved IPs are checked against the SSRF-sensitive ranges (loopback, link-local, site-local, multicast,
-     * wildcard) and the cloud metadata address.
+     * wildcard, 0.0.0.0/8, carrier-grade NAT, IPv6 unique-local) and the cloud metadata address.
      */
     void assertHostAllowed(@NotNull String url) {
         String host = extractHost(url);
@@ -64,6 +88,22 @@ class OutboundRequestGuard {
         if (!hostAllowlisted) {
             assertNoBlockedAddress(host);
         }
+    }
+
+    /** Creates the HTTP client of one request, which checks the target of every redirect with {@link #assertHostAllowed}. */
+    HttpClient newRedirectGuardedHttpClient() {
+        // REST Assured applies its settings through HttpParams, which only the legacy DefaultHttpClient supports
+        @SuppressWarnings("deprecation")
+        var httpClient = new DefaultHttpClient();
+        httpClient.setRedirectStrategy(new DefaultRedirectStrategy() {
+            @Override
+            public URI getLocationURI(HttpRequest request, HttpResponse response, HttpContext context) throws ProtocolException {
+                var location = super.getLocationURI(request, response, context);
+                assertHostAllowed(location.toString());
+                return location;
+            }
+        });
+        return httpClient;
     }
 
     /**
@@ -122,7 +162,26 @@ class OutboundRequestGuard {
                 || address.isSiteLocalAddress()
                 || address.isMulticastAddress()
                 || address.isAnyLocalAddress()
-                || CLOUD_METADATA_IP.equals(address.getHostAddress());
+                || CLOUD_METADATA_IP.equals(address.getHostAddress())
+                || isInThisNetwork(address)
+                || isCarrierGradeNat(address)
+                || isIpv6UniqueLocal(address);
+    }
+
+    /** 0.0.0.0/8, which many stacks route to the local host. */
+    private static boolean isInThisNetwork(@NotNull InetAddress address) {
+        return address instanceof Inet4Address && address.getAddress()[0] == 0;
+    }
+
+    /** 100.64.0.0/10, the shared address space of carrier-grade NAT and of some cloud-internal services. */
+    private static boolean isCarrierGradeNat(@NotNull InetAddress address) {
+        byte[] bytes = address.getAddress();
+        return address instanceof Inet4Address && bytes[0] == 100 && (bytes[1] & 0xC0) == 0x40;
+    }
+
+    /** fc00::/7, the IPv6 private range that also holds the AWS metadata address fd00:ec2::254. */
+    private static boolean isIpv6UniqueLocal(@NotNull InetAddress address) {
+        return address instanceof Inet6Address && (address.getAddress()[0] & 0xFE) == 0xFC;
     }
 
     private static ToolExecutionException blocked(@NotNull String message) {

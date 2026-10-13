@@ -20,8 +20,8 @@ package org.tarik.ta.tools;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
-import org.jspecify.annotations.NonNull;
+import org.tarik.ta.config.scopes.UiAgentRequestScope;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
@@ -34,8 +34,7 @@ import org.tarik.ta.dto.ElementCreationResult;
 import org.tarik.ta.dto.UiElementIdentificationResult;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
-import org.tarik.ta.user_dialogs.SpinnerManager;
-import org.tarik.ta.utils.ImageUtils;
+import org.tarik.ta.knowledge_graph.service.UiElementAliasRegistry;
 
 import java.awt.image.BufferedImage;
 import java.util.List;
@@ -45,36 +44,49 @@ import java.util.stream.IntStream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
-import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
+import static org.tarik.ta.core.utils.MarkdownSections.SECTION_LEVEL;
+import static org.tarik.ta.core.utils.MarkdownSections.SUBSECTION_LEVEL;
+import static org.tarik.ta.core.utils.MarkdownSections.heading;
+import static org.tarik.ta.core.utils.MarkdownSections.joinLines;
+import static org.tarik.ta.core.utils.MarkdownSections.joinSections;
+import static org.tarik.ta.core.utils.MarkdownSections.listItem;
+import static org.tarik.ta.core.utils.MarkdownSections.parentSection;
+import static org.tarik.ta.core.utils.MarkdownSections.section;
+import static org.tarik.ta.core.utils.MarkdownSections.userMessageContents;
 import static org.tarik.ta.utils.UiCommonUtils.captureScreen;
+import static org.tarik.ta.utils.UserMessageSections.SCREENSHOT_LABEL;
 import static java.util.UUID.randomUUID;
 import static java.util.Objects.requireNonNull;
 
-@Singleton
+@UiAgentRequestScope
 public class UiElementDbTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementDbTools.class);
+    private static final String TARGET_ELEMENT_DESCRIPTION_LABEL = "Target element description";
     private final UiElementRepository elementRepository;
     private final UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent;
     private final DbUiElementSelectionAgent dbUiElementSelectionAgent;
     private final UiElementRefinementHelper uiElementRefinementHelper;
     private final UiTestAgentConfig uiTestAgentConfig;
+    private final UiElementAliasRegistry uiElementAliasRegistry;
 
     @Inject
     public UiElementDbTools(UiElementRepository uiElementRepository, UiStateCheckAgent uiStateCheckAgent,
                              UiElementExtendedDescriptionAgent uiElementExtendedDescriptionAgent,
                              DbUiElementSelectionAgent dbUiElementSelectionAgent,
                              UiElementRefinementHelper uiElementRefinementHelper,
-                             UiTestAgentConfig uiTestAgentConfig) {
+                             UiTestAgentConfig uiTestAgentConfig,
+                             @NotNull UiElementAliasRegistry uiElementAliasRegistry) {
         super(uiStateCheckAgent);
         this.elementRepository = requireNonNull(uiElementRepository, "uiElementRepository");
         this.uiElementExtendedDescriptionAgent = requireNonNull(uiElementExtendedDescriptionAgent, "uiElementExtendedDescriptionAgent");
         this.dbUiElementSelectionAgent = requireNonNull(dbUiElementSelectionAgent, "dbUiElementSelectionAgent");
         this.uiElementRefinementHelper = requireNonNull(uiElementRefinementHelper, "uiElementRefinementHelper");
         this.uiTestAgentConfig = requireNonNull(uiTestAgentConfig, "uiTestAgentConfig");
+        this.uiElementAliasRegistry = uiElementAliasRegistry;
     }
 
     @Tool("Searches for a UI element in the database using vector similarity and selects the best candidate.")
@@ -96,7 +108,8 @@ public class UiElementDbTools extends UiAbstractTools {
             }
 
             return selectBestMatchingDbElement(candidates, elementDescription, elementSpecificData)
-                    .map(elem -> new DbElementSearchResult(true, elem.id(), elem.name(), elem.description()))
+                    .map(elem -> new DbElementSearchResult(true, uiElementAliasRegistry.aliasFor(elem.id()), elem.name(),
+                            elem.description()))
                     .orElseGet(() -> new DbElementSearchResult(false, null, null, null));
         } catch (Exception e) {
             throw rethrowAsToolException(e, "searching element in DB");
@@ -113,7 +126,7 @@ public class UiElementDbTools extends UiAbstractTools {
 
         try {
             LOG.info("Starting new element creation workflow for: {}", elementDescription);
-            BufferedImage screenshot = getScreenshotTogglingSpinner();
+            BufferedImage screenshot = captureScreen();
             var identificationResult = getElementIdentification(elementDescription, relevantTestData, screenshot);
             if (!identificationResult.targetElementIdentified()) {
                 LOG.warn("Target element '{}' was not found on the screenshot.", elementDescription);
@@ -132,7 +145,8 @@ public class UiElementDbTools extends UiAbstractTools {
                     descriptionResult.locationDescription(), descriptionResult.parentSummary(), null,
                     descriptionResult.elementIsDataDependent());
             elementRepository.create(uiElementToStore);
-            return new ElementCreationResult(true, uuid, descriptionResult.name(), "Element created successfully");
+            return new ElementCreationResult(true, uiElementAliasRegistry.aliasFor(uuid), descriptionResult.name(),
+                    "Element created successfully");
         } catch (Exception e) {
             throw rethrowAsToolException(e, "creating a new UI element automatically");
         }
@@ -140,12 +154,19 @@ public class UiElementDbTools extends UiAbstractTools {
 
     private UiElementIdentificationResult getElementIdentification(String elementDescription, String relevantTestData,
                                                                    BufferedImage screenshot) {
-        var imageContent = ImageUtils.singleImageContent(screenshot, uiTestAgentConfig.getUiElementDescriptionMatcherAgentImageDetailLevel());
-        var relevantDataString = relevantTestData == null ? "" : relevantTestData;
-        return uiElementExtendedDescriptionAgent
-                .executeAndGetResult(() -> uiElementExtendedDescriptionAgent.describeUiElement(elementDescription,
-                        relevantDataString, imageContent))
-                .getResultPayload();
+        var imageContent = uiElementExtendedDescriptionAgent.getImageContentCreator(uiTestAgentConfig).createImageContent(screenshot);
+        var userMessage = userMessageContents(joinSections(
+                section(SECTION_LEVEL, TARGET_ELEMENT_DESCRIPTION_LABEL, elementDescription),
+                section(SECTION_LEVEL, "Relevant data context", relevantTestData),
+                heading(SECTION_LEVEL, SCREENSHOT_LABEL)));
+        var executionResult = uiElementExtendedDescriptionAgent
+                .executeAndGetResult(() -> uiElementExtendedDescriptionAgent.describeUiElement(userMessage, imageContent));
+        var identificationResult = executionResult.getResultPayload();
+        if (!executionResult.isSuccess() || identificationResult == null) {
+            throw new ToolExecutionException("The UI element could not be described: %s".formatted(executionResult.getMessage()),
+                    TRANSIENT_TOOL_ERROR);
+        }
+        return identificationResult;
     }
 
     private Optional<UiElement> selectBestMatchingDbElement(List<UiElement> candidates, String elementDescription,
@@ -160,11 +181,13 @@ public class UiElementDbTools extends UiAbstractTools {
         Map<String, UiElement> candidatesById = IntStream.range(0, candidates.size())
                 .boxed()
                 .collect(toMap(index -> "element_" + index, candidates::get));
-        var userMessage = getDbElementBestMatchSelectionUserMessage(candidatesById, elementDescription, elementSpecificData);
-        BufferedImage screenshot = getScreenshotTogglingSpinner();
+        var userMessage = userMessageContents(getDbElementBestMatchSelectionUserMessage(candidatesById, elementDescription,
+                elementSpecificData));
+        BufferedImage screenshot = captureScreen();
         try {
             var result = dbUiElementSelectionAgent.executeAndGetResult(() ->
-                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage, ImageUtils.singleImageContent(screenshot, uiTestAgentConfig.getDbElementCandidateSelectionAgentImageDetailLevel())))
+                            dbUiElementSelectionAgent.selectBestElementFromCandidates(userMessage,
+                                    dbUiElementSelectionAgent.getImageContentCreator(uiTestAgentConfig).createImageContent(screenshot)))
                     .getResultPayload();
             if (result == null) {
                 LOG.warn("Model returned null result. Returning empty.");
@@ -201,39 +224,26 @@ public class UiElementDbTools extends UiAbstractTools {
         return empty();
     }
 
-    private static @NonNull BufferedImage getScreenshotTogglingSpinner() {
-        var previousState = SpinnerManager.hideIfVisible();
-        BufferedImage screenshot;
-        try {
-            screenshot = captureScreen();
-        } finally {
-            previousState.restoreIfWasVisible();
-        }
-        return screenshot;
-    }
-
     private String getDbElementBestMatchSelectionUserMessage(Map<String, UiElement> candidatesById,
                                                              String elementDescription,
                                                              String elementSpecificData) {
-        String candidatesString = candidatesById.entrySet().stream()
-                .map((candidateById) -> {
-                    var candidate = candidateById.getValue();
-                    return "  - Candidate ID: %s, Name: '%s', Description: '%s', Location Details: '%s', Parent Element Info: '%s'"
-                            .formatted(candidateById.getKey(), candidate.name(), candidate.description(),
-                                    candidate.locationDetails(), candidate.parentElementSummary());
-                })
-                .collect(joining("\n"));
+        var candidateSections = candidatesById.entrySet().stream()
+                .map(candidateById -> renderCandidate(candidateById.getKey(), candidateById.getValue()))
+                .toArray(String[]::new);
 
-        return """
-                The target element description: '%s'.
-                
-                Available data related to this element: '%s'
-                
-                Candidates:
-                %s
-                
-                Screenshot follows.
-                """.formatted(elementDescription, elementSpecificData != null ? elementSpecificData : "",
-                candidatesString);
+        return joinSections(
+                section(SECTION_LEVEL, TARGET_ELEMENT_DESCRIPTION_LABEL, elementDescription),
+                section(SECTION_LEVEL, "Data related to this element", elementSpecificData),
+                parentSection(SECTION_LEVEL, "Candidates", candidateSections),
+                heading(SECTION_LEVEL, SCREENSHOT_LABEL));
+    }
+
+    private static String renderCandidate(String candidateId, UiElement candidate) {
+        return joinLines(
+                heading(SUBSECTION_LEVEL, "Candidate %s".formatted(candidateId)),
+                listItem("Name", candidate.name()),
+                listItem("Description", candidate.description()),
+                listItem("Location details", candidate.locationDetails()),
+                listItem("Parent element info", candidate.parentElementSummary()));
     }
 }
