@@ -1,0 +1,65 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  button.screenshot {
+    display: block;
+    justify-self: start;
+    min-block-size: 0;
+    max-inline-size: 100%;
+    padding: 0;
+    overflow: auto;
+    line-height: 0;
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    cursor: zoom-in;
+
+    &:hover:not(:disabled) {
+      background: var(--raised);
+      border-color: var(--field-border);
+    }
+
+    & img {
+      display: block;
+      max-inline-size: 100%;
+      max-block-size: 24rem;
+      object-fit: contain;
+    }
+  }
+
+  .screenshot-thumb img {
+    inline-size: 5rem;
+    block-size: 3.2rem;
+  }
+
+  .screenshot-card img {
+    max-inline-size: 14rem;
+    max-block-size: 8rem;
+  }
+
+  button.screenshot-zoomed {
+    cursor: zoom-out;
+
+    & img {
+      inline-size: auto;
+      block-size: auto;
+      max-inline-size: none;
+      max-block-size: none;
+    }
+  }
+}

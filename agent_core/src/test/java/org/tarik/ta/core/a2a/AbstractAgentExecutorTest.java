@@ -27,7 +27,6 @@ import org.a2aproject.sdk.spec.Task;
 import org.a2aproject.sdk.spec.TaskStatus;
 import org.a2aproject.sdk.spec.TaskState;
 import org.a2aproject.sdk.spec.TextPart;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +36,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus;
 import org.tarik.ta.core.dto.TestStep;
+import org.tarik.ta.core.manager.BudgetManager;
+import org.tarik.ta.core.telemetry.TokenUsageRecord;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -52,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 import org.mockito.ArgumentMatchers;
 
@@ -156,6 +158,71 @@ class AbstractAgentExecutorTest {
 
         verify(agentEmitter).startWork();
         verify(agentEmitter).fail(ArgumentMatchers.<Message>any());
+    }
+
+    @Test
+    void execute_shouldFlushCapturedLogsBeforeFailingTheTask_whenExceptionDuringExecution() {
+        when(requestContext.getTask()).thenReturn(task);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+
+        executor.setThrowException(true);
+        executor.addLogToEmit("line before the failure");
+
+        executor.execute(requestContext, agentEmitter);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Part<?>>> partsCaptor = ArgumentCaptor.forClass(List.class);
+        var inOrder = inOrder(agentEmitter);
+        inOrder.verify(agentEmitter).addArtifact(partsCaptor.capture(), eq("execution_log"), eq("execution_log.log"), any(),
+                eq(false), eq(false));
+        inOrder.verify(agentEmitter).fail(ArgumentMatchers.<Message>any());
+        FileWithBytes logFile = (FileWithBytes) ((FilePart) partsCaptor.getValue().getFirst()).file();
+        String logText = new String(Base64.getDecoder().decode(logFile.bytes()), StandardCharsets.UTF_8);
+        assertThat(logText).contains("line before the failure");
+    }
+
+    @Test
+    void execute_shouldEmitTheTokenUsageArtifactBeforeCompletingTheTask() {
+        when(requestContext.getTask()).thenReturn(task);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+        when(agentEmitter.newAgentMessage(anyList(), any())).thenReturn(message);
+        executor.setResultToReturn(new TestExecutionResult("test-case", TestExecutionStatus.PASSED, Collections.emptyList(),
+                Collections.emptyList(), Instant.now(), Instant.now(), null, null, null));
+        executor.setTokensToConsume(new TokenUsageRecord("test_step_action", "openai", "gpt-test", "gpt-test", null, 10, 20, 5, 700));
+
+        executor.execute(requestContext, agentEmitter);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Part<?>>> partsCaptor = ArgumentCaptor.forClass(List.class);
+        var inOrder = inOrder(agentEmitter);
+        inOrder.verify(agentEmitter).addArtifact(partsCaptor.capture(), isNull(), eq("token_usage"), isNull());
+        inOrder.verify(agentEmitter).complete(any(Message.class));
+        assertThat(((TextPart) partsCaptor.getValue().getFirst()).text())
+                .contains("\"operationName\":\"test_step_action\"", "\"inputTokens\":10", "\"cachedTokens\":5");
+        assertThat(BudgetManager.getInstance().releaseTask("task-123")).isEmpty();
+    }
+
+    @Test
+    void execute_shouldEmitTheTokenUsageArtifactBeforeFailingTheTask() {
+        when(requestContext.getTask()).thenReturn(task);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+        executor.setThrowException(true);
+        executor.setTokensToConsume(new TokenUsageRecord("test_step_action", "openai", "gpt-test", "gpt-test", null, 10, 20, 0, 700));
+
+        executor.execute(requestContext, agentEmitter);
+
+        var inOrder = inOrder(agentEmitter);
+        inOrder.verify(agentEmitter).addArtifact(anyList(), isNull(), eq("token_usage"), isNull());
+        inOrder.verify(agentEmitter).fail(ArgumentMatchers.<Message>any());
     }
 
     @Test
@@ -277,6 +344,36 @@ class AbstractAgentExecutorTest {
         verify(agentEmitter).complete(any(Message.class));
     }
 
+    @Test
+    void execute_shouldStreamStatusMessageAsWorkingStatus() {
+        when(requestContext.getTask()).thenReturn(null);
+        when(requestContext.getTaskId()).thenReturn("task-123");
+        Message message = new Message(Message.Role.ROLE_USER, List.of(new TextPart("run test", null)), "msg-1", null, null,
+                null, null, null);
+        when(requestContext.getMessage()).thenReturn(message);
+        when(agentEmitter.newAgentMessage(anyList(), any())).thenAnswer(invocation ->
+                new Message(Message.Role.ROLE_AGENT, invocation.getArgument(0), "msg-2", null, null, null, null, null));
+
+        executor.setResultToReturn(passedResult());
+        executor.setStatusToEmit("Waiting for operator: confirmation");
+
+        executor.execute(requestContext, agentEmitter);
+
+        assertThat(captureActivityText()).isEqualTo("Waiting for operator: confirmation");
+        verify(agentEmitter).complete(any(Message.class));
+    }
+
+    @Test
+    void isCancelled_shouldBeFalseBeforeAndTrueAfterCancel() {
+        when(requestContext.getTask()).thenReturn(task);
+        when(task.status()).thenReturn(new TaskStatus(TaskState.TASK_STATE_SUBMITTED, null, null));
+        assertThat(executor.isCancelled()).isFalse();
+
+        executor.cancel(requestContext, agentEmitter);
+
+        assertThat(executor.isCancelled()).isTrue();
+    }
+
     /**
      * Captures the message streamed as the {@code WORKING} status update and returns the human-readable activity line
      * it carries.
@@ -324,7 +421,9 @@ class AbstractAgentExecutorTest {
         private final List<String> logsToEmit = new ArrayList<>();
         private TestStep stepToStart = null;
         private String preconditionToStart = null;
+        private String statusToEmit = null;
         private boolean blockUntilInterrupted = false;
+        private TokenUsageRecord tokensToConsume = null;
         private final CountDownLatch executionStarted = new CountDownLatch(1);
 
         public void setBlockUntilInterrupted(boolean blockUntilInterrupted) {
@@ -347,6 +446,10 @@ class AbstractAgentExecutorTest {
             this.preconditionToStart = preconditionToStart;
         }
 
+        public void setStatusToEmit(String statusToEmit) {
+            this.statusToEmit = statusToEmit;
+        }
+
         public void setThrowException(boolean throwException) {
             this.throwException = throwException;
         }
@@ -359,9 +462,17 @@ class AbstractAgentExecutorTest {
             this.logsToEmit.add(logLine);
         }
 
+        public void setTokensToConsume(TokenUsageRecord tokensToConsume) {
+            this.tokensToConsume = tokensToConsume;
+        }
+
         @Override
         protected TestExecutionResult executeTestCase(String message, StreamingEventEmitter eventEmitter) {
+            if (tokensToConsume != null) {
+                BudgetManager.getInstance().consumeTokens(tokensToConsume);
+            }
             if (throwException) {
+                logsToEmit.forEach(eventEmitter::emitLog);
                 throw new RuntimeException("Simulated error");
             }
             if (blockUntilInterrupted) {
@@ -378,6 +489,9 @@ class AbstractAgentExecutorTest {
             }
             if (preconditionToStart != null) {
                 eventEmitter.emitPreconditionStarted(preconditionToStart);
+            }
+            if (statusToEmit != null) {
+                eventEmitter.emitStatus(statusToEmit);
             }
             logsToEmit.forEach(eventEmitter::emitLog);
             return resultToReturn;

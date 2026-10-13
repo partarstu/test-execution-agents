@@ -22,12 +22,17 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.core.telemetry.TokenUsageRecord;
 
 import java.time.Instant;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Mockito.mockStatic;
 
 class BudgetManagerTest {
@@ -40,13 +45,18 @@ class BudgetManagerTest {
         budgetManager.reset();
     }
 
+    private static TokenUsageRecord usage(String operationName, int inputTokens, int outputTokens, int cachedTokens) {
+        return new TokenUsageRecord(operationName, "openai", "gpt-test", "gpt-test", "api.example.org", inputTokens,
+                outputTokens, cachedTokens, 120);
+    }
+
     @Test
     void checkTokenBudget_shouldNotThrow_whenUnderLimit() {
         int limit = new AgentConfig().getAgentTokenBudget();
         if (limit <= 0)
             return;
 
-        budgetManager.consumeTokens("test-model", limit - 1, 0, 0);
+        budgetManager.consumeTokens(usage("test_step_action", limit - 1, 0, 0));
 
         assertThatCode(budgetManager::checkTokenBudget).doesNotThrowAnyException();
     }
@@ -57,7 +67,7 @@ class BudgetManagerTest {
         if (limit <= 0)
             return;
 
-        budgetManager.consumeTokens("test-model", limit, 0, 0);
+        budgetManager.consumeTokens(usage("test_step_action", limit, 0, 0));
 
         assertThatCode(budgetManager::checkTokenBudget).doesNotThrowAnyException();
     }
@@ -69,7 +79,7 @@ class BudgetManagerTest {
             return;
 
         try {
-            budgetManager.consumeTokens("test-model", limit + 1, 0, 0);
+            budgetManager.consumeTokens(usage("test_step_action", limit + 1, 0, 0));
         } catch (RuntimeException e) {
             // Expected
         }
@@ -81,24 +91,79 @@ class BudgetManagerTest {
 
     @Test
     void consumeTokens_AndCheckBudget_shouldTrackDetailedUsage() {
-        budgetManager.consumeTokens("test-model", 50, 30, 20);
+        budgetManager.consumeTokens(usage("test_step_action", 50, 30, 20));
 
         assertThat(budgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
         assertThat(budgetManager.getAccumulatedInputTokens()).isEqualTo(50);
         assertThat(budgetManager.getAccumulatedOutputTokens()).isEqualTo(30);
         assertThat(budgetManager.getAccumulatedCachedTokens()).isEqualTo(20);
+    }
 
-        assertThat(budgetManager.getAccumulatedTotalTokens("test-model")).isEqualTo(100);
-        assertThat(budgetManager.getAccumulatedInputTokens("test-model")).isEqualTo(50);
-        assertThat(budgetManager.getAccumulatedOutputTokens("test-model")).isEqualTo(30);
-        assertThat(budgetManager.getAccumulatedCachedTokens("test-model")).isEqualTo(20);
+    @Test
+    void consumeTokens_shouldAccumulatePerOperation() {
+        budgetManager.consumeTokens(usage("test_step_action", 50, 30, 20));
 
-        assertThat(budgetManager.getAccumulatedTotalTokens("other-model")).isZero();
+        var accumulated = budgetManager.consumeTokens(usage("test_step_action", 5, 3, 2));
+
+        assertThat(accumulated.inputTokens()).isEqualTo(55);
+        assertThat(accumulated.outputTokens()).isEqualTo(33);
+        assertThat(accumulated.cachedTokens()).isEqualTo(22);
+        assertThat(accumulated.operationName()).isEqualTo("test_step_action");
+    }
+
+    @Test
+    void releaseTask_shouldHandOutOneRecordPerOperationOfThatTaskAndFreeIt() {
+        budgetManager.beginTask("task-1");
+        budgetManager.consumeTokens(usage("test_step_action", 50, 30, 20));
+        budgetManager.consumeTokens(usage("test_step_action", 5, 3, 2));
+        budgetManager.consumeTokens(usage("precondition_action", 7, 1, 0));
+
+        var released = budgetManager.releaseTask("task-1");
+
+        assertThat(released).extracting(TokenUsageRecord::operationName, TokenUsageRecord::inputTokens)
+                .containsExactly(tuple("precondition_action", 7), tuple("test_step_action", 55));
+        assertThat(budgetManager.releaseTask("task-1")).isEmpty();
+        assertThat(budgetManager.getAccumulatedTotalTokens()).isZero();
+    }
+
+    @Test
+    void releaseTask_shouldKeepTheUsageOfAnotherTask() {
+        budgetManager.beginTask("task-1");
+        budgetManager.consumeTokens(usage("test_step_action", 50, 30, 20));
+        budgetManager.beginTask("task-2");
+        budgetManager.consumeTokens(usage("test_step_action", 1, 1, 1));
+
+        budgetManager.releaseTask("task-1");
+
+        assertThat(budgetManager.releaseTask("task-2")).extracting(TokenUsageRecord::totalTokens).containsExactly(3);
+    }
+
+    @Test
+    void releaseTask_shouldLoseNoUsage_whenModelCallsLandWhileReleasing() throws Exception {
+        int callsPerRound = 2_000;
+        for (int round = 0; round < 50; round++) {
+            budgetManager.reset();
+            budgetManager.beginTask("task-1");
+            var released = new AtomicInteger();
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                var calls = executor.submit(() -> {
+                    for (int call = 0; call < callsPerRound; call++) {
+                        budgetManager.consumeTokens(usage("test_step_action", 1, 0, 0));
+                    }
+                });
+                var release = executor.submit(() -> released.set(budgetManager.releaseTask("task-1").stream()
+                        .mapToInt(TokenUsageRecord::inputTokens).sum()));
+                calls.get(10, TimeUnit.SECONDS);
+                release.get(10, TimeUnit.SECONDS);
+            }
+
+            assertThat(released.get() + budgetManager.getAccumulatedInputTokens()).as("round %d", round).isEqualTo(callsPerRound);
+        }
     }
 
     @Test
     void reset_shouldClearDetailedUsage() {
-        budgetManager.consumeTokens("test-model", 50, 30, 20);
+        budgetManager.consumeTokens(usage("test_step_action", 50, 30, 20));
         budgetManager.consumeToolCalls(5);
         budgetManager.reset();
 
@@ -114,6 +179,7 @@ class BudgetManagerTest {
         if (limit <= 0)
             return;
 
+        budgetManager.activateToolCallBudget();
         budgetManager.consumeToolCalls(limit + 1);
 
         assertThatThrownBy(budgetManager::checkToolCallBudget)
@@ -122,19 +188,45 @@ class BudgetManagerTest {
     }
 
     @Test
+    void checkToolCallBudget_shouldNotThrow_whenBudgetIsInactive() {
+        int limit = new AgentConfig().getAgentToolCallsBudget();
+        if (limit <= 0)
+            return;
+
+        budgetManager.consumeToolCalls(limit + 1);
+
+        assertThatCode(budgetManager::checkToolCallBudget).doesNotThrowAnyException();
+    }
+
+    @Test
     void checkToolCallBudget_shouldNotThrow_whenUnderLimit() {
         int limit = new AgentConfig().getAgentToolCallsBudget();
         if (limit <= 0)
             return;
 
+        budgetManager.activateToolCallBudget();
         budgetManager.consumeToolCalls(limit - 1);
 
         assertThatCode(budgetManager::checkToolCallBudget).doesNotThrowAnyException();
     }
 
     @Test
+    void reset_shouldDeactivateToolCallBudget() {
+        int limit = new AgentConfig().getAgentToolCallsBudget();
+        if (limit <= 0)
+            return;
+
+        budgetManager.activateToolCallBudget();
+        budgetManager.consumeToolCalls(limit + 1);
+        budgetManager.reset();
+        budgetManager.consumeToolCalls(limit + 1);
+
+        assertThatCode(budgetManager::checkToolCallBudget).doesNotThrowAnyException();
+    }
+
+    @Test
     void resetToolCallUsage_shouldResetOnlyToolCalls() {
-        budgetManager.consumeTokens("test-model", 50, 30, 20);
+        budgetManager.consumeTokens(usage("test_step_action", 50, 30, 20));
         budgetManager.consumeToolCalls(5);
 
         budgetManager.resetToolCallUsage();
@@ -174,6 +266,7 @@ class BudgetManagerTest {
     void checkAllBudgets_shouldCheckAll() {
         int toolLimit = new AgentConfig().getAgentToolCallsBudget();
         if (toolLimit > 0) {
+            budgetManager.activateToolCallBudget();
             budgetManager.consumeToolCalls(toolLimit + 1);
             assertThatThrownBy(budgetManager::checkAllBudgets)
                     .isInstanceOf(RuntimeException.class);

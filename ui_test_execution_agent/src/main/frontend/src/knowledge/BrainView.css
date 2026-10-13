@@ -1,0 +1,41 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Brain: the one place the panel glows, on a dark backdrop in either theme so only the running chain blooms */
+@layer components {
+  .brain {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .brain-running {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .brain-canvas {
+    position: relative;
+    /* As tall as the window leaves below the view's head and toolbar, so the whole graph is in sight without scrolling */
+    block-size: clamp(20rem, calc(100dvh - 28.5rem), 46rem);
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    background: #0E131B;
+    cursor: grab;
+  }
+}

@@ -1,0 +1,145 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  .editor,
+  .editor-views {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted);
+    font-size: var(--text-sm);
+
+    & li + li::before {
+      content: "›";
+      margin: 0 0.45rem;
+    }
+
+    & [aria-current="step"] {
+      color: var(--ink);
+      font-weight: 650;
+    }
+  }
+
+  .procedure-form {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(16rem, 2fr);
+    gap: var(--space-4) var(--space-5);
+
+    @container (width < 56rem) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    & h3 {
+      font-size: var(--text-md);
+    }
+  }
+
+  .form-main,
+  .form-side {
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    min-inline-size: 0;
+
+    & > label:not(.check) {
+      font-size: var(--text-sm);
+      font-weight: 600;
+    }
+
+    & > button {
+      justify-self: start;
+    }
+  }
+
+  .form-side {
+    padding: var(--space-3) var(--space-4);
+    background: var(--raised);
+    border-radius: var(--radius);
+  }
+
+  /* Save and Cancel stay at the bottom of the screen while a long procedure scrolls past them */
+  .form-footer {
+    position: sticky;
+    inset-block-end: var(--bottom-nav-block-size);
+    z-index: 1;
+    grid-column: 1 / -1;
+    padding-block: var(--space-3);
+    background: var(--panel);
+    border-block-start: 1px solid var(--rule);
+  }
+
+  .toggles {
+    display: grid;
+    gap: var(--space-2);
+    margin-block: var(--space-2);
+  }
+
+  .element-section,
+  .children-section {
+    display: grid;
+    gap: var(--space-3);
+    padding-block-start: var(--space-3);
+    border-block-start: 1px solid var(--rule);
+
+    & > button {
+      justify-self: start;
+    }
+  }
+
+  .element-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+  }
+
+  .child-rows {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .child-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+
+    & + .child-row {
+      border-block-start: 1px solid var(--rule);
+    }
+  }
+}

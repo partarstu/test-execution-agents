@@ -17,10 +17,13 @@
  */
 package org.tarik.ta.dto;
 
+import dev.langchain4j.model.output.structured.Description;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.UUID;
-
-public record DbElementSearchResult(boolean found, @Nullable UUID elementId, @Nullable String elementName,
-                                    @Nullable String elementDescription) {
+@Description("Result of searching for a UI element in the database")
+public record DbElementSearchResult(
+        @Description("Whether a matching UI element was found") boolean found,
+        @Description("Short alias of the matching UI element, or null when no element was found") @Nullable String elementId,
+        @Description("Name of the matching UI element, or null when no element was found") @Nullable String elementName,
+        @Description("Description of the matching UI element, or null when no element was found") @Nullable String elementDescription) {
 }

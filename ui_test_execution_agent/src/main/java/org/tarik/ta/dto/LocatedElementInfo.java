@@ -19,13 +19,13 @@ package org.tarik.ta.dto;
 
 import dev.langchain4j.model.output.structured.Description;
 
-import java.util.UUID;
-
 @Description("Represents the location of UI element on the screen.")
 public record LocatedElementInfo(
         @Description("The name of the element retrieved from DB and used during location.") String name,
-        @Description("The UUID of the UI element in the database.") UUID elementId,
-        @Description("The X coordinate of the center point of UI element in physical screen pixels.") int centerXCoordinate,
-        @Description("The Y coordinate of the center point of UI element in physical screen pixels.") int centerYCoordinate,
-        @Description("The physical screen region in pixels where the UI element was identified.") ScreenRegion elementScreenRegion) {
+        @Description("The ID of the UI element, in the same short form it was provided in.") String elementId,
+        @Description("The X coordinate of the center point of UI element, normalized to the screen width in [0, 1000].")
+        int centerXCoordinate,
+        @Description("The Y coordinate of the center point of UI element, normalized to the screen height in [0, 1000].")
+        int centerYCoordinate,
+        @Description("The screen region where the UI element was identified, normalized to [0, 1000].") ScreenRegion elementScreenRegion) {
 }

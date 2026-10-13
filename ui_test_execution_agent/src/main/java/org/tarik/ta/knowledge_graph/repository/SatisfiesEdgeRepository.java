@@ -74,18 +74,22 @@ public class SatisfiesEdgeRepository {
             WHERE producer.${PROP_ID} IN $ids
             RETURN producer.${PROP_ID} AS producerId, consumer.${PROP_ID} AS consumerId
             """);
+        // Scores every current effect node instead of querying the vector index, whose nearest neighbours across the whole graph
+        // can crowd out the matching effect before the filter to the current effects applies
         this.FIND_UNSATISFIED_PREREQUISITES = repositorySupport.cypher("""
+            OPTIONAL MATCH (effNode:${LABEL_PHRASE_EMBEDDING}) WHERE effNode.${PROP_ID} IN $effectNodeIds
+            WITH collect(effNode) AS effNodes
             MATCH (consumer:${LABEL_PROCEDURE} {${PROP_ID}: $consumerId})-[:${REL_HAS_PREREQUISITE}]->(prereq:${LABEL_PHRASE_EMBEDDING})
-            CALL {
-                WITH prereq
-                CALL db.index.vector.queryNodes($indexName, $topN, prereq.${PROP_EMBEDDING})
-                YIELD node AS effNode, score
-                WHERE effNode.${PROP_ID} IN $effectNodeIds
-                RETURN max(score) AS bestScore
+            CALL (prereq, effNodes) {
+                UNWIND effNodes AS effNode
+                WITH effNode, vector.similarity.cosine(prereq.${PROP_EMBEDDING}, effNode.${PROP_EMBEDDING}) AS score
+                WHERE score IS NOT NULL
+                WITH effNode, score ORDER BY score DESC
+                RETURN max(score) AS bestScore, head(collect(effNode.${PROP_PHRASE})) AS bestEffectPhrase
             }
-            WITH prereq, coalesce(bestScore, 0.0) AS bestScore
+            WITH prereq, coalesce(bestScore, 0.0) AS bestScore, bestEffectPhrase
             WHERE bestScore < $threshold
-            RETURN prereq.${PROP_PHRASE} AS phrase, bestScore
+            RETURN prereq.${PROP_PHRASE} AS phrase, bestScore, bestEffectPhrase
             """);
     }
 
@@ -106,10 +110,6 @@ public class SatisfiesEdgeRepository {
     private final String FIND_ORDERING_CONFLICTS;
 
     private final String FIND_UNSATISFIED_PREREQUISITES;
-
-    private static final String VECTOR_INDEX_NAME = "phrase_embedding_vector_index";
-
-    private static final int UNSATISFIED_TOP_N = 50;
 
     public void persistSatisfiesEdges(List<SatisfiesEdge> edges) {
         if (edges.isEmpty()) {
@@ -174,8 +174,6 @@ public class SatisfiesEdgeRepository {
         return repositorySupport.executeSingleReadQuery(FIND_UNSATISFIED_PREREQUISITES, Map.of(
                 "consumerId", consumerId.toString(),
                 "effectNodeIds", effectIdStrings,
-                "indexName", VECTOR_INDEX_NAME,
-                "topN", UNSATISFIED_TOP_N,
                 "threshold", threshold
         )).stream()
                 .map(r -> new UnsatisfiedPrerequisite(

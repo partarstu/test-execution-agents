@@ -17,30 +17,28 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.dto.UiStateCheckResult;
+import org.tarik.ta.model.ImageContentCreator;
 
-public interface UiStateCheckAgent extends BaseUiAgent<UiStateCheckResult> {
-    @UserMessage("""
-            The expected state of the screen: {{expectedStateDescription}}
-            
-            The action performed was: {{actionDescription}}
-            
-            Any related to the expected state data: {{relevantData}}
-            
-            Screenshot attached.
-            """)
-    Result<String> check(
-            @V("expectedStateDescription") String expectedStateDescription,
-            @V("actionDescription") String actionDescription,
-            @V("relevantData") String relevantData,
-            @UserMessage ImageContent screenshot);
+import java.util.List;
+
+public interface UiStateCheckAgent extends BaseUiAgent<UiStateCheckResult>, VisionBasedAgent {
+    Result<String> check(@UserMessage List<Content> userMessage, @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {
         return "Checking UI state";
+    }
+
+    @Override
+    default @NotNull ImageContentCreator getImageContentCreator(@NotNull UiTestAgentConfig config) {
+        return new ImageContentCreator(config.getUiStateCheckAgentImageDetailLevel(),
+                config.getUiStateCheckAgentModelProvider(), config.getMaxModelImagePixels());
     }
 }

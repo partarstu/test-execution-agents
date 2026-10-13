@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.core.exceptions;
 
+import org.jetbrains.annotations.NotNull;
 import org.tarik.ta.core.error.ErrorCategory;
 
 public class ToolExecutionException extends RuntimeException {
@@ -24,6 +25,11 @@ public class ToolExecutionException extends RuntimeException {
 
     public ToolExecutionException(String message, ErrorCategory errorCategory) {
         super(message);
+        this.errorCategory = errorCategory;
+    }
+
+    public ToolExecutionException(String message, ErrorCategory errorCategory, @NotNull Throwable cause) {
+        super(message, cause);
         this.errorCategory = errorCategory;
     }
 

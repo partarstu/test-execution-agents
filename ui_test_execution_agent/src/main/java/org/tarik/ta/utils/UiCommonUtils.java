@@ -24,17 +24,16 @@ import org.slf4j.LoggerFactory;
 import org.tarik.ta.dto.ScreenRegion;
 
 import java.awt.*;
-import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Comparator;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment;
 import static java.util.Comparator.comparingInt;
 import static org.tarik.ta.utils.ImageUtils.applyHdrCorrection;
 import static org.tarik.ta.utils.ImageUtils.toBufferedImage;
+import static org.tarik.ta.utils.NormalizedCoordinates.toLogicalScreenRectangle;
 
 public class UiCommonUtils {
     private static final Logger LOG = LoggerFactory.getLogger(UiCommonUtils.class);
@@ -117,44 +116,10 @@ public class UiCommonUtils {
         return MouseInfo.getPointerInfo().getLocation();
     }
 
-    public static Point getScaledScreenLocationCoordinates(@NotNull Point physicalScreenCoordinates) {
-        var graphicsConfiguration = getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
-        AffineTransform tx = graphicsConfiguration.getDefaultTransform();
-        double uiScaleX = tx.getScaleX();
-        double uiScaleY = tx.getScaleY();
-        if (uiScaleX == 1 && uiScaleY == 1) {
-            return physicalScreenCoordinates;
-        } else {
-            return new Point((int) (physicalScreenCoordinates.getX() / uiScaleX), (int) (physicalScreenCoordinates.getY() / uiScaleY));
-        }
-    }
-
-    public static Rectangle getScaledBoundingBox(@NotNull Rectangle originalBoundingBox) {
-        var graphicsConfiguration = getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
-        AffineTransform tx = graphicsConfiguration.getDefaultTransform();
-        double uiScaleX = tx.getScaleX();
-        double uiScaleY = tx.getScaleY();
-        if (uiScaleX == 1 && uiScaleY == 1) {
-            return originalBoundingBox;
-        } else {
-            var scaledX = originalBoundingBox.getX() / uiScaleX;
-            var scaledY = originalBoundingBox.getY() / uiScaleY;
-            var scaledWidth = originalBoundingBox.getWidth() / uiScaleX;
-            var scaledHeight = originalBoundingBox.getHeight() / uiScaleY;
-            return new Rectangle((int) scaledX, (int) scaledY, (int) scaledWidth, (int) scaledHeight);
-        }
-    }
-
-    /**
-     * Captures a cropped screenshot of the given physical screen region.
-     * Converts physical pixel coordinates to logical (DPI-scaled) before capture.
-     *
-     * @param region the physical pixel region to capture
-     * @return the cropped image, or {@code null} if the resulting rectangle is degenerate or capture fails
-     */
+    /** Captures the screen region normalized to {@code [0, 1000]}, or {@code null} if it is degenerate or the capture fails. */
     public static @Nullable BufferedImage captureElementScreenshot(@NotNull ScreenRegion region) {
         try {
-            var logicalRect = getScaledBoundingBox(region.toRectangle());
+            var logicalRect = toLogicalScreenRectangle(region);
             var screenRect = new Rectangle(getScreenSize());
             logicalRect = logicalRect.intersection(screenRect);
             if (logicalRect.width <= 0 || logicalRect.height <= 0) {

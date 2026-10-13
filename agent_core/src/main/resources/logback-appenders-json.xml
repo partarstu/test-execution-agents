@@ -1,0 +1,80 @@
+<!--
+  ~ agent-core - Core execution engine, with common logic for all test execution agents.
+  ~ Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+<!--
+  One JSON object per log event, used when LOG_FORMAT=json (the cloud images set it). Included by each agent's
+  logback.xml. The field names are the logstash defaults, and the message goes through the "pattern" provider so that
+  the secret-redacting conversion word applies to it here exactly as it does in text mode.
+  -->
+<included>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp>
+                    <fieldName>@timestamp</fieldName>
+                </timestamp>
+                <logLevel>
+                    <fieldName>level</fieldName>
+                </logLevel>
+                <loggerName>
+                    <fieldName>logger_name</fieldName>
+                </loggerName>
+                <threadName>
+                    <fieldName>thread_name</fieldName>
+                </threadName>
+                <pattern>
+                    <pattern>{"message":"%redactedMsg"}</pattern>
+                </pattern>
+                <stackTrace>
+                    <fieldName>stack_trace</fieldName>
+                    <throwableConverter class="org.tarik.ta.core.security.SecretRedactingThrowableConverter"/>
+                </stackTrace>
+            </providers>
+        </encoder>
+    </appender>
+
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR:-log}/app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR:-log}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>1</maxHistory>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp>
+                    <fieldName>@timestamp</fieldName>
+                </timestamp>
+                <logLevel>
+                    <fieldName>level</fieldName>
+                </logLevel>
+                <loggerName>
+                    <fieldName>logger_name</fieldName>
+                </loggerName>
+                <threadName>
+                    <fieldName>thread_name</fieldName>
+                </threadName>
+                <pattern>
+                    <pattern>{"message":"%redactedMsg"}</pattern>
+                </pattern>
+                <stackTrace>
+                    <fieldName>stack_trace</fieldName>
+                    <throwableConverter class="org.tarik.ta.core.security.SecretRedactingThrowableConverter"/>
+                </stackTrace>
+            </providers>
+        </encoder>
+    </appender>
+</included>

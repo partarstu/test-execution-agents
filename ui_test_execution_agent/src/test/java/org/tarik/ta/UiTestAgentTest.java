@@ -29,15 +29,14 @@ import org.tarik.ta.agents.UiPreconditionActionAgent;
 import org.tarik.ta.agents.UiPreconditionVerificationAgent;
 import org.tarik.ta.agents.UiTestStepActionAgent;
 import org.tarik.ta.agents.UiTestStepVerificationAgent;
-import org.tarik.ta.core.dto.EmptyExecutionResult;
+import org.tarik.ta.core.dto.DataEntry;
+import org.tarik.ta.core.dto.Precondition;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus;
-import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
-import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestStep;
+import org.tarik.ta.core.dto.TestStepResult.TestStepResultStatus;
 import org.tarik.ta.core.manager.BudgetManager;
-import org.tarik.ta.dto.UiOperationExecutionResult;
 import org.tarik.ta.utils.UiCommonUtils;
 import org.tarik.ta.core.utils.CommonUtils;
 import org.tarik.ta.utils.ScreenRecorder;
@@ -45,29 +44,27 @@ import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 import org.tarik.ta.dto.UiTestExecutionResult;
+import org.tarik.ta.dto.UiTestStepResult;
+import org.tarik.ta.exceptions.DatabaseConnectionException;
 import org.tarik.ta.knowledge_graph.KnowledgeBasedExecutionOrchestrator;
-import org.tarik.ta.knowledge_graph.StepExecutionOrchestrator;
-import org.tarik.ta.knowledge_graph.ProcedureKnowledgeCollectionService;
 import org.tarik.ta.knowledge_graph.service.*;
-import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
-import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
-import org.tarik.ta.model.UiTestExecutionContext;
-import org.tarik.ta.tools.CommonTools;
-import org.tarik.ta.tools.VerificationTools;
-import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.core.model.TestExecutionContext;
+import org.tarik.ta.model.VisualStateHolder;
+import org.tarik.ta.knowledge_graph.model.node.ExecutionRun;
+import org.tarik.ta.panel.OperatorPromptInterruptedException;
+import org.tarik.ta.panel.OperatorPrompts;
+import org.tarik.ta.panel.RunObserver;
 
 import java.awt.image.BufferedImage;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.tarik.ta.core.dto.TestExecutionResult.TestExecutionStatus.PASSED;
 import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.ERROR;
-import static org.tarik.ta.core.dto.OperationExecutionResult.ExecutionStatus.SUCCESS;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("unchecked")
@@ -86,13 +83,21 @@ class UiTestAgentTest {
     @Mock
     private BudgetManager budgetManager;
     @Mock
-    private UiTestExecutionContext mockContext;
+    private TestExecutionContext mockContext;
+    @Mock
+    private VisualStateHolder mockVisualState;
     @Mock
     private ScreenRecorder mockScreenRecorder;
     @Mock
     private LogCapture mockLogCapture;
     @Mock
     private ExecutionStateTracker mockStateTracker;
+    @Mock
+    private RunObserver mockRunObserver;
+    @Mock
+    private OperatorPrompts mockOperatorPrompts;
+    @Mock
+    private ExecutionRunService mockExecutionRunService;
 
     @Mock
     private UiPreconditionActionAgent preconditionActionAgentMock;
@@ -103,8 +108,7 @@ class UiTestAgentTest {
     @Mock
     private UiTestStepVerificationAgent uiTestStepVerificationAgentMock;
 
-    @Mock
-    private BufferedImage mockScreenshot;
+    private final BufferedImage screenshot = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
 
     private MockedStatic<UiCommonUtils> commonUtilsMockedStatic;
     private MockedStatic<CommonUtils> coreUtilsMockedStatic;
@@ -119,12 +123,13 @@ class UiTestAgentTest {
         lenient().when(configMock.getActionRetryPolicy()).thenReturn(new RetryPolicy(3, 100, 5000));
         lenient().when(configMock.getVerificationRetryPolicy()).thenReturn(new RetryPolicy(3, 100, 5000));
 
-        commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mockScreenshot);
+        commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(screenshot);
         coreUtilsMockedStatic.when(() -> CommonUtils.sleepMillis(anyLong())).thenAnswer(invocation -> null);
 
         uiTestAgent = new UiTestAgent(knowledgeBasedExecutionOrchestrator, mockKnowledgeService,
                 configMock, testCaseExtractor, budgetManager, mockContext,
-                mockScreenRecorder, mockLogCapture, mockStateTracker);
+                mockScreenRecorder, mockLogCapture, mockStateTracker, mockVisualState, mockRunObserver, mockOperatorPrompts,
+                mockExecutionRunService);
     }
 
     @AfterEach
@@ -138,7 +143,7 @@ class UiTestAgentTest {
     void singleStepActionAndVerificationSuccess() {
         // Given
         TestStep step = new TestStep("Perform Action", null, "Verify Result");
-        TestCase testCase = new TestCase("Single Step Success", null, List.of(step));
+        TestCase testCase = new TestCase("Single Step Success", null, List.of(), List.of(step));
         when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
 
         // When
@@ -146,7 +151,64 @@ class UiTestAgentTest {
 
         // Then
         assertThat(result.getTestExecutionStatus()).isEqualTo(PASSED);
+        verify(budgetManager).activateToolCallBudget();
         verify(knowledgeBasedExecutionOrchestrator).executeBasedOnKnowledge(eq(mockContext), eq(testCase), eq(0), eq(mockStateTracker));
+    }
+
+    @Test
+    @DisplayName("The test case data table is seeded into the execution context before the first item runs")
+    void dataTableIsSeededIntoTheContext() {
+        // Given
+        TestStep step = new TestStep("Perform Action", null, "Verify Result");
+        var dataTable = List.of(new DataEntry("user", "admin"));
+        TestCase testCase = new TestCase("Data table", null, dataTable, List.of(step));
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
+
+        // When
+        uiTestAgent.executeTestCase("test case message");
+
+        // Then
+        var inOrder = inOrder(mockContext, knowledgeBasedExecutionOrchestrator);
+        inOrder.verify(mockContext).seedFromDataTable(dataTable);
+        inOrder.verify(knowledgeBasedExecutionOrchestrator).executeBasedOnKnowledge(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("The run observer learns about the test case after the data table is seeded and before the first item runs")
+    void runObserverIsToldAboutTheTestCaseAfterSeeding() {
+        TestStep step = new TestStep("Perform Action", null, "Verify Result");
+        TestCase testCase = new TestCase("Observed", null, List.of(new DataEntry("password", "secret")), List.of(step));
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
+
+        uiTestAgent.executeTestCase("test case message");
+
+        var inOrder = inOrder(mockContext, mockRunObserver, knowledgeBasedExecutionOrchestrator);
+        inOrder.verify(mockContext).seedFromDataTable(testCase.testData());
+        inOrder.verify(mockRunObserver).taskStarted(testCase);
+        inOrder.verify(knowledgeBasedExecutionOrchestrator).executeBasedOnKnowledge(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("No task is announced to the run observer when no test case can be extracted")
+    void runObserverIsNotToldAboutATaskWithoutTestCase() {
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.empty());
+
+        uiTestAgent.executeTestCase("not a test case");
+
+        verify(mockRunObserver, never()).taskStarted(any());
+    }
+
+    @Test
+    @DisplayName("Supervised mode does not activate unattended budgets")
+    void supervisedModeDoesNotActivateUnattendedBudgets() {
+        when(configMock.isFullyUnattended()).thenReturn(false);
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.empty());
+
+        uiTestAgent.executeTestCase("test case message");
+
+        verify(budgetManager).reset();
+        verify(budgetManager, never()).activateTimeBudget();
+        verify(budgetManager, never()).activateToolCallBudget();
     }
 
     @Test
@@ -154,18 +216,18 @@ class UiTestAgentTest {
     void preconditionExecutionFails() {
         // Given
         String precondition = "Precondition 1";
-        TestCase testCase = new TestCase("Precondition Fail", List.of(precondition),
+        TestCase testCase = new TestCase("Precondition Fail", List.of(new Precondition(precondition, List.of())), List.of(),
                 List.of(new TestStep("Dummy Step", null, null)));
         when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
 
         doAnswer(invocation -> {
-            UiTestExecutionContext ctx = invocation.getArgument(0);
-            ctx.addPreconditionResult(new org.tarik.ta.dto.UiPreconditionResult("Precondition 1", false, "Precondition failed", mockScreenshot, java.time.Instant.now(), java.time.Instant.now()));
+            TestExecutionContext ctx = invocation.getArgument(0);
+            ctx.addPreconditionResult(new org.tarik.ta.dto.UiPreconditionResult("Precondition 1", false, "Precondition failed", screenshot, java.time.Instant.now(), java.time.Instant.now()));
             return null;
         }).when(knowledgeBasedExecutionOrchestrator).executeBasedOnKnowledge(any(), any(), anyInt(), any());
         
         when(mockContext.getPreconditionExecutionHistory()).thenReturn(List.of(
-                new org.tarik.ta.dto.UiPreconditionResult("Precondition 1", false, "Precondition failed", mockScreenshot, java.time.Instant.now(), java.time.Instant.now())
+                new org.tarik.ta.dto.UiPreconditionResult("Precondition 1", false, "Precondition failed", screenshot, java.time.Instant.now(), java.time.Instant.now())
         ));
 
         // When
@@ -180,7 +242,7 @@ class UiTestAgentTest {
     void executionResultContainsSystemInfoAndLogs() {
         // Given
         TestStep step = new TestStep("Action", null, null);
-        TestCase testCase = new TestCase("System Info Test", null, List.of(step));
+        TestCase testCase = new TestCase("System Info Test", null, List.of(), List.of(step));
         when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
         when(mockLogCapture.getLogs()).thenReturn(List.of("Log 1"));
 
@@ -194,14 +256,14 @@ class UiTestAgentTest {
     }
 
     @Test
-    @DisplayName("Unattended mode returns error when procedure is missing")
-    void missingProcedureInUnattendedModeReturnsError() {
+    @DisplayName("Knowledge-based execution failure returns error")
+    void knowledgeBasedExecutionFailureReturnsError() {
         // Given
         TestStep step = new TestStep("UNKNOWN_ACTION", null, null);
-        TestCase testCase = new TestCase("Missing Knowledge Test", null, List.of(step));
+        TestCase testCase = new TestCase("Knowledge Failure Test", null, List.of(), List.of(step));
         when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
 
-        doThrow(new org.tarik.ta.exceptions.MissingProcedureException("No matching procedure found"))
+        doThrow(new DatabaseConnectionException("Neo4j is not reachable", null))
                 .when(knowledgeBasedExecutionOrchestrator).executeBasedOnKnowledge(any(), any(), anyInt(), any());
 
         // When
@@ -210,6 +272,126 @@ class UiTestAgentTest {
         // Then
         assertThat(result.getTestExecutionStatus()).isEqualTo(TestExecutionStatus.ERROR);
         assertThat(result.getGeneralErrorMessage()).contains("Knowledge-based execution error");
-        assertThat(result.getGeneralErrorMessage()).contains("No matching procedure found");
+        assertThat(result.getGeneralErrorMessage()).contains("Neo4j is not reachable");
+    }
+
+    @Test
+    @DisplayName("An unexpected failure still reports the captured logs and the recording")
+    void unexpectedFailureStillReportsCapturedLogsAndRecording() {
+        when(configMock.isFullyUnattended()).thenReturn(false);
+        TestCase testCase = new TestCase("Unexpected Failure Test", null, List.of(), List.of(new TestStep("Action", null, null)));
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
+        when(mockLogCapture.getLogs()).thenReturn(List.of("Log before the failure"));
+        when(mockScreenRecorder.getCurrentRecordingPath()).thenReturn("videos/run.mp4");
+
+        when(mockOperatorPrompts.selectStartingStep(testCase.testSteps())).thenThrow(new IllegalStateException("dialog blew up"));
+
+        var result = (UiTestExecutionResult) uiTestAgent.executeTestCase("test case message");
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(TestExecutionStatus.ERROR);
+        assertThat(result.getLogs()).contains("Log before the failure");
+        assertThat(result.getVideoPath()).isEqualTo("videos/run.mp4");
+    }
+
+    @Test
+    void executeTestCase_shouldStartFromTheStepTheOperatorSelects_whenSupervised() {
+        when(configMock.isFullyUnattended()).thenReturn(false);
+        var steps = List.of(new TestStep("Open", null, null), new TestStep("Save", null, null));
+        TestCase testCase = new TestCase("Supervised Start", null, List.of(), steps);
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
+        when(mockOperatorPrompts.selectStartingStep(steps)).thenReturn(1);
+
+        uiTestAgent.executeTestCase("test case message");
+
+        verify(knowledgeBasedExecutionOrchestrator).executeBasedOnKnowledge(any(), eq(testCase), eq(1), any());
+    }
+
+    @Test
+    void executeTestCase_shouldStartTheRunHistory_andFinishItAsPassed_whenTheRunPasses() {
+        TestCase testCase = new TestCase("Run History", null, List.of(), List.of(new TestStep("Action", null, null)));
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
+
+        uiTestAgent.executeTestCase("test case message");
+
+        var order = inOrder(mockRunObserver, mockExecutionRunService, knowledgeBasedExecutionOrchestrator);
+        order.verify(mockRunObserver).taskStarted(testCase);
+        order.verify(mockExecutionRunService).start("Run History");
+        order.verify(knowledgeBasedExecutionOrchestrator).executeBasedOnKnowledge(any(), any(), anyInt(), any());
+        order.verify(mockExecutionRunService).finish(ExecutionRun.Status.PASSED);
+    }
+
+    @Test
+    void executeTestCase_shouldFinishTheRunHistoryAsFailed_whenAStepFails() {
+        TestCase testCase = new TestCase("Run History", null, List.of(), List.of(new TestStep("Action", null, null)));
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
+        when(mockContext.getTestStepExecutionHistory()).thenReturn(List.of(new UiTestStepResult(new TestStep("Action", null, null),
+                TestStepResultStatus.FAILURE, "Not saved", null, null, Instant.now(), Instant.now())));
+
+        uiTestAgent.executeTestCase("test case message");
+
+        verify(mockExecutionRunService).finish(ExecutionRun.Status.FAILED);
+    }
+
+    @Test
+    void executeTestCase_shouldFinishTheRunHistoryWithAnError_whenTheKnowledgeFlowFails() {
+        TestCase testCase = new TestCase("Run History", null, List.of(), List.of(new TestStep("Action", null, null)));
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
+        doThrow(new DatabaseConnectionException("Neo4j is not reachable", null))
+                .when(knowledgeBasedExecutionOrchestrator).executeBasedOnKnowledge(any(), any(), anyInt(), any());
+
+        uiTestAgent.executeTestCase("test case message");
+
+        verify(mockExecutionRunService).finish(ExecutionRun.Status.ERROR);
+    }
+
+    @Test
+    void executeTestCase_shouldFinishTheRunHistoryWithAnError_whenTheStepSelectionFails() {
+        when(configMock.isFullyUnattended()).thenReturn(false);
+        TestCase testCase = new TestCase("Run History", null, List.of(), List.of(new TestStep("Action", null, null)));
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
+        when(mockOperatorPrompts.selectStartingStep(testCase.testSteps())).thenThrow(new IllegalStateException("dialog blew up"));
+
+        uiTestAgent.executeTestCase("test case message");
+
+        verify(mockExecutionRunService).finish(ExecutionRun.Status.ERROR);
+    }
+
+    @Test
+    void executeTestCase_shouldFinishTheRunHistoryAsAborted_whenTheRunIsInterrupted() {
+        TestCase testCase = new TestCase("Run History", null, List.of(), List.of(new TestStep("Action", null, null)));
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
+        doAnswer(_ -> {
+            Thread.currentThread().interrupt();
+            throw new OperatorPromptInterruptedException("cancelled");
+        }).when(knowledgeBasedExecutionOrchestrator).executeBasedOnKnowledge(any(), any(), anyInt(), any());
+
+        try {
+            uiTestAgent.executeTestCase("test case message");
+        } finally {
+            Thread.interrupted();
+        }
+
+        verify(mockExecutionRunService).finish(ExecutionRun.Status.ABORTED);
+    }
+
+    @Test
+    void executeTestCase_shouldNotStartTheRunHistory_whenTheScreenCaptureFailsToStart() {
+        TestCase testCase = new TestCase("Run History", null, List.of(), List.of(new TestStep("Action", null, null)));
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.of(testCase));
+        doThrow(new IllegalStateException("no display")).when(mockScreenRecorder).beginScreenCapture();
+
+        var result = uiTestAgent.executeTestCase("test case message");
+
+        assertThat(result.getTestExecutionStatus()).isEqualTo(TestExecutionStatus.ERROR);
+        verifyNoInteractions(mockExecutionRunService);
+    }
+
+    @Test
+    void executeTestCase_shouldNotStartTheRunHistory_withoutATestCase() {
+        when(testCaseExtractor.extractTestCase(anyString())).thenReturn(Optional.empty());
+
+        uiTestAgent.executeTestCase("test case message");
+
+        verifyNoInteractions(mockExecutionRunService);
     }
 }

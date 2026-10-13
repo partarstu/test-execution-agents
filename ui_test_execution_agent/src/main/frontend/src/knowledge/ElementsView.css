@@ -1,0 +1,140 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Elements: screenshots first, the numbers that judge them under each */
+@layer components {
+  .elements {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem);
+    gap: var(--space-4);
+    align-items: start;
+
+    @container (width < 48rem) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .elements-main {
+    display: grid;
+    align-content: start;
+    gap: var(--space-3);
+
+    & > button {
+      justify-self: start;
+    }
+  }
+
+  .element-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  button.element-tile {
+    display: grid;
+    align-content: start;
+    justify-items: stretch;
+    gap: var(--space-2);
+    inline-size: 100%;
+    block-size: 100%;
+    padding: var(--space-2);
+    text-align: start;
+    font-weight: 400;
+    border-color: var(--rule);
+    border-radius: var(--radius);
+
+    &:hover:not(:disabled) {
+      background: var(--panel);
+      border-color: var(--field-border);
+      box-shadow: var(--shadow-1);
+    }
+
+    &[aria-pressed="true"] {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    & img,
+    & .element-no-image {
+      inline-size: 100%;
+      block-size: 6.5rem;
+      object-fit: contain;
+      background: var(--raised);
+      border-radius: var(--radius-sm);
+    }
+  }
+
+  .element-no-image {
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: var(--space-1);
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+
+  .element-name {
+    font-weight: 650;
+    overflow-wrap: anywhere;
+  }
+
+  .element-stats {
+    display: grid;
+    gap: 0.1rem;
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+
+  .element-stability {
+    display: grid;
+    gap: var(--space-1);
+    margin-block-end: var(--space-1);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .filmstrip {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    & li {
+      display: grid;
+      gap: var(--space-1);
+      font-size: var(--text-sm);
+    }
+
+    & img {
+      justify-self: start;
+      max-inline-size: 100%;
+      max-block-size: 8rem;
+      object-fit: contain;
+      border: 1px solid var(--rule);
+      border-radius: var(--radius-sm);
+    }
+  }
+
+  .filmstrip-text {
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+}

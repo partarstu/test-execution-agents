@@ -1,26 +1,28 @@
 #
-# Copyright © 2025 Taras Paruta (partarstu@gmail.com)
+# ui-test-execution-agent - Agent specializing in execution of UI tests.
+# Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
 # Base Dockerfile for UI Test Execution Agent
-# Provides: Ubuntu 24.04 + Xfce + TigerVNC + noVNC + Google Chrome
+# Provides: Ubuntu 26.04 + Xfce + TigerVNC + Google Chrome
 
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 LABEL maintainer="partarstu@gmail.com"
-LABEL description="Ubuntu 24.04 with Xfce, TigerVNC, noVNC, and Google Chrome for UI testing"
+LABEL description="Ubuntu 26.04 with Xfce, TigerVNC and Google Chrome for UI testing"
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -30,8 +32,6 @@ ENV TZ=Europe/Vienna
 ARG DEFAULT_USER=ubuntu
 ARG DEFAULT_USER_ID=1000
 ARG DEFAULT_GROUP_ID=1000
-ARG VNC_PORT=5901
-ARG NOVNC_PORT=6901
 ARG VNC_RESOLUTION=1920x1080
 ARG VNC_COL_DEPTH=24
 
@@ -45,9 +45,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tigervnc-standalone-server \
     tigervnc-common \
     tigervnc-tools \
-    # noVNC and websockify for web-based VNC access
-    novnc \
-    python3-websockify \
     # Utilities (matching original accetto image)
     wget \
     curl \
@@ -92,14 +89,13 @@ RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd6
     && rm -rf /var/lib/apt/lists/*
 
 # --- Configure Default User ---
-# Ubuntu 24.04 has a default 'ubuntu' user with UID/GID 1000, we use it directly
+# Ubuntu 26.04 has a default 'ubuntu' user with UID/GID 1000, we use it directly
 RUN echo "${DEFAULT_USER}:${DEFAULT_USER}" | chpasswd && \
     usermod -aG sudo ${DEFAULT_USER} && \
     echo "${DEFAULT_USER} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # --- Configure VNC ---
-RUN mkdir -p /home/${DEFAULT_USER}/.vnc \
-    && mkdir -p /home/${DEFAULT_USER}/.config \
+RUN mkdir -p /home/${DEFAULT_USER}/.config/tigervnc \
     && mkdir -p /home/${DEFAULT_USER}/Desktop
 
 # Create VNC startup script
@@ -110,42 +106,31 @@ export XDG_RUNTIME_DIR=/tmp/runtime-ubuntu\n\
 mkdir -p $XDG_RUNTIME_DIR\n\
 chmod 700 $XDG_RUNTIME_DIR\n\
 exec startxfce4\n\
-' > /home/${DEFAULT_USER}/.vnc/xstartup \
-    && chmod +x /home/${DEFAULT_USER}/.vnc/xstartup
+' > /home/${DEFAULT_USER}/.config/tigervnc/xstartup \
+    && chmod +x /home/${DEFAULT_USER}/.config/tigervnc/xstartup
 
 # Create VNC configuration
 RUN echo "geometry=${VNC_RESOLUTION}\n\
 depth=${VNC_COL_DEPTH}\n\
-localhost=no\n\
 alwaysshared\n\
-" > /home/${DEFAULT_USER}/.vnc/config
+" > /home/${DEFAULT_USER}/.config/tigervnc/config
 
 # --- Create Startup Script ---
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
-# Set VNC password\n\
-VNC_PW=${VNC_PW:-"secret"}\n\
-echo "$VNC_PW" | vncpasswd -f > /home/ubuntu/.vnc/passwd\n\
-chmod 600 /home/ubuntu/.vnc/passwd\n\
-chown ubuntu:ubuntu /home/ubuntu/.vnc/passwd\n\
-\n\
 # Set resolution from environment variable\n\
 VNC_RESOLUTION=${VNC_RESOLUTION:-"1920x1080"}\n\
-sed -i "s/^geometry=.*/geometry=$VNC_RESOLUTION/" /home/ubuntu/.vnc/config\n\
+sed -i "s/^geometry=.*/geometry=$VNC_RESOLUTION/" /home/ubuntu/.config/tigervnc/config\n\
 \n\
-# Start VNC server\n\
-echo "Starting VNC server on display :1..."\n\
-su - ubuntu -c "vncserver :1 -geometry $VNC_RESOLUTION -depth 24"\n\
+# Xvnc listens only on a Unix socket of the ubuntu user and asks for no password: the operator panel relays it, and its\n\
+# login is the only credential. Every listener and security option is given here, because the command line overrides\n\
+# both user configuration files. Without live control a viewer only watches; no viewer may resize the display the agent drives.\n\
+if [ "${PANEL_LIVE_CONTROL_ENABLED}" = "true" ]; then VIEWER_INPUT=1; else VIEWER_INPUT=0; fi\n\
+echo "Starting VNC server on display :1 (viewer input: $VIEWER_INPUT)..."\n\
+su - ubuntu -c "vncserver :1 -geometry $VNC_RESOLUTION -depth 24 -localhost yes -rfbport -1 -SecurityTypes None -rfbunixpath /tmp/xvnc.sock -rfbunixmode 0600 -AcceptSetDesktopSize=0 -AcceptPointerEvents=$VIEWER_INPUT -AcceptKeyEvents=$VIEWER_INPUT -AcceptCutText=$VIEWER_INPUT -SendCutText=$VIEWER_INPUT"\n\
 \n\
-# Start noVNC websockify\n\
-NOVNC_PORT=${NOVNC_PORT:-6901}\n\
-echo "Starting noVNC on port $NOVNC_PORT..."\n\
-/usr/share/novnc/utils/novnc_proxy --vnc localhost:5901 --listen $NOVNC_PORT &\n\
-\n\
-echo "VNC server is running. Access via:"\n\
-echo "  - VNC client: localhost:5901"\n\
-echo "  - Web browser (noVNC): http://localhost:$NOVNC_PORT/vnc.html"\n\
+echo "VNC server is running on the Unix socket /tmp/xvnc.sock, without a TCP listener."\n\
 \n\
 # Execute any additional command passed to the container\n\
 if [ -n "$1" ]; then\n\
@@ -184,14 +169,9 @@ RUN chown -R ${DEFAULT_USER}:${DEFAULT_USER} /home/${DEFAULT_USER}
 
 # --- Environment Variables ---
 ENV DISPLAY=:1
-ENV VNC_PORT=${VNC_PORT}
-ENV NOVNC_PORT=${NOVNC_PORT}
 ENV VNC_RESOLUTION=${VNC_RESOLUTION}
 ENV HOME=/home/${DEFAULT_USER}
 ENV USER=${DEFAULT_USER}
-
-# --- Expose Ports ---
-EXPOSE ${VNC_PORT} ${NOVNC_PORT}
 
 # --- Entrypoint ---
 ENTRYPOINT ["/usr/local/bin/startup.sh"]

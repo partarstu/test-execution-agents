@@ -18,7 +18,6 @@
 package org.tarik.ta.knowledge_graph.service;
 
 import org.tarik.ta.UiTestAgentConfig;
-import org.tarik.ta.knowledge_graph.repository.GraphHealthRepository;
 
 import java.io.IOException;
 import java.nio.file.Path;

@@ -28,7 +28,7 @@ import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Startup migration that backfills missing {@code HAS_EFFECT} and {@code HAS_PREREQUISITE}
+ * Startup migration that backfills missing {@code HAS_EFFECT}, {@code HAS_PREREQUISITE} and {@code HAS_NEGATED_EFFECT}
  * {@link org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding} nodes for legacy procedures
  * that were ingested before phrase-node creation was part of the ingestion pipeline.
  */
@@ -50,8 +50,10 @@ class PhraseNodeMigrationService {
 
     @PostConstruct
     void migrateMissingPhraseNodes() {
-        forwardMigration();
-        backwardRepair();
+        StartupDatabaseTasks.runUnlessDatabaseUnreachable("phrase node migration", () -> {
+            forwardMigration();
+            backwardRepair();
+        });
     }
 
     /**
@@ -86,11 +88,10 @@ class PhraseNodeMigrationService {
         LOG.info("Phrase node migration complete: {}/{} procedure(s) migrated", migrated, orphans.size());
     }
 
-    /**
-     * Backward pass: procedures whose node-property lists differ from the ordered phrase nodes get their
-     * node properties repaired. Phrase nodes are the authoritative source.
-     */
+    /** Repairs procedures whose node-property lists differ from their ordered phrase nodes, which are authoritative. */
     private void backwardRepair() {
+        // Unlike the forward pass, a failure here never aborts the startup: the phrase nodes still hold the right values, so the
+        // procedure stays usable and the repair is retried on the next start.
         var mismatches = procedureRepository.findWithPhrasePropertyMismatches();
         if (mismatches.isEmpty()) {
             LOG.debug("Phrase property repair: all procedure node properties are in sync with phrase nodes");
@@ -101,19 +102,21 @@ class PhraseNodeMigrationService {
         int failed = 0;
         for (var mismatch : mismatches) {
             try {
-                procedureRepository.updatePhraseProperties(mismatch.procedure().id(), mismatch.phrasePrerequisites(), mismatch.phraseEffects());
+                procedureRepository.updatePhraseProperties(mismatch.procedure().id(), mismatch.phrasePrerequisites(), mismatch.phraseEffects(),
+                        mismatch.phraseNegatedEffects());
                 repaired++;
                 LOG.debug("Repaired phrase properties for procedure '{}' (id={})", mismatch.procedure().description(), mismatch.procedure().id());
             } catch (Exception e) {
                 var msg = "Phrase property repair failed for procedure '%s' (id=%s)".formatted(mismatch.procedure().description(), mismatch.procedure().id());
-                LOG.error(msg, e);
+                LOG.warn(msg, e);
                 failed++;
             }
         }
         if (failed > 0) {
-            LOG.error("Phrase property repair failed: {}/{} procedure(s) failed to repair", failed, mismatches.size());
-            throw new IllegalStateException(
-                    "Phrase property repair failed for %d procedure(s) — startup aborted. Check logs above for details.".formatted(failed));
+            LOG.warn("Phrase property repair incomplete: {}/{} procedure(s) repaired, {} failed — startup continues, "
+                    + "the phrase nodes remain authoritative and the repair is retried on the next start",
+                    repaired, mismatches.size(), failed);
+            return;
         }
         LOG.info("Phrase property repair complete: {}/{} procedure(s) repaired", repaired, mismatches.size());
     }

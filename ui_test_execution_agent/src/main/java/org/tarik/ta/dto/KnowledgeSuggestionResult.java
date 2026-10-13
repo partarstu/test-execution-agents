@@ -17,39 +17,34 @@
  */
 package org.tarik.ta.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.model.output.structured.Description;
+import org.jetbrains.annotations.NotNull;
 import org.tarik.ta.core.dto.FinalResult;
-import org.tarik.ta.user_dialogs.knowledge.ProcedureDialog;
 
 import java.util.List;
 
+import static com.fasterxml.jackson.annotation.JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY;
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE_IF_LAST;
 
 /**
- * Result from the Knowledge Suggestion Agent containing AI-suggested preconditions,
- * effects, expected results, and child steps for a new procedure whose knowledge is being collected.
- *
- * <p>This result is used by the {@link ProcedureDialog}
- * to pre-populate fields with AI suggestions, which the user can accept, modify, or ignore.</p>
- *
- * <p>Test data is intentionally excluded — it is runtime-specific and comes from the test step at execution time.</p>
- *
- * @param suggestedPreconditions   list of suggested precondition phrases
- * @param suggestedEffects         list of suggested effect phrases (what this procedure achieves)
- * @param suggestedExpectedResults suggested description of expected results
- * @param suggestedChildSteps      list of suggested child steps for composite procedures
- * @param isAtomicSuggestion       true if AI suggests this should be an atomic (indecomposable) step
+ * AI suggestions the procedure editor pre-populates a new procedure with, where {@code isAtomicSuggestion} marks a
+ * procedure the AI deems indecomposable. Test data is excluded because it comes from the test step at execution time.
  */
-@Description("AI-suggested preconditions, effects, expected results, and child steps for a new procedure")
+@Description("AI-suggested preconditions, effects, negated effects, expected results, and child steps for a new procedure")
 public record KnowledgeSuggestionResult(
         @Description("List of suggested precondition phrases that must be true before this procedure can execute")
         List<String> suggestedPreconditions,
         @Description("List of suggested effect phrases that will be true after this procedure executes successfully")
         List<String> suggestedEffects,
-        @Description("Suggested description of expected results after execution")
-        String suggestedExpectedResults,
+        @Description("List of suggested negated-effect phrases: states that were true before this procedure executes and stop being "
+                + "true after it executes successfully, phrased like effects")
+        List<String> suggestedNegatedEffects,
+        @JsonFormat(with = ACCEPT_SINGLE_VALUE_AS_ARRAY)
+        @Description("List of suggested expected-result descriptions after execution")
+        @NotNull List<String> suggestedExpectedResults,
         @Description("List of suggested child steps if this should be a composite procedure")
         List<SuggestedStep> suggestedChildSteps,
         @Description("True if this should be an atomic (indecomposable) step, false if it should be composite")
@@ -75,7 +70,11 @@ public record KnowledgeSuggestionResult(
         return result;
     }
 
+    public @NotNull String suggestedExpectedResultsText() {
+        return suggestedExpectedResults == null ? "" : String.join(System.lineSeparator(), suggestedExpectedResults);
+    }
+
     public static KnowledgeSuggestionResult empty() {
-        return new KnowledgeSuggestionResult(List.of(), List.of(), "", List.of(), true);
+        return new KnowledgeSuggestionResult(List.of(), List.of(), List.of(), List.of(), List.of(), true);
     }
 }

@@ -150,6 +150,21 @@ class CoreA2aSmokeTest {
     }
 
     @Test
+    @DisplayName("message/send carrying the legacy A2A 0.3 push notification config is served with the push config ignored")
+    void messageSendWithLegacyPushNotificationConfigIsServed() {
+        executor.withTestCaseName("Core smoke legacy push").withStep(new TestStep("do the thing", List.of(), "it is done"));
+        startServer(Optional.empty());
+        var params = "{\"message\":{\"messageId\":\"msg-1\",\"role\":\"ROLE_USER\",\"parts\":[{\"text\":\"run\"}]}," +
+                "\"configuration\":{\"pushNotificationConfig\":{\"url\":\"http://localhost:9/push\"}}}";
+
+        Response response = client.postRpc(rpc("message/send", params, 1), null);
+
+        assertThat(response.status()).isEqualTo(200);
+        assertThat(response.body()).doesNotContain("-32602").contains("Core smoke legacy push").contains("PASSED");
+        assertThat(executor.receivedMessages()).containsExactly("run");
+    }
+
+    @Test
     @DisplayName("message/stream streams working status, step + precondition + log artifacts and the final result")
     void messageStreamStreamsAllEventKinds() {
         executor.withTestCaseName("Core smoke stream").withPrecondition("service is reachable")
@@ -224,7 +239,7 @@ class CoreA2aSmokeTest {
             JsonNode cancelJson = MAPPER.readTree(cancel.body());
             assertThat(cancel.status()).isEqualTo(200);
             assertThat(cancelJson.has("error")).isFalse();
-            assertThat(stateOf(cancelJson.path("result"))).isEqualTo("TASK_STATE_CANCELED");
+            assertThat(taskStateOf(cancelJson.path("result"))).isEqualTo("TASK_STATE_CANCELED");
             assertThat(stream.await(inState("TASK_STATE_CANCELED"), STREAM_TIMEOUT))
                     .as("the running task must transition to canceled on the stream").isPresent();
         }
@@ -274,7 +289,7 @@ class CoreA2aSmokeTest {
         JsonNode json = MAPPER.readTree(response.body());
         assertThat(response.status()).isEqualTo(200);
         assertThat(json.has("error")).isFalse();
-        assertThat(stateOf(json.path("result"))).isEqualTo("TASK_STATE_COMPLETED");
+        assertThat(taskStateOf(json.path("result"))).isEqualTo("TASK_STATE_COMPLETED");
     }
 
     @Test
@@ -399,9 +414,13 @@ class CoreA2aSmokeTest {
     private static String stateOf(@NotNull JsonNode result) {
         JsonNode statusUpdate = result.path("statusUpdate");
         if (!statusUpdate.isMissingNode()) {
-            return statusUpdate.path("status").path("state").asText("");
+            return taskStateOf(statusUpdate);
         }
-        return result.path("task").path("status").path("state").asText("");
+        return taskStateOf(result.path("task"));
+    }
+
+    private static String taskStateOf(@NotNull JsonNode task) {
+        return task.path("status").path("state").asText("");
     }
 
     private static Optional<String> taskIdOf(@NotNull JsonNode result) {

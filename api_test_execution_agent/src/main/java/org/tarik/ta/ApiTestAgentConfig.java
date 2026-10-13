@@ -66,10 +66,6 @@ public class ApiTestAgentConfig extends AgentConfig {
     private final ConfigProperty<Boolean> RESPONSE_LOGGING_ENABLED;
 
     // -----------------------------------------------------
-    // Data Loading Configuration
-    private final ConfigProperty<String> TEST_DATA_FOLDER;
-
-    // -----------------------------------------------------
     // Schema Validation Configuration
     private final ConfigProperty<String> API_SCHEMA_FOLDER;
     private final ConfigProperty<String> OPENAPI_SPEC_PATH;
@@ -126,10 +122,6 @@ public class ApiTestAgentConfig extends AgentConfig {
         // Logging and Debugging Configuration
         this.REQUEST_LOGGING_ENABLED = loadProperty("api.request.logging.enabled", "API_REQUEST_LOGGING_ENABLED", "false", Boolean::parseBoolean, false);
         this.RESPONSE_LOGGING_ENABLED = loadProperty("api.response.logging.enabled", "API_RESPONSE_LOGGING_ENABLED", "false", Boolean::parseBoolean, false);
-
-        // -----------------------------------------------------
-        // Data Loading Configuration
-        this.TEST_DATA_FOLDER = loadProperty("api.test.data.folder", "API_TEST_DATA_FOLDER", "test-data", s -> s, false);
 
         // -----------------------------------------------------
         // Schema Validation Configuration
@@ -224,10 +216,6 @@ public class ApiTestAgentConfig extends AgentConfig {
 
     public boolean getResponseLoggingEnabled() {
         return RESPONSE_LOGGING_ENABLED.value();
-    }
-
-    public String getTestDataFolder() {
-        return TEST_DATA_FOLDER.value();
     }
 
     public String getApiSchemaFolder() {

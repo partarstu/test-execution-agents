@@ -31,11 +31,12 @@ import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE_IF_LAST;
 public record UiElementLocationResult(
         @Description("Whether the element was successfully located or created.")
         boolean success,
-        @Description("The UUID of the located or created UI element in the database. Empty if the operation was not successful.")
+        @Description("The short alias of the located or created UI element. Empty if the operation was not successful.")
         String elementId,
         @Description("The name of the located or created UI element. Empty if the operation was not successful.")
         String elementName,
-        @Description("The physical screen region of the located element. Null if the operation was not successful.")
+        @Description("The screen region of the located element, normalized to [0, 1000], exactly as returned by the UI element " +
+                "location tool. Null if the operation was not successful.")
         ScreenRegion elementScreenRegion,
         @Description("A short, user-friendly message explaining the result, especially in case of failure.") String message
 )

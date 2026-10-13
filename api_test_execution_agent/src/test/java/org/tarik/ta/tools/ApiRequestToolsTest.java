@@ -18,9 +18,10 @@
 package org.tarik.ta.tools;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import dev.langchain4j.model.chat.request.json.JsonArraySchema;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import io.restassured.response.Response;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,18 +31,23 @@ import org.tarik.ta.ApiTestAgentConfig;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.model.AuthType;
+import org.tarik.ta.model.HttpHeader;
 import org.tarik.ta.core.model.TestExecutionContext;
+import org.tarik.ta.core.security.SecretRegistry;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static dev.langchain4j.agent.tool.ToolSpecifications.toolSpecificationsFrom;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -106,6 +112,50 @@ class ApiRequestToolsTest {
         assertThat(result).contains("Status: 200");
         assertThat(apiContext.getLastResponse()).isPresent();
         assertThat(apiContext.getLastResponse().get().getBody().asString()).isEqualTo("Success");
+    }
+
+    @Test
+    void sendRequest_shouldKeepTheModelsContentType_whenItsHeaderNameUsesAnotherCase() {
+        wireMockServer.stubFor(post(urlEqualTo("/echo")).willReturn(aResponse().withStatus(200)));
+
+        apiRequestTools.sendRequest("POST", wireMockServer.baseUrl() + "/echo", List.of(new HttpHeader("CONTENT-TYPE", "text/plain")),
+                "hello", AuthType.NONE);
+
+        var contentTypes = wireMockServer.getAllServeEvents().getFirst().getRequest().getHeaders().getHeader("Content-Type").values();
+        assertThat(contentTypes).singleElement().asString().startsWith("text/plain");
+    }
+
+    @Test
+    void sendRequest_shouldFollowTheRedirect_whenItsTargetIsAllowed() {
+        wireMockServer.stubFor(get(urlEqualTo("/old")).willReturn(aResponse().withStatus(302).withHeader("Location", "/new")));
+        wireMockServer.stubFor(get(urlEqualTo("/new")).willReturn(aResponse().withStatus(200).withBody("Moved here")));
+
+        String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/old", null, null, AuthType.NONE);
+
+        assertThat(result).contains("Status: 200").contains("Moved here");
+    }
+
+    @Test
+    void sendRequest_shouldRejectTheRedirect_whenItsTargetIsNotAllowed() {
+        wireMockServer.stubFor(get(urlEqualTo("/redirect"))
+                .willReturn(aResponse().withStatus(302).withHeader("Location", "http://169.254.169.254/computeMetadata/v1/")));
+
+        assertThatThrownBy(() -> apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/redirect", null, null, AuthType.NONE))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("Host '169.254.169.254' is not in the configured outbound allow-list");
+        assertThat(apiContext.getLastResponse()).isEmpty();
+    }
+
+    @Test
+    void uploadFile_shouldRejectTheRedirect_whenItsTargetIsNotAllowed() {
+        wireMockServer.stubFor(post(urlEqualTo("/upload-redirect"))
+                .willReturn(aResponse().withStatus(303).withHeader("Location", "http://internal.example/upload")));
+        String filePath = resourceFilePath("pet-image.png");
+
+        assertThatThrownBy(() -> apiRequestTools.uploadFile(wireMockServer.baseUrl() + "/upload-redirect", filePath, "file", null,
+                AuthType.NONE))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessageContaining("Host 'internal.example' is not in the configured outbound allow-list");
     }
 
     @Test
@@ -175,8 +225,7 @@ class ApiRequestToolsTest {
                 .withQueryParam("q", equalTo("term"))
                 .willReturn(aResponse().withStatus(200)));
 
-        Map<String, String> headers = new HashMap<>();
-        headers.put("X-Custom", "customVal");
+        var headers = List.of(new HttpHeader("X-Custom", "customVal"));
 
         String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/search?q=term", headers,
                 null, AuthType.NONE);
@@ -297,8 +346,7 @@ class ApiRequestToolsTest {
                 .willReturn(aResponse().withStatus(200)));
 
         sharedData.put("myvar", "val");
-        Map<String, String> headers = new HashMap<>();
-        headers.put("X-Var", "${myvar}");
+        var headers = List.of(new HttpHeader("X-Var", "${myvar}"));
 
         String result = apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/headers", headers, null, AuthType.NONE);
 
@@ -447,6 +495,74 @@ class ApiRequestToolsTest {
         Path insideFile = Files.createFile(uploadDir.resolve("inside.txt"));
         OutboundRequestGuard guard = new OutboundRequestGuard(Set.of(), Optional.of(uploadDir.toString()));
         assertThatCode(() -> guard.assertPathAllowed(insideFile.toString())).doesNotThrowAnyException();
+    }
+
+    @Test
+    void sendRequest_shouldSendTheRealSecretButKeepThePlaceholderInTheContext() {
+        SecretRegistry.global().reset(Pattern.compile("(?i).*token.*"));
+        try {
+            SecretRegistry.global().register("authToken", "s3cr3t-token");
+            wireMockServer.stubFor(post(urlEqualTo("/login"))
+                    .willReturn(aResponse().withStatus(200)));
+
+            apiRequestTools.sendRequest("POST", wireMockServer.baseUrl() + "/login",
+                    List.of(new HttpHeader("Authorization", "Bearer {{secret:authToken}}")), "{\"token\":\"{{secret:authToken}}\"}",
+                    AuthType.NONE);
+
+            wireMockServer.verify(postRequestedFor(urlEqualTo("/login"))
+                    .withHeader("Authorization", equalTo("Bearer s3cr3t-token"))
+                    .withRequestBody(equalToJson("{\"token\":\"s3cr3t-token\"}")));
+            verify(testExecutionContext).addSharedData(ApiRequestTools.LAST_REQUEST_URL, wireMockServer.baseUrl() + "/login");
+        } finally {
+            SecretRegistry.global().reset(Pattern.compile("(?!)"));
+        }
+    }
+
+    @Test
+    void sendRequest_shouldSendTheRealSecret_whenTheUrlCarriesASecretPlaceholder() {
+        SecretRegistry.global().reset(Pattern.compile("(?i).*token.*"));
+        try {
+            SecretRegistry.global().register("authToken", "s3cr3t-token");
+            wireMockServer.stubFor(get(urlPathEqualTo("/orders")).willReturn(aResponse().withStatus(200)));
+            var url = wireMockServer.baseUrl() + "/orders?token={{secret:authToken}}";
+
+            String result = apiRequestTools.sendRequest("GET", url, null, null, AuthType.NONE);
+
+            assertThat(result).contains("Status: 200");
+            wireMockServer.verify(getRequestedFor(urlPathEqualTo("/orders")).withQueryParam("token", equalTo("s3cr3t-token")));
+            verify(testExecutionContext).addSharedData(ApiRequestTools.LAST_REQUEST_URL, url);
+        } finally {
+            SecretRegistry.global().reset(Pattern.compile("(?!)"));
+        }
+    }
+
+    @Test
+    void sendRequest_shouldReturnTheErrorWithThePlaceholder_whenTheGuardRejectsAUrlWithAResolvedSecret() {
+        SecretRegistry.global().reset(Pattern.compile("(?i).*token.*"));
+        try {
+            SecretRegistry.global().register("authToken", "s3cr3t token");
+
+            assertThatThrownBy(() -> apiRequestTools.sendRequest("GET", wireMockServer.baseUrl() + "/orders?token={{secret:authToken}}",
+                    null, null, AuthType.NONE))
+                    .isInstanceOf(ToolExecutionException.class)
+                    .hasMessageContaining("{{secret:authToken}}")
+                    .hasMessageNotContaining("s3cr3t token");
+        } finally {
+            SecretRegistry.global().reset(Pattern.compile("(?!)"));
+        }
+    }
+
+    @Test
+    void sendRequest_shouldPublishTheHeadersAsAListOfNameValueObjects() {
+        var sendRequest = toolSpecificationsFrom(ApiRequestTools.class).stream()
+                .filter(specification -> specification.name().equals("sendRequest"))
+                .findFirst()
+                .orElseThrow();
+
+        var headers = sendRequest.parameters().properties().get("headers");
+
+        assertThat(headers).isInstanceOfSatisfying(JsonArraySchema.class, array -> assertThat(array.items())
+                .isInstanceOfSatisfying(JsonObjectSchema.class, item -> assertThat(item.properties()).containsOnlyKeys("name", "value")));
     }
 
     private static String testResourcesDir() {

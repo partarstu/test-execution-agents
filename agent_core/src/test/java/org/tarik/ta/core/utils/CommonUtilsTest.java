@@ -22,9 +22,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
@@ -333,5 +336,41 @@ class CommonUtilsTest {
         Instant start = Instant.now().minusMillis(500);
         long duration = CommonUtils.getDurationInMillis(start);
         assertTrue(duration >= 500);
+    }
+
+    @Test
+    void shutDownGracefully_ShouldLetARunningTaskFinish_WhenItEndsWithinTheGracePeriod() throws Exception {
+        var executor = Executors.newVirtualThreadPerTaskExecutor();
+        var release = new CountDownLatch(1);
+        var task = executor.submit(() -> {
+            release.await();
+            return "done";
+        });
+        release.countDown();
+
+        CommonUtils.shutDownGracefully(executor, Duration.ofSeconds(10));
+
+        assertTrue(executor.isTerminated());
+        assertEquals("done", task.get());
+    }
+
+    @Test
+    void shutDownGracefully_ShouldInterruptARunningTask_WhenTheGracePeriodPasses() throws Exception {
+        var executor = Executors.newVirtualThreadPerTaskExecutor();
+        var started = new CountDownLatch(1);
+        var interrupted = new CountDownLatch(1);
+        executor.submit(() -> {
+            started.countDown();
+            try {
+                new CountDownLatch(1).await();
+            } catch (InterruptedException _) {
+                interrupted.countDown();
+            }
+        });
+        started.await();
+
+        CommonUtils.shutDownGracefully(executor, Duration.ofMillis(50));
+
+        assertTrue(interrupted.await(10, TimeUnit.SECONDS));
     }
 }

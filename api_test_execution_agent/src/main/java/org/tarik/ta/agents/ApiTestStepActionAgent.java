@@ -17,11 +17,13 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
 import org.tarik.ta.core.agents.GenericAiAgent;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
+
+import java.util.List;
 
 /**
  * Agent responsible for executing and verifying API test step actions.
@@ -44,20 +46,7 @@ import org.tarik.ta.core.dto.VerificationExecutionResult;
  */
 public interface ApiTestStepActionAgent extends GenericAiAgent<VerificationExecutionResult> {
 
-    @UserMessage("""
-            Test step action: {{testStep}}
-            
-            Expected results to verify: {{expectedResults}}
-            
-            Data related to the test step: {{testData}}
-            
-            Test context data: {{sharedData}}
-            """)
-    Result<String> execute(
-            @V("testStep") String testStep,
-            @V("expectedResults") String expectedResults,
-            @V("testData") String testData,
-            @V("sharedData") String sharedData);
+    Result<String> execute(@UserMessage List<Content> userMessage);
 
 
     @Override

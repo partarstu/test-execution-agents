@@ -17,9 +17,14 @@
  */
 package org.tarik.ta.dto;
 
+import dev.langchain4j.model.output.structured.Description;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.UUID;
-
-public record ElementCreationResult(boolean success, @Nullable UUID elementId, @Nullable String elementName, String message) {
+@Description("Result of creating a UI element in the database")
+public record ElementCreationResult(
+        @Description("Whether the UI element was created successfully") boolean success,
+        @Description("Short alias of the created UI element, or null when creation failed") @Nullable String elementId,
+        @Description("Name of the created UI element, or null when creation failed") @Nullable String elementName,
+        @Description("Short message explaining the creation result") @NotNull String message) {
 }

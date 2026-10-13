@@ -23,7 +23,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
@@ -90,5 +89,50 @@ class DecompositionServiceTest {
 
         assertThat(result).hasSize(2);
         assertThat(result).containsExactly(child1, child2);
+    }
+
+    @Test
+    @DisplayName("getChildrenOrdered should reuse the traversal performed by decompose")
+    void getChildrenOrdered_shouldReuseDecompositionTraversal() {
+        UUID rootId = UUID.randomUUID();
+        Procedure root = Procedure.createComposite("root", List.of(), "results", List.of(), List.of(), false);
+        Procedure child1 = Procedure.createAtomic("child1", List.of(), "results", List.of(), List.of(), false);
+        Procedure child2 = Procedure.createAtomic("child2", List.of(), "results", List.of(), List.of(), false);
+
+        when(mockRepository.findById(any())).thenReturn(Optional.of(root));
+        when(mockRepository.findChildrenOrdered(root.id())).thenReturn(List.of(child1, child2));
+
+        decompositionService.decompose(rootId);
+        List<Procedure> children = decompositionService.getChildrenOrdered(root.id());
+
+        assertThat(children).containsExactly(child1, child2);
+        verify(mockRepository, times(1)).findChildrenOrdered(root.id());
+    }
+
+    @Test
+    @DisplayName("getChildrenOrdered should query the repository for a parent not yet traversed")
+    void getChildrenOrdered_shouldQueryRepository_whenNotCached() {
+        Procedure child = Procedure.createAtomic("child", List.of(), "results", List.of(), List.of(), false);
+        UUID parentId = UUID.randomUUID();
+
+        when(mockRepository.findChildrenOrdered(parentId)).thenReturn(List.of(child));
+
+        assertThat(decompositionService.getChildrenOrdered(parentId)).containsExactly(child);
+        verify(mockRepository, times(1)).findChildrenOrdered(parentId);
+    }
+
+    @Test
+    @DisplayName("invalidateCache should clear cached children")
+    void invalidateCache_shouldClearCachedChildren() {
+        Procedure child = Procedure.createAtomic("child", List.of(), "results", List.of(), List.of(), false);
+        UUID parentId = UUID.randomUUID();
+
+        when(mockRepository.findChildrenOrdered(parentId)).thenReturn(List.of(child));
+
+        decompositionService.getChildrenOrdered(parentId);
+        decompositionService.invalidateCache();
+        decompositionService.getChildrenOrdered(parentId);
+
+        verify(mockRepository, times(2)).findChildrenOrdered(parentId);
     }
 }

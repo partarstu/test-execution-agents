@@ -95,4 +95,5 @@ class ImageUtilsTest {
         ColorModel colorModel = ColorModel.getRGBdefault();
         return new BufferedImage(colorModel, colorModel.createCompatibleWritableRaster(1, 1), colorModel.isAlphaPremultiplied(), null);
     }
+
 }

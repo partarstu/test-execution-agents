@@ -1,0 +1,70 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  .crop {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .crop-canvas {
+    position: relative;
+    justify-self: start;
+    max-inline-size: 100%;
+    overflow: hidden;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    cursor: crosshair;
+    touch-action: none;
+    user-select: none;
+
+    & img {
+      display: block;
+      max-inline-size: 100%;
+    }
+  }
+
+  .crop-area {
+    position: absolute;
+    border: 2px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    box-shadow: 0 0 0 9999px rgb(0 0 0 / 35%);
+    pointer-events: none;
+  }
+
+  .crop-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin: 0;
+    padding: 0;
+    border: 0;
+
+    & legend {
+      margin-block-end: var(--space-1);
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+
+    & label {
+      display: grid;
+      gap: var(--space-1);
+      inline-size: 6.5rem;
+      font-size: var(--text-sm);
+    }
+  }
+}

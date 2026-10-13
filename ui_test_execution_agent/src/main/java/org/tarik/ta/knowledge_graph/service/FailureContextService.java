@@ -52,11 +52,19 @@ public class FailureContextService {
     }
 
     public List<String> findFailureHints(UUID procedureId) {
-        var hints = failureContextRepository.findFailureContexts(procedureId).stream()
+        var hints = failureContextRepository.findFailureContexts(procedureId, config.getFailureHintsMaxCount()).stream()
                 .map(fc -> "[%s] %s -> %s".formatted(fc.category().name(), fc.symptom(), fc.resolution()))
                 .toList();
         LOG.debug("Found {} failure hint(s) for procedure '{}'", hints.size(), procedureId);
         return hints;
+    }
+
+    public void expireStaleHints() {
+        int staleDays = config.getFailureHintsStaleDays();
+        int expired = failureContextRepository.expireStale(staleDays);
+        int deleted = failureContextRepository.deleteLongExpired(staleDays);
+        LOG.info("Failure hint expiry: expired {} hint(s) without recurrence in {} days, deleted {} hint(s) expired longer than that",
+                expired, staleDays, deleted);
     }
 
     public void cleanupOrphanedFailureContexts() {

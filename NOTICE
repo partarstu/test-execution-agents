@@ -17,6 +17,8 @@ components. Each component is provided under its own license; the canonical
 license texts and upstream NOTICE files are obtainable from each component's
 project page listed below.
 
+Direct runtime dependencies and the packages bundled into the UI agent's operator panel are listed in full. Transitive Java dependencies under permissive licenses (Apache-2.0, MIT, BSD, ISC) ship their own license and notice files inside their artifacts and are not listed individually; every transitive dependency under any other license is listed.
+
 --------------------------------------------------------------------------------
 Apache License, Version 2.0  -  <https://www.apache.org/licenses/LICENSE-2.0>
 --------------------------------------------------------------------------------
@@ -25,26 +27,35 @@ Apache License, Version 2.0  -  <https://www.apache.org/licenses/LICENSE-2.0>
     io.avaje:avaje-inject, avaje-inject-generator
     https://avaje.io/inject/
 
-  * LangChain4j family
+  * LangChain4j family (langchain4j-embeddings-bge-small-en-v15 bundles the MIT-licensed BAAI bge-small-en-v1.5 model)
     dev.langchain4j:langchain4j, langchain4j-core, langchain4j-open-ai,
     langchain4j-vertex-ai-gemini, langchain4j-vertex-ai-anthropic,
-    langchain4j-google-ai-gemini, langchain4j-anthropic, langchain4j-chroma,
-    langchain4j-qdrant, langchain4j-embeddings,
-    langchain4j-embeddings-bge-small-en-v15, langchain4j-community-neo4j
+    langchain4j-google-ai-gemini, langchain4j-anthropic, langchain4j-http-client-jdk,
+    langchain4j-embeddings, langchain4j-embeddings-bge-small-en-v15
     https://github.com/langchain4j/langchain4j
 
+  * Neo4j Java Driver
+    org.neo4j.driver:neo4j-java-driver
+    https://github.com/neo4j/neo4j-java-driver
+
   * A2A Java SDK
-    org.a2aproject.sdk:a2a-java-sdk-server-common,
-    a2a-java-sdk-transport-jsonrpc, a2a-java-sdk-jsonrpc-common
+    org.a2aproject.sdk:a2a-java-sdk-server-common, a2a-java-sdk-transport-jsonrpc, a2a-java-sdk-jsonrpc-common, a2a-java-sdk-spec-grpc
     https://github.com/a2aproject/a2a-java
 
-  * Javalin
-    io.javalin:javalin
+  * Javalin and its SSL plugin
+    io.javalin:javalin, io.javalin.community.ssl:javalin-ssl
     https://javalin.io/
 
-  * Jackson (databind, jsonSchema module, JSR-310 datatype)
+  * Eclipse Jetty (dual-licensed EPL-2.0 OR Apache-2.0, used under Apache-2.0)
+    org.eclipse.jetty.websocket:jetty-websocket-jetty-api, org.eclipse.jetty.ee10.websocket:jetty-ee10-websocket-jetty-server, org.eclipse.jetty.http2:jetty-http2-server, org.eclipse.jetty:jetty-alpn-java-server, and the Jetty modules they depend on
+    https://jetty.org/
+
+  * Ayza (TLS configuration used by the Javalin SSL plugin)
+    io.github.hakky54:ayza, ayza-for-pem, ayza-for-jetty, sude, laleler, desidero
+    https://github.com/Hakky54/ayza
+
+  * Jackson (databind, JSR-310 datatype)
     com.fasterxml.jackson.core:jackson-databind,
-    com.fasterxml.jackson.module:jackson-module-jsonSchema,
     com.fasterxml.jackson.datatype:jackson-datatype-jsr310
     https://github.com/FasterXML/jackson
 
@@ -56,6 +67,18 @@ Apache License, Version 2.0  -  <https://www.apache.org/licenses/LICENSE-2.0>
     org.apache.commons:commons-math3, commons-text
     https://commons.apache.org/
 
+  * Apache HttpComponents
+    org.apache.httpcomponents:httpclient, httpcore
+    https://hc.apache.org/
+
+  * OpenTelemetry Java
+    io.opentelemetry:opentelemetry-api, opentelemetry-sdk, opentelemetry-sdk-metrics, opentelemetry-sdk-extension-autoconfigure, opentelemetry-exporter-otlp
+    https://github.com/open-telemetry/opentelemetry-java
+
+  * Logstash Logback Encoder (dual-licensed Apache-2.0 OR MIT, used under Apache-2.0)
+    net.logstash.logback:logstash-logback-encoder
+    https://github.com/logfellow/logstash-logback-encoder
+
   * JetBrains Java Annotations
     org.jetbrains:annotations
     https://github.com/JetBrains/java-annotations
@@ -64,17 +87,29 @@ Apache License, Version 2.0  -  <https://www.apache.org/licenses/LICENSE-2.0>
     io.rest-assured:rest-assured, json-schema-validator
     https://rest-assured.io/
 
+  * java-json-tools (dual-licensed Apache-2.0 OR LGPL-3.0-or-later, used under Apache-2.0; transitive through REST Assured's json-schema-validator)
+    com.github.java-json-tools:json-schema-validator, json-schema-core, json-patch, jackson-coreutils, jackson-coreutils-equivalence, msg-simple, btf, uri-template
+    https://github.com/java-json-tools
+
+  * Swagger Parser
+    io.swagger.parser.v3:swagger-parser-core
+    https://github.com/swagger-api/swagger-parser
+
   * OpenCSV
     com.opencsv:opencsv
     https://opencsv.sourceforge.net/
 
-  * Atlassian Swagger Request Validator
-    com.atlassian.oai:swagger-request-validator-restassured
+  * Atlassian OpenAPI Request Validator
+    com.atlassian.oai:openapi-request-validator-core
     https://bitbucket.org/atlassian/swagger-request-validator/
 
-  * Bytedeco JavaCV and Java bindings for OpenCV, OpenBLAS and FFmpeg
-    org.bytedeco:javacv, opencv, openblas, ffmpeg
+  * Bytedeco JavaCPP, JavaCV and the JavaCPP Presets (dual-licensed Apache-2.0 OR GPL-2.0-or-later with the Classpath Exception, used under Apache-2.0)
+    org.bytedeco:javacpp, javacv, opencv, openblas, ffmpeg, and the Java-only presets javacv depends on (artoolkitplus, flycapture, leptonica, libdc1394, libfreenect, libfreenect2, librealsense, librealsense2, tesseract, videoinput); native binaries are included only for OpenCV, OpenBLAS and FFmpeg
     https://github.com/bytedeco/javacv
+
+  * Java Native Access (dual-licensed Apache-2.0 OR LGPL-2.1-or-later, used under Apache-2.0)
+    net.java.dev.jna:jna
+    https://github.com/java-native-access/jna
 
   * AssertJ Core
     org.assertj:assertj-core
@@ -88,14 +123,90 @@ MIT License  -  <https://opensource.org/licenses/MIT>
     org.slf4j:slf4j-api
     https://www.slf4j.org/
 
+  * React and React DOM (bundled into the UI agent's operator panel)
+    npm: react, react-dom
+    https://react.dev/
+
+  * Bouncy Castle (Bouncy Castle Licence, an MIT-style licence)
+    org.bouncycastle:bcpkix-jdk18on, bcutil-jdk18on, bcprov-jdk18on
+    https://www.bouncycastle.org/licence.html
+
+  * three.js and three-forcegraph (bundled into the UI agent's operator panel)
+    npm: three, three-forcegraph
+    https://threejs.org/
+
+  * Other packages bundled into the UI agent's operator panel as dependencies of the ones above
+    npm: scheduler, d3-binarytree, d3-force-3d, d3-octree, accessor-fn, data-bind-mapper, kapsule, tinycolor2, ngraph.merge, lodash-es
+    https://www.npmjs.com/ (each package's page links its source repository)
+
 --------------------------------------------------------------------------------
-Dual License: Eclipse Public License 1.0 / GNU Lesser General Public License 2.1
-  <https://www.eclipse.org/legal/epl-v10.html>
+BSD 3-Clause License  -  <https://opensource.org/licenses/BSD-3-Clause>
+--------------------------------------------------------------------------------
+
+  * Google Auth Library for Java
+    com.google.auth:google-auth-library-oauth2-http
+    https://github.com/googleapis/google-auth-library-java
+
+  * ngraph (bundled into the UI agent's operator panel as a dependency of three-forcegraph)
+    npm: ngraph.graph, ngraph.forcelayout, ngraph.events, ngraph.random
+    https://github.com/anvaka/ngraph
+
+--------------------------------------------------------------------------------
+ISC License  -  <https://opensource.org/licenses/ISC>
+--------------------------------------------------------------------------------
+
+  * D3 modules (bundled into the UI agent's operator panel as dependencies of three-forcegraph)
+    npm: d3-array, d3-color, d3-dispatch, d3-format, d3-interpolate, d3-quadtree, d3-scale, d3-scale-chromatic, d3-time, d3-time-format, d3-timer, internmap
+    https://d3js.org/
+
+  * Lucide icons (bundled into the UI agent's operator panel; the icons derived from Feather are under the MIT License, Copyright (c) 2013-present Cole Bemis)
+    npm: lucide-react
+    https://lucide.dev/
+
+--------------------------------------------------------------------------------
+SIL Open Font License, Version 1.1  -  <https://openfontlicense.org/>
+--------------------------------------------------------------------------------
+
+  * Atkinson Hyperlegible Next and Atkinson Hyperlegible Mono (fonts bundled unmodified into the UI agent's operator panel)
+    npm: @fontsource-variable/atkinson-hyperlegible-next, @fontsource-variable/atkinson-hyperlegible-mono
+    https://github.com/googlefonts/atkinson-hyperlegible-next
+
+--------------------------------------------------------------------------------
+Mozilla Public License, Version 2.0  -  <https://www.mozilla.org/MPL/2.0/>
+--------------------------------------------------------------------------------
+
+  * noVNC 1.7.0 (bundled unmodified into the UI agent's operator panel)
+    npm: @novnc/novnc
+    Source code: https://github.com/novnc/noVNC/tree/v1.7.0
+
+  * Mozilla Rhino 1.7.7.2 (used unmodified, transitive through REST Assured's json-schema-validator)
+    org.mozilla:rhino
+    Source code: https://github.com/mozilla/rhino
+
+--------------------------------------------------------------------------------
+Eclipse Public License 2.0 OR GNU General Public License 2.0 with the Classpath Exception, used here under EPL-2.0  -  <https://www.eclipse.org/legal/epl-2.0/>
+--------------------------------------------------------------------------------
+
+  * Jakarta EE APIs (used unmodified, transitive through Jetty and the A2A Java SDK)
+    jakarta.annotation:jakarta.annotation-api, jakarta.el:jakarta.el-api, jakarta.interceptor:jakarta.interceptor-api, jakarta.servlet:jakarta.servlet-api, jakarta.transaction:jakarta.transaction-api
+    https://jakarta.ee/
+
+--------------------------------------------------------------------------------
+Common Development and Distribution License 1.1 OR GNU General Public License 2.0 with the Classpath Exception, used here under CDDL-1.1  -  <https://spdx.org/licenses/CDDL-1.1.html>
+--------------------------------------------------------------------------------
+
+  * Java EE APIs (used unmodified; javax.annotation-api is transitive through LangChain4j's Vertex AI Gemini client, mailapi through REST Assured's json-schema-validator)
+    javax.annotation:javax.annotation-api, com.sun.mail:mailapi
+    https://javaee.github.io/
+
+--------------------------------------------------------------------------------
+Eclipse Public License 2.0 OR GNU Lesser General Public License 2.1, used here under EPL-2.0
+  <https://www.eclipse.org/legal/epl-2.0/>
   <https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html>
 --------------------------------------------------------------------------------
 
-  * Logback Classic
-    ch.qos.logback:logback-classic
+  * Logback (used unmodified)
+    ch.qos.logback:logback-classic, logback-core
     https://logback.qos.ch/
 
 --------------------------------------------------------------------------------
@@ -108,7 +219,28 @@ the original projects:
 
   * OpenCV  -  Apache License 2.0  -  https://opencv.org/
   * OpenBLAS  -  BSD 3-Clause License  -  https://www.openblas.net/
-  * FFmpeg  -  GNU LGPL 2.1+ or GNU GPL 2.0+, depending on build configuration
+  * FFmpeg  -  GNU LGPL v3: Bytedeco's default build, loaded dynamically and replaceable; the GPL-enabled "-gpl" builds are not used
     https://ffmpeg.org/legal.html
+
+--------------------------------------------------------------------------------
+Software installed into the Docker images at build time (not redistributed by this project)
+--------------------------------------------------------------------------------
+
+The Dockerfiles download the following software from its publishers while an image is built. Whoever builds an image obtains this software directly from its publisher under the publisher's terms.
+
+  * Google Chrome (UI agent base image)  -  proprietary freeware under the Google Terms of Service and the Google Chrome Additional Terms of Service; the license is personal and forbids copying or distributing Chrome, so images that contain it must not be distributed to others, each user builds their own
+    https://www.google.com/chrome/terms/
+  * Ubuntu 26.04 packages (UI agent base image: Xfce, TigerVNC and the other packages it installs)  -  their own licenses, mostly GPL and LGPL, installed from the Ubuntu archive and run as separate programs
+    https://ubuntu.com/legal/open-source-licences
+  * Amazon Corretto  -  GNU GPL 2.0 with the Classpath Exception
+    https://aws.amazon.com/corretto/
+  * vLLM (Holo model-serving image)  -  Apache License 2.0
+    https://github.com/vllm-project/vllm
+
+--------------------------------------------------------------------------------
+AI models (downloaded by the deployer, not redistributed by this project)
+--------------------------------------------------------------------------------
+
+  * Hcompany/Holo-3.1 models  -  Apache License 2.0  -  https://huggingface.co/Hcompany
 
 ================================================================================

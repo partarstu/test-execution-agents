@@ -17,18 +17,19 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 import org.tarik.ta.core.agents.GenericAiAgent;
 import org.tarik.ta.dto.UiElementLocationResult;
 
+import java.util.List;
+
 /**
- * AI agent that resolves (locates and, if needed, creates in DB) a UI element for an atomic collecting knowledge procedure.
- *
- * <p>This agent is a one-shot sub-agent scoped to a single element resolution operation.
- * It uses {@link UiElementLocationResult#endExecutionAndGetFinalResult} as its terminal tool,
- * which signals completion with the resolved element's UUID, name, and bounding box.
+ * One-shot sub-agent that resolves a UI element for an atomic knowledge-collecting procedure, locating it and creating it in the
+ * DB if needed. It ends through {@link UiElementLocationResult#endExecutionAndGetFinalResult}, which returns the resolved
+ * element's alias, name and bounding box.
  */
 public interface UiElementResolutionAgent extends GenericAiAgent<UiElementLocationResult> {
     String DESCRIPTION_EXTRACTION_WORKFLOW_PART =
@@ -62,15 +63,8 @@ public interface UiElementResolutionAgent extends GenericAiAgent<UiElementLocati
                %s
             """.formatted(CREATE_UI_ELEMENT_IN_DB_WORKFLOW_PART, VISUAL_GROUNDING_WORKFLOW_PART);
 
-    @UserMessage("""
-            {{descriptionLabel}}: {{description}}
-
-            Data related to the element: {{relatedData}}
-            """)
     Result<String> resolveForAction(
-            @V("descriptionLabel") String descriptionLabel,
-            @V("description") String description,
-            @V("relatedData") String relatedData,
+            @UserMessage List<Content> userMessage,
             // This one is a placeholder in the system prompt
             @V("execution_workflow") String executionWorkflow);
 

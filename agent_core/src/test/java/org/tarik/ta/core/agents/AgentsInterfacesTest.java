@@ -17,11 +17,10 @@
  */
 package org.tarik.ta.core.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.service.Result;
 import org.junit.jupiter.api.Test;
-import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.dto.FinalResult;
-import org.tarik.ta.core.error.RetryPolicy;
 
 import java.util.List;
 
@@ -35,7 +34,7 @@ class AgentsInterfacesTest {
     void testCaseExtractionAgentDefaults() {
         TestCaseExtractionAgent agent = new TestCaseExtractionAgent() {
             @Override
-            public Result<String> extractTestCase(String userRequest) {
+            public Result<String> extractTestCase(List<Content> userRequest) {
                 return null;
             }
         };

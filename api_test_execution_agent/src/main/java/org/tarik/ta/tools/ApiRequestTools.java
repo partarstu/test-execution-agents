@@ -26,23 +26,30 @@ import org.tarik.ta.ApiAgentRequestScope;
 import org.tarik.ta.context.ApiContext;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.core.model.TestExecutionContext;
+import org.tarik.ta.core.security.SecretRegistry;
 import org.tarik.ta.model.AuthType;
+import org.tarik.ta.model.HttpHeader;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.tarik.ta.ApiTestAgentConfig;
 
 import java.io.File;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static io.restassured.RestAssured.config;
 import static io.restassured.RestAssured.given;
+import static io.restassured.config.HttpClientConfig.httpClientConfig;
 import static java.util.Optional.ofNullable;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.core.utils.CommonUtils.getEnvironmentVariable;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
+import static org.tarik.ta.tools.OutboundRequestGuard.isAbsoluteHttpUrl;
 import org.tarik.ta.core.tools.AbstractTools;
 
 @ApiAgentRequestScope
@@ -55,19 +62,22 @@ public class ApiRequestTools extends AbstractTools {
     private final ApiTestAgentConfig config;
     private final OutboundRequestGuard outboundRequestGuard;
     private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
+    private static final String CONTENT_TYPE_HEADER = "Content-Type";
+    private static final String TARGET_URL_DESCRIPTION = "The target URL: an absolute URL, or a path starting with '/' when the test " +
+            "case names no host, which is resolved against the configured base URI";
 
     public ApiRequestTools(ApiContext apiContext, TestExecutionContext testExecutionContext, ApiTestAgentConfig config) {
         this.apiContext = apiContext;
         this.testExecutionContext = testExecutionContext;
         this.config = config;
-        this.outboundRequestGuard = new OutboundRequestGuard(config.getOutboundHostAllowlist(), config.getUploadBaseDir());
+        this.outboundRequestGuard = OutboundRequestGuard.from(config);
     }
 
     @Tool("Sends an HTTP request.")
     public String sendRequest(
             @P("HTTP method (GET, POST, PUT, DELETE, etc.)") String method,
-            @P("The fully qualified absolute target URL") String url,
-            @P(value = "Optional headers map", required = false) Map<String, String> headers,
+            @P(TARGET_URL_DESCRIPTION) String url,
+            @P(value = "Optional request headers", required = false) List<HttpHeader> headers,
             @P(value = "Request body", required = false) String body,
             @P(value = "Authentication type. If not specified, the configured default will be used.", required = false) AuthType authType) {
         if (isBlank(method)) {
@@ -81,8 +91,11 @@ public class ApiRequestTools extends AbstractTools {
 
         try {
             String resolvedUrl = resolveVariables(url);
+            // The HTTP request is the boundary that consumes a secret, so the placeholders are resolved here and
+            // nowhere else: the URL kept in the context and written to the log keeps carrying the placeholder.
+            String targetUrl = resolveSecrets(resolvedUrl);
             String resolvedBody = resolveVariables(body);
-            RequestSpecification request = given().filter(apiContext.getCookieFilter());
+            RequestSpecification request = newRequest();
             if (apiContext.isRelaxedHttpsValidation()) {
                 request.relaxedHTTPSValidation();
             }
@@ -92,31 +105,36 @@ public class ApiRequestTools extends AbstractTools {
                 request.proxy(apiContext.getProxyHost().get(), apiContext.getProxyPort().orElse(8080));
             }
 
-            Map<String, String> requestHeaders = headers != null ? new HashMap<>(headers) : new HashMap<>();
+            Map<String, String> requestHeaders = toHeaderMap(headers);
 
-            if (!requestHeaders.containsKey("Content-Type") && !requestHeaders.containsKey("content-type")) {
-                requestHeaders.put("Content-Type", config.getDefaultContentType());
+            if (requestHeaders.keySet().stream().noneMatch(CONTENT_TYPE_HEADER::equalsIgnoreCase)) {
+                requestHeaders.put(CONTENT_TYPE_HEADER, config.getDefaultContentType());
             }
 
-            requestHeaders.forEach((k, v) -> request.header(resolveVariables(k), resolveVariables(v)));
+            addHeaders(request, requestHeaders);
 
             if (resolvedBody != null && !resolvedBody.isEmpty()) {
-                request.body(resolvedBody);
+                request.body(resolveSecrets(resolvedBody));
             }
 
             applyAuth(request, effectiveAuthType);
 
-            outboundRequestGuard.assertHostAllowed(toAbsoluteUrl(resolvedUrl));
+            outboundRequestGuard.assertHostAllowed(toAbsoluteUrl(targetUrl));
             LOG.info("Sending {} request to {} with auth type {}", method, resolvedUrl, effectiveAuthType);
-            Response response = request.request(method, resolvedUrl);
+            Response response = request.request(method, targetUrl);
             apiContext.setLastResponse(response);
             testExecutionContext.addSharedData(LAST_REQUEST_METHOD, method);
             testExecutionContext.addSharedData(LAST_REQUEST_URL, resolvedUrl);
             return "Request sent. Status: %s. Response body: '%s'".formatted(response.getStatusCode(),
-                    ofNullable(response.getBody()).map(ResponseBody::prettyPrint).orElse(""));
+                    ofNullable(response.getBody()).map(ResponseBody::asPrettyString).orElse(""));
         } catch (Exception e) {
             throw rethrowAsToolException(e, "sending request to " + url);
         }
+    }
+
+    private RequestSpecification newRequest() {
+        var httpClientConfig = httpClientConfig().httpClientFactory(outboundRequestGuard::newRedirectGuardedHttpClient);
+        return given().config(config().httpClient(httpClientConfig)).filter(apiContext.getCookieFilter());
     }
 
     @Tool("Retrieves the last API response information including status code, body, and headers. Use this tool when the test step requires access to the previous API response data.")
@@ -143,10 +161,10 @@ public class ApiRequestTools extends AbstractTools {
     @Tool("Uploads a file using multipart/form-data.")
 
     public String uploadFile(
-            @P("The fully qualified absolute target URL") String url,
+            @P(TARGET_URL_DESCRIPTION) String url,
             @P("Absolute path to the file to upload") String filePath,
             @P("Multipart name for the file") String multipartName,
-            @P(value = "Headers map", required = false) Map<String, String> headers,
+            @P(value = "Optional request headers", required = false) List<HttpHeader> headers,
             @P(value = "Authentication type. If not specified, the configured default will be used.", required = false) AuthType authType) {
         if (isBlank(url)) {
             throw new ToolExecutionException("URL cannot be null or empty", TRANSIENT_TOOL_ERROR);
@@ -162,6 +180,7 @@ public class ApiRequestTools extends AbstractTools {
 
         try {
             String resolvedUrl = resolveVariables(url);
+            String targetUrl = resolveSecrets(resolvedUrl);
             String resolvedFilePath = resolveVariables(filePath);
             File file = new File(resolvedFilePath);
 
@@ -169,12 +188,10 @@ public class ApiRequestTools extends AbstractTools {
                 throw new ToolExecutionException("File not found at " + resolvedFilePath, TRANSIENT_TOOL_ERROR);
             }
 
-            outboundRequestGuard.assertHostAllowed(toAbsoluteUrl(resolvedUrl));
+            outboundRequestGuard.assertHostAllowed(toAbsoluteUrl(targetUrl));
             outboundRequestGuard.assertPathAllowed(resolvedFilePath);
 
-            RequestSpecification request = given()
-                    .filter(apiContext.getCookieFilter())
-                    .multiPart(multipartName, file);
+            RequestSpecification request = newRequest().multiPart(multipartName, file);
 
             if (apiContext.isRelaxedHttpsValidation()) {
                 request.relaxedHTTPSValidation();
@@ -182,14 +199,12 @@ public class ApiRequestTools extends AbstractTools {
 
             apiContext.getBaseUri().ifPresent(request::baseUri);
 
-            if (headers != null) {
-                headers.forEach((k, v) -> request.header(resolveVariables(k), resolveVariables(v)));
-            }
+            addHeaders(request, toHeaderMap(headers));
 
             applyAuth(request, effectiveAuthType);
 
             LOG.info("Uploading file {} to {} with auth type {}", resolvedFilePath, resolvedUrl, effectiveAuthType);
-            Response response = request.post(resolvedUrl);
+            Response response = request.post(targetUrl);
             apiContext.setLastResponse(response);
 
             return "File uploaded. Status: " + response.getStatusCode();
@@ -247,10 +262,31 @@ public class ApiRequestTools extends AbstractTools {
      * own and would otherwise always be blocked.
      */
     private String toAbsoluteUrl(String url) {
-        if (url.regionMatches(true, 0, "http://", 0, 7) || url.regionMatches(true, 0, "https://", 0, 8)) {
+        if (isAbsoluteHttpUrl(url)) {
             return url;
         }
         return apiContext.getBaseUri().map(base -> base + url).orElse(url);
+    }
+
+    // A header repeated by the model keeps its last value, as a header set twice on the request would.
+    private static Map<String, String> toHeaderMap(@Nullable List<HttpHeader> headers) {
+        var headerMap = new LinkedHashMap<String, String>();
+        if (headers != null) {
+            headers.forEach(header -> headerMap.put(header.name(), header.value()));
+        }
+        return headerMap;
+    }
+
+    private void addHeaders(RequestSpecification request, Map<String, String> headers) {
+        headers.forEach((name, value) -> request.header(resolveSecrets(resolveVariables(name)), resolveSecrets(resolveVariables(value))));
+    }
+
+    /**
+     * Resolves the {@code {{secret:<key>}}} placeholders of the test context, applied only to the strings of the outgoing request
+     * and never to anything logged, stored or returned to the model.
+     */
+    private static String resolveSecrets(String input) {
+        return SecretRegistry.global().resolve(input);
     }
 
     private String resolveVariables(String input) {

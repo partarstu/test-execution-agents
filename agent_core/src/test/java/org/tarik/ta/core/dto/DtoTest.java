@@ -64,10 +64,27 @@ class DtoTest {
 
     @Test
     void testTestCase() {
-        TestCase testCase = new TestCase("name", List.of("p1"), List.of());
+        TestCase testCase = new TestCase("name", List.of(new Precondition("p1", List.of())),
+                List.of(new DataEntry("user", "bob")), List.of());
         assertThat(testCase.name()).isEqualTo("name");
-        assertThat(testCase.preconditions()).containsExactly("p1");
+        assertThat(testCase.preconditions()).containsExactly(new Precondition("p1", List.of()));
+        assertThat(testCase.testData()).containsExactly(new DataEntry("user", "bob"));
         assertThat(testCase.testSteps()).isEmpty();
         assertThat(TestCase.endExecutionAndGetFinalResult(testCase)).isEqualTo(testCase);
+    }
+
+    @Test
+    void testTestCaseNormalisesMissingPreconditionsAndDataTable() {
+        TestCase testCase = new TestCase("name", null, null, List.of());
+
+        assertThat(testCase.preconditions()).isEmpty();
+        assertThat(testCase.testData()).isEmpty();
+    }
+
+    @Test
+    void testPreconditionNormalisesMissingRelevantData() {
+        Precondition precondition = new Precondition("the user is logged in", null);
+
+        assertThat(precondition.relevantData()).isEmpty();
     }
 }

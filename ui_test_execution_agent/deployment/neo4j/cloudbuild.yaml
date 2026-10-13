@@ -17,7 +17,7 @@
 #
 
 # Cloud Build configuration for deploying Neo4j to a dedicated GCE VM.
-# No Maven build or Docker image build needed — uses public neo4j:5-community image.
+# No Maven build or Docker image build needed — uses the public neo4j:2026.09.0-community image.
 
 steps:
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -48,7 +48,8 @@ steps:
       - 'DATA_DISK_NAME=$_DATA_DISK_NAME'
       - 'DATA_DISK_SIZE=$_DATA_DISK_SIZE'
       - 'DATA_DISK_TYPE=$_DATA_DISK_TYPE'
-      - 'GCE_IMAGE=$_GCE_IMAGE'
+      - 'GCE_IMAGE_FAMILY=$_GCE_IMAGE_FAMILY'
+      - 'GCE_IMAGE_PROJECT=$_GCE_IMAGE_PROJECT'
       - 'BOOT_DISK_SIZE=$_BOOT_DISK_SIZE'
       - 'BOOT_DISK_TYPE=$_BOOT_DISK_TYPE'
       - 'STATIC_IP_ADDRESS_NAME=$_STATIC_IP_ADDRESS_NAME'
@@ -80,7 +81,8 @@ substitutions:
   _DATA_DISK_NAME: 'neo4j-data-disk'
   _DATA_DISK_SIZE: '10GB'
   _DATA_DISK_TYPE: 'pd-balanced'
-  _GCE_IMAGE: 'projects/cos-cloud/global/images/cos-121-18867-90-106'
+  _GCE_IMAGE_FAMILY: 'cos-129-lts'
+  _GCE_IMAGE_PROJECT: 'cos-cloud'
   _BOOT_DISK_SIZE: '10GB'
   _BOOT_DISK_TYPE: 'pd-balanced'
   _STATIC_IP_ADDRESS_NAME: 'neo4j-knowledge-ip'
@@ -90,7 +92,7 @@ substitutions:
   _INSTANCE_TERMINATION_ACTION: 'STOP'
   _MAX_VM_RUN_DURATION: '10800s'
   _INSTANCE_STATUS_CHECK_INTERVAL: '5'
-  _CONTAINER_VM_LABEL: 'cos-121-18867-90-106'
+  _CONTAINER_VM_LABEL: 'cos-129-lts'
 
 options:
   logging: CLOUD_LOGGING_ONLY

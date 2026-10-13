@@ -1,0 +1,109 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  .log-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-block-end: var(--space-3);
+  }
+
+  .log-search {
+    flex: 1 1 12rem;
+    inline-size: auto;
+  }
+
+  .log-copy-result {
+    color: var(--passed);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  .log-copy-blocked {
+    color: var(--failed);
+  }
+
+  .log-frame {
+    position: relative;
+  }
+
+  .log-jump {
+    position: absolute;
+    inset-block-start: var(--space-3);
+    inset-inline-end: var(--space-4);
+    box-shadow: var(--shadow-2);
+  }
+
+  .log-lines {
+    max-block-size: 24rem;
+    overflow: auto;
+    padding: var(--space-2) var(--space-3);
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-lg);
+    font: 400 var(--text-xs) / 1.6 var(--font-mono);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+
+    & mark {
+      color: var(--ink);
+      background: var(--warning-soft);
+      outline: 1px solid var(--warning);
+      border-radius: 2px;
+    }
+  }
+
+  .log-lines-nowrap {
+    white-space: pre;
+    overflow-wrap: normal;
+  }
+
+  .log-time,
+  .log-logger {
+    color: var(--muted);
+  }
+
+  .log-level {
+    font-weight: 700;
+  }
+
+  /* A hanging indent, so a wrapped line's continuation does not read as a line of its own */
+  .log-line {
+    padding-inline-start: calc(var(--space-2) + 2ch);
+    text-indent: -2ch;
+    border-inline-start: 2px solid transparent;
+  }
+
+  .log-error {
+    color: var(--failed);
+    border-inline-start-color: var(--failed);
+  }
+
+  .log-warn {
+    color: var(--warning);
+    border-inline-start-color: var(--warning);
+  }
+
+  .log-error .log-time,
+  .log-error .log-logger,
+  .log-warn .log-time,
+  .log-warn .log-logger {
+    color: inherit;
+  }
+}

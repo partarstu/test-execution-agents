@@ -25,18 +25,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.core.error.RetryPolicy;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 import org.tarik.ta.exceptions.ElementLocationException;
 import org.tarik.ta.exceptions.ElementLocationException.ElementLocationStatus;
 
+import static org.tarik.ta.core.error.ErrorCategory.TIMEOUT;
 import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mockStatic;
 
 import static org.mockito.Mockito.lenient;
 
@@ -87,6 +86,47 @@ class UiToolErrorHandlerTest {
 
         assertThatThrownBy(() -> uiToolErrorHandler.handle(ex, mockContext))
                 .isSameAs(ex);
+    }
+
+    @Test
+    @DisplayName("handle should pass an unknown element ID back to the agent in supervised mode")
+    void handle_shouldPassToAgent_whenUnknownElementIdAndSupervised() {
+        lenient().when(configMock.isSupervised()).thenReturn(true);
+        ElementLocationException ex = new ElementLocationException("No UI element with ID 'guessed' exists.",
+                ElementLocationStatus.UNKNOWN_ELEMENT_ID);
+
+        ToolErrorHandlerResult result = uiToolErrorHandler.handle(ex, mockContext);
+
+        assertThat(result.text()).isEqualTo("No UI element with ID 'guessed' exists.");
+    }
+
+    @Test
+    @DisplayName("handle should throw once the unknown element ID retries are exhausted, even in supervised mode")
+    void handle_shouldThrow_whenUnknownElementIdRetriesAreExhaustedAndSupervised() {
+        lenient().when(configMock.isSupervised()).thenReturn(true);
+        ElementLocationException ex = new ElementLocationException("No UI element with ID 'guessed' exists.",
+                ElementLocationStatus.UNKNOWN_ELEMENT_ID);
+        uiToolErrorHandler.handle(ex, mockContext);
+        uiToolErrorHandler.handle(ex, mockContext);
+        uiToolErrorHandler.handle(ex, mockContext);
+
+        assertThatThrownBy(() -> uiToolErrorHandler.handle(ex, mockContext))
+                .isInstanceOf(ToolExecutionException.class)
+                .hasMessage("Retry policy exceeded because of max retries. Original error: No UI element with ID 'guessed' exists.")
+                .extracting(e -> ((ToolExecutionException) e).getErrorCategory())
+                .isEqualTo(TIMEOUT);
+    }
+
+    @Test
+    @DisplayName("handle should pass an unknown element ID back to the agent in unattended mode")
+    void handle_shouldPassToAgent_whenUnknownElementIdAndUnattended() {
+        lenient().when(configMock.isSupervised()).thenReturn(false);
+        ElementLocationException ex = new ElementLocationException("No UI element with ID 'guessed' exists.",
+                ElementLocationStatus.UNKNOWN_ELEMENT_ID);
+
+        ToolErrorHandlerResult result = uiToolErrorHandler.handle(ex, mockContext);
+
+        assertThat(result.text()).isEqualTo("No UI element with ID 'guessed' exists.");
     }
 
     @Test

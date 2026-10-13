@@ -22,6 +22,7 @@ import jakarta.inject.Singleton;
 import org.tarik.ta.core.BaseAgentRequestModule;
 import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.model.VisualState;
+import org.tarik.ta.model.VisualStateHolder;
 
 @Singleton
 public class UiAgentRequestScopeFactory {
@@ -34,7 +35,7 @@ public class UiAgentRequestScopeFactory {
     public BeanScope create(VisualState visualState, StreamingEventEmitter eventEmitter) {
         return BeanScope.builder()
                 .parent(appScope)
-                .bean(VisualState.class, visualState)
+                .bean(VisualStateHolder.class, new VisualStateHolder(visualState))
                 .bean(StreamingEventEmitter.class, eventEmitter)
                 .modules(new BaseAgentRequestModule(), new UiAgentRequestModule())
                 .build();

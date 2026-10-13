@@ -32,6 +32,7 @@ import org.tarik.ta.core.tools.TestContextDataTools;
 import java.util.List;
 
 import static dev.langchain4j.service.AiServices.builder;
+import static org.tarik.ta.core.model.DefaultToolErrorHandler.forToolArguments;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
 /**
@@ -52,14 +53,16 @@ class ApiAgentsBeanFactory {
     @Bean
     ApiTestStepActionAgent testStepAgent(ApiRequestTools requestTools, ApiAssertionTools assertionTools,
                                                      TestContextDataTools dataTools) {
-        var model = modelFactory.getModel(config.getTestStepActionAgentModelName(), config.getTestStepActionAgentModelProvider());
+        var model = modelFactory.getModel("test_step_action", config.getTestStepActionAgentModelName(),
+                config.getTestStepActionAgentModelProvider());
         var prompt = loadSystemPrompt("test_step/executor", config.getTestStepActionAgentPromptVersion(),
-                "test_step_action_prompt.txt");
+                "test_step_action_prompt.md");
         return builder(ApiTestStepActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
                 .toolExecutionErrorHandler(new DefaultToolErrorHandler(config.getActionRetryPolicy()))
+                .toolArgumentsErrorHandler(forToolArguments(config.getActionRetryPolicy()))
                 .maxToolCallingRoundTrips(config.getAgentToolCallsBudget())
                 .build();
     }
@@ -67,14 +70,16 @@ class ApiAgentsBeanFactory {
     @Bean
     ApiPreconditionActionAgent preconditionAgent(ApiRequestTools requestTools, ApiAssertionTools assertionTools,
                                                              TestContextDataTools dataTools) {
-        var model = modelFactory.getModel(config.getPreconditionActionAgentModelName(), config.getPreconditionActionAgentModelProvider());
+        var model = modelFactory.getModel("precondition_action", config.getPreconditionActionAgentModelName(),
+                config.getPreconditionActionAgentModelProvider());
         var prompt = loadSystemPrompt("precondition/executor", config.getPreconditionAgentPromptVersion(),
-                "precondition_execution_prompt.txt");
+                "precondition_execution_prompt.md");
         return builder(ApiPreconditionActionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(requestTools, assertionTools, dataTools), VerificationExecutionResult.class))
                 .toolExecutionErrorHandler(new DefaultToolErrorHandler(config.getActionRetryPolicy()))
+                .toolArgumentsErrorHandler(forToolArguments(config.getActionRetryPolicy()))
                 .maxToolCallingRoundTrips(config.getAgentToolCallsBudget())
                 .build();
     }

@@ -1,0 +1,84 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  .aspect {
+    --tone: var(--muted);
+    --tone-soft: var(--raised);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.05rem 0.55rem 0.05rem 0.4rem;
+    border-radius: 999px;
+    color: var(--tone);
+    background: var(--tone-soft);
+    font-size: var(--text-sm);
+    font-weight: 650;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+
+  .aspect-quiet {
+    padding: 0;
+    background: none;
+    font-weight: 550;
+  }
+
+  .aspect-passed {
+    --tone: var(--passed);
+    --tone-soft: var(--passed-soft);
+  }
+
+  .aspect-failed {
+    --tone: var(--failed);
+    --tone-soft: var(--failed-soft);
+  }
+
+  .aspect-warning,
+  .aspect-waiting {
+    --tone: var(--warning);
+    --tone-soft: var(--warning-soft);
+  }
+
+  .aspect-error {
+    --tone: var(--error);
+    --tone-soft: var(--error-soft);
+  }
+
+  .aspect-running {
+    --tone: var(--accent);
+    --tone-soft: var(--accent-soft);
+  }
+
+  .aspect-pulse {
+    width: 0.55rem;
+    height: 0.55rem;
+    margin-inline: 0.15rem;
+    border-radius: 50%;
+    background: currentColor;
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation: aspect-pulse 1.6s ease-in-out infinite;
+    }
+  }
+
+  @keyframes aspect-pulse {
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 25%, transparent);
+    }
+  }
+}

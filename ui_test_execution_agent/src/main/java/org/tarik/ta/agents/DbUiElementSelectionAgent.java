@@ -17,22 +17,33 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import org.tarik.ta.core.error.RetryPolicy;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.dto.DbUiElementSelectionResult;
+import org.tarik.ta.model.ImageContentCreator;
+
+import java.util.List;
 
 /**
  * Agent responsible for selecting the best matching UI element from a list of candidates
  * retrieved from the database, based on the current screenshot of the screen.
  */
-public interface DbUiElementSelectionAgent extends BaseUiAgent<DbUiElementSelectionResult> {
-    Result<String> selectBestElementFromCandidates(@UserMessage String candidatesInfo,
+public interface DbUiElementSelectionAgent extends BaseUiAgent<DbUiElementSelectionResult>, VisionBasedAgent {
+    Result<String> selectBestElementFromCandidates(@UserMessage List<Content> candidatesInfo,
                                                    @UserMessage ImageContent screenshot);
 
     @Override
     default String getAgentTaskDescription() {
         return "Selecting the best matching to the description UI element based on the screenshot and existing elements in knowledge graph";
+    }
+
+    @Override
+    default @NotNull ImageContentCreator getImageContentCreator(@NotNull UiTestAgentConfig config) {
+        return new ImageContentCreator(config.getDbElementCandidateSelectionAgentImageDetailLevel(),
+                config.getDbElementCandidateSelectionAgentModelProvider(), config.getMaxModelImagePixels());
     }
 }

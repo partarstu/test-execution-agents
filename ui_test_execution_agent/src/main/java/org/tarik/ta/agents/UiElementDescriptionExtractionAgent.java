@@ -17,17 +17,18 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
 import org.tarik.ta.dto.UiElementDescriptionResult;
+
+import java.util.List;
 
 /**
  * AI agent that extracts the UI element description from a test action description.
  */
 public interface UiElementDescriptionExtractionAgent extends BaseUiAgent<UiElementDescriptionResult> {
-    @UserMessage("Procedure description: {{testActionDescription}}")
-    Result<String> extract(@V("testActionDescription") String testActionDescription);
+    Result<String> extract(@UserMessage List<Content> procedureDescription);
 
     @Override
     default String getAgentTaskDescription() {

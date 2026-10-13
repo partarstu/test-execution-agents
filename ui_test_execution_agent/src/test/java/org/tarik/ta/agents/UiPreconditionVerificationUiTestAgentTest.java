@@ -44,7 +44,7 @@ class UiPreconditionVerificationUiTestAgentTest {
     @BeforeEach
     void setUp() {
         commonUtilsMockedStatic = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS);
-        commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(mock(BufferedImage.class));
+        commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB));
     }
 
     @AfterEach

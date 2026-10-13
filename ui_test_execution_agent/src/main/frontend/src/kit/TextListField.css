@@ -1,0 +1,57 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  .list-field {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: var(--space-2) 0 var(--space-3);
+    border: 0;
+    border-block-end: 1px solid var(--rule);
+
+    & legend {
+      padding: 0;
+      font-size: var(--text-sm);
+      font-weight: 650;
+    }
+
+    & ul {
+      display: grid;
+      gap: var(--space-1);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    & li {
+      display: flex;
+      gap: var(--space-1);
+
+      & input {
+        flex: 1 1 auto;
+        min-inline-size: 0;
+      }
+    }
+  }
+
+  .list-field-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+}

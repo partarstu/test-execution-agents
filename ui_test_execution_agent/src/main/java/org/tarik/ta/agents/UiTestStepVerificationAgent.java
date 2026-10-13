@@ -17,38 +17,33 @@
  */
 package org.tarik.ta.agents;
 
-import dev.langchain4j.data.message.ImageContent;
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.VerificationExecutionResult;
-import org.tarik.ta.core.error.RetryPolicy;
+import org.tarik.ta.model.ImageContentCreator;
+
+import java.util.List;
 
 /**
  * Agent responsible for verifying test step expected results for UI tests.
  * It uses tools to perform the actual verification.
  */
-public interface UiTestStepVerificationAgent extends BaseUiAgent<VerificationExecutionResult> {
+public interface UiTestStepVerificationAgent extends BaseUiAgent<VerificationExecutionResult>, VisionBasedAgent {
     @Override
     default String getAgentTaskDescription() {
         return "Verifying test step actual results";
     }
 
-    @UserMessage("""
-            Verify that: {{verificationDescription}}.
-            
-            The test case action executed before this verification: {{actionDescription}}.
-            
-            The test data for this action was: {{actionTestData}}.
-            
-            Test context data: {{sharedData}}.
-            
-            Screenshot attached.
-            """)
     Result<String> verify(
-            @V("verificationDescription") String verificationDescription,
-            @V("actionDescription") String actionDescription,
-            @V("actionTestData") String actionTestData,
-            @V("sharedData") String sharedData,
-            @UserMessage ImageContent imageContent);
+            @UserMessage List<Content> userMessage,
+            @UserMessage List<Content> screenshotsWithLabels);
+
+    @Override
+    default @NotNull ImageContentCreator getImageContentCreator(@NotNull UiTestAgentConfig config) {
+        return new ImageContentCreator(config.getTestStepVerificationAgentImageDetailLevel(),
+                config.getTestStepVerificationAgentModelProvider(), config.getMaxModelImagePixels());
+    }
 }

@@ -21,6 +21,8 @@ import dev.langchain4j.model.output.structured.Description;
 
 import java.awt.*;
 
+import static org.tarik.ta.utils.NormalizedCoordinates.NORMALIZED_RANGE;
+
 @Description("a single bounding box with coordinates")
 public record BoundingBox(
         @Description("The y-coordinate of the top-left corner (y_min)") int y1,
@@ -29,11 +31,10 @@ public record BoundingBox(
         @Description("The x-coordinate of the bottom-right corner (x_max)") int x2) {
     public Rectangle getActualBoundingBox(int actualImageWidth, int actualImageHeight, boolean isAlreadyNormalized) {
         if (isAlreadyNormalized) {
-            // Coordinates are normalized between 0 and 1000
-            var actualX1 = x1 * actualImageWidth / 1000;
-            var actualY1 = y1 * actualImageHeight / 1000;
-            var actualX2 = x2 * actualImageWidth / 1000;
-            var actualY2 = y2 * actualImageHeight / 1000;
+            var actualX1 = x1 * actualImageWidth / NORMALIZED_RANGE;
+            var actualY1 = y1 * actualImageHeight / NORMALIZED_RANGE;
+            var actualX2 = x2 * actualImageWidth / NORMALIZED_RANGE;
+            var actualY2 = y2 * actualImageHeight / NORMALIZED_RANGE;
             return new Rectangle(actualX1, actualY1, actualX2 - actualX1, actualY2 - actualY1);
         } else {
             // Coordinates are absolute

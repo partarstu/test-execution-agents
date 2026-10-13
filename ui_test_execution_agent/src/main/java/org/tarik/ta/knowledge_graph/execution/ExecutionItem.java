@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.knowledge_graph.execution;
 
+import org.tarik.ta.core.dto.Precondition;
 import org.tarik.ta.core.dto.TestStep;
 
 import java.util.List;
@@ -38,12 +39,12 @@ public sealed interface ExecutionItem
     /**
      * Represents a test case precondition that must be satisfied before test steps execute.
      */
-    record PreconditionItem(String description) implements ExecutionItem {
+    record PreconditionItem(Precondition precondition) implements ExecutionItem {
         @Override
-        public String getDescription() { return description; }
+        public String getDescription() { return precondition.description(); }
 
         @Override
-        public List<String> getTestData() { return List.of(); }
+        public List<String> getTestData() { return precondition.relevantData(); }
 
         @Override
         public String getExpectedResults() { return ""; }

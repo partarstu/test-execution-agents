@@ -19,12 +19,17 @@ package org.tarik.ta;
 
 import io.avaje.inject.BeanScope;
 import org.tarik.ta.core.AbstractServer;
+import org.tarik.ta.panel.PanelServer;
 
 public class Server {
 
     public static void main(String[] args) {
-        BeanScope scope = BeanScope.builder().shutdownHook(true).build();
-        AbstractServer server = scope.get(AbstractServer.class);
-        server.start();
+        start(BeanScope.builder().shutdownHook(true).build());
+    }
+
+    // The panel starts first, so a refused panel configuration ends the process before the A2A port is open
+    static void start(BeanScope scope) {
+        scope.get(PanelServer.class).start();
+        scope.get(AbstractServer.class).start();
     }
 }

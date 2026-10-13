@@ -33,7 +33,6 @@ import org.tarik.ta.knowledge_graph.model.node.Procedure.TimingProfile;
 
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 import static org.tarik.ta.knowledge_graph.model.node.IEntity.PROP_ID;
@@ -52,7 +51,7 @@ import static org.tarik.ta.knowledge_graph.repository.ProcedureRepository.QueryP
  * Repository for {@link Procedure} persistence using direct Neo4j Cypher queries.
  *
  * <p>All Procedure fields are stored as flat Neo4j node properties (no JSON blob).
- * Semantic vector search uses {@code CALL db.index.vector.queryNodes(...)}, following the same
+ * Semantic vector search uses the Cypher 25 {@code SEARCH} clause, following the same
  * pattern as {@link PhraseEmbeddingRepository}. The vector index is created by
  * {@link org.tarik.ta.knowledge_graph.schema.SchemaMigrationManager}.</p>
  */
@@ -98,6 +97,7 @@ public class ProcedureRepository {
                 n.${PROP_OPTIONAL} = $optional,
                 n.${PROP_PREREQUISITES} = $prerequisites,
                 n.${PROP_EFFECTS} = $effects,
+                n.${PROP_NEGATED_EFFECTS} = $negatedEffects,
                 n.${PROP_ADDITIONAL_INFO} = $additionalInfo,
                 n.${PROP_CREATED_AT} = $createdAt,
                 n.${PROP_UPDATED_AT} = $updatedAt
@@ -114,6 +114,7 @@ public class ProcedureRepository {
                 n.${PROP_OPTIONAL} = node.${PROP_OPTIONAL},
                 n.${PROP_PREREQUISITES} = node.${PROP_PREREQUISITES},
                 n.${PROP_EFFECTS} = node.${PROP_EFFECTS},
+                n.${PROP_NEGATED_EFFECTS} = node.${PROP_NEGATED_EFFECTS},
                 n.${PROP_ADDITIONAL_INFO} = node.${PROP_ADDITIONAL_INFO},
                 n.${PROP_CREATED_AT} = node.${PROP_CREATED_AT},
                 n.${PROP_UPDATED_AT} = node.${PROP_UPDATED_AT}
@@ -129,6 +130,7 @@ public class ProcedureRepository {
                 n.${PROP_OPTIONAL} = $optional,
                 n.${PROP_PREREQUISITES} = $prerequisites,
                 n.${PROP_EFFECTS} = $effects,
+                n.${PROP_NEGATED_EFFECTS} = $negatedEffects,
                 n.${PROP_ADDITIONAL_INFO} = $additionalInfo,
                 n.${PROP_CREATED_AT} = $createdAt,
                 n.${PROP_UPDATED_AT} = $updatedAt
@@ -163,14 +165,16 @@ public class ProcedureRepository {
             SET el.${PROP_STABILITY_SCORE} = $score,
                 el.${PROP_AVG_LOCATION_TIME_MS} = $avgTime,
                 el.${PROP_FAILED_LOCATION_COUNT} = $failedCount,
-                el.${PROP_LAST_LOCATED_AT} = $lastLocatedAt
+                el.${PROP_LAST_LOCATED_AT} = CASE WHEN $located THEN $lastLocatedAt
+                    ELSE coalesce(el.${PROP_LAST_LOCATED_AT}, $lastLocatedAt) END
             """);
         this.UPDATE_TIMING_PROFILE = repositorySupport.cypher("""
             MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
             SET n.${PROP_AVG_EXECUTION_MS} = $avgExecutionMs,
                 n.${PROP_AVG_VERIFICATION_DELAY_MS} = $avgVerificationDelayMs,
                 n.${PROP_MAX_VERIFICATION_DELAY_MS} = $maxVerificationDelayMs,
-                n.${PROP_LAST_TIMING_UPDATE} = $lastTimingUpdate
+                n.${PROP_LAST_TIMING_UPDATE} = $lastTimingUpdate,
+                n.${PROP_SUCCESS_COUNT} = coalesce(n.${PROP_SUCCESS_COUNT}, 0) + 1
             """);
         this.GET_TIMING_PROFILE = repositorySupport.cypher("""
             MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
@@ -184,40 +188,48 @@ public class ProcedureRepository {
             MATCH (p:${LABEL_PROCEDURE})
             WHERE (size(p.${PROP_EFFECTS}) > 0 AND NOT (p)-[:${REL_HAS_EFFECT}]->(:${LABEL_PHRASE_EMBEDDING}))
                OR (size(p.${PROP_PREREQUISITES}) > 0 AND NOT (p)-[:${REL_HAS_PREREQUISITE}]->(:${LABEL_PHRASE_EMBEDDING}))
+               OR (size(coalesce(p.${PROP_NEGATED_EFFECTS}, [])) > 0
+                   AND NOT (p)-[:${REL_HAS_NEGATED_EFFECT}]->(:${LABEL_PHRASE_EMBEDDING}))
             RETURN p AS n
             """);
         this.FIND_WITH_PHRASE_PROPERTY_MISMATCHES = repositorySupport.cypher("""
             MATCH (p:${LABEL_PROCEDURE})
-            CALL {
-              WITH p
+            CALL (p) {
               OPTIONAL MATCH (p)-[rp:${REL_HAS_PREREQUISITE}]->(prereq:${LABEL_PHRASE_EMBEDDING})
               WITH prereq.${PROP_PHRASE} AS phrase, rp.${PROP_SEQUENCE} AS seq
               ORDER BY seq ASC
               RETURN collect(phrase) AS prereqPhrases
             }
-            CALL {
-              WITH p
+            CALL (p) {
               OPTIONAL MATCH (p)-[re:${REL_HAS_EFFECT}]->(eff:${LABEL_PHRASE_EMBEDDING})
               WITH eff.${PROP_PHRASE} AS phrase, re.${PROP_SEQUENCE} AS seq
               ORDER BY seq ASC
               RETURN collect(phrase) AS effPhrases
             }
-            WITH p, prereqPhrases, effPhrases
-            WHERE (size(prereqPhrases) > 0 OR size(effPhrases) > 0)
-              AND (prereqPhrases <> p.${PROP_PREREQUISITES} OR effPhrases <> p.${PROP_EFFECTS})
-            RETURN p AS n, prereqPhrases, effPhrases
+            CALL (p) {
+              OPTIONAL MATCH (p)-[rn:${REL_HAS_NEGATED_EFFECT}]->(neg:${LABEL_PHRASE_EMBEDDING})
+              WITH neg.${PROP_PHRASE} AS phrase, rn.${PROP_SEQUENCE} AS seq
+              ORDER BY seq ASC
+              RETURN collect(phrase) AS negPhrases
+            }
+            WITH p, prereqPhrases, effPhrases, negPhrases
+            WHERE (size(prereqPhrases) > 0 OR size(effPhrases) > 0 OR size(negPhrases) > 0)
+              AND (prereqPhrases <> p.${PROP_PREREQUISITES} OR effPhrases <> p.${PROP_EFFECTS}
+                   OR negPhrases <> coalesce(p.${PROP_NEGATED_EFFECTS}, []))
+            RETURN p AS n, prereqPhrases, effPhrases, negPhrases
             """);
         this.UPDATE_PHRASE_PROPERTIES = repositorySupport.cypher("""
             MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
-            SET n.${PROP_PREREQUISITES} = $prerequisites, n.${PROP_EFFECTS} = $effects
+            SET n.${PROP_PREREQUISITES} = $prerequisites, n.${PROP_EFFECTS} = $effects, n.${PROP_NEGATED_EFFECTS} = $negatedEffects
             """);
         this.FIND_CANDIDATE_CONTEXT_BATCH = buildFindCandidateContextBatch();
         this.GET_ELEMENT_STABILITY = repositorySupport.cypher("MATCH (el:${LABEL_UI_ELEMENT} {${PROP_ID}: $elementId}) RETURN el");
         this.FIND_BY_SEMANTIC_SEARCH = repositorySupport.cypher("""
-            CALL db.index.vector.queryNodes($indexName, $topN, $queryVector)
-            YIELD node, score
+            MATCH (node:${LABEL_PROCEDURE})
+              SEARCH node IN (VECTOR INDEX ${INDEX_PROCEDURE_EMBEDDING} FOR $queryVector LIMIT $topN) SCORE AS score
             WHERE score >= $minScore
             RETURN node AS n, score
+            ORDER BY score DESC
             """);
         this.DELETE_PROCEDURE = repositorySupport.cypher("""
             MATCH (n:${LABEL_PROCEDURE} {${PROP_ID}: $id})
@@ -226,7 +238,6 @@ public class ProcedureRepository {
     }
 
     private static final Logger LOG = LoggerFactory.getLogger(ProcedureRepository.class);
-    private static final String VECTOR_INDEX_NAME = "procedure_embedding_index";
 
     /**
      * Query result column aliases — distinct from node property names.
@@ -234,6 +245,7 @@ public class ProcedureRepository {
     static final class QueryAliases {
         static final String ALIAS_PREREQUISITES = "prerequisites";
         static final String ALIAS_EFFECTS = "effects";
+        static final String ALIAS_NEGATED_EFFECTS = "negatedEffects";
         static final String ALIAS_SEQ = "seq";
         static final String ALIAS_ELEMENT_ID = "elementId";
         static final String ALIAS_CANDIDATE_ID = "candidateId";
@@ -247,13 +259,13 @@ public class ProcedureRepository {
         static final String ALIAS_LAST_UPDATE = "lastUpdate";
         static final String ALIAS_PHRASE_PREREQUISITES = "prereqPhrases";
         static final String ALIAS_PHRASE_EFFECTS = "effPhrases";
+        static final String ALIAS_PHRASE_NEGATED_EFFECTS = "negPhrases";
 
         private QueryAliases() {
         }
     }
 
     static final class QueryParams {
-        static final String PARAM_INDEX_NAME = "indexName";
         static final String PARAM_TOP_N = "topN";
         static final String PARAM_QUERY_VECTOR = "queryVector";
         static final String PARAM_MIN_SCORE = "minScore";
@@ -273,6 +285,7 @@ public class ProcedureRepository {
         static final String PARAM_AVG_TIME = "avgTime";
         static final String PARAM_FAILED_COUNT = "failedCount";
         static final String PARAM_LAST_LOCATED_AT = "lastLocatedAt";
+        static final String PARAM_LOCATED = "located";
 
         private QueryParams() {
         }
@@ -430,16 +443,19 @@ public class ProcedureRepository {
         var procedure = fromDbRecord(record);
         var prerequisites = parsePhraseNodes(record.get(ALIAS_PREREQUISITES).asList(v -> v), PhraseType.PREREQUISITE);
         var effects = parsePhraseNodes(record.get(ALIAS_EFFECTS).asList(v -> v), PhraseType.EFFECT);
-        if (!prerequisites.isEmpty() || !effects.isEmpty()) {
-            var prereqPhrases = prerequisites.stream().map(PhraseEmbedding::phrase).toList();
-            var effectPhrases = effects.stream().map(PhraseEmbedding::phrase).toList();
-            procedure = procedure.withPhrases(prereqPhrases, effectPhrases);
+        var negatedEffects = parsePhraseNodes(record.get(ALIAS_NEGATED_EFFECTS).asList(v -> v), PhraseType.NEGATED_EFFECT);
+        if (!prerequisites.isEmpty() || !effects.isEmpty() || !negatedEffects.isEmpty()) {
+            procedure = procedure.withPhrases(toPhrases(prerequisites), toPhrases(effects), toPhrases(negatedEffects));
         }
-        return Optional.of(new ProcedureWithPhrases(procedure, prerequisites, effects));
+        return Optional.of(new ProcedureWithPhrases(procedure, prerequisites, effects, negatedEffects));
+    }
+
+    private static List<String> toPhrases(List<PhraseEmbedding> phraseNodes) {
+        return phraseNodes.stream().map(PhraseEmbedding::phrase).toList();
     }
 
     public record ProcedureWithPhrases(Procedure procedure, List<PhraseEmbedding> prerequisites,
-                                       List<PhraseEmbedding> effects) {
+                                       List<PhraseEmbedding> effects, List<PhraseEmbedding> negatedEffects) {
     }
 
     /**
@@ -449,7 +465,6 @@ public class ProcedureRepository {
     public List<ProcedureMatch> findBySemanticSearch(float[] queryVector, int topN, double minScore) {
         requireNonNull(queryVector, "queryVector");
         return repositorySupport.executeSingleReadQuery(FIND_BY_SEMANTIC_SEARCH, Map.of(
-                PARAM_INDEX_NAME, VECTOR_INDEX_NAME,
                 PARAM_TOP_N, topN,
                 PARAM_QUERY_VECTOR, queryVector,
                 PARAM_MIN_SCORE, minScore
@@ -498,8 +513,8 @@ public class ProcedureRepository {
     }
 
     /**
-     * Returns procedures that have non-empty {@code effects} or {@code prerequisites} node properties
-     * but are missing the corresponding {@code HAS_EFFECT} or {@code HAS_PREREQUISITE} phrase nodes.
+     * Returns procedures that have non-empty {@code effects}, {@code prerequisites} or {@code negatedEffects} node properties
+     * but are missing the corresponding {@code HAS_EFFECT}, {@code HAS_PREREQUISITE} or {@code HAS_NEGATED_EFFECT} phrase nodes.
      * Used by the startup phrase-node migration to backfill legacy procedures ingested without phrase edges.
      */
     public List<Procedure> findWithMissingPhraseNodes() {
@@ -517,25 +532,29 @@ public class ProcedureRepository {
                 .map(r -> new ProcedureWithPhraseMismatch(
                         fromDbRecord(r),
                         r.get(ALIAS_PHRASE_PREREQUISITES).asList(Value::asString),
-                        r.get(ALIAS_PHRASE_EFFECTS).asList(Value::asString)))
+                        r.get(ALIAS_PHRASE_EFFECTS).asList(Value::asString),
+                        r.get(ALIAS_PHRASE_NEGATED_EFFECTS).asList(Value::asString)))
                 .toList();
     }
 
     public record ProcedureWithPhraseMismatch(Procedure procedure, List<String> phrasePrerequisites,
-                                              List<String> phraseEffects) {}
+                                              List<String> phraseEffects, List<String> phraseNegatedEffects) {}
 
     /**
-     * Updates only the {@code prerequisites} and {@code effects} node properties on an existing procedure,
+     * Updates only the {@code prerequisites}, {@code effects} and {@code negatedEffects} node properties on an existing procedure,
      * leaving all other properties unchanged. Used during startup repair when phrase nodes are authoritative.
      */
-    public void updatePhraseProperties(UUID procedureId, List<String> prerequisites, List<String> effects) {
+    public void updatePhraseProperties(UUID procedureId, List<String> prerequisites, List<String> effects,
+                                       List<String> negatedEffects) {
         requireNonNull(procedureId, "procedureId");
         requireNonNull(prerequisites, "prerequisites");
         requireNonNull(effects, "effects");
+        requireNonNull(negatedEffects, "negatedEffects");
         repositorySupport.executeSingleWriteQuery(UPDATE_PHRASE_PROPERTIES, Map.of(
                 PROP_ID, procedureId.toString(),
                 PROP_PREREQUISITES, prerequisites,
-                PROP_EFFECTS, effects
+                PROP_EFFECTS, effects,
+                PROP_NEGATED_EFFECTS, negatedEffects
         ));
         LOG.debug("Repaired phrase properties for procedure id={}", procedureId);
     }
@@ -727,11 +746,17 @@ public class ProcedureRepository {
                 newAvgTime = locationTimeMs;
                 failedCount = located ? 0.0 : 1.0;
             }
+            // A failed location attempt says nothing about when the element was last seen, so the timestamp is only
+            // advanced when the element was actually located and otherwise keeps its previous value. The coalesce is not
+            // cosmetic: Cypher removes a property that is SET to null, so an element whose very first location attempt
+            // fails would be left with a stability score but no timestamp, which the next read parses as the literal
+            // "null" and fails on.
             tx.run(UPDATE_ELEMENT_STABILITY, Map.of(
                     PARAM_ELEMENT_ID, elementId.toString(),
                     PARAM_SCORE, newScore,
                     PARAM_AVG_TIME, newAvgTime,
                     PARAM_FAILED_COUNT, failedCount,
+                    PARAM_LOCATED, located,
                     PARAM_LAST_LOCATED_AT, Instant.now().toString()
             ));
         });
@@ -753,8 +778,9 @@ public class ProcedureRepository {
         return Optional.empty();
     }
 
-    public void updateTimingProfile(UUID id, long actualExecutionMs, long actualVerificationDelayMs) {
-        repositorySupport.executeComplexWriteQuery(tx -> {
+    /** Folds the measured durations into the procedure's timing profile and returns the profile it had before. */
+    public Optional<TimingProfile> updateTimingProfile(UUID id, long actualExecutionMs, long actualVerificationDelayMs) {
+        return repositorySupport.executeComplexWriteQuery(tx -> {
             var profileOpt = getTimingProfile(id, tx);
             double alpha = config.getTimingEwmaAlpha();
             long newAvgExec;
@@ -782,6 +808,7 @@ public class ProcedureRepository {
                     PROP_MAX_VERIFICATION_DELAY_MS, newMaxDelay,
                     PROP_LAST_TIMING_UPDATE, Instant.now().toString()
             ));
+            return profileOpt;
         });
     }
 
@@ -811,19 +838,25 @@ public class ProcedureRepository {
     private String buildFindByIdWithPhrases() {
         return repositorySupport.cypher("""
                 MATCH (p:${LABEL_PROCEDURE} {${PROP_ID}: $id})
-                OPTIONAL MATCH (p)-[rp:${REL_HAS_PREREQUISITE}]->(prereq:${LABEL_PHRASE_EMBEDDING})
-                OPTIONAL MATCH (p)-[re:${REL_HAS_EFFECT}]->(eff:${LABEL_PHRASE_EMBEDDING})
                 RETURN p AS n,
-                       collect(DISTINCT CASE WHEN prereq IS NOT NULL THEN
-                           {${PROP_ID}: prereq.${PROP_ID}, ${PROP_PHRASE}: prereq.${PROP_PHRASE},
-                            ${PROP_EMBEDDING}: prereq.${PROP_EMBEDDING}, ${PROP_TYPE}: prereq.${PROP_TYPE},
-                            seq: rp.${PROP_SEQUENCE}}
-                       END) AS prerequisites,
-                       collect(DISTINCT CASE WHEN eff IS NOT NULL THEN
-                           {${PROP_ID}: eff.${PROP_ID}, ${PROP_PHRASE}: eff.${PROP_PHRASE},
-                            ${PROP_EMBEDDING}: eff.${PROP_EMBEDDING}, ${PROP_TYPE}: eff.${PROP_TYPE},
-                            seq: re.${PROP_SEQUENCE}}
-                       END) AS effects
+                       COLLECT {
+                           MATCH (p)-[rp:${REL_HAS_PREREQUISITE}]->(prereq:${LABEL_PHRASE_EMBEDDING})
+                           RETURN DISTINCT {${PROP_ID}: prereq.${PROP_ID}, ${PROP_PHRASE}: prereq.${PROP_PHRASE},
+                                  ${PROP_EMBEDDING}: prereq.${PROP_EMBEDDING}, ${PROP_TYPE}: prereq.${PROP_TYPE},
+                                  seq: rp.${PROP_SEQUENCE}}
+                       } AS prerequisites,
+                       COLLECT {
+                           MATCH (p)-[re:${REL_HAS_EFFECT}]->(eff:${LABEL_PHRASE_EMBEDDING})
+                           RETURN DISTINCT {${PROP_ID}: eff.${PROP_ID}, ${PROP_PHRASE}: eff.${PROP_PHRASE},
+                                  ${PROP_EMBEDDING}: eff.${PROP_EMBEDDING}, ${PROP_TYPE}: eff.${PROP_TYPE},
+                                  seq: re.${PROP_SEQUENCE}}
+                       } AS effects,
+                       COLLECT {
+                           MATCH (p)-[rn:${REL_HAS_NEGATED_EFFECT}]->(neg:${LABEL_PHRASE_EMBEDDING})
+                           RETURN DISTINCT {${PROP_ID}: neg.${PROP_ID}, ${PROP_PHRASE}: neg.${PROP_PHRASE},
+                                  ${PROP_EMBEDDING}: neg.${PROP_EMBEDDING}, ${PROP_TYPE}: neg.${PROP_TYPE},
+                                  seq: rn.${PROP_SEQUENCE}}
+                       } AS negatedEffects
                 """);
     }
 
@@ -860,6 +893,8 @@ public class ProcedureRepository {
         var optional = node.containsKey(PROP_OPTIONAL) && node.get(PROP_OPTIONAL).asBoolean();
         var prerequisites = node.containsKey(PROP_PREREQUISITES) ? node.get(PROP_PREREQUISITES).asList(Value::asString) : List.<String>of();
         var effects = node.containsKey(PROP_EFFECTS) ? node.get(PROP_EFFECTS).asList(Value::asString) : List.<String>of();
+        var negatedEffects = node.containsKey(PROP_NEGATED_EFFECTS)
+                ? node.get(PROP_NEGATED_EFFECTS).asList(Value::asString) : List.<String>of();
         var additionalInfoValue = node.get(PROP_ADDITIONAL_INFO);
         var additionalInfo = (!additionalInfoValue.isNull() && !additionalInfoValue.asString().isBlank())
                 ? additionalInfoValue.asString() : null;
@@ -887,7 +922,7 @@ public class ProcedureRepository {
         }
 
         return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
-                prerequisites, effects, additionalInfo, createdAt, updatedAt, embedding, timing);
+                prerequisites, effects, negatedEffects, additionalInfo, createdAt, updatedAt, embedding, timing);
     }
 
     private static Map<String, Object> buildParams(Procedure procedure, float[] embedding) {
@@ -902,6 +937,7 @@ public class ProcedureRepository {
         params.put(PROP_OPTIONAL, procedure.optional());
         params.put(PROP_PREREQUISITES, procedure.prerequisites());
         params.put(PROP_EFFECTS, procedure.effects());
+        params.put(PROP_NEGATED_EFFECTS, procedure.negatedEffects());
         params.put(PROP_ADDITIONAL_INFO, procedure.additionalInfo());
         params.put(PROP_CREATED_AT, procedure.createdAt().toString());
         params.put(PROP_UPDATED_AT, procedure.updatedAt().toString());

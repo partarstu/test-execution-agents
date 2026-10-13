@@ -50,9 +50,14 @@ import static org.tarik.ta.utils.BoundingBoxUtil.*;
 class BoundingBoxUtilTest {
 
     @Mock
-    private BufferedImage mockImage;
-    @Mock
     private Graphics2D mockGraphics;
+    // A real image, because mocking BufferedImage instruments the JDK class and breaks getRGB() of real images on JDK 26
+    private final BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB) {
+        @Override
+        public Graphics2D createGraphics() {
+            return mockGraphics;
+        }
+    };
 
     private MockedStatic<ImageIO> imageIoMockedStatic;
     private MockedStatic<Paths> pathsMockedStatic;
@@ -69,7 +74,6 @@ class BoundingBoxUtilTest {
         localDateTimeMockedStatic = mockStatic(LocalDateTime.class);
         openCvInitializerMockedStatic = mockStatic(OpenCvInitializer.class);
 
-        lenient().when(mockImage.createGraphics()).thenReturn(mockGraphics);
         lenient().when(mockGraphics.getFontMetrics()).thenReturn(mock(FontMetrics.class));
         openCvInitializerMockedStatic.when(OpenCvInitializer::initialize).thenAnswer(_ -> null);
     }
@@ -210,10 +214,9 @@ class BoundingBoxUtilTest {
     @DisplayName("drawBoundingBox: Should draw rectangle without saving")
     void drawBoundingBoxWhenSaveIsFalseThenDrawOnly() {
         // When
-        BoundingBoxInfo info = drawBoundingBox(mockImage, TEST_RECTANGLE, TEST_COLOR);
+        BoundingBoxInfo info = drawBoundingBox(image, TEST_RECTANGLE, TEST_COLOR);
 
         // Then
-        verify(mockImage).createGraphics();
         verify(mockGraphics).setColor(TEST_COLOR);
         verify(mockGraphics).setStroke(any(BasicStroke.class));
         verify(mockGraphics).drawRect(TEST_RECTANGLE.x, TEST_RECTANGLE.y, TEST_RECTANGLE.width, TEST_RECTANGLE.height);
@@ -227,11 +230,10 @@ class BoundingBoxUtilTest {
     @DisplayName("drawBoundingBox overload: Should call main drawBoundingBox with defaults")
     void drawBoundingBoxSimpleOverload() {
         // When
-        BoundingBoxInfo info = drawBoundingBox(mockImage, TEST_RECTANGLE, TEST_COLOR);
+        BoundingBoxInfo info = drawBoundingBox(image, TEST_RECTANGLE, TEST_COLOR);
 
         // Then
         // Verify the main drawBoundingBox logic is invoked with expected defaults
-        verify(mockImage).createGraphics();
         verify(mockGraphics).setColor(TEST_COLOR);
         verify(mockGraphics).drawRect(TEST_RECTANGLE.x, TEST_RECTANGLE.y, TEST_RECTANGLE.width, TEST_RECTANGLE.height);
         verify(mockGraphics).dispose();
@@ -251,10 +253,9 @@ class BoundingBoxUtilTest {
         Map<String, Rectangle> rectanglesMap = Map.of(id1, rect1, id2, rect2);
 
         // When
-        drawBoundingBoxes(mockImage, rectanglesMap);
+        drawBoundingBoxes(image, rectanglesMap);
 
         // Then
-        verify(mockImage, atLeastOnce()).createGraphics();
         verify(mockGraphics).drawRect(eq(rect1.x), eq(rect1.y), eq(rect1.width), eq(rect1.height));
         verify(mockGraphics).drawRect(eq(rect2.x), eq(rect2.y), eq(rect2.width), eq(rect2.height));
         verify(mockGraphics, times(4)).drawString(eq(id1), anyInt(), anyInt());

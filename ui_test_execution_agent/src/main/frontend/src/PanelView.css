@@ -1,0 +1,388 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/*
+ * The shell: one app bar of constant height that never wraps (brand, views, run chip, tools), which on a phone keeps the brand
+ * and the tools while the views move to a bottom bar within the thumb's reach.
+ */
+@layer components {
+  .panel {
+    min-block-size: 100dvh;
+  }
+
+  .appbar {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    block-size: var(--appbar-block-size);
+    padding-inline: var(--space-5);
+    border-block-end: 1px solid var(--rule);
+
+    /* The blur sits on a layer of its own: a filter on the bar would trap the fixed bottom bar inside it */
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: color-mix(in srgb, var(--panel) 92%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    @media (width < 40rem) {
+      gap: var(--space-2);
+      padding-inline: var(--space-3) var(--space-2);
+    }
+  }
+
+  .appbar-brand {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--space-2);
+
+    & h1 {
+      font-size: var(--text-md);
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    @media (width < 26rem) {
+      & h1 {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
+    }
+  }
+
+  .appbar-tools {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-inline-start: auto;
+    min-inline-size: 0;
+  }
+
+  /* Tool labels give way to their icons below a wide screen; they stay the buttons' accessible names */
+  .appbar-label {
+    @media (width < 72rem) {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+
+  .appbar-tools > button,
+  .appbar-tools .popover-toggle {
+    @media (width < 72rem) {
+      min-inline-size: var(--control-height);
+      padding-inline: var(--space-2);
+    }
+  }
+
+  .appbar-tools .popover-toggle > .lucide-chevron-down {
+    @media (width < 72rem) {
+      display: none;
+    }
+  }
+
+  .command-trigger {
+    @media (width >= 72rem) {
+      min-inline-size: 15rem;
+      justify-content: flex-start;
+      color: var(--muted);
+      background: var(--raised);
+      border-color: var(--rule);
+    }
+  }
+
+  .command-trigger-kbd {
+    margin-inline-start: auto;
+
+    @media (width < 72rem) {
+      display: none;
+    }
+  }
+
+  .run-chip {
+    @media (width < 32rem) {
+      & .run-chip-count {
+        display: none;
+      }
+    }
+  }
+
+  .appbar-stream {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding-inline: var(--space-2);
+    color: var(--warning);
+    font-size: var(--text-sm);
+    font-weight: 650;
+    white-space: nowrap;
+  }
+
+  /* The primary views: a segmented control in the bar */
+  .appbar-nav.tab-list {
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+
+    & [role="tab"] {
+      gap: var(--space-2);
+      padding-inline: var(--space-3);
+      border-radius: var(--radius);
+
+      &[aria-selected="true"] {
+        color: var(--ink);
+        background: var(--accent-soft);
+
+        & > svg {
+          color: var(--accent);
+        }
+
+        &::after {
+          display: none;
+        }
+      }
+
+      @media (forced-colors: active) {
+        &[aria-selected="true"] {
+          forced-color-adjust: none;
+          color: HighlightText;
+          background: Highlight;
+
+          & > svg {
+            color: HighlightText;
+          }
+        }
+      }
+    }
+
+    @media (width < 52rem) and (width >= 40rem) {
+      & .nav-label {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+      }
+    }
+
+    /* On a phone the views become a bottom bar, icon over label, clear of the home indicator */
+    @media (width < 40rem) {
+      position: fixed;
+      inset: auto 0 0;
+      z-index: 10;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      block-size: calc(var(--bottom-nav-block-size) + env(safe-area-inset-bottom));
+      padding: var(--space-1) var(--space-2) calc(var(--space-1) + env(safe-area-inset-bottom));
+      background: var(--panel);
+      border-block-start: 1px solid var(--rule);
+      box-shadow: 0 -4px 16px rgb(0 0 0 / 6%);
+
+      & [role="tab"] {
+        position: relative;
+        flex-direction: column;
+        gap: 0.125rem;
+        block-size: 100%;
+        font-size: var(--text-xs);
+      }
+    }
+  }
+
+  .tab-waiting {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0 var(--space-2);
+    border-radius: 999px;
+    color: var(--on-accent);
+    background: var(--accent);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1.6;
+
+    &::before {
+      content: "";
+      inline-size: 0.4rem;
+      block-size: 0.4rem;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    @media (forced-colors: active) {
+      border: 1px solid CanvasText;
+    }
+
+    /* Below a wide bar the badge shrinks to a solid lit dot with a halo on the tab, its words kept for screen readers */
+    @media (width < 64rem) {
+      position: absolute;
+      inset-block-start: 0.3rem;
+      inset-inline-end: 0.3rem;
+      inline-size: 0.7rem;
+      block-size: 0.7rem;
+      padding: 0;
+      outline: 2px solid var(--panel);
+      box-shadow: 0 0 0 4px var(--accent);
+
+      &::before {
+        display: none;
+      }
+
+      & .tab-waiting-text {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+    }
+  }
+
+  .preferences {
+    display: grid;
+    gap: var(--space-3);
+
+    & fieldset {
+      display: grid;
+      gap: var(--space-2);
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    & legend {
+      margin-block-end: var(--space-1);
+      padding: 0;
+      font-weight: 650;
+    }
+  }
+
+  .panel-main {
+    padding: var(--space-5) var(--space-5) var(--space-6);
+
+    &:focus-visible {
+      outline: none;
+    }
+
+    @media (width < 40rem) {
+      padding: var(--space-3) var(--space-3) calc(var(--bottom-nav-block-size) + var(--space-5) + env(safe-area-inset-bottom));
+    }
+  }
+
+  .tab-panel {
+    container-type: inline-size;
+  }
+
+  /* Reading views keep a measure on a very wide screen; the Run tab keeps the whole width for the live view */
+  .tab-panel-narrow {
+    max-inline-size: 80rem;
+    margin-inline: auto;
+  }
+
+  .tab-panel-wide {
+    max-inline-size: 120rem;
+    margin-inline: auto;
+  }
+
+  /* View transitions: a quick cross-fade between the views; with reduced motion they switch at once */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 160ms;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+
+  /* A short confirmation of an action that has no place of its own on the page, such as a command of "Search and jump" */
+  .toast {
+    position: fixed;
+    inset-block-end: calc(var(--bottom-nav-block-size) + env(safe-area-inset-bottom) + var(--space-4));
+    inset-inline: 50% auto;
+    z-index: 20;
+    max-inline-size: min(32rem, calc(100vw - 2rem));
+    margin: 0;
+    padding: var(--space-2) var(--space-4);
+    color: var(--panel);
+    background: var(--ink);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-3);
+    font-weight: 600;
+    translate: -50% 0;
+
+    &:empty {
+      padding: 0;
+      box-shadow: none;
+    }
+
+    @media (forced-colors: active) {
+      border: 1px solid CanvasText;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      &:not(:empty) {
+        animation: toast-arrive var(--duration) var(--ease-out);
+      }
+    }
+  }
+
+  @keyframes toast-arrive {
+    from {
+      opacity: 0;
+      translate: -50% 0.5rem;
+    }
+  }
+
+  .loading-note {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--muted);
+  }
+
+  .shortcuts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--space-3) var(--space-5);
+    align-items: center;
+
+    & dt {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+    }
+  }
+
+  .shortcut-join {
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+}

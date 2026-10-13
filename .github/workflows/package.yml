@@ -12,15 +12,22 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Set up JDK 26
-        uses: actions/setup-java@v5
+      - name: Set up JDK 27
+        uses: actions/setup-java@v6
         id: setup
         with:
-          java-version: '26'
-          distribution: 'temurin'
+          java-version: '27'
+          distribution: 'corretto'
           cache: 'maven'
+
+      # The Maven cache above already holds the Node archive the frontend build downloads; this caches npm's packages.
+      - name: Cache npm packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('ui_test_execution_agent/src/main/frontend/package-lock.json') }}
 
       - name: Package UI agent
         run: mvn -B package --file pom.xml -pl ui_test_execution_agent -am -P linux

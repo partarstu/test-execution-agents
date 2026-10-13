@@ -17,8 +17,10 @@
  */
 package org.tarik.ta.core.utils;
 
+import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
+import dev.langchain4j.service.Result;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,11 +38,14 @@ import org.tarik.ta.core.model.ModelFactory;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.tarik.ta.core.LoggedMessages.loggedMessagesOf;
 
 @ExtendWith(MockitoExtension.class)
 class TestCaseExtractorTest {
@@ -63,7 +68,7 @@ class TestCaseExtractorTest {
         when(mockAgentConfig.getTestCaseExtractionAgentModelName()).thenReturn("model-name");
         when(mockAgentConfig.getTestCaseExtractionAgentModelProvider()).thenReturn(AgentConfig.ModelProvider.GOOGLE);
         when(mockAgentConfig.getTestCaseExtractionAgentPromptVersion()).thenReturn("v1");
-        when(mockModelFactory.getModel(any(), any())).thenReturn(new GenAiModel(mockChatModel));
+        when(mockModelFactory.getModel(any(), any(), any())).thenReturn(new GenAiModel(mockChatModel));
 
         try (MockedStatic<AiServices> aiServices = mockStatic(AiServices.class);
              MockedStatic<PromptUtils> promptUtils = mockStatic(PromptUtils.class)) {
@@ -74,6 +79,7 @@ class TestCaseExtractorTest {
             when(mockExtractionAgentBuilder.chatModel(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.systemMessageProvider(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.toolProvider(any())).thenReturn(mockExtractionAgentBuilder);
+            when(mockExtractionAgentBuilder.toolArgumentsErrorHandler(any())).thenReturn(mockExtractionAgentBuilder);
             when(mockExtractionAgentBuilder.build()).thenReturn(mockExtractionAgent);
 
             extractor = new TestCaseExtractor(mockModelFactory, mockAgentConfig);
@@ -84,7 +90,7 @@ class TestCaseExtractorTest {
     void extractTestCase_shouldReturnTestCase_whenAgentSucceeds() {
         String message = "run test";
         TestStep step = new TestStep("step 1", List.of(), "result 1");
-        TestCase expectedTestCase = new TestCase("Test Case 1", Collections.emptyList(), List.of(step));
+        TestCase expectedTestCase = new TestCase("Test Case 1", Collections.emptyList(), List.of(), List.of(step));
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
                 OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", expectedTestCase);
 
@@ -110,6 +116,19 @@ class TestCaseExtractorTest {
     }
 
     @Test
+    void extractTestCase_shouldPassTheRequestVerbatimAsTextContent() {
+        String message = "## Test case\nLog in with {{secret:password}}";
+        when(mockExtractionAgent.executeAndGetResult(any())).thenAnswer(invocation -> {
+            invocation.<Supplier<Result<?>>>getArgument(0).get();
+            return new OperationExecutionResult<>(OperationExecutionResult.ExecutionStatus.ERROR, "Failed", null);
+        });
+
+        extractor.extractTestCase(message);
+
+        verify(mockExtractionAgent).extractTestCase(List.of(TextContent.from(message)));
+    }
+
+    @Test
     void extractTestCase_shouldReturnEmpty_whenMessageIsBlank() {
         assertThat(extractor.extractTestCase("")).isEmpty();
         assertThat(extractor.extractTestCase(null)).isEmpty();
@@ -120,7 +139,7 @@ class TestCaseExtractorTest {
     void extractTestCase_shouldReturnEmpty_whenTestCaseHasNoName() {
         String message = "run test";
         TestStep step = new TestStep("step 1", List.of(), "result 1");
-        TestCase invalidTestCase = new TestCase("", Collections.emptyList(), List.of(step));
+        TestCase invalidTestCase = new TestCase("", Collections.emptyList(), List.of(), List.of(step));
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
                 OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", invalidTestCase);
 
@@ -132,9 +151,21 @@ class TestCaseExtractorTest {
     }
 
     @Test
+    void extractTestCase_shouldNotLogTheMessage_whenTheExtractedTestCaseIsInvalid() {
+        String message = "Log in with password s3cr3t-value";
+        TestCase invalidTestCase = new TestCase("Test Case", Collections.emptyList(), List.of(), Collections.emptyList());
+        when(mockExtractionAgent.executeAndGetResult(any())).thenReturn(new OperationExecutionResult<>(
+                OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", invalidTestCase));
+
+        var loggedMessages = loggedMessagesOf(TestCaseExtractor.class, () -> extractor.extractTestCase(message));
+
+        assertThat(loggedMessages).isNotEmpty().noneMatch(loggedMessage -> loggedMessage.contains("s3cr3t-value"));
+    }
+
+    @Test
     void extractTestCase_shouldReturnEmpty_whenTestCaseHasNoSteps() {
         String message = "run test";
-        TestCase invalidTestCase = new TestCase("Test Case", Collections.emptyList(), Collections.emptyList());
+        TestCase invalidTestCase = new TestCase("Test Case", Collections.emptyList(), List.of(), Collections.emptyList());
         OperationExecutionResult<TestCase> executionResult = new OperationExecutionResult<>(
                 OperationExecutionResult.ExecutionStatus.SUCCESS, "Success", invalidTestCase);
 

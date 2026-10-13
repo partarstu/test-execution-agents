@@ -17,21 +17,33 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
+import org.jetbrains.annotations.NotNull;
+import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.dto.EmptyExecutionResult;
+import org.tarik.ta.model.ImageContentCreator;
+
+import java.util.List;
 
 /**
  * Agent responsible for executing UI actions (test step actions or precondition actions).
  */
-public interface UiTestStepActionAgent extends BaseUiAgent<EmptyExecutionResult> {
+public interface UiTestStepActionAgent extends BaseUiAgent<EmptyExecutionResult>, VisionBasedAgent {
     @Override
     default String getAgentTaskDescription() {
         return "Executing action";
     }
 
     Result<String> execute(
-            @UserMessage String userMessage,
+            @UserMessage List<Content> userMessage,
             @UserMessage ImageContent screenshot);
+
+    @Override
+    default @NotNull ImageContentCreator getImageContentCreator(@NotNull UiTestAgentConfig config) {
+        return new ImageContentCreator(config.getTestStepActionAgentImageDetailLevel(),
+                config.getTestStepActionAgentModelProvider(), config.getMaxModelImagePixels());
+    }
 }

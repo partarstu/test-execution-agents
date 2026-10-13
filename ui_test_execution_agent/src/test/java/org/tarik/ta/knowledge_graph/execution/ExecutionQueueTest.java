@@ -18,6 +18,7 @@
 package org.tarik.ta.knowledge_graph.execution;
 
 import org.junit.jupiter.api.Test;
+import org.tarik.ta.core.dto.Precondition;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.knowledge_graph.execution.ExecutionItem;
@@ -40,7 +41,7 @@ class ExecutionQueueTest {
     void constructor_shouldCreateQueueWithInitialItems() {
         // Given
         List<ExecutionItem> items = executionItemsList();
-        items.add(new PreconditionItem("precondition 1"));
+        items.add(new PreconditionItem(new Precondition("precondition 1", List.of())));
         items.add(new TestStepItem(new TestStep("step 1", null, "expected")));
 
         // When
@@ -63,7 +64,7 @@ class ExecutionQueueTest {
         // Given
         var testCase = new TestCase(
                 "Test Case",
-                List.of("precondition 1", "precondition 2"),
+                List.of(new Precondition("precondition 1", List.of()), new Precondition("precondition 2", List.of())), List.of(),
                 List.of(
                         new TestStep("step 1", null, "expected 1"),
                         new TestStep("step 2", null, "expected 2")
@@ -79,11 +80,11 @@ class ExecutionQueueTest {
         // Verify order: preconditions first, then test steps
         var item1 = queue.next();
         assertThat(item1).isInstanceOf(PreconditionItem.class);
-        assertThat(((PreconditionItem) item1).description()).isEqualTo("precondition 1");
+        assertThat(((PreconditionItem) item1).getDescription()).isEqualTo("precondition 1");
         
         var item2 = queue.next();
         assertThat(item2).isInstanceOf(PreconditionItem.class);
-        assertThat(((PreconditionItem) item2).description()).isEqualTo("precondition 2");
+        assertThat(((PreconditionItem) item2).getDescription()).isEqualTo("precondition 2");
         
         var item3 = queue.next();
         assertThat(item3).isInstanceOf(TestStepItem.class);
@@ -95,11 +96,27 @@ class ExecutionQueueTest {
     }
 
     @Test
+    void fromTestCase_shouldCarryTheRelevantDataOfAPreconditionAsItsTestData() {
+        // Given
+        var testCase = new TestCase(
+                "Test Case",
+                List.of(new Precondition("the user is logged in", List.of("user=admin"))), List.of(),
+                List.of(new TestStep("step 1", null, "expected 1"))
+        );
+
+        // When
+        var item = ExecutionQueue.fromTestCase(testCase, 0).next();
+
+        // Then
+        assertThat(item.getTestData()).containsExactly("user=admin");
+    }
+
+    @Test
     void fromTestCase_shouldRespectStartingStepIndex() {
         // Given
         var testCase = new TestCase(
                 "Test Case",
-                List.of("precondition 1"),
+                List.of(new Precondition("precondition 1", List.of())), List.of(),
                 List.of(
                         new TestStep("step 1", null, "expected 1"),
                         new TestStep("step 2", null, "expected 2"),
@@ -127,7 +144,7 @@ class ExecutionQueueTest {
         // Given
         var testCase = new TestCase(
                 "Test Case",
-                null,
+                null, List.of(),
                 List.of(new TestStep("step 1", null, "expected 1"))
         );
 
@@ -144,7 +161,7 @@ class ExecutionQueueTest {
         // Given
         var testCase = new TestCase(
                 "Test Case",
-                List.of("precondition 1"),
+                List.of(new Precondition("precondition 1", List.of())), List.of(),
                 null
         );
 
@@ -168,7 +185,7 @@ class ExecutionQueueTest {
     void hasNext_shouldReturnTrueWhenItemsExist() {
         // Given
         List<ExecutionItem> items = executionItemsList();
-        items.add(new PreconditionItem("test"));
+        items.add(new PreconditionItem(new Precondition("test", List.of())));
         var queue = new ExecutionQueue(items);
 
         // When/Then
@@ -188,15 +205,15 @@ class ExecutionQueueTest {
     void next_shouldReturnAndRemoveHeadItem() {
         // Given
         List<ExecutionItem> items = executionItemsList();
-        items.add(new PreconditionItem("first"));
-        items.add(new PreconditionItem("second"));
+        items.add(new PreconditionItem(new Precondition("first", List.of())));
+        items.add(new PreconditionItem(new Precondition("second", List.of())));
         var queue = new ExecutionQueue(items);
 
         // When
         var first = queue.next();
 
         // Then
-        assertThat(((PreconditionItem) first).description()).isEqualTo("first");
+        assertThat(((PreconditionItem) first).getDescription()).isEqualTo("first");
         assertThat(queue.remainingCount()).isEqualTo(1);
     }
 
@@ -216,12 +233,12 @@ class ExecutionQueueTest {
     void injectAtFront_shouldAddItemsAtFrontOfQueue() {
         // Given
         List<ExecutionItem> originalItems = executionItemsList();
-        originalItems.add(new PreconditionItem("original"));
+        originalItems.add(new PreconditionItem(new Precondition("original", List.of())));
         var queue = new ExecutionQueue(originalItems);
         
         List<ExecutionItem> itemsToInject = executionItemsList();
-        itemsToInject.add(new PreconditionItem("injected 1"));
-        itemsToInject.add(new PreconditionItem("injected 2"));
+        itemsToInject.add(new PreconditionItem(new Precondition("injected 1", List.of())));
+        itemsToInject.add(new PreconditionItem(new Precondition("injected 2", List.of())));
 
         // When
         queue.injectAtFront(itemsToInject);
@@ -231,20 +248,20 @@ class ExecutionQueueTest {
         
         // First item should be the first injected item
         var first = queue.next();
-        assertThat(((PreconditionItem) first).description()).isEqualTo("injected 1");
+        assertThat(((PreconditionItem) first).getDescription()).isEqualTo("injected 1");
         
         var second = queue.next();
-        assertThat(((PreconditionItem) second).description()).isEqualTo("injected 2");
+        assertThat(((PreconditionItem) second).getDescription()).isEqualTo("injected 2");
         
         var third = queue.next();
-        assertThat(((PreconditionItem) third).description()).isEqualTo("original");
+        assertThat(((PreconditionItem) third).getDescription()).isEqualTo("original");
     }
 
     @Test
     void injectAtFront_shouldThrowOnNullItems() {
         // Given
         List<ExecutionItem> items = executionItemsList();
-        items.add(new PreconditionItem("test"));
+        items.add(new PreconditionItem(new Precondition("test", List.of())));
         var queue = new ExecutionQueue(items);
 
         // When/Then
@@ -257,7 +274,7 @@ class ExecutionQueueTest {
     void injectAtFront_shouldHandleEmptyList() {
         // Given
         List<ExecutionItem> items = executionItemsList();
-        items.add(new PreconditionItem("original"));
+        items.add(new PreconditionItem(new Precondition("original", List.of())));
         var queue = new ExecutionQueue(items);
 
         // When
@@ -265,16 +282,16 @@ class ExecutionQueueTest {
 
         // Then
         assertThat(queue.remainingCount()).isEqualTo(1);
-        assertThat(((PreconditionItem) queue.next()).description()).isEqualTo("original");
+        assertThat(((PreconditionItem) queue.next()).getDescription()).isEqualTo("original");
     }
 
     @Test
     void remainingCount_shouldReturnCorrectCount() {
         // Given
         List<ExecutionItem> items = executionItemsList();
-        items.add(new PreconditionItem("1"));
-        items.add(new PreconditionItem("2"));
-        items.add(new PreconditionItem("3"));
+        items.add(new PreconditionItem(new Precondition("1", List.of())));
+        items.add(new PreconditionItem(new Precondition("2", List.of())));
+        items.add(new PreconditionItem(new Precondition("3", List.of())));
         var queue = new ExecutionQueue(items);
 
         // When/Then
@@ -291,15 +308,15 @@ class ExecutionQueueTest {
     void queue_shouldProcessItemsInFifoOrder() {
         // Given
         List<ExecutionItem> items = executionItemsList();
-        items.add(new PreconditionItem("first"));
-        items.add(new PreconditionItem("second"));
-        items.add(new PreconditionItem("third"));
+        items.add(new PreconditionItem(new Precondition("first", List.of())));
+        items.add(new PreconditionItem(new Precondition("second", List.of())));
+        items.add(new PreconditionItem(new Precondition("third", List.of())));
         var queue = new ExecutionQueue(items);
 
         // When/Then
-        assertThat(((PreconditionItem) queue.next()).description()).isEqualTo("first");
-        assertThat(((PreconditionItem) queue.next()).description()).isEqualTo("second");
-        assertThat(((PreconditionItem) queue.next()).description()).isEqualTo("third");
+        assertThat(((PreconditionItem) queue.next()).getDescription()).isEqualTo("first");
+        assertThat(((PreconditionItem) queue.next()).getDescription()).isEqualTo("second");
+        assertThat(((PreconditionItem) queue.next()).getDescription()).isEqualTo("third");
         assertThat(queue.hasNext()).isFalse();
     }
 
@@ -307,22 +324,22 @@ class ExecutionQueueTest {
     void queue_shouldSupportMultipleInjections() {
         // Given
         List<ExecutionItem> items = executionItemsList();
-        items.add(new PreconditionItem("original"));
+        items.add(new PreconditionItem(new Precondition("original", List.of())));
         var queue = new ExecutionQueue(items);
 
         // When
         List<ExecutionItem> inject1 = executionItemsList();
-        inject1.add(new PreconditionItem("inject 1"));
+        inject1.add(new PreconditionItem(new Precondition("inject 1", List.of())));
         queue.injectAtFront(inject1);
         queue.next(); // consume "inject 1"
         
         List<ExecutionItem> inject2 = executionItemsList();
-        inject2.add(new PreconditionItem("inject 2"));
+        inject2.add(new PreconditionItem(new Precondition("inject 2", List.of())));
         queue.injectAtFront(inject2);
 
         // Then
         assertThat(queue.remainingCount()).isEqualTo(2);
-        assertThat(((PreconditionItem) queue.next()).description()).isEqualTo("inject 2");
-        assertThat(((PreconditionItem) queue.next()).description()).isEqualTo("original");
+        assertThat(((PreconditionItem) queue.next()).getDescription()).isEqualTo("inject 2");
+        assertThat(((PreconditionItem) queue.next()).getDescription()).isEqualTo("original");
     }
 }

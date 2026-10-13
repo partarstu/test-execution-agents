@@ -1,0 +1,92 @@
+#
+# ui-test-execution-agent - Agent specializing in execution of UI tests.
+# Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: holo-grounding-35b
+  labels:
+    cloud.googleapis.com/location: europe-west4
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: '1'
+        run.googleapis.com/cpu-throttling: 'false'
+        run.googleapis.com/gpu-zonal-redundancy-disabled: 'true'
+        run.googleapis.com/startup-cpu-boost: 'true'
+    spec:
+      # Halved from 4 when this service took on the sub-agents as well as grounding: an agent request holds a far longer
+      # conversation than a one-shot localization, and four of them at 32768 tokens want more KV cache than one GPU has
+      # to spare. A single step's tool loop is sequential anyway, so the concurrency buys nothing back.
+      containerConcurrency: 2
+      timeoutSeconds: 3600
+      nodeSelector:
+        run.googleapis.com/accelerator: nvidia-rtx-pro-6000
+      containers:
+        # ${PROJECT_ID} is filled in with envsubst before `gcloud run services replace`, see README.md.
+        - image: europe-west4-docker.pkg.dev/${PROJECT_ID}/holo/holo-35b-nvfp4:vllm-8efa13b
+          args:
+            - --model
+            - /model
+            - --served-model-name
+            - Hcompany/Holo-3.1-35B-A3B-NVFP4
+            - --port
+            - '8000'
+            # 16384 while this served grounding alone, which is a single request carrying one screenshot. The sub-agents
+            # hold a conversation on top of that screenshot, and vLLM rejects on prompt plus max_tokens rather than on
+            # what is generated - an ~11k prompt against the agents' 8192 output cap oversubscribes 16384 before a word
+            # is produced. The loop itself was measured to fit: one screenshot is sent once, tool results are short, and
+            # the chat template drops past reasoning between turns, so six round trips add barely a thousand tokens.
+            - --max-model-len
+            - '32768'
+            - --gpu-memory-utilization
+            - '0.90'
+            - --enable-auto-tool-choice
+            - --tool-call-parser
+            - qwen3_coder
+            # Here for Holo31GroundingComparisonTest's thinking-enabled arm: without it, think tokens arrive inline in
+            # `content` instead of `reasoning`, and the tool call is never parsed out. It does not take the thinking
+            # switch away from the caller, which this image was probed for directly: with enable_thinking=false the
+            # answer carries `"reasoning": null` and `reasoning_tokens: 0`, and a forced tool choice still leaves room
+            # to think (168 reasoning tokens alongside a well-formed tool call). Both were measured on
+            # vllm-0.27.2rc1.dev122+g8efa13b70; re-probe before assuming they hold on another image.
+            # Revert to the args in README.md if the benchmark regresses.
+            - --reasoning-parser
+            - qwen3
+          env:
+            - name: HF_HOME
+              value: /tmp/hf
+          ports:
+            - containerPort: 8000
+              name: http1
+          resources:
+            limits:
+              cpu: '20'
+              memory: 80Gi
+              nvidia.com/gpu: '1'
+          # Cloud Run's default startup allowance is 4 minutes, which 24 GB of weights do not load within - a plain
+          # `gcloud run deploy` of this image fails with "Container failed to become healthy". Hence an explicit probe,
+          # and hence `gcloud run services replace` rather than `gcloud run deploy`.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 120

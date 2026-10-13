@@ -1,0 +1,224 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* The track: one rail through every marker; passed is a circle, failed a square, error a diamond, running a pulsing ring */
+@layer components {
+  .rail {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail-item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.25rem 1.75rem minmax(0, 1fr);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-2) var(--space-2) 0;
+    border-radius: var(--radius);
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset-inline-start: calc(0.625rem - 1px);
+      inset-block: 0;
+      inline-size: 2px;
+      background: var(--rule);
+    }
+
+    &:first-child::before {
+      inset-block-start: 1.1rem;
+    }
+
+    &:last-child::before {
+      inset-block-end: calc(100% - 1.1rem);
+    }
+
+    &[aria-current="step"] {
+      background: var(--accent-soft);
+
+      & .rail-description {
+        font-weight: 650;
+      }
+    }
+  }
+
+  .rail-marker {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    inline-size: 1.125rem;
+    block-size: 1.125rem;
+    margin: 0.15rem 0 0 0.0625rem;
+    border-radius: 50%;
+    border: 2px solid var(--muted);
+    background: var(--panel);
+    color: var(--on-accent);
+  }
+
+  .rail-item-running .rail-marker {
+    border-color: var(--accent);
+    background: var(--panel);
+    box-shadow: inset 0 0 0 3px var(--panel), inset 0 0 0 9px var(--accent);
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation: rail-running 1.6s ease-in-out infinite;
+    }
+  }
+
+  .rail-item-passed .rail-marker {
+    border-color: var(--passed);
+    background: var(--passed);
+  }
+
+  .rail-item-failed .rail-marker {
+    border-radius: 3px;
+    border-color: var(--failed);
+    background: var(--failed);
+  }
+
+  .rail-item-error .rail-marker {
+    border-radius: 2px;
+    rotate: 45deg;
+    scale: 0.9;
+    border-color: var(--error);
+    background: var(--error);
+
+    & > * {
+      rotate: -45deg;
+    }
+  }
+
+  .rail-mark-text {
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  @keyframes rail-running {
+    50% {
+      outline: 4px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    }
+  }
+
+  .rail-number {
+    padding-block-start: 0.1rem;
+    color: var(--muted);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  .rail-body {
+    display: grid;
+    gap: 0.15rem;
+    min-inline-size: 0;
+  }
+
+  .rail-description {
+    overflow-wrap: anywhere;
+  }
+
+  .rail-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-3);
+    font-size: var(--text-xs);
+  }
+
+  .rail-status {
+    color: var(--muted);
+    font-weight: 650;
+  }
+
+  .rail-duration {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    color: var(--muted);
+  }
+
+  button.rail-why-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.1rem;
+    min-block-size: 1.5rem;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover:not(:disabled) {
+      text-decoration: underline;
+    }
+  }
+
+  .rail-item-running .rail-status {
+    color: var(--accent);
+  }
+
+  .rail-item-passed .rail-status {
+    color: var(--passed);
+  }
+
+  .rail-item-failed .rail-status {
+    color: var(--failed);
+  }
+
+  .rail-item-error .rail-status {
+    color: var(--error);
+  }
+
+  .rail-error {
+    margin-block-start: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    color: var(--ink);
+    background: var(--failed-soft);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+  }
+
+  .rail-why {
+    margin-block-start: var(--space-2);
+  }
+
+  /* Forced colours paint the filled markers away; they keep a solid system fill so passed, failed and error stay apart from pending */
+  @media (forced-colors: active) {
+    .rail-marker {
+      forced-color-adjust: none;
+      color: Canvas;
+      background: Canvas;
+      border-color: CanvasText;
+    }
+
+    .rail-item-passed .rail-marker,
+    .rail-item-failed .rail-marker,
+    .rail-item-error .rail-marker {
+      background: CanvasText;
+    }
+
+    .rail-item-running .rail-marker {
+      border-color: Highlight;
+      box-shadow: inset 0 0 0 3px Canvas, inset 0 0 0 9px Highlight;
+    }
+
+    .rail-item::before {
+      forced-color-adjust: none;
+      background: GrayText;
+    }
+  }
+}

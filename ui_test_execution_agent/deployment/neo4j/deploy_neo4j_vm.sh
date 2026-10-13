@@ -34,16 +34,8 @@ echo "Using GCP Project ID: $PROJECT_ID"
 
 # --- Prerequisites ---
 echo "Step 1: Checking GCP services..."
-# Check if services are already enabled before attempting to enable them
-# This avoids permission errors when services are already active
-for service in ${GCP_SERVICES}; do
-  if gcloud services list --enabled --project=${PROJECT_ID} --filter="name:${service}" --format="value(name)" | grep -q "${service}"; then
-    echo "Service ${service} is already enabled."
-  else
-    echo "Enabling service ${service}..."
-    gcloud services enable ${service} --project=${PROJECT_ID}
-  fi
-done
+source "$(dirname "$0")/../gcp_services.sh"
+enable_missing_gcp_services "${PROJECT_ID}" ${GCP_SERVICES}
 
 # --- Persistent Data Disk ---
 echo "Step 2: Setting up persistent data disk..."
@@ -155,7 +147,8 @@ gcloud beta compute instances create ${INSTANCE_NAME} \
     --instance-termination-action=${INSTANCE_TERMINATION_ACTION} \
     --service-account=$(gcloud projects describe ${PROJECT_ID} --format='value(projectNumber)')-compute@developer.gserviceaccount.com \
     --scopes=${CLOUD_PLATFORM_SCOPE} \
-    --image=${GCE_IMAGE} \
+    --image-family=${GCE_IMAGE_FAMILY} \
+    --image-project=${GCE_IMAGE_PROJECT} \
     --boot-disk-size=${BOOT_DISK_SIZE} \
     --boot-disk-type=${BOOT_DISK_TYPE} \
     --boot-disk-device-name=${INSTANCE_NAME} \

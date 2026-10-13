@@ -19,22 +19,32 @@ package org.tarik.ta.core.manager;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.core.exceptions.BudgetExceededException;
+import org.tarik.ta.core.telemetry.TokenUsageRecord;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static java.time.Instant.now;
+import static java.util.Comparator.comparing;
 
 @Singleton
 public class BudgetManager {
     private static final Logger LOG = LoggerFactory.getLogger(BudgetManager.class);
+    /** Bucket used when usage is recorded outside of an A2A task, e.g. by a manual run or a test. */
+    private static final String UNKNOWN_TASK_ID = "unknown";
 
     // Bridge accessor for non-injectable contexts (e.g. GenericAiAgent interface default methods).
     private static volatile BudgetManager instance;
@@ -43,8 +53,12 @@ public class BudgetManager {
     private final int tokenBudget;
     private final int toolCallsBudget;
     private final AtomicInteger toolCallUsage = new AtomicInteger(0);
+    private final AtomicBoolean toolCallBudgetActive = new AtomicBoolean(false);
     private final AtomicReference<Instant> startTime = new AtomicReference<>(null);
-    private final Map<String, ModelUsage> tokenUsagePerModel = new ConcurrentHashMap<>();
+    /** Accumulated usage of the current run, one entry per {@code (task id, sub-agent operation)}. */
+    private final Map<UsageKey, TokenUsageRecord> tokenUsage = new ConcurrentHashMap<>();
+    private final AtomicReference<String> currentTaskId = new AtomicReference<>(UNKNOWN_TASK_ID);
+    private final ReadWriteLock usageLock = new ReentrantReadWriteLock();
 
     @Inject
     public BudgetManager(AgentConfig agentConfig) {
@@ -54,10 +68,8 @@ public class BudgetManager {
         instance = this;
     }
 
-    public record ModelUsage(AtomicInteger input, AtomicInteger output, AtomicInteger cached, AtomicInteger total) {
-        public ModelUsage() {
-            this(new AtomicInteger(0), new AtomicInteger(0), new AtomicInteger(0), new AtomicInteger(0));
-        }
+    /** Identifies the usage bucket of one sub-agent operation within one task. */
+    private record UsageKey(String taskId, String operationName) {
     }
 
     public static BudgetManager getInstance() {
@@ -73,9 +85,39 @@ public class BudgetManager {
 
     public void reset() {
         toolCallUsage.set(0);
+        toolCallBudgetActive.set(false);
         startTime.set(null);
-        tokenUsagePerModel.clear();
+        tokenUsage.clear();
         LOG.debug("Budget counters reset.");
+    }
+
+    /**
+     * Binds the usage recorded from now on to the given task, so that the report of a finished task carries exactly
+     * what that task spent.
+     */
+    public void beginTask(@NotNull String taskId) {
+        currentTaskId.set(taskId);
+    }
+
+    /**
+     * Returns the task's usage, one entry per sub-agent operation, and frees its buckets; called once per task after the usage
+     * has been reported.
+     */
+    public List<TokenUsageRecord> releaseTask(@NotNull String taskId) {
+        // Exclusive, so that no model call is added to the task's buckets between reading and removing them
+        usageLock.writeLock().lock();
+        try {
+            var released = tokenUsage.entrySet().stream()
+                    .filter(entry -> entry.getKey().taskId().equals(taskId))
+                    .map(Map.Entry::getValue)
+                    .sorted(comparing(TokenUsageRecord::operationName))
+                    .toList();
+            tokenUsage.keySet().removeIf(key -> key.taskId().equals(taskId));
+            currentTaskId.compareAndSet(taskId, UNKNOWN_TASK_ID);
+            return released;
+        } finally {
+            usageLock.writeLock().unlock();
+        }
     }
 
     public void activateTimeBudget() {
@@ -83,53 +125,43 @@ public class BudgetManager {
         LOG.debug("Execution time budget activated.");
     }
 
+    public void activateToolCallBudget() {
+        toolCallBudgetActive.set(true);
+        LOG.debug("Tool call budget activated.");
+    }
+
     public void resetToolCallUsage() {
         toolCallUsage.set(0);
         LOG.debug("Tool call usage reset.");
     }
 
-    public void consumeTokens(String modelName, int input, int output, int cached) {
-        ModelUsage usage = tokenUsagePerModel.computeIfAbsent(modelName, _ -> new ModelUsage());
-        usage.input.addAndGet(input);
-        usage.output.addAndGet(output);
-        usage.cached.addAndGet(cached);
-        usage.total.addAndGet(input + output + cached);
+    /**
+     * Adds the usage of one model call to its operation's bucket within the current task and returns that operation's accumulated
+     * usage.
+     */
+    public TokenUsageRecord consumeTokens(@NotNull TokenUsageRecord callUsage) {
+        usageLock.readLock().lock();
+        try {
+            return tokenUsage.merge(new UsageKey(currentTaskId.get(), callUsage.operationName()), callUsage, TokenUsageRecord::plus);
+        } finally {
+            usageLock.readLock().unlock();
+        }
     }
 
     public int getAccumulatedInputTokens() {
-        return tokenUsagePerModel.values().stream().mapToInt(u -> u.input.get()).sum();
+        return tokenUsage.values().stream().mapToInt(TokenUsageRecord::inputTokens).sum();
     }
 
     public int getAccumulatedOutputTokens() {
-        return tokenUsagePerModel.values().stream().mapToInt(u -> u.output.get()).sum();
+        return tokenUsage.values().stream().mapToInt(TokenUsageRecord::outputTokens).sum();
     }
 
     public int getAccumulatedCachedTokens() {
-        return tokenUsagePerModel.values().stream().mapToInt(u -> u.cached.get()).sum();
+        return tokenUsage.values().stream().mapToInt(TokenUsageRecord::cachedTokens).sum();
     }
 
     public int getAccumulatedTotalTokens() {
         return getAccumulatedInputTokens() + getAccumulatedOutputTokens() + getAccumulatedCachedTokens();
-    }
-
-    public int getAccumulatedInputTokens(String modelName) {
-        ModelUsage usage = tokenUsagePerModel.get(modelName);
-        return usage != null ? usage.input.get() : 0;
-    }
-
-    public int getAccumulatedOutputTokens(String modelName) {
-        ModelUsage usage = tokenUsagePerModel.get(modelName);
-        return usage != null ? usage.output.get() : 0;
-    }
-
-    public int getAccumulatedCachedTokens(String modelName) {
-        ModelUsage usage = tokenUsagePerModel.get(modelName);
-        return usage != null ? usage.cached.get() : 0;
-    }
-
-    public int getAccumulatedTotalTokens(String modelName) {
-        return getAccumulatedInputTokens(modelName) + getAccumulatedOutputTokens(modelName)
-                + getAccumulatedCachedTokens(modelName);
     }
 
     public void consumeToolCalls(int count) {
@@ -144,22 +176,21 @@ public class BudgetManager {
         }
         long elapsedSeconds = Duration.between(start, now()).getSeconds();
         if (timeBudgetSeconds > 0 && elapsedSeconds > timeBudgetSeconds) {
-            throw new RuntimeException(
-                    "Execution time budget exceeded: " + elapsedSeconds + "s > " + timeBudgetSeconds + "s");
+            throw new BudgetExceededException("Execution time budget exceeded: %ds > %ds".formatted(elapsedSeconds, timeBudgetSeconds));
         }
     }
 
     public void checkTokenBudget() {
         int current = getAccumulatedTotalTokens();
         if (tokenBudget > 0 && current > tokenBudget) {
-            throw new RuntimeException("Token budget exceeded: " + current + " > " + tokenBudget);
+            throw new BudgetExceededException("Token budget exceeded: %d > %d".formatted(current, tokenBudget));
         }
     }
 
     public void checkToolCallBudget() {
         int current = toolCallUsage.get();
-        if (toolCallsBudget > 0 && current > toolCallsBudget) {
-            throw new RuntimeException("Tool call budget exceeded: " + current + " > " + toolCallsBudget);
+        if (toolCallBudgetActive.get() && toolCallsBudget > 0 && current > toolCallsBudget) {
+            throw new BudgetExceededException("Tool call budget exceeded: %d > %d".formatted(current, toolCallsBudget));
         }
     }
 

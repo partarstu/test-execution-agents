@@ -25,6 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.a2a.StreamingEventEmitter;
 import org.tarik.ta.core.config.scopes.BaseAgentRequestScope;
+import org.tarik.ta.core.security.SecretRegistry;
 import jakarta.annotation.PreDestroy;
 
 import java.time.Instant;
@@ -83,7 +84,9 @@ public class LogCapture {
         String timestamp = TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(event.getTimeStamp()));
         String level = event.getLevel().toString();
         String loggerName = getShortLoggerName(event.getLoggerName());
-        return "%s %-5s %s - %s".formatted(timestamp, level, loggerName, event.getFormattedMessage());
+        // Safety net: a secret that reached a log message through third-party code never leaves the agent in clear.
+        var message = SecretRegistry.global().redact(event.getFormattedMessage());
+        return "%s %-5s %s - %s".formatted(timestamp, level, loggerName, message);
     }
 
     private String getShortLoggerName(String loggerName) {

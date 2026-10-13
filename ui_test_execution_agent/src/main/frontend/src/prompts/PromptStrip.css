@@ -1,0 +1,77 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* The open prompt pinned under the app bar on the other tabs, in the prompt's teal, amber in its last seconds */
+@layer components {
+  /* The strip has a fixed height, so focus and fragment scrolling stop clear of it as well as of the app bar */
+  html:has(.prompt-strip) {
+    --prompt-strip-block-size: 5rem;
+    scroll-padding-block-start: calc(var(--appbar-block-size) + var(--prompt-strip-block-size) + var(--space-3));
+  }
+
+  .prompt-strip {
+    position: sticky;
+    inset-block-start: var(--appbar-block-size);
+    z-index: 9;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    block-size: var(--prompt-strip-block-size);
+    padding: var(--space-2) var(--space-5);
+    background: var(--accent-soft);
+    border-block-end: 1px solid var(--accent);
+
+    & > button {
+      flex: none;
+    }
+
+    @media (width < 40rem) {
+      padding-inline: var(--space-3);
+    }
+
+    @media (forced-colors: active) {
+      border-block-end-color: CanvasText;
+    }
+  }
+
+  .prompt-strip-urgent {
+    background: var(--warning-soft);
+    border-block-end-color: var(--warning);
+  }
+
+  /* One line each, so the strip keeps its height; the whole question is on the Run tab */
+  .prompt-strip-text {
+    display: grid;
+    flex: 1;
+    min-inline-size: 0;
+
+    & > * {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    & strong {
+      font-weight: 650;
+    }
+  }
+
+  .prompt-strip-time {
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+}

@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.core.a2a.StreamingEventEmitter;
+import org.tarik.ta.core.dto.Precondition;
 import org.tarik.ta.core.dto.TestCase;
 import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
@@ -113,7 +114,8 @@ class ApiManualTest {
                 List.of("${petId}"),
                 "Request sent. Status: 404"));
 
-        TestCase testCase = new TestCase("Swagger Petstore End-to-End Flow", List.of(precondition), steps);
+        TestCase testCase = new TestCase("Swagger Petstore End-to-End Flow", List.of(new Precondition(precondition, List.of())), List.of(),
+                steps);
 
         // When
         TestExecutionResult actualResult;

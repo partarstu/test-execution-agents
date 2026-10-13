@@ -19,11 +19,12 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
-import jakarta.inject.Singleton;
+import org.tarik.ta.config.scopes.UiAgentRequestScope;
 import org.tarik.ta.agents.UiStateCheckAgent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.exceptions.ToolExecutionException;
+import org.tarik.ta.core.security.SecretRegistry;
 
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.KeyEvent;
@@ -38,7 +39,7 @@ import static org.tarik.ta.core.error.ErrorCategory.TRANSIENT_TOOL_ERROR;
 import static org.tarik.ta.utils.UiCommonUtils.*;
 import static org.tarik.ta.core.utils.CommonUtils.*;
 
-@Singleton
+@UiAgentRequestScope
 public class KeyboardTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(KeyboardTools.class);
     private static final Map<String, Integer> actionableKeyCodeByNameMap = getActionableKeyCodesByName();
@@ -113,19 +114,22 @@ public class KeyboardTools extends UiAbstractTools {
                             "out. Expected boolean value, got : {%s}").formatted(wipeOutOldContent),
                     TRANSIENT_TOOL_ERROR);
         }
+        // The keyboard is the boundary that consumes the value, so this is the only place where a secret placeholder is
+        // turned back into the real text. The resolved text never appears in a log line or an exception message.
+        var resolvedText = SecretRegistry.global().resolve(text);
         try {
             getRobot().setAutoDelay(AUTO_DELAY);
             if (isBlank(wipeOutOldContent) || Boolean.parseBoolean(wipeOutOldContent)) {
                 selectAndDeleteContent();
             }
 
-            for (char ch : text.toCharArray()) {
+            for (char ch : resolvedText.toCharArray()) {
                 if (isAsciiPrintable(ch)) {
                     try {
                         typeCharacter(ch);
                     } catch (Exception e) {
-                        LOG.info("Couldn't type '{}' character using keyboard keys, falling back to copy-paste.", ch,
-                                e);
+                        // The character itself is not logged: the typed text may be a secret resolved a few lines above.
+                        LOG.info("Couldn't type a character using keyboard keys, falling back to copy-paste.", e);
                         copyPaste(ch);
                     }
                 } else {
@@ -133,7 +137,7 @@ public class KeyboardTools extends UiAbstractTools {
                 }
             }
         } catch (Exception e) {
-            throw rethrowAsToolException(e, "typing text '%s'".formatted(text));
+            throw rethrowAsToolException(e, "typing the provided text");
         }
     }
 
@@ -171,14 +175,15 @@ public class KeyboardTools extends UiAbstractTools {
                             "out. Expected boolean value, got : {%s}").formatted(wipeOutOldContent),
                     TRANSIENT_TOOL_ERROR);
         }
+        var resolvedText = SecretRegistry.global().resolve(text);
         try {
             getRobot().setAutoDelay(AUTO_DELAY);
             if (isBlank(wipeOutOldContent) || Boolean.parseBoolean(wipeOutOldContent)) {
                 selectAndDeleteContent();
             }
-            copyPasteText(text);
+            copyPasteText(resolvedText);
         } catch (Exception e) {
-            throw rethrowAsToolException(e, "pasting text '%s'".formatted(text));
+            throw rethrowAsToolException(e, "pasting the provided text");
         }
     }
 

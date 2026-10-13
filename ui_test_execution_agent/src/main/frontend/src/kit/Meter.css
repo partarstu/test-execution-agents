@@ -1,0 +1,53 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  .meter {
+    display: block;
+    block-size: 0.375rem;
+    min-inline-size: 4rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--rule);
+  }
+
+  .meter-fill {
+    display: block;
+    block-size: 100%;
+    border-radius: inherit;
+    background: var(--passed);
+
+    .meter-fair > & {
+      background: var(--warning);
+    }
+
+    .meter-poor > & {
+      background: var(--failed);
+    }
+  }
+
+  @media (forced-colors: active) {
+    .meter {
+      border: 1px solid CanvasText;
+    }
+
+    .meter-fill {
+      forced-color-adjust: none;
+      background: CanvasText;
+    }
+  }
+}

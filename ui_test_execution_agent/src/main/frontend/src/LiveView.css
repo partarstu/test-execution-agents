@@ -1,0 +1,145 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Live view: the agent's screen on a dark stage, which grows while the operator controls it and can fill the screen */
+@layer components {
+  .live {
+    container-type: inline-size;
+  }
+
+  .live-state {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--muted);
+    font-size: var(--text-sm);
+
+    &::before {
+      content: "";
+      inline-size: 0.5rem;
+      block-size: 0.5rem;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+  }
+
+  .live-connected::before {
+    background: var(--passed);
+  }
+
+  .live-disconnected::before {
+    background: var(--failed);
+  }
+
+  @media (forced-colors: active) {
+    .live-state::before {
+      forced-color-adjust: none;
+      background: CanvasText;
+    }
+
+    .live-connecting::before {
+      background: GrayText;
+    }
+  }
+
+  .live-watch-only {
+    color: var(--muted);
+  }
+
+  .live-note {
+    margin-block-end: var(--space-3);
+  }
+
+  .live-stage {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    background: var(--stage);
+
+    .live-controlling & {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    &:fullscreen {
+      display: grid;
+      place-items: center;
+      border-radius: 0;
+
+      & .live-screen {
+        inline-size: 100%;
+        block-size: 100dvh;
+      }
+    }
+  }
+
+  /* A 16:9 height from the section's width; aspect-ratio with a max-height would narrow the box instead */
+  .live-screen {
+    block-size: min(56.25cqw, 50vh);
+  }
+
+  .live-controlling .live-screen {
+    block-size: min(70vh, 48rem);
+  }
+
+  /* Without a connection there is no screen to show, so the stage gives its height back to the log */
+  .live-stage-idle .live-screen {
+    block-size: 10rem;
+  }
+
+  /* As a tile the screen keeps its 16:9 shape at the tile's width, and the whole stage opens the live view large */
+  .live-tile .live-screen {
+    block-size: min(56.25cqw, 24dvh);
+  }
+
+  .live-tile-open {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    inline-size: 100%;
+    block-size: 100%;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: inherit;
+    cursor: zoom-in;
+
+    &:hover:not(:disabled) {
+      background: transparent;
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+  }
+
+  .live-tile .section-head {
+    margin-block-end: var(--space-2);
+  }
+
+  .live-size .kbd {
+    margin-inline-start: var(--space-1);
+  }
+
+  .live-overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: var(--space-2);
+    color: var(--stage-muted);
+  }
+}

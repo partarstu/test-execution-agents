@@ -33,6 +33,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
@@ -40,6 +41,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Thread.currentThread;
 import static java.nio.file.Files.isDirectory;
 import static java.time.Instant.now;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -143,6 +145,19 @@ public class CommonUtils {
                 currentThread().interrupt();
             }
             return empty();
+        }
+    }
+
+    /** Stops the executor, interrupting the tasks still running once the grace period has passed. */
+    public static void shutDownGracefully(@NotNull ExecutorService executor, @NotNull Duration gracePeriod) {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(gracePeriod.toMillis(), MILLISECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException _) {
+            executor.shutdownNow();
+            currentThread().interrupt();
         }
     }
 

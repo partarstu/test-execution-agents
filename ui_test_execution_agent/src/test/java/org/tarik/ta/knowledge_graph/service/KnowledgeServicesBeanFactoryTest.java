@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.location_history.ElementLocationHistoryLookup;
 import org.tarik.ta.knowledge_graph.location_history.LocationHistoryRecorder;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
@@ -31,7 +30,6 @@ import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,34 +39,18 @@ class KnowledgeServicesBeanFactoryTest {
     private ProcedureRepository mockRepository;
 
     @Mock
-    private UiTestAgentConfig mockConfig;
-
-    @Mock
     private AsyncExecutionPersistenceService mockAsyncService;
 
     private KnowledgeServicesBeanFactory factory;
 
     @BeforeEach
     void setUp() {
-        factory = new KnowledgeServicesBeanFactory(mockRepository, mockConfig);
+        factory = new KnowledgeServicesBeanFactory(mockRepository);
     }
 
     @Test
-    @DisplayName("locationHistoryRecorder should be no-op when collection is disabled")
-    void locationHistoryRecorder_shouldBeNoOpWhenCollectionDisabled() {
-        when(mockConfig.isLocationHistoryAndFailureHintsCollectionEnabled()).thenReturn(false);
-
-        LocationHistoryRecorder recorder = factory.locationHistoryRecorder(mockAsyncService);
-        recorder.record(UUID.randomUUID(), true, 100);
-
-        verifyNoInteractions(mockAsyncService);
-    }
-
-    @Test
-    @DisplayName("locationHistoryRecorder should delegate when enabled")
-    void locationHistoryRecorder_shouldDelegateWhenEnabled() {
-        when(mockConfig.isLocationHistoryAndFailureHintsCollectionEnabled()).thenReturn(true);
-
+    @DisplayName("locationHistoryRecorder always delegates, since failed locations are recorded as anomalies regardless of collection")
+    void locationHistoryRecorder_shouldDelegate() {
         LocationHistoryRecorder recorder = factory.locationHistoryRecorder(mockAsyncService);
         UUID elementId = UUID.randomUUID();
         recorder.record(elementId, true, 100);

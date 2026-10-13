@@ -21,7 +21,7 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.model.output.structured.Description;
 import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
+import org.tarik.ta.config.scopes.UiAgentRequestScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.agents.UiStateCheckAgent;
@@ -43,7 +43,7 @@ import static org.tarik.ta.core.utils.CommonUtils.isBlank;
  * Provides tools for creating atomic procedures and linking them to UI
  * elements.
  */
-@Singleton
+@UiAgentRequestScope
 class KnowledgeElementTools extends UiAbstractTools {
     private static final Logger LOG = LoggerFactory.getLogger(KnowledgeElementTools.class);
 

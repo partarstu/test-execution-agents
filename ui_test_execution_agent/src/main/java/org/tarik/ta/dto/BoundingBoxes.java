@@ -17,20 +17,29 @@
  */
 package org.tarik.ta.dto;
 
-import org.tarik.ta.core.dto.FinalResult;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import org.jetbrains.annotations.NotNull;
 
 import static dev.langchain4j.agent.tool.ReturnBehavior.IMMEDIATE_IF_LAST;
 
 import dev.langchain4j.model.output.structured.Description;
+
+import java.awt.Rectangle;
 import java.util.List;
 
 @Description("the list of all identified bounding boxes")
-public record BoundingBoxes(List<BoundingBox> boundingBoxes) implements FinalResult {
+public record BoundingBoxes(List<BoundingBox> boundingBoxes) implements IdentifiedRegions {
     @Tool(value = TOOL_DESCRIPTION, returnBehavior = IMMEDIATE_IF_LAST)
     public static BoundingBoxes endExecutionAndGetFinalResult(
             @P(FINAL_RESULT_PARAM_DESCRIPTION) BoundingBoxes result) {
         return result;
+    }
+
+    @Override
+    public @NotNull List<Rectangle> toRectangles(int imageWidth, int imageHeight, boolean alreadyNormalized) {
+        return boundingBoxes.stream()
+                .map(boundingBox -> boundingBox.getActualBoundingBox(imageWidth, imageHeight, alreadyNormalized))
+                .toList();
     }
 }

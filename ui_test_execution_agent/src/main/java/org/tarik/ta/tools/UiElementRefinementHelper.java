@@ -22,27 +22,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.core.AgentConfig;
+import org.tarik.ta.dto.UiElementInfo;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository;
 import org.tarik.ta.knowledge_graph.repository.UiElementRepository.UiElementMatch;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
-import org.tarik.ta.user_dialogs.BoundingBoxCaptureNeededPopup;
-import org.tarik.ta.user_dialogs.UiElementInfoPopup;
-import org.tarik.ta.user_dialogs.UiElementInfoPopup.UiElementInfo;
-import org.tarik.ta.user_dialogs.UiElementScreenshotCaptureWindow;
-import org.tarik.ta.user_dialogs.UiElementScreenshotCaptureWindow.UiElementCaptureResult;
 
-import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.tarik.ta.core.utils.CommonUtils.sleepMillis;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.Screenshot.fromBufferedImage;
 
 @Singleton
 public class UiElementRefinementHelper {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementRefinementHelper.class);
-    protected static final int USER_DIALOG_DISMISS_DELAY_MILLIS = 2000;
 
     private final AgentConfig agentConfig;
     private final UiTestAgentConfig uiTestAgentConfig;
@@ -52,43 +46,27 @@ public class UiElementRefinementHelper {
         this.uiTestAgentConfig = uiTestAgentConfig;
     }
 
-    public Optional<UiElement> promptUserToUpdateElementScreenshot(UiElementRepository repository, UUID elementId) {
-        return findElementById(repository, elementId).flatMap(elementToUpdate -> {
-            LOG.info("User chose to update screenshot for element: {}", elementToUpdate.name());
-
-            BoundingBoxCaptureNeededPopup.display(null, uiTestAgentConfig);
-            sleepMillis(USER_DIALOG_DISMISS_DELAY_MILLIS);
-
-            return UiElementScreenshotCaptureWindow.displayAndGetResult(null, Color.GREEN, uiTestAgentConfig)
-                    .filter(UiElementCaptureResult::success)
-                    .map(captureResult -> {
-                        var newScreenshot = fromBufferedImage(captureResult.elementScreenshot(), "png");
-                        var elementWithNewScreenshot = new UiElement(elementToUpdate.id(), elementToUpdate.name(),
-                                elementToUpdate.description(), elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(),
-                                newScreenshot, elementToUpdate.isDataDependent());
-                        repository.update(elementWithNewScreenshot, false);
-                        LOG.debug("Persisted updated screenshot for element: {}", elementToUpdate.name());
-                        return elementWithNewScreenshot;
-                    });
+    /** Replaces the element's screenshot, returning the updated element, or empty when no element has the id. */
+    public Optional<UiElement> replaceElementScreenshot(UiElementRepository repository, UUID elementId, BufferedImage screenshot) {
+        return findElementById(repository, elementId).map(elementToUpdate -> {
+            var elementWithNewScreenshot = new UiElement(elementToUpdate.id(), elementToUpdate.name(), elementToUpdate.description(),
+                    elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(), fromBufferedImage(screenshot, "png"),
+                    elementToUpdate.isDataDependent());
+            repository.update(elementWithNewScreenshot, false);
+            LOG.info("Persisted the operator's new screenshot of element '{}'", elementToUpdate.name());
+            return elementWithNewScreenshot;
         });
     }
 
-    public Optional<UiElement> promptUserToUpdateElementInfo(UiElementRepository repository, UUID elementId) {
-        LOG.info("User chose to update info for element with ID {}", elementId);
-        return findElementById(repository, elementId)
-                .flatMap(elementToUpdate -> {
-                    var currentInfo = new UiElementInfo(elementToUpdate.name(), elementToUpdate.description(),
-                            elementToUpdate.locationDetails(), elementToUpdate.parentElementSummary(), elementToUpdate.isDataDependent());
-                    return UiElementInfoPopup.displayAndGetUpdatedElementInfo(null, currentInfo, uiTestAgentConfig)
-                            .map(newInfo -> {
-                                var updatedElement = new UiElement(elementToUpdate.id(), newInfo.name(), newInfo.description(),
-                                        newInfo.locationDetails(), newInfo.pageSummary(), elementToUpdate.screenshot(),
-                                        newInfo.isDataDependent());
-                                repository.update(updatedElement);
-                                LOG.debug("Persisted updated info for element: {}", updatedElement.name());
-                                return updatedElement;
-                            });
-                });
+    /** Replaces the element's info, returning the updated element, or empty when no element has the id. */
+    public Optional<UiElement> updateElementInfo(UiElementRepository repository, UUID elementId, UiElementInfo newInfo) {
+        return findElementById(repository, elementId).map(elementToUpdate -> {
+            var updatedElement = new UiElement(elementToUpdate.id(), newInfo.name(), newInfo.description(), newInfo.locationDetails(),
+                    newInfo.pageSummary(), elementToUpdate.screenshot(), newInfo.isDataDependent());
+            repository.update(updatedElement);
+            LOG.info("Persisted the operator's info of element '{}'", updatedElement.name());
+            return updatedElement;
+        });
     }
 
     public List<UiElementMatch> retrieveUiElementsWithMinimumSimilarity(UiElementRepository repository, String query) {

@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tarik.ta.knowledge_graph.model.node.ExecutionAnomaly;
+import org.tarik.ta.knowledge_graph.model.node.ExecutionRun;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PhraseType;
 
@@ -32,27 +34,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 
 import static org.tarik.ta.knowledge_graph.model.GraphRelationships.*;
+import static org.tarik.ta.knowledge_graph.repository.Neo4jRepositorySupport.CYPHER_VERSION_PREFIX;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.SchemaVersion;
 import org.tarik.ta.knowledge_graph.model.node.TestCase;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 
 /**
- * Idempotent, versioned schema migration system for Neo4j schema elements.
- *
- * <p>Versions 1–5 are Cypher DDL (index/constraint creation). Version 6 is a Java data migration
- * that creates {@code PhraseEmbedding} nodes from legacy inline embeddings in {@code Procedure.data}.
- * Versions 7–8 add vector indexes for Procedure and UiElement.
- * Version 9 migrates Procedure nodes from JSON {@code data} blob to flat properties, and
- * renames legacy uppercase UiElement metadata properties to camelCase.</p>
+ * Idempotent, versioned schema and data migrations of the Neo4j graph, applied in version order on startup. Every migration and
+ * its version is listed in {@link #MIGRATIONS}.
  */
 public class SchemaMigrationManager {
     private static final Logger LOG = LoggerFactory.getLogger(SchemaMigrationManager.class);
-    private static final int DATA_MIGRATION_VERSION = 9;
 
-    private static final List<Migration> DDL_MIGRATIONS = List.of(
+    // Applied in this order, each followed by its version update, so that the stored version only ever grows
+    private static final List<Migration> MIGRATIONS = List.of(
             new Migration(1, "Create standard index on Procedure.isAtomic",
                     "CREATE INDEX procedure_is_atomic IF NOT EXISTS FOR (n:%s) ON (n.isAtomic)"
                             .formatted(Procedure.LABEL)),
@@ -63,17 +62,28 @@ public class SchemaMigrationManager {
                     "CREATE CONSTRAINT test_case_name_unique IF NOT EXISTS FOR (n:%s) REQUIRE n.name IS UNIQUE"
                             .formatted(TestCase.LABEL)),
             new Migration(4, "Create vector index on PhraseEmbedding.embedding",
-                    "CREATE VECTOR INDEX phrase_embedding_vector_index IF NOT EXISTS FOR (n:%s) ON n.embedding OPTIONS {indexConfig: {`vector.dimensions`: 384, `vector.similarity_function`: 'cosine'}}"
-                            .formatted(PhraseEmbedding.LABEL)),
+                    "CREATE VECTOR INDEX %s IF NOT EXISTS FOR (n:%s) ON n.embedding OPTIONS {indexConfig: {`vector.dimensions`: 384, `vector.similarity_function`: 'cosine'}}"
+                            .formatted(PhraseEmbedding.VECTOR_INDEX, PhraseEmbedding.LABEL)),
             new Migration(5, "Create index on PhraseEmbedding.phrase for exact lookups",
                     "CREATE INDEX phrase_embedding_phrase_index IF NOT EXISTS FOR (n:%s) ON (n.phrase)"
                             .formatted(PhraseEmbedding.LABEL)),
+            new Migration(6, "Extract PhraseEmbedding nodes from legacy Procedure JSON", SchemaMigrationManager::migratePhraseEmbeddingNodes),
             new Migration(7, "Create vector index on Procedure.embedding",
-                    "CREATE VECTOR INDEX procedure_embedding_index IF NOT EXISTS FOR (n:%s) ON n.embedding OPTIONS {indexConfig: {`vector.dimensions`: 384, `vector.similarity_function`: 'cosine'}}"
-                            .formatted(Procedure.LABEL)),
+                    "CREATE VECTOR INDEX %s IF NOT EXISTS FOR (n:%s) ON n.embedding OPTIONS {indexConfig: {`vector.dimensions`: 384, `vector.similarity_function`: 'cosine'}}"
+                            .formatted(Procedure.VECTOR_INDEX, Procedure.LABEL)),
             new Migration(8, "Create vector index on UiElement.embedding",
-                    "CREATE VECTOR INDEX ui_element_embedding_index IF NOT EXISTS FOR (n:%s) ON n.embedding OPTIONS {indexConfig: {`vector.dimensions`: 384, `vector.similarity_function`: 'cosine'}}"
-                            .formatted(UiElement.LABEL))
+                    "CREATE VECTOR INDEX %s IF NOT EXISTS FOR (n:%s) ON n.embedding OPTIONS {indexConfig: {`vector.dimensions`: 384, `vector.similarity_function`: 'cosine'}}"
+                            .formatted(UiElement.VECTOR_INDEX, UiElement.LABEL)),
+            new Migration(9, "Flatten Procedure properties and normalise UiElement property names", (driver, databaseName) -> {
+                migrateProcedureToFlatProperties(driver, databaseName);
+                migrateUiElementPropertyNames(driver, databaseName);
+            }),
+            new Migration(10, "Create index on ExecutionAnomaly.subjectId",
+                    "CREATE INDEX execution_anomaly_subject_id IF NOT EXISTS FOR (n:%s) ON (n.%s)"
+                            .formatted(ExecutionAnomaly.LABEL, ExecutionAnomaly.PROP_SUBJECT_ID)),
+            new Migration(11, "Create index on ExecutionRun.startedAt",
+                    "CREATE INDEX execution_run_started_at IF NOT EXISTS FOR (n:%s) ON (n.%s)"
+                            .formatted(ExecutionRun.LABEL, ExecutionRun.PROP_STARTED_AT))
     );
 
     private SchemaMigrationManager() {
@@ -88,43 +98,22 @@ public class SchemaMigrationManager {
         int currentVersion = readCurrentVersion(driver, databaseName);
         LOG.info("Current schema version: {}", currentVersion);
 
-        var pendingDdl = DDL_MIGRATIONS.stream()
+        var pendingMigrations = MIGRATIONS.stream()
                 .filter(m -> m.version() > currentVersion)
                 .toList();
 
-        for (var migration : pendingDdl) {
-            LOG.info("Applying DDL migration v{}: {}", migration.version(), migration.description());
-            executableQuery(driver, databaseName, migration.cypherStatement()).execute();
+        for (var migration : pendingMigrations) {
+            LOG.info("Applying migration v{}: {}", migration.version(), migration.description());
+            migration.apply().accept(driver, databaseName);
             updateVersion(driver, databaseName, migration.version());
-            LOG.info("DDL migration v{} applied successfully", migration.version());
+            LOG.info("Migration v{} applied successfully", migration.version());
         }
 
-        if (currentVersion < 6) {
-            LOG.info("Applying data migration v6: Extract PhraseEmbedding nodes from legacy Procedure JSON");
-            migratePhraseEmbeddingNodes(driver, databaseName);
-            updateVersion(driver, databaseName, 6);
-            LOG.info("Data migration v6 applied successfully");
-        }
-
-        if (currentVersion < DATA_MIGRATION_VERSION) {
-            LOG.info("Applying data migration v{}: Flatten Procedure properties and normalise UiElement property names",
-                    DATA_MIGRATION_VERSION);
-            migrateProcedureToFlatProperties(driver, databaseName);
-            migrateUiElementPropertyNames(driver, databaseName);
-            updateVersion(driver, databaseName, DATA_MIGRATION_VERSION);
-            LOG.info("Data migration v{} applied successfully", DATA_MIGRATION_VERSION);
-        }
-
-        int highestApplied = Math.max(
-                pendingDdl.isEmpty() ? currentVersion : pendingDdl.getLast().version(),
-                currentVersion
-        );
-        highestApplied = Math.max(highestApplied, DATA_MIGRATION_VERSION <= currentVersion ? currentVersion : DATA_MIGRATION_VERSION);
-        LOG.info("Schema is now at version {}", highestApplied);
+        LOG.info("Schema is now at version {}", pendingMigrations.isEmpty() ? currentVersion : pendingMigrations.getLast().version());
     }
 
     private static org.neo4j.driver.ExecutableQuery executableQuery(org.neo4j.driver.Driver driver, String databaseName, String cypher) {
-        return driver.executableQuery(cypher).withConfig(org.neo4j.driver.QueryConfig.builder().withDatabase(databaseName).build());
+        return driver.executableQuery(CYPHER_VERSION_PREFIX + cypher).withConfig(org.neo4j.driver.QueryConfig.builder().withDatabase(databaseName).build());
     }
 
     /**
@@ -322,7 +311,11 @@ public class SchemaMigrationManager {
         return records.isEmpty() ? 0 : records.getFirst().get("version").asInt();
     }
 
-    private record Migration(int version, String description, String cypherStatement) {}
+    private record Migration(int version, String description, BiConsumer<org.neo4j.driver.Driver, String> apply) {
+        Migration(int version, String description, String cypherStatement) {
+            this(version, description, (driver, databaseName) -> executableQuery(driver, databaseName, cypherStatement).execute());
+        }
+    }
 
     /** Full Procedure JSON shape used for v9 flat-property migration. */
     private record LegacyProcedureFullData(

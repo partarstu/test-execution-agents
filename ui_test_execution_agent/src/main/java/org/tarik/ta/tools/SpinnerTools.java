@@ -19,20 +19,25 @@ package org.tarik.ta.tools;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
-import org.tarik.ta.user_dialogs.SpinnerManager;
+import org.tarik.ta.panel.OperatorPrompts;
 
 import jakarta.inject.Singleton;
 
 @Singleton
 public class SpinnerTools {
+    private final OperatorPrompts operatorPrompts;
+
+    public SpinnerTools(OperatorPrompts operatorPrompts) {
+        this.operatorPrompts = operatorPrompts;
+    }
 
     @Tool("Displays a spinner with the given message.")
     public void showSpinner(@P("The message to display on the spinner") String message) {
-        SpinnerManager.show(message);
+        operatorPrompts.showStatus(message);
     }
 
     @Tool("Hides the currently visible spinner.")
     public void hideSpinner() {
-        SpinnerManager.hide();
+        operatorPrompts.clearStatus();
     }
 }

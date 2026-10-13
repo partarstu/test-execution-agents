@@ -42,6 +42,9 @@ public interface StreamingEventEmitter {
 
     void emitLog(@NotNull String logLine);
 
+    /** Streams a human-readable status line, such as why the run currently waits, without a result attached. */
+    void emitStatus(@NotNull String message);
+
     /**
      * Emitter that discards every event. Used when no streaming channel is active, e.g. in unit tests that exercise
      * the execution components in isolation.
@@ -65,6 +68,10 @@ public interface StreamingEventEmitter {
 
         @Override
         public void emitLog(@NotNull String logLine) {
+        }
+
+        @Override
+        public void emitStatus(@NotNull String message) {
         }
     };
 }

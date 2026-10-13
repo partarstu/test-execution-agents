@@ -17,9 +17,11 @@
  */
 package org.tarik.ta.agents;
 
+import dev.langchain4j.data.message.Content;
 import dev.langchain4j.service.Result;
 import org.junit.jupiter.api.Test;
-import org.tarik.ta.core.error.RetryPolicy;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,7 +31,7 @@ class AgentsInterfacesTest {
     void testApiPreconditionActionAgentDefaults() {
         ApiPreconditionActionAgent agent = new ApiPreconditionActionAgent() {
             @Override
-            public Result<String> execute(String precondition, String sharedData) {
+            public Result<String> execute(List<Content> userMessage) {
                 return null;
             }
         };
@@ -41,7 +43,7 @@ class AgentsInterfacesTest {
     void testApiTestStepActionAgentDefaults() {
         ApiTestStepActionAgent agent = new ApiTestStepActionAgent() {
             @Override
-            public Result<String> execute(String testStep, String expectedResults, String testData, String sharedData) {
+            public Result<String> execute(List<Content> userMessage) {
                 return null;
             }
         };

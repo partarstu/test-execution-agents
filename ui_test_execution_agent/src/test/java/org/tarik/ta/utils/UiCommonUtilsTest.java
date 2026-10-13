@@ -26,31 +26,30 @@ import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.tarik.ta.dto.ScreenRegion;
 
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.GraphicsConfiguration;
-import java.awt.GraphicsDevice;
-import java.awt.GraphicsEnvironment;
 import java.awt.MouseInfo;
 import java.awt.Point;
-import java.awt.PointerInfo;
 import java.awt.Rectangle;
+import java.awt.PointerInfo;
 import java.awt.Robot;
 import java.awt.Toolkit;
-import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
 import java.lang.reflect.Field;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.lenient;
+import static org.tarik.ta.utils.UiCommonUtils.captureElementScreenshot;
+import static org.tarik.ta.utils.UiCommonUtils.captureScreenPart;
 import static org.tarik.ta.utils.UiCommonUtils.getColorByName;
 import static org.tarik.ta.utils.UiCommonUtils.getColorName;
 import static org.tarik.ta.utils.UiCommonUtils.getMouseLocation;
-import static org.tarik.ta.utils.UiCommonUtils.getScaledBoundingBox;
-import static org.tarik.ta.utils.UiCommonUtils.getScaledScreenLocationCoordinates;
 import static org.tarik.ta.utils.UiCommonUtils.getScreenSize;
 import static org.tarik.ta.utils.UiCommonUtils.getStaticFieldValue;
 
@@ -61,14 +60,6 @@ class UiCommonUtilsTest {
     @Mock
     private Toolkit mockToolkit;
     @Mock
-    private GraphicsEnvironment mockGraphicsEnvironment;
-    @Mock
-    private GraphicsDevice mockGraphicsDevice;
-    @Mock
-    private GraphicsConfiguration mockGraphicsConfiguration;
-    @Mock
-    private AffineTransform mockAffineTransform;
-    @Mock
     private Dimension mockScreenSize;
     @Mock
     private PointerInfo mockPointerInfo;
@@ -76,20 +67,17 @@ class UiCommonUtilsTest {
 
     // Static mocks
     private MockedStatic<Toolkit> toolkitMockedStatic;
-    private MockedStatic<GraphicsEnvironment> graphicsEnvironmentMockedStatic;
     private MockedStatic<MouseInfo> mouseInfoMockedStatic;
     private MockedConstruction<Robot> robotMockedConstruction;
 
     // Constants
     private static final int SCREEN_WIDTH = 1920;
     private static final int SCREEN_HEIGHT = 1080;
-    private static final double SCALE_FACTOR = 1.5;
 
     @BeforeEach
     void setUp() {
         robotMockedConstruction = mockConstruction(Robot.class);
         toolkitMockedStatic = mockStatic(Toolkit.class);
-        graphicsEnvironmentMockedStatic = mockStatic(GraphicsEnvironment.class);
         mouseInfoMockedStatic = mockStatic(MouseInfo.class);
 
         // Toolkit
@@ -97,14 +85,6 @@ class UiCommonUtilsTest {
         lenient().when(mockToolkit.getScreenSize()).thenReturn(mockScreenSize);
         lenient().when(mockScreenSize.getWidth()).thenReturn((double) SCREEN_WIDTH);
         lenient().when(mockScreenSize.getHeight()).thenReturn((double) SCREEN_HEIGHT);
-
-        // Graphics Environment (Default setup for non-scaled)
-        lenient().when(GraphicsEnvironment.getLocalGraphicsEnvironment()).thenReturn(mockGraphicsEnvironment);
-        lenient().when(mockGraphicsEnvironment.getDefaultScreenDevice()).thenReturn(mockGraphicsDevice);
-        lenient().when(mockGraphicsDevice.getDefaultConfiguration()).thenReturn(mockGraphicsConfiguration);
-        lenient().when(mockGraphicsConfiguration.getDefaultTransform()).thenReturn(mockAffineTransform);
-        lenient().when(mockAffineTransform.getScaleX()).thenReturn(1.0); // Default: no scaling
-        lenient().when(mockAffineTransform.getScaleY()).thenReturn(1.0); // Default: no scaling
 
         // MouseInfo
         lenient().when(MouseInfo.getPointerInfo()).thenReturn(mockPointerInfo);
@@ -114,7 +94,6 @@ class UiCommonUtilsTest {
     @AfterEach
     void tearDown() {
         toolkitMockedStatic.close();
-        graphicsEnvironmentMockedStatic.close();
         mouseInfoMockedStatic.close();
         robotMockedConstruction.close();
     }
@@ -227,69 +206,20 @@ class UiCommonUtilsTest {
     }
 
     @Test
-    @DisplayName("getScaledScreenLocationCoordinates: Should return same coords when scale is 1")
-    void getScaledScreenLocationCoordinatesNoScale() {
+    @DisplayName("captureElementScreenshot: Should capture the logical screen area of the normalized region")
+    void captureElementScreenshotCapturesTheLogicalAreaOfTheNormalizedRegion() {
         // Given
-        Point physicalCoords = new Point(200, 300);
-        when(mockAffineTransform.getScaleX()).thenReturn(1.0);
-        when(mockAffineTransform.getScaleY()).thenReturn(1.0);
+        var elementImage = new BufferedImage(256, 144, BufferedImage.TYPE_INT_RGB);
+        try (var uiCommonUtils = mockStatic(UiCommonUtils.class, CALLS_REAL_METHODS)) {
+            uiCommonUtils.when(UiCommonUtils::getScreenSize).thenReturn(new Dimension(2560, 1440));
+            uiCommonUtils.when(() -> captureScreenPart(any(Rectangle.class), anyBoolean())).thenReturn(elementImage);
 
-        // When
-        Point scaledCoords = getScaledScreenLocationCoordinates(physicalCoords);
+            // When
+            var capturedImage = captureElementScreenshot(new ScreenRegion(500, 250, 100, 100));
 
-        // Then
-        assertEquals(physicalCoords, scaledCoords);
-    }
-
-    @Test
-    @DisplayName("getScaledScreenLocationCoordinates: Should return scaled coords when scale is not 1")
-    void getScaledScreenLocationCoordinatesWithScale() {
-        // Given
-        Point physicalCoords = new Point(300, 450);
-        when(mockAffineTransform.getScaleX()).thenReturn(SCALE_FACTOR);
-        when(mockAffineTransform.getScaleY()).thenReturn(SCALE_FACTOR);
-        Point expectedScaledCoords = new Point((int) (300 / SCALE_FACTOR), (int) (450 / SCALE_FACTOR));
-
-        // When
-        Point scaledCoords = getScaledScreenLocationCoordinates(physicalCoords);
-
-        // Then
-        assertEquals(expectedScaledCoords, scaledCoords);
-    }
-
-    @Test
-    @DisplayName("getScaledBoundingBox: Should return same box when scale is 1")
-    void getScaledBoundingBoxNoScale() {
-        // Given
-        Rectangle originalBox = new Rectangle(50, 60, 100, 120);
-        when(mockAffineTransform.getScaleX()).thenReturn(1.0);
-        when(mockAffineTransform.getScaleY()).thenReturn(1.0);
-
-        // When
-        Rectangle scaledBox = getScaledBoundingBox(originalBox);
-
-        // Then
-        assertEquals(originalBox, scaledBox);
-    }
-
-    @Test
-    @DisplayName("getScaledBoundingBox: Should return scaled box when scale is not 1")
-    void getScaledBoundingBoxWithScale() {
-        // Given
-        Rectangle originalBox = new Rectangle(60, 90, 150, 180);
-        when(mockAffineTransform.getScaleX()).thenReturn(SCALE_FACTOR);
-        when(mockAffineTransform.getScaleY()).thenReturn(SCALE_FACTOR);
-        Rectangle expectedScaledBox = new Rectangle(
-                (int) (60 / SCALE_FACTOR),
-                (int) (90 / SCALE_FACTOR),
-                (int) (150 / SCALE_FACTOR),
-                (int) (180 / SCALE_FACTOR)
-        );
-
-        // When
-        Rectangle scaledBox = getScaledBoundingBox(originalBox);
-
-        // Then
-        assertEquals(expectedScaledBox, scaledBox);
+            // Then
+            assertThat(capturedImage).isSameAs(elementImage);
+            uiCommonUtils.verify(() -> captureScreenPart(new Rectangle(1280, 360, 256, 144), true));
+        }
     }
 }

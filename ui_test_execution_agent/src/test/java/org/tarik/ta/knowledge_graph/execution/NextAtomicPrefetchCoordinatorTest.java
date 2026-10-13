@@ -39,8 +39,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -75,12 +81,16 @@ class NextAtomicPrefetchCoordinatorTest {
         Procedure current = Procedure.createAtomic("current", List.of(), "", List.of(), List.of(), false);
         Procedure next = Procedure.createAtomic("next", List.of(), "", List.of(), List.of(), false);
         ExecutionItem currentItem = new ExecutionItem.TestStepItem(new TestStep("current", List.of(), ""));
-        ExecutionStateSnapshot snapshot = new ExecutionStateSnapshot(Set.of(), List.of(), List.of());
+        var snapshotRequested = new AtomicBoolean();
 
-        coordinatorSupervised.scheduleSuccessPathPrefetch(current, currentItem, next, null, snapshot);
+        coordinatorSupervised.scheduleSuccessPathPrefetch(current, currentItem, next, null, () -> {
+            snapshotRequested.set(true);
+            return new ExecutionStateSnapshot(Set.of(), List.of(), List.of());
+        });
 
         Optional<PrefetchedAtomicContext> result = coordinatorSupervised.takeIfValid(next, currentItem);
         assertThat(result).isEmpty();
+        assertThat(snapshotRequested).isFalse();
     }
 
     @Test
@@ -100,7 +110,7 @@ class NextAtomicPrefetchCoordinatorTest {
         when(mockElementLocationHistoryLookup.lookup(elementId)).thenReturn(Optional.of(history));
         when(mockFailureContextService.findFailureHints(next.id())).thenReturn(List.of("hint1"));
 
-        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, snapshot);
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, () -> snapshot);
 
         Optional<PrefetchedAtomicContext> result = coordinatorUnattended.takeIfValid(next, item);
 
@@ -125,7 +135,7 @@ class NextAtomicPrefetchCoordinatorTest {
         ExecutionItem nextItem = new ExecutionItem.TestStepItem(new TestStep("next", List.of(), ""));
         ExecutionStateSnapshot snapshot = new ExecutionStateSnapshot(Set.of(), List.of(), List.of());
 
-        coordinatorUnattended.scheduleSuccessPathPrefetch(current, currentItem, next, null, snapshot);
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, currentItem, next, null, () -> snapshot);
         coordinatorUnattended.invalidate("verification failure");
 
         Optional<PrefetchedAtomicContext> result = coordinatorUnattended.takeIfValid(next, nextItem);
@@ -141,7 +151,7 @@ class NextAtomicPrefetchCoordinatorTest {
         ExecutionItem nextItem = new ExecutionItem.TestStepItem(new TestStep("next", List.of(), ""));
         ExecutionStateSnapshot snapshot = new ExecutionStateSnapshot(Set.of(), List.of(), List.of());
 
-        coordinatorUnattended.scheduleSuccessPathPrefetch(current, currentItem, next, null, snapshot);
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, currentItem, next, null, () -> snapshot);
         coordinatorUnattended.invalidate("re-decomposition");
 
         Optional<PrefetchedAtomicContext> result = coordinatorUnattended.takeIfValid(next, nextItem);
@@ -163,7 +173,7 @@ class NextAtomicPrefetchCoordinatorTest {
         when(mockElementLocationHistoryLookup.lookup(elementId)).thenThrow(new RuntimeException("DB timeout"));
         when(mockFailureContextService.findFailureHints(next.id())).thenReturn(List.of());
 
-        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, snapshot);
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, () -> snapshot);
 
         Optional<PrefetchedAtomicContext> result = coordinatorUnattended.takeIfValid(next, item);
 
@@ -192,7 +202,7 @@ class NextAtomicPrefetchCoordinatorTest {
         when(mockElementLocationHistoryLookup.lookup(elementId)).thenReturn(Optional.empty());
         when(mockFailureContextService.findFailureHints(next.id())).thenReturn(List.of());
 
-        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, snapshot);
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, () -> snapshot);
 
         Optional<PrefetchedAtomicContext> result = coordinatorUnattended.takeIfValid(next, item);
 
@@ -213,7 +223,7 @@ class NextAtomicPrefetchCoordinatorTest {
         when(mockKnowledgeService.findTargetedUiElementId(next.id())).thenReturn(Optional.empty());
         when(mockFailureContextService.findFailureHints(next.id())).thenReturn(List.of());
 
-        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, snapshot);
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, () -> snapshot);
 
         Optional<PrefetchedAtomicContext> result = coordinatorUnattended.takeIfValid(different, item);
         assertThat(result).isEmpty();
@@ -235,7 +245,7 @@ class NextAtomicPrefetchCoordinatorTest {
         when(mockFailureContextService.findFailureHints(predicted.id())).thenReturn(List.of("hint"));
 
         // nextAtomicInDecomposition = null triggers queue-item search path
-        coordinatorUnattended.scheduleSuccessPathPrefetch(current, currentItem, null, nextQueueItem, snapshot);
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, currentItem, null, nextQueueItem, () -> snapshot);
 
         Optional<PrefetchedAtomicContext> result = coordinatorUnattended.takeIfValid(predicted, nextQueueItem);
 
@@ -257,7 +267,7 @@ class NextAtomicPrefetchCoordinatorTest {
                 List.of(new KnowledgeService.ScoredProcedure(candidate, 0, 0)), false, false, false);
         when(mockKnowledgeService.findBestMatch(eq("next action"), any(), any())).thenReturn(Optional.of(match));
 
-        coordinatorUnattended.scheduleSuccessPathPrefetch(current, currentItem, null, nextQueueItem, snapshot);
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, currentItem, null, nextQueueItem, () -> snapshot);
 
         Optional<PrefetchedAtomicContext> result = coordinatorUnattended.takeIfValid(candidate, nextQueueItem);
         assertThat(result).isEmpty();
@@ -274,10 +284,42 @@ class NextAtomicPrefetchCoordinatorTest {
         when(mockKnowledgeService.findTargetedUiElementId(next.id())).thenReturn(Optional.empty());
         when(mockFailureContextService.findFailureHints(next.id())).thenReturn(List.of());
 
-        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, snapshot);
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, item, next, null, () -> snapshot);
 
         assertThat(coordinatorUnattended.takeIfValid(next, item)).isPresent();
         // second call — future was nulled after first take
         assertThat(coordinatorUnattended.takeIfValid(next, item)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("close lets an in-flight prefetch query finish instead of interrupting it")
+    void close_letsInFlightQueryFinishWithoutInterrupt() throws Exception {
+        Procedure current = Procedure.createAtomic("current", List.of(), "", List.of(), List.of(), false);
+        ExecutionItem currentItem = new ExecutionItem.TestStepItem(new TestStep("current", List.of(), ""));
+        ExecutionItem nextQueueItem = new ExecutionItem.TestStepItem(new TestStep("next action", List.of(), ""));
+        ExecutionStateSnapshot snapshot = new ExecutionStateSnapshot(Set.of(), List.of(), List.of());
+        var queryStarted = new CountDownLatch(1);
+        var releaseQuery = new CountDownLatch(1);
+        var queryCompletedUninterrupted = new AtomicBoolean();
+
+        when(mockKnowledgeService.findBestMatch(eq("next action"), any(), any())).thenAnswer(_ -> {
+            queryStarted.countDown();
+            assertThat(releaseQuery.await(10, TimeUnit.SECONDS)).isTrue();
+            queryCompletedUninterrupted.set(true);
+            return Optional.empty();
+        });
+
+        coordinatorUnattended.scheduleSuccessPathPrefetch(current, currentItem, null, nextQueueItem, () -> snapshot);
+        assertThat(queryStarted.await(5, TimeUnit.SECONDS)).isTrue();
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var closing = executor.submit(coordinatorUnattended::close);
+
+            // An interrupted query would end at once and let close return, so a close still waiting proves it lets the query run
+            assertThatThrownBy(() -> closing.get(300, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
+            releaseQuery.countDown();
+            closing.get(10, TimeUnit.SECONDS);
+        }
+
+        assertThat(queryCompletedUninterrupted).isTrue();
     }
 }

@@ -45,7 +45,7 @@ public class AgentCardProducer {
         return AgentCard.builder()
                 .name(buildName())
                 .description(buildDescription())
-                .version("1.0.0")
+                .version(config.getAgentVersion())
                 .capabilities(AgentCapabilities.builder()
                         .streaming(true)
                         .pushNotifications(false)
@@ -69,6 +69,7 @@ public class AgentCardProducer {
         lines.add("<ol>");
         subAgentModels().forEach((subAgent, modelName) -> lines.add("<li>%s — %s</li>".formatted(subAgent, modelName)));
         lines.add("</ol>");
+        config.getPanelExternalUrl().ifPresent(url -> lines.add("Operator panel: %s".formatted(url)));
         return String.join("\n", lines);
     }
 
@@ -86,6 +87,7 @@ public class AgentCardProducer {
         models.put("UI Element Description Extraction Agent", config.getUiElementDescriptionExtractionAgentModelName());
         models.put("UI Element Description Matcher Agent", config.getUiElementDescriptionMatcherAgentModelName());
         models.put("DB Element Selection Agent", config.getDbElementCandidateSelectionAgentModelName());
+        models.put("Test Case Extraction Agent", config.getTestCaseExtractionAgentModelName());
         return models;
     }
 
@@ -100,7 +102,8 @@ public class AgentCardProducer {
             case SUPERVISED -> AgentSkill.builder()
                     .id("ui_test_execution_supervised")
                     .name("Supervised UI Test Execution")
-                    .description("Can execute UI tests in supervised mode, allowing operator interaction during execution")
+                    .description("Can execute UI tests in supervised mode, allowing operator interaction during execution " +
+                            "through the operator panel. Operator-attended only, not suitable for CI/CD pipelines")
                     .tags(List.of("testing", "ui", "supervised"))
                     .build();
         };

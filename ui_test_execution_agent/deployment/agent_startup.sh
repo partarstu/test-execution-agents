@@ -37,13 +37,6 @@ while [ ! -e /tmp/.X11-unix/X1 ]; do
 done
 echo "X server is ready."
 
-if [ "$DEPLOYMENT_ENV" = "cloud" ]; then
-  echo "Cloud deployment detected. Starting websockify with SSL in order to serve noVNC on HTTPS"
-  /app/start_websockify_ssl.sh
-else
-  echo "Local deployment detected. Skipping websockify SSL startup."
-fi
-
 echo "Launching Java application from ${APP_JAR_PATH}"
 # Check if the APP_JAR_PATH is set and the file exists
 if [ -z "${APP_JAR_PATH}" ] || [ ! -f "${APP_JAR_PATH}" ]; then
@@ -55,7 +48,8 @@ fi
 export DISPLAY=:1
 
 # Run Java application as ubuntu user
-# Using 'su -p -c' to execute the command in a non-interactive shell while preserving environment variables
-su -p ubuntu -c "java -jar ${APP_JAR_PATH}"
+# Using 'su -p -c' to execute the command in a non-interactive shell while preserving environment variables.
+# Dependencies still call the deprecated sun.misc.Unsafe memory-access methods, which JDK 27 otherwise warns about (JEP 498).
+su -p ubuntu -c "java --sun-misc-unsafe-memory-access=allow -jar ${APP_JAR_PATH}"
 
 echo "Agent application launched."

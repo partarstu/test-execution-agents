@@ -17,12 +17,13 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
-import jakarta.inject.Singleton;
+import org.tarik.ta.config.scopes.UiAgentRequestScope;
 
 import dev.langchain4j.data.embedding.Embedding;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.knowledge_graph.model.node.Procedure.TimingProfile;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 import org.tarik.ta.knowledge_graph.repository.ProcedureMatch;
@@ -38,7 +39,6 @@ import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.partitioningBy;
 import static java.util.stream.Collectors.toMap;
 
 import org.tarik.ta.UiTestAgentConfig;
@@ -52,7 +52,7 @@ import org.tarik.ta.UiTestAgentConfig;
  * {@link DecompositionService} for hierarchy traversal, and {@link EmbeddingService} for embedding generation.
  * </p>
  */
-@Singleton
+@UiAgentRequestScope
 public class KnowledgeService {
     private static final Logger LOG = LoggerFactory.getLogger(KnowledgeService.class);
 
@@ -192,7 +192,8 @@ public class KnowledgeService {
                 .sorted(Comparator.comparingDouble(Scored::proportion).reversed()
                         .thenComparing(Comparator.comparingDouble((Scored s) -> scoreById.get(s.procedure().id())).reversed())
                         .thenComparing(Comparator.comparingInt(Scored::parentSharedCount).reversed()))
-                .map(s -> new ScoredProcedure(s.procedure(), s.satisfied(), s.totalPrereqs()))
+                .map(s -> new ScoredProcedure(s.procedure(), s.satisfied(), s.totalPrereqs(), scoreById.get(s.procedure().id()),
+                        s.parentSharedCount(), s.stabilityPenalty() > 0, s.unmetPrereqs()))
                 .toList();
 
         boolean wasDemoted = false;
@@ -305,9 +306,9 @@ public class KnowledgeService {
         return embeddingService.embedBatchForQuery(texts);
     }
 
-    public void updateTimingProfile(UUID id, long actualExecutionMs, long actualVerificationDelayMs) {
+    public Optional<TimingProfile> updateTimingProfile(UUID id, long actualExecutionMs, long actualVerificationDelayMs) {
         requireNonNull(id, "id");
-        procedureRepository.updateTimingProfile(id, actualExecutionMs, actualVerificationDelayMs);
+        return procedureRepository.updateTimingProfile(id, actualExecutionMs, actualVerificationDelayMs);
     }
 
     /**
@@ -366,6 +367,15 @@ public class KnowledgeService {
     }
 
     /**
+     * Returns a composite's direct children from the traversal {@link DecompositionService} just performed while executing a
+     * decomposition; use {@link #getChildren(UUID)} outside of execution.
+     */
+    public List<Procedure> getChildrenForExecution(UUID parentId) {
+        requireNonNull(parentId, "parentId");
+        return decompositionService.getChildrenOrdered(parentId);
+    }
+
+    /**
      * Returns the parent procedures of the given procedure.
      */
     public List<Procedure> findParents(UUID childId) {
@@ -373,10 +383,18 @@ public class KnowledgeService {
         return procedureRepository.findParents(childId);
     }
 
-    /**
-     * A procedure with its prerequisite-satisfaction scores from re-ranking.
-     */
-    public record ScoredProcedure(Procedure procedure, int satisfied, int totalPrereqs) {}
+    /** A procedure with the values its re-ranking used: semantic score, prerequisites met, shared parents and low stability. */
+    public record ScoredProcedure(Procedure procedure, int satisfied, int totalPrereqs, double semanticScore, int sharedParentCount,
+                                  boolean lowStability, List<String> unmetPrerequisites) {
+        public ScoredProcedure {
+            unmetPrerequisites = List.copyOf(unmetPrerequisites);
+        }
+
+        /** A candidate known only by its prerequisite satisfaction, without the semantic and ancestry values of a re-ranking. */
+        public ScoredProcedure(Procedure procedure, int satisfied, int totalPrereqs) {
+            this(procedure, satisfied, totalPrereqs, 0.0, 0, false, List.of());
+        }
+    }
 
     /**
      * Confidence level of a semantic match.

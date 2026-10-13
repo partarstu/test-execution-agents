@@ -18,11 +18,15 @@
 
 @echo off
 
-REM IMPORTANT: Before running this script, open the Dockerfile and replace 'your_vnc_password' with a strong password.
+REM IMPORTANT: Set PANEL_PASSWORD (at least 16 characters) before running this script; it is the operator panel login.
+IF NOT DEFINED PANEL_PASSWORD (
+    echo PANEL_PASSWORD is not set. Set it to a password of at least 16 characters, then run this script again.
+    goto :eof
+)
 
 echo Building UI agent module with Maven...
 pushd ..\..\..\
-call mvn clean package -pl ui_test_execution_agent -am -DskipTests
+call mvn clean package -P linux -pl ui_test_execution_agent -am -DskipTests
 IF %ERRORLEVEL% NEQ 0 (
     echo Maven build failed. Exiting.
     popd
@@ -33,7 +37,7 @@ popd
 REM Change to the ui_test_execution_agent directory for Docker builds
 pushd ..\..\
 
-echo Building base Docker image (Ubuntu 24.04 + VNC + Chrome)...
+echo Building base Docker image (Ubuntu 26.04 + VNC + Chrome)...
 docker build -t ui-testing-agent-base -f deployment/Dockerfile.base deployment/
 
 IF %ERRORLEVEL% NEQ 0 (
@@ -58,7 +62,8 @@ docker stop ui-agent >nul 2>&1
 docker rm ui-agent >nul 2>&1
 
 echo Running Docker container...
-docker run -d -p 5901:5901 -p 6901:6901 -p 8005:8005 -e VNC_PW=123456 -e VNC_RESOLUTION=1920x1080 -e PORT=8005 -e AGENT_HOST=0.0.0.0 -e GOOGLE_API_KEY=%GOOGLE_API_KEY% -e GROQ_API_KEY=%GROQ_API_KEY% -e VECTOR_DB_URL=%VECTOR_DB_URL% -e VECTOR_DB_KEY=%VECTOR_DB_KEY% --shm-size=4g --name ui-agent ui-test-execution-agent /app/agent_startup.sh
+REM The OTEL_* variables are passed through from the calling shell: without an OTLP endpoint the agent exports no metrics.
+docker run -d -p 8005:8005 -p 127.0.0.1:8443:8443 -e PANEL_PASSWORD -e VNC_RESOLUTION=1920x1080 -e PORT=8005 -e AGENT_HOST=0.0.0.0 -e GOOGLE_API_KEY=%GOOGLE_API_KEY% -e GROQ_API_KEY=%GROQ_API_KEY% -e VECTOR_DB_URL=%VECTOR_DB_URL% -e VECTOR_DB_KEY=%VECTOR_DB_KEY% -e HCOMPANY_ENDPOINT=%HCOMPANY_ENDPOINT% -e QWEN_ENDPOINT=%QWEN_ENDPOINT% -e OTEL_SERVICE_NAME=%OTEL_SERVICE_NAME% -e OTEL_EXPORTER_OTLP_ENDPOINT=%OTEL_EXPORTER_OTLP_ENDPOINT% -e OTEL_METRICS_EXPORTER=%OTEL_METRICS_EXPORTER% -e OTEL_METRIC_EXPORT_INTERVAL=%OTEL_METRIC_EXPORT_INTERVAL% --shm-size=4g --name ui-agent ui-test-execution-agent /app/agent_startup.sh
 
 IF %ERRORLEVEL% NEQ 0 (
     echo Docker container failed to start. Exiting.
@@ -66,8 +71,6 @@ IF %ERRORLEVEL% NEQ 0 (
 )
 
 echo Docker container 'ui-agent' is running.
-echo You can access the VNC session via a VNC client at localhost:5901
-echo Or via your web browser (NoVNC) at http://localhost:6901/vnc.html
-echo Remember to use the password you set in the Dockerfile.
+echo Open the operator panel at http://localhost:8443 and log in with PANEL_PASSWORD.
 
 pause

@@ -22,7 +22,6 @@ import org.slf4j.LoggerFactory;
 import org.tarik.ta.core.AgentConfig;
 import org.tarik.ta.core.agents.TestCaseExtractionAgent;
 import org.tarik.ta.core.dto.TestCase;
-import org.tarik.ta.core.dto.VerificationExecutionResult;
 import org.tarik.ta.core.model.ModelFactory;
 import org.tarik.ta.core.tools.InheritanceAwareToolProvider;
 
@@ -35,7 +34,9 @@ import jakarta.inject.Singleton;
 import static dev.langchain4j.service.AiServices.builder;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
+import static org.tarik.ta.core.model.DefaultToolErrorHandler.forToolArguments;
 import static org.tarik.ta.core.utils.CommonUtils.isBlank;
+import static org.tarik.ta.core.utils.MarkdownSections.userMessageContents;
 import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 
 /**
@@ -45,6 +46,7 @@ import static org.tarik.ta.core.utils.PromptUtils.loadSystemPrompt;
 @Singleton
 public class TestCaseExtractor {
     private static final Logger LOG = LoggerFactory.getLogger(TestCaseExtractor.class);
+    public static final String OPERATION_NAME = "test_case_extraction";
 
     private final AgentConfig agentConfig;
     private final ModelFactory modelFactory;
@@ -55,12 +57,15 @@ public class TestCaseExtractor {
         this.modelFactory = modelFactory;
         this.agentConfig = agentConfig;
         
-        var model = this.modelFactory.getModel(agentConfig.getTestCaseExtractionAgentModelName(), agentConfig.getTestCaseExtractionAgentModelProvider());
-        var prompt = loadSystemPrompt("test_case_extractor", agentConfig.getTestCaseExtractionAgentPromptVersion(), "test_case_extraction_prompt.txt");
+        var model = this.modelFactory.getModel(OPERATION_NAME, agentConfig.getTestCaseExtractionAgentModelName(),
+                agentConfig.getTestCaseExtractionAgentModelProvider());
+        var prompt = loadSystemPrompt("test_case_extractor", agentConfig.getTestCaseExtractionAgentPromptVersion(),
+                "test_case_extraction_prompt.md");
         this.testCaseExtractionAgent = builder(TestCaseExtractionAgent.class)
                 .chatModel(model.chatModel())
                 .systemMessageProvider(_ -> prompt)
                 .toolProvider(new InheritanceAwareToolProvider<>(List.of(), TestCase.class))
+                .toolArgumentsErrorHandler(forToolArguments(agentConfig.getActionRetryPolicy()))
                 .build();
     }
 
@@ -79,9 +84,11 @@ public class TestCaseExtractor {
         }
 
         try {
-            TestCase extractedTestCase = testCaseExtractionAgent.executeAndGetResult(() -> testCaseExtractionAgent.extractTestCase(message)).getResultPayload();
+            TestCase extractedTestCase = testCaseExtractionAgent
+                    .executeAndGetResult(() -> testCaseExtractionAgent.extractTestCase(userMessageContents(message))).getResultPayload();
             if (isTestCaseInvalid(extractedTestCase)) {
-                LOG.warn("Model could not extract a valid TestCase from the provided user message, original message: {}", message);
+                // The message is not logged: its secret values are not registered for redaction before a test case is extracted
+                LOG.warn("Model could not extract a valid TestCase from the provided user message ({} characters)", message.length());
                 return empty();
             } else {
                 LOG.info("Successfully extracted TestCase: '{}'", extractedTestCase.name());

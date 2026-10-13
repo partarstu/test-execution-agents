@@ -27,12 +27,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository;
 import org.tarik.ta.knowledge_graph.repository.PhraseEmbeddingRepository.PrerequisiteSatisfaction;
 import org.tarik.ta.knowledge_graph.repository.ProcedureMatch;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository;
 import org.tarik.ta.knowledge_graph.repository.ProcedureRepository.CandidateContext;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -52,19 +54,19 @@ class KnowledgeServiceTest {
     @Mock private EmbeddingService mockEmbeddingService;
     @Mock private DecompositionService mockDecompositionService;
     @Mock private PhraseEmbeddingRepository mockPhraseEmbeddingRepository;
-
     @Mock
     private UiTestAgentConfig configMock;
 
     @BeforeEach
     void setUp() {
-        
-        lenient().when(configMock.getKnowledgeMatchConfidenceLow()).thenReturn(0.5);
-        lenient().when(configMock.getKnowledgeMatchConfidenceHigh()).thenReturn(0.85);
+
+        lenient().when(configMock.getKnowledgeMatchConfidenceLow()).thenReturn(0.88);
+        lenient().when(configMock.getKnowledgeMatchConfidenceHigh()).thenReturn(0.97);
         lenient().when(configMock.getKnowledgeMatchTopN()).thenReturn(5);
         lenient().when(configMock.getStabilityPenaltyThreshold()).thenReturn(0.5);
 
-        knowledgeService = new KnowledgeService(mockRepository, mockEmbeddingService, mockDecompositionService, mockPhraseEmbeddingRepository, configMock);
+        knowledgeService = new KnowledgeService(mockRepository, mockEmbeddingService, mockDecompositionService,
+                mockPhraseEmbeddingRepository, configMock);
     }
 
     @AfterEach
@@ -93,6 +95,42 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    @DisplayName("findBestMatch returns LOW confidence when the score stays below the high threshold")
+    void findBestMatch_shouldReturnLowConfidence_whenScoreBelowHighThreshold() {
+        String description = "Select 'Germany' in the country dropdown";
+        var candidate = Procedure.createAtomic("Select 'France' in the country dropdown", List.of(), "", List.of(), List.of(), false);
+        stubSemanticSearch(candidate, 0.966);
+
+        var result = knowledgeService.findBestMatch(description, Set.of(), Set.of());
+
+        assertThat(result).isPresent();
+        assertThat(result.get().confidence()).isEqualTo(KnowledgeService.MatchConfidence.LOW);
+    }
+
+    @Test
+    @DisplayName("findBestMatch returns HIGH confidence when the score reaches the high threshold")
+    void findBestMatch_shouldReturnHighConfidence_whenScoreReachesHighThreshold() {
+        String description = "Select 'Germany' in the country dropdown";
+        var candidate = Procedure.createAtomic("Select 'Germany' in the country dropdown", List.of(), "", List.of(), List.of(), false);
+        stubSemanticSearch(candidate, 0.975);
+
+        var result = knowledgeService.findBestMatch(description, Set.of(), Set.of());
+
+        assertThat(result).isPresent();
+        assertThat(result.get().confidence()).isEqualTo(KnowledgeService.MatchConfidence.HIGH);
+    }
+
+    private void stubSemanticSearch(Procedure candidate, double score) {
+        when(mockEmbeddingService.embed(anyString())).thenReturn(new Embedding(new float[]{0.1f}));
+        when(mockRepository.findBySemanticSearch(any(float[].class), anyInt(), anyDouble()))
+                .thenReturn(List.of(new ProcedureMatch(candidate, score)));
+        when(mockRepository.findCandidateContextBatch(anyList(), anySet()))
+                .thenReturn(List.of(new CandidateContext(candidate.id(), Optional.empty(), Optional.empty(), 0)));
+        when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfactionBatch(anyList(), anySet(), anyDouble()))
+                .thenReturn(List.of());
+    }
+
+    @Test
     @DisplayName("demotedDueToPrerequisites is true when top semantic match has unmet prerequisites")
     void findBestMatch_demotedDueToPrerequisites_trueWhenTopMatchHasUnmetPrereqs() {
         // topCandidate (higher score, 0/1 prereqs met) gets demoted by lowCandidate (lower score, 1/1 prereqs met)
@@ -117,6 +155,37 @@ class KnowledgeServiceTest {
         assertThat(result).isPresent();
         assertThat(result.get().wasDemoted()).isTrue();
         assertThat(result.get().demotedDueToPrerequisites()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Each ranked candidate keeps the semantic score, shared parents, low stability and unmet prerequisites of its re-ranking")
+    void findBestMatch_shouldKeepTheReRankingValuesOfEveryCandidate() {
+        Procedure topCandidate = Procedure.createAtomic("set the pick-up date", List.of(), "results", List.of(), List.of(), false);
+        Procedure lowCandidate = Procedure.createAtomic("click the pick-up date field", List.of(), "results", List.of(), List.of(), false);
+        when(mockEmbeddingService.embed(anyString())).thenReturn(new Embedding(new float[]{0.1f}));
+        when(mockRepository.findBySemanticSearch(any(float[].class), anyInt(), anyDouble()))
+                .thenReturn(List.of(new ProcedureMatch(topCandidate, 0.97), new ProcedureMatch(lowCandidate, 0.90)));
+        var unstable = new ElementLocationHistory(0.2, 900, 2.0, Instant.parse("2026-10-01T10:00:00Z"));
+        when(mockRepository.findCandidateContextBatch(anyList(), anySet())).thenReturn(List.of(
+                new CandidateContext(topCandidate.id(), Optional.empty(), Optional.empty(), 0),
+                new CandidateContext(lowCandidate.id(), Optional.of(UUID.randomUUID()), Optional.of(unstable), 2)));
+        when(mockPhraseEmbeddingRepository.findPrerequisitesSatisfactionBatch(anyList(), anySet(), anyDouble()))
+                .thenReturn(List.of(new PrerequisiteSatisfaction(topCandidate.id(), UUID.randomUUID(), "page is open", false)));
+
+        var ranked = knowledgeService.findBestMatch("set the pick-up date", Set.of(UUID.randomUUID()), Set.of()).orElseThrow().allMatches();
+
+        assertThat(ranked).extracting(scored -> scored.procedure().id()).containsExactly(lowCandidate.id(), topCandidate.id());
+        var low = ranked.getFirst();
+        assertThat(low.semanticScore()).isEqualTo(0.90);
+        assertThat(low.sharedParentCount()).isEqualTo(2);
+        assertThat(low.lowStability()).isTrue();
+        assertThat(low.unmetPrerequisites()).isEmpty();
+        var top = ranked.getLast();
+        assertThat(top.semanticScore()).isEqualTo(0.97);
+        assertThat(top.satisfied()).isZero();
+        assertThat(top.totalPrereqs()).isEqualTo(1);
+        assertThat(top.lowStability()).isFalse();
+        assertThat(top.unmetPrerequisites()).containsExactly("page is open");
     }
 
     @Test

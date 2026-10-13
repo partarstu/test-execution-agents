@@ -49,7 +49,19 @@
         </dependency>
         <dependency>
             <groupId>com.atlassian.oai</groupId>
-            <artifactId>swagger-request-validator-restassured</artifactId>
+            <artifactId>openapi-request-validator-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.swagger.parser.v3</groupId>
+            <artifactId>swagger-parser-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore</artifactId>
         </dependency>
 
         <!-- Utils -->
@@ -78,10 +90,25 @@
             <artifactId>langchain4j-core</artifactId>
         </dependency>
 
+        <!-- Used by the smoke tests only, but kept in compile scope: a test scope here would override the scope agent-core
+             brings them in with and drop the OpenTelemetry SDK from the agent's runtime classpath. -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-metrics</artifactId>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
-            <groupId>io.avaje</groupId>
-            <artifactId>avaje-inject-test</artifactId>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-testing</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -102,7 +129,7 @@
         <dependency>
             <groupId>org.wiremock</groupId>
             <artifactId>wiremock-standalone</artifactId>
-            <version>3.10.0</version>
+            <version>3.13.2</version>
             <scope>test</scope>
         </dependency>
         <!-- Reuses agent-core's A2aTestClient (JSON-RPC + SSE test client) in the full-stack smoke test. -->

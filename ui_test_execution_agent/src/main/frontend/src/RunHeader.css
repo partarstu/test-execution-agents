@@ -1,0 +1,221 @@
+/**
+ * ui-test-execution-agent - Agent specializing in execution of UI tests.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+@layer components {
+  /* The desk's diagram: dark in both themes, its top edge lit in the run's status, the items as a row of lamps */
+  .run-header {
+    --lamp: var(--rule);
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+    color: var(--ink);
+    background: linear-gradient(180deg, var(--raised), var(--panel) 70%);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-xl);
+    box-shadow: inset 0 3px 0 var(--lamp), var(--shadow-2);
+
+    @container (width < 40rem) {
+      padding: var(--space-3) var(--space-4);
+    }
+
+    @media (forced-colors: active) {
+      border-block-start: 3px solid CanvasText;
+    }
+  }
+
+  .run-header-running {
+    --lamp: var(--accent);
+  }
+
+  .run-header-passed {
+    --lamp: var(--passed);
+  }
+
+  .run-header-failed {
+    --lamp: var(--failed);
+  }
+
+  .run-header-error {
+    --lamp: var(--error);
+  }
+
+  /* One row on a wide tab, so the current step, the live view and an open prompt get the height */
+  .run-header {
+    @container (width >= 48rem) {
+      grid-template-columns: minmax(0, max-content) minmax(8rem, 1fr) auto;
+      align-items: center;
+      gap: var(--space-2) var(--space-4);
+      padding-block: var(--space-2);
+
+      & .run-header-top {
+        display: contents;
+      }
+
+      & .run-header-title {
+        grid-area: 1 / 1;
+
+        & .eyebrow {
+          position: absolute;
+          inline-size: 1px;
+          block-size: 1px;
+          overflow: hidden;
+          clip-path: inset(50%);
+        }
+
+        & h2 {
+          font-size: var(--text-lg);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+
+      & .run-header-progress {
+        grid-area: 1 / 2;
+      }
+
+      & .run-header-meta {
+        grid-area: 1 / 3;
+        flex-wrap: nowrap;
+      }
+
+      & .run-activity {
+        grid-column: 1 / -1;
+      }
+    }
+  }
+
+  .run-header-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+  }
+
+  .run-header-title {
+    display: grid;
+    gap: 0.125rem;
+    min-inline-size: 0;
+
+    & h2 {
+      font-size: var(--text-xl);
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .run-header-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .logs-toggle {
+    gap: var(--space-2);
+  }
+
+  /* Dark text on amber passes 4.5:1 on the dark desk */
+  .logs-badge {
+    display: inline-grid;
+    place-items: center;
+    min-inline-size: 1.15rem;
+    block-size: 1.15rem;
+    padding-inline: 0.25rem;
+    color: #1A1200;
+    background: var(--warning);
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 800;
+
+    @media (forced-colors: active) {
+      border: 1px solid CanvasText;
+    }
+  }
+
+  .mode-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.05rem 0.6rem 0.05rem 0.45rem;
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1.5;
+
+    & > svg {
+      color: var(--muted);
+    }
+  }
+
+  .run-header-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+
+    & > :first-child {
+      flex: 1;
+      min-inline-size: 0;
+    }
+  }
+
+  .run-header-counts {
+    flex: none;
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+
+  .run-activity {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    color: var(--ink);
+    background: var(--raised);
+    border-radius: var(--radius);
+    overflow-wrap: anywhere;
+
+    .run-header-passed & {
+      background: var(--passed-soft);
+    }
+
+    .run-header-failed &,
+    .run-header-error & {
+      background: var(--failed-soft);
+    }
+  }
+
+  .run-activity-dot {
+    flex: none;
+    inline-size: 0.5rem;
+    block-size: 0.5rem;
+    border-radius: 50%;
+    background: var(--accent);
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation: aspect-pulse 1.6s ease-in-out infinite;
+    }
+
+    @media (forced-colors: active) {
+      forced-color-adjust: none;
+      background: Highlight;
+    }
+  }
+}

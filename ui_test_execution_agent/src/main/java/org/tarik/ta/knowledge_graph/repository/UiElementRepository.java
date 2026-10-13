@@ -20,15 +20,21 @@ package org.tarik.ta.knowledge_graph.repository;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import jakarta.inject.Singleton;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.neo4j.driver.TransactionContext;
 import org.neo4j.driver.types.Node;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.Screenshot;
+import org.tarik.ta.knowledge_graph.model.node.UiElementAppearance;
+import org.tarik.ta.UiTestAgentConfig;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,13 +44,15 @@ import static java.util.Objects.requireNonNull;
 import static org.tarik.ta.knowledge_graph.model.node.IEntity.PROP_ID;
 import static org.tarik.ta.knowledge_graph.model.node.UiElement.*;
 import static org.tarik.ta.knowledge_graph.model.node.Embeddable.PROP_EMBEDDING;
+import static org.tarik.ta.knowledge_graph.model.node.UiElementAppearance.PROP_VALID_FROM;
+import static org.tarik.ta.knowledge_graph.model.node.UiElementAppearance.PROP_VALID_TO;
 import static org.tarik.ta.knowledge_graph.repository.UiElementRepository.QueryAliases.*;
 
 /**
  * Repository for {@link UiElement} persistence using direct Neo4j Cypher queries.
  *
  * <p>All UiElement fields are stored as flat Neo4j node properties.
- * Semantic search uses {@code CALL db.index.vector.queryNodes(...)}, following the same
+ * Semantic search uses the Cypher 25 {@code SEARCH} clause, following the same
  * pattern as {@link PhraseEmbeddingRepository}. The vector index is created by
  * {@link org.tarik.ta.knowledge_graph.schema.SchemaMigrationManager}.
  * UUID-based lookup queries Neo4j directly by node property.</p>
@@ -52,11 +60,11 @@ import static org.tarik.ta.knowledge_graph.repository.UiElementRepository.QueryA
 @Singleton
 public class UiElementRepository {
     private static final Logger LOG = LoggerFactory.getLogger(UiElementRepository.class);
-    private static final String VECTOR_INDEX_NAME = "ui_element_embedding_index";
 
     static final class QueryAliases {
         static final String ALIAS_N = "n";
         static final String ALIAS_SCORE = "score";
+        static final String ALIAS_APPEARANCE = "ap";
 
         private QueryAliases() {
         }
@@ -68,12 +76,18 @@ public class UiElementRepository {
     private final String saveUiElementCypher;
     private final String updateUiElementCypher;
     private final String removeUiElementCypher;
+    private final String expireAppearanceCypher;
+    private final String trimAppearancesCypher;
+    private final String findExpiredAppearancesCypher;
+    private final UiTestAgentConfig config;
     private final String findBySemanticSearchCypher;
     private final EmbeddingModel embeddingModel;
 
-    public UiElementRepository(Neo4jRepositorySupport repositorySupport, EmbeddingModel embeddingModel, UiElementCache uiElementCache) {
+    public UiElementRepository(Neo4jRepositorySupport repositorySupport, EmbeddingModel embeddingModel, UiElementCache uiElementCache,
+                               UiTestAgentConfig config) {
         this.repositorySupport = repositorySupport;
         this.uiElementCache = uiElementCache;
+        this.config = config;
         var sharedSetClause = """
                     n.${PROP_NAME} = $name,
                     n.${PROP_OWN_DESCRIPTION} = $ownDescription,
@@ -82,7 +96,8 @@ public class UiElementRepository {
                     n.${PROP_IS_DATA_DEPENDENT} = $isDataDependent,
                     n.${PROP_SCREENSHOT_FILE_EXTENSION} = $screenshotFileExtension,
                     n.${PROP_SCREENSHOT_MIME_TYPE} = $screenshotMimeType,
-                    n.${PROP_SCREENSHOT_IMAGE} = $screenshotImage""";
+                    n.${PROP_SCREENSHOT_IMAGE} = $screenshotImage,
+                    n.${PROP_UPDATED_AT} = $updatedAt""";
         this.findByIdCypher = repositorySupport.cypher("MATCH (n:${LABEL_UI_ELEMENT} {${PROP_ID}: $id}) RETURN n");
         this.saveUiElementCypher = repositorySupport.cypher("""
                 MERGE (n:${LABEL_UI_ELEMENT} {${PROP_ID}: $id})
@@ -93,13 +108,41 @@ public class UiElementRepository {
                 SET\s""" + sharedSetClause);
         this.removeUiElementCypher = repositorySupport.cypher("""
                 MATCH (n:${LABEL_UI_ELEMENT} {${PROP_ID}: $id})
-                DETACH DELETE n
+                OPTIONAL MATCH (n)-[:${REL_HAD_APPEARANCE}]->(ap:${LABEL_UI_ELEMENT_APPEARANCE})
+                DETACH DELETE ap, n
+                """);
+        // Copies the stored appearance inside the database, so the screenshot never travels to the client and back
+        this.expireAppearanceCypher = repositorySupport.cypher("""
+                MATCH (n:${LABEL_UI_ELEMENT} {${PROP_ID}: $id})
+                CREATE (n)-[:${REL_HAD_APPEARANCE}]->(:${LABEL_UI_ELEMENT_APPEARANCE} {
+                    ${PROP_ID}: $appearanceId,
+                    ${PROP_OWN_DESCRIPTION}: n.${PROP_OWN_DESCRIPTION},
+                    ${PROP_ANCHORS_DESCRIPTION}: n.${PROP_ANCHORS_DESCRIPTION},
+                    ${PROP_PARENT_ELEMENT_SUMMARY}: n.${PROP_PARENT_ELEMENT_SUMMARY},
+                    ${PROP_SCREENSHOT_FILE_EXTENSION}: n.${PROP_SCREENSHOT_FILE_EXTENSION},
+                    ${PROP_SCREENSHOT_MIME_TYPE}: n.${PROP_SCREENSHOT_MIME_TYPE},
+                    ${PROP_SCREENSHOT_IMAGE}: n.${PROP_SCREENSHOT_IMAGE},
+                    ${PROP_VALID_FROM}: n.${PROP_UPDATED_AT},
+                    ${PROP_VALID_TO}: $validTo})
+                """);
+        this.trimAppearancesCypher = repositorySupport.cypher("""
+                MATCH (n:${LABEL_UI_ELEMENT} {${PROP_ID}: $id})-[:${REL_HAD_APPEARANCE}]->(ap:${LABEL_UI_ELEMENT_APPEARANCE})
+                WITH ap ORDER BY datetime(ap.${PROP_VALID_TO}) DESC
+                WITH collect(ap) AS appearances
+                UNWIND appearances[$keep..] AS expired
+                DETACH DELETE expired
+                """);
+        this.findExpiredAppearancesCypher = repositorySupport.cypher("""
+                MATCH (n:${LABEL_UI_ELEMENT} {${PROP_ID}: $id})-[:${REL_HAD_APPEARANCE}]->(ap:${LABEL_UI_ELEMENT_APPEARANCE})
+                RETURN ap
+                ORDER BY datetime(ap.${PROP_VALID_TO}) DESC
                 """);
         this.findBySemanticSearchCypher = repositorySupport.cypher("""
-                CALL db.index.vector.queryNodes($indexName, $topN, $queryVector)
-                YIELD node, score
+                MATCH (node:${LABEL_UI_ELEMENT})
+                  SEARCH node IN (VECTOR INDEX ${INDEX_UI_ELEMENT_EMBEDDING} FOR $queryVector LIMIT $topN) SCORE AS score
                 WHERE score >= $minScore
                 RETURN node AS n, score
+                ORDER BY score DESC
                 """);
 
         this.embeddingModel = embeddingModel;
@@ -107,7 +150,7 @@ public class UiElementRepository {
 
     public void create(@NotNull UiElement element) {
         var embedding = embeddingModel.embed(element.name()).content().vector();
-        repositorySupport.executeSingleWriteQuery(saveUiElementCypher, buildSaveParams(element, embedding));
+        repositorySupport.executeSingleWriteQuery(saveUiElementCypher, buildSaveParams(element, embedding, Instant.now().toString()));
         uiElementCache.put(element);
         LOG.info("Saved UiElement '{}' (id={})", element.name(), element.id());
     }
@@ -119,7 +162,6 @@ public class UiElementRepository {
     public List<UiElementMatch> findBySemanticSearch(@NotNull String query, int topN, double minScore) {
         var queryVector = embeddingModel.embed(query).content().vector();
         return repositorySupport.executeSingleReadQuery(findBySemanticSearchCypher, Map.of(
-                        "indexName", VECTOR_INDEX_NAME,
                         "topN", topN,
                         "queryVector", queryVector,
                         "minScore", minScore))
@@ -149,15 +191,69 @@ public class UiElementRepository {
                 .findFirst();
     }
 
+    /** Updates the element, first keeping its stored appearance as an expired {@link UiElementAppearance} when the new one differs. */
     public void update(@NotNull UiElement element, boolean refreshEmbedding) {
-        if (refreshEmbedding) {
-            var embedding = embeddingModel.embed(element.name()).content().vector();
-            repositorySupport.executeSingleWriteQuery(saveUiElementCypher, buildSaveParams(element, embedding));
-        } else {
-            repositorySupport.executeSingleWriteQuery(updateUiElementCypher, buildUpdateParams(element));
-        }
+        var embedding = refreshEmbedding ? embeddingModel.embed(element.name()).content().vector() : null;
+        repositorySupport.executeComplexWriteQuery(tx -> {
+            var storedNode = tx.run(findByIdCypher, Map.of(PROP_ID, element.id().toString())).list().stream()
+                    .map(r -> r.get(ALIAS_N).asNode())
+                    .findFirst();
+            var stored = storedNode.map(UiElementRepository::fromRecord);
+            boolean appearanceChanged = stored.map(s -> !hasSameAppearance(s, element)).orElse(true);
+            if (appearanceChanged && stored.filter(UiElementRepository::hasNonEmptyAppearance).isPresent()) {
+                expireStoredAppearance(tx, element);
+            }
+            // The timestamp becomes the validFrom of the appearance once it expires, so it moves only with the appearance
+            var appearanceValidFrom = appearanceChanged
+                    ? Instant.now().toString()
+                    : storedNode.orElseThrow().get(PROP_UPDATED_AT).asString(null);
+            if (embedding != null) {
+                tx.run(saveUiElementCypher, buildSaveParams(element, embedding, appearanceValidFrom)).consume();
+            } else {
+                tx.run(updateUiElementCypher, buildUpdateParams(element, appearanceValidFrom)).consume();
+            }
+        });
         uiElementCache.update(element);
         LOG.info("Updated UiElement '{}' (id={})", element.name(), element.id());
+    }
+
+    private void expireStoredAppearance(TransactionContext tx, UiElement element) {
+        var id = element.id().toString();
+        tx.run(expireAppearanceCypher, Map.of(PROP_ID, id, "appearanceId", UUID.randomUUID().toString(),
+                "validTo", Instant.now().toString())).consume();
+        tx.run(trimAppearancesCypher, Map.of(PROP_ID, id, "keep", config.getElementAppearanceHistorySize())).consume();
+        LOG.info("Expired the previous appearance of UiElement '{}' (id={})", element.name(), element.id());
+    }
+
+    private static boolean hasNonEmptyAppearance(UiElement element) {
+        return element.screenshot() != null || !element.description().isBlank() || !element.locationDetails().isBlank()
+                || !element.parentElementSummary().isBlank();
+    }
+
+    private static boolean hasSameAppearance(UiElement stored, UiElement updated) {
+        return stored.description().equals(updated.description())
+                && stored.locationDetails().equals(updated.locationDetails())
+                && stored.parentElementSummary().equals(updated.parentElementSummary())
+                && Objects.equals(stored.screenshot(), updated.screenshot());
+    }
+
+    /** Returns the expired appearances of the element, the most recently expired first. */
+    public List<UiElementAppearance> findExpiredAppearances(@NotNull UUID elementId) {
+        return repositorySupport.executeSingleReadQuery(findExpiredAppearancesCypher, Map.of(PROP_ID, elementId.toString())).stream()
+                .map(r -> appearanceFromNode(r.get(ALIAS_APPEARANCE).asNode()))
+                .toList();
+    }
+
+    private static UiElementAppearance appearanceFromNode(@NotNull Node node) {
+        var validFrom = node.get(PROP_VALID_FROM);
+        return new UiElementAppearance(
+                UUID.fromString(node.get(PROP_ID).asString()),
+                node.get(PROP_OWN_DESCRIPTION).asString(""),
+                node.get(PROP_ANCHORS_DESCRIPTION).asString(""),
+                node.get(PROP_PARENT_ELEMENT_SUMMARY).asString(""),
+                screenshotOf(node),
+                validFrom.isNull() ? null : Instant.parse(validFrom.asString()),
+                Instant.parse(node.get(PROP_VALID_TO).asString()));
     }
 
     public void update(@NotNull UiElement element) {
@@ -178,25 +274,28 @@ public class UiElementRepository {
         var parentElementSummary = node.containsKey(PROP_PARENT_ELEMENT_SUMMARY) ? node.get(PROP_PARENT_ELEMENT_SUMMARY).asString() : "";
         var isDataDependent = node.containsKey(PROP_IS_DATA_DEPENDENT) && node.get(PROP_IS_DATA_DEPENDENT).asBoolean();
 
-        Screenshot screenshot = null;
-        if (node.containsKey(PROP_SCREENSHOT_FILE_EXTENSION) && !node.get(PROP_SCREENSHOT_FILE_EXTENSION).isNull()) {
-            screenshot = new Screenshot(
-                    node.get(PROP_SCREENSHOT_FILE_EXTENSION).asString(),
-                    node.get(PROP_SCREENSHOT_MIME_TYPE).asString(),
-                    node.get(PROP_SCREENSHOT_IMAGE).asString()
-            );
-        }
-
-        return new UiElement(id, name, ownDescription, anchorsDescription, parentElementSummary, screenshot, isDataDependent);
+        return new UiElement(id, name, ownDescription, anchorsDescription, parentElementSummary, screenshotOf(node), isDataDependent);
     }
 
-    private static Map<String, Object> buildSaveParams(UiElement element, float[] embedding) {
-        var params = buildUpdateParams(element);
+    @Nullable
+    private static Screenshot screenshotOf(@NotNull Node node) {
+        if (!node.containsKey(PROP_SCREENSHOT_FILE_EXTENSION) || node.get(PROP_SCREENSHOT_FILE_EXTENSION).isNull()) {
+            return null;
+        }
+        return new Screenshot(
+                node.get(PROP_SCREENSHOT_FILE_EXTENSION).asString(),
+                node.get(PROP_SCREENSHOT_MIME_TYPE).asString(),
+                node.get(PROP_SCREENSHOT_IMAGE).asString()
+        );
+    }
+
+    private static Map<String, Object> buildSaveParams(UiElement element, float[] embedding, @Nullable String appearanceValidFrom) {
+        var params = buildUpdateParams(element, appearanceValidFrom);
         params.put(PROP_EMBEDDING, embedding);
         return params;
     }
 
-    private static HashMap<String, Object> buildUpdateParams(UiElement element) {
+    private static HashMap<String, Object> buildUpdateParams(UiElement element, @Nullable String appearanceValidFrom) {
         var params = new HashMap<String, Object>();
         var screenshot = element.screenshot();
         params.put(PROP_ID, element.id().toString());
@@ -208,6 +307,7 @@ public class UiElementRepository {
         params.put(PROP_SCREENSHOT_FILE_EXTENSION, screenshot != null ? screenshot.fileExtension() : null);
         params.put(PROP_SCREENSHOT_MIME_TYPE, screenshot != null ? screenshot.mimeType() : null);
         params.put(PROP_SCREENSHOT_IMAGE, screenshot != null ? screenshot.base64EncodedImage() : null);
+        params.put(PROP_UPDATED_AT, appearanceValidFrom);
         return params;
     }
 

@@ -28,7 +28,9 @@ import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.output.TokenUsage;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -43,7 +45,7 @@ import java.util.function.Function;
  * script sees the prior results it can <em>branch</em> — e.g. react to a failed verification or repeat a call to
  * exercise the retry / error-handling path — rather than only replaying a fixed list. The simple linear case is still
  * available via {@link #ofSequence(Function)}. The last decision of an invocation must invoke the agent's final-result
- * tool (which returns immediately), which ends the loop.
+ * tool, alone or last in a batch, which ends the loop.
  * <p>
  * The model implements {@link #doChat(ChatRequest)} + {@link #listeners()} rather than overriding
  * {@link #chat(ChatRequest)}, so the default {@code chat()} wraps every scripted response with the real listener
@@ -58,14 +60,23 @@ class ScriptedChatModel implements ChatModel {
     static final int OUTPUT_TOKENS_PER_RESPONSE = 3;
 
     /**
-     * A single scripted decision: the tool to call and its JSON arguments. A decision created via {@link #plainText}
-     * carries no tool name and makes the model answer with plain text instead, ending the tool-calling loop the way a
-     * real LLM going off-script would.
+     * A single scripted decision: the tool to call, its JSON arguments and the call batched after it in the same response,
+     * if any. A decision created via {@link #plainText} carries no tool name and makes the model answer with plain text
+     * instead, ending the tool-calling loop the way a real LLM going off-script would.
      */
-    record ScriptedToolCall(String toolName, String argumentsJson) {
+    record ScriptedToolCall(String toolName, String argumentsJson, @Nullable ScriptedToolCall batchedCall) {
+
+        ScriptedToolCall(String toolName, String argumentsJson) {
+            this(toolName, argumentsJson, null);
+        }
 
         static ScriptedToolCall plainText(@NotNull String text) {
             return new ScriptedToolCall(null, text);
+        }
+
+        /** Appends {@code next} to this decision's batch, so that the model returns all of them in one response. */
+        ScriptedToolCall batchedWith(@NotNull ScriptedToolCall next) {
+            return new ScriptedToolCall(toolName, argumentsJson, batchedCall == null ? next : batchedCall.batchedWith(next));
         }
 
         boolean isPlainText() {
@@ -116,12 +127,15 @@ class ScriptedChatModel implements ChatModel {
         if (call.isPlainText()) {
             return response(AiMessage.from(call.argumentsJson()));
         }
-        ToolExecutionRequest toolRequest = ToolExecutionRequest.builder()
-                .id("scripted-call-%d".formatted(round))
-                .name(call.toolName())
-                .arguments(call.argumentsJson())
-                .build();
-        return response(AiMessage.from(toolRequest));
+        List<ToolExecutionRequest> toolRequests = new ArrayList<>();
+        for (var batchedCall = call; batchedCall != null; batchedCall = batchedCall.batchedCall()) {
+            toolRequests.add(ToolExecutionRequest.builder()
+                    .id("scripted-call-%d".formatted(round + toolRequests.size()))
+                    .name(batchedCall.toolName())
+                    .arguments(batchedCall.argumentsJson())
+                    .build());
+        }
+        return response(AiMessage.from(toolRequests));
     }
 
     private static ChatResponse response(@NotNull AiMessage aiMessage) {

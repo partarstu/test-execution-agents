@@ -18,6 +18,7 @@
 package org.tarik.ta.knowledge_graph.execution;
 
 import org.jetbrains.annotations.Nullable;
+import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.Procedure.TimingProfile;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 import org.tarik.ta.knowledge_graph.model.node.UiElement.ElementLocationHistory;
@@ -25,6 +26,10 @@ import org.tarik.ta.knowledge_graph.timing.TimingRecorder;
 
 import java.util.List;
 
+/**
+ * Everything the execution of one atomic step needs beyond the step itself. {@code ancestorChain} lists the composites the step
+ * was decomposed from, outermost first, and is empty for a step executed on its own.
+ */
 public record AtomicStepExecutionContext(
         @Nullable TimingProfile timingProfile,
         TimingRecorder timingRecorder,
@@ -32,6 +37,10 @@ public record AtomicStepExecutionContext(
         String uiElementId,
         String effectiveExpectedResults,
         @Nullable UiElement targetElement,
-        @Nullable ElementLocationHistory locationHistory
+        @Nullable ElementLocationHistory locationHistory,
+        List<Procedure> ancestorChain
 ) {
+    public AtomicStepExecutionContext {
+        ancestorChain = List.copyOf(ancestorChain);
+    }
 }
