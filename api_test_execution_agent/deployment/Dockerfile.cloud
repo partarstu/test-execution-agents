@@ -21,7 +21,7 @@ FROM amazoncorretto:27-alpine
 
 ARG APP_DIR=/app
 ARG APP_LOG_DIR=${APP_DIR}/log
-ARG SOURCE_JAR_PATH=api_test_execution_agent/target/api-test-execution-agent-3.0.0.jar
+ARG SOURCE_JAR_PATH=api_test_execution_agent/target/api-test-execution-agent-3.1.0-SNAPSHOT.jar
 ARG DESTINATION_JAR_PATH=${APP_DIR}/app.jar
 
 # Install curl for health checks and ca-certificates for HTTPS
