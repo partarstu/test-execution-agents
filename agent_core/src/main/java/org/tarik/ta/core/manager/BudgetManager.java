@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 
 import static java.time.Instant.now;
 import static java.util.Comparator.comparing;
@@ -45,6 +46,8 @@ public class BudgetManager {
     private static final Logger LOG = LoggerFactory.getLogger(BudgetManager.class);
     /** Bucket used when usage is recorded outside of an A2A task, e.g. by a manual run or a test. */
     private static final String UNKNOWN_TASK_ID = "unknown";
+    /** The task an agent that runs several tasks at once binds to the work it does for that task; it overrides the current task. */
+    private static final ScopedValue<String> BOUND_TASK_ID = ScopedValue.newInstance();
 
     // Bridge accessor for non-injectable contexts (e.g. GenericAiAgent interface default methods).
     private static volatile BudgetManager instance;
@@ -100,6 +103,18 @@ public class BudgetManager {
     }
 
     /**
+     * Runs the action with the usage it records and the token budget it checks bound to the given task, so that tasks running at the
+     * same time keep separate accounts; the binding covers only the calling thread.
+     */
+    public <T> T callInTask(@NotNull String taskId, @NotNull Supplier<T> action) {
+        return ScopedValue.where(BOUND_TASK_ID, taskId).call(action::get);
+    }
+
+    private String activeTaskId() {
+        return BOUND_TASK_ID.orElse(currentTaskId.get());
+    }
+
+    /**
      * Returns the task's usage, one entry per sub-agent operation, and frees its buckets; called once per task after the usage
      * has been reported.
      */
@@ -142,26 +157,10 @@ public class BudgetManager {
     public TokenUsageRecord consumeTokens(@NotNull TokenUsageRecord callUsage) {
         usageLock.readLock().lock();
         try {
-            return tokenUsage.merge(new UsageKey(currentTaskId.get(), callUsage.operationName()), callUsage, TokenUsageRecord::plus);
+            return tokenUsage.merge(new UsageKey(activeTaskId(), callUsage.operationName()), callUsage, TokenUsageRecord::plus);
         } finally {
             usageLock.readLock().unlock();
         }
-    }
-
-    public int getAccumulatedInputTokens() {
-        return tokenUsage.values().stream().mapToInt(TokenUsageRecord::inputTokens).sum();
-    }
-
-    public int getAccumulatedOutputTokens() {
-        return tokenUsage.values().stream().mapToInt(TokenUsageRecord::outputTokens).sum();
-    }
-
-    public int getAccumulatedCachedTokens() {
-        return tokenUsage.values().stream().mapToInt(TokenUsageRecord::cachedTokens).sum();
-    }
-
-    public int getAccumulatedTotalTokens() {
-        return getAccumulatedInputTokens() + getAccumulatedOutputTokens() + getAccumulatedCachedTokens();
     }
 
     public void consumeToolCalls(int count) {
@@ -180,8 +179,15 @@ public class BudgetManager {
         }
     }
 
+    /**
+     * Fails when the active task has used more tokens than the budget allows.
+     */
     public void checkTokenBudget() {
-        int current = getAccumulatedTotalTokens();
+        var taskId = activeTaskId();
+        int current = tokenUsage.entrySet().stream()
+                .filter(entry -> entry.getKey().taskId().equals(taskId))
+                .mapToInt(entry -> entry.getValue().totalTokens())
+                .sum();
         if (tokenBudget > 0 && current > tokenBudget) {
             throw new BudgetExceededException("Token budget exceeded: %d > %d".formatted(current, tokenBudget));
         }

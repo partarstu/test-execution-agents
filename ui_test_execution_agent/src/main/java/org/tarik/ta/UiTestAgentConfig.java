@@ -21,12 +21,13 @@ package org.tarik.ta;
 import jakarta.inject.Singleton;
 import org.tarik.ta.core.AgentConfig;
 import dev.langchain4j.data.message.ImageContent.DetailLevel;
+import org.tarik.ta.knowledge_graph.KnowledgeGraphConfig;
 
 import java.time.Duration;
 import java.util.Optional;
 
 @Singleton
-public class UiTestAgentConfig extends AgentConfig {
+public class UiTestAgentConfig extends AgentConfig implements KnowledgeGraphConfig {
 
     public UiTestAgentConfig() {
         super();

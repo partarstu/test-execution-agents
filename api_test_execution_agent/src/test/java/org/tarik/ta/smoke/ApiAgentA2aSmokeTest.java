@@ -53,7 +53,8 @@ import org.tarik.ta.core.smoke.A2aTestClient;
 import org.tarik.ta.core.smoke.A2aTestClient.SseStream;
 import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.utils.TestCaseExtractor;
-import org.tarik.ta.smoke.ScriptedChatModel.ScriptedToolCall;
+import org.tarik.ta.core.smoke.ScriptedChatModel;
+import org.tarik.ta.core.smoke.ScriptedChatModel.ScriptedToolCall;
 
 import java.io.IOException;
 import java.net.ServerSocket;

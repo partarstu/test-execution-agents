@@ -21,11 +21,18 @@ D:\Projects\test-execution-agents\
 ├── agent_core\                  (Shared Library)
 │   ├── pom.xml
 │   └── src\main\java\...
+├── knowledge_graph_core\        (Shared knowledge graph library)
+│   ├── pom.xml
+│   └── src\main\java\...
 ├── ui_test_execution_agent\     (Executable UI Agent)
 │   ├── pom.xml
 │   ├── deployment\              (Docker & deployment scripts)
 │   └── src\main\java\...
-└── api_test_execution_agent\    (Executable API Agent)
+├── api_test_execution_agent\    (Executable API Agent)
+│   ├── pom.xml
+│   ├── deployment\              (Docker & deployment scripts)
+│   └── src\main\java\...
+└── procedure_knowledge_agent\   (Executable Procedure Knowledge Agent)
     ├── pom.xml
     ├── deployment\              (Docker & deployment scripts)
     └── src\main\java\...
@@ -49,6 +56,7 @@ D:\Projects\test-execution-agents\
     * **`StreamingEventEmitter`**: Abstraction that bridges live execution progress (step results, precondition results, log lines) to the
       A2A streaming channel without coupling execution code to the transport layer.
     * **`GenericAiAgent`**: Core interface for all AI agents with retry logic and budget management.
+    * **`BudgetManager`**: Accounts the token usage of every model call to its task and enforces the token budget per task. An agent that runs several tasks at once binds the work of each task with `callInTask`, so concurrent tasks keep separate accounts; **`TaskTokenUsage`** reports a finished task's usage as its `token_usage` artifact.
     * **`TestCaseExtractor`**: Utility class that provides shared test case extraction functionality using an AI model.
     * **`TestContextDataTools`**: Shared tools for loading and managing test data (JSON, CSV).
     * **`TestExecutionContext`**: Shared request-scoped execution state for step history, precondition history, and shared data; test case data is passed explicitly by the agents instead of being stored in the context.
@@ -78,6 +86,10 @@ D:\Projects\test-execution-agents\
     * **`ApiAssertionTools`**: Response validation (JSON Schema, OpenAPI spec, status codes, JSON paths).
     * **`ApiContext`**: Session management (cookies, variables, configuration).
     * Deployed as a **Cloud Run** service.
+
+* **`knowledge_graph_core`**: The knowledge graph model, the procedure, phrase and query-support repositories and the embedding service shared by the agents that read the graph.
+
+* **`procedure_knowledge_agent`**: The executable agent that selects, for each precondition and test step of a designed test case, the recorded procedures of the shared Neo4j graph that match it, and those that combine consecutive items into one workflow, and returns them as their original trees. QuAIA's orchestrator delegates these requests to it on behalf of the test case design agent. It reads the graph only, runs several tasks at once (advertised to the orchestrator through a task capacity extension of its agent card) and is deployed as an internal **Cloud Run** service; see [its README](procedure_knowledge_agent/README.md).
 
 ### Core Architecture
 
@@ -247,6 +259,12 @@ To build specifically the API agent executable:
 mvn clean package -pl api_test_execution_agent -am -DskipTests
 ```
 
+To build specifically the procedure knowledge agent executable:
+
+```bash
+mvn clean package -pl procedure_knowledge_agent -am -DskipTests
+```
+
 ### Building the Operator Panel Frontend
 
 The UI agent's operator panel is a React + TypeScript app in `ui_test_execution_agent/src/main/frontend`, built by Vite into `target/classes/panel` and packaged into the agent's jar. The Maven build of the UI module runs it through `frontend-maven-plugin`, so no local Node installation is needed: the plugin downloads the Node version pinned in the parent POM (`node.version`) into `src/main/frontend/node` (git-ignored) and then runs `npm ci`, `npm audit signatures` (verifies the registry signatures of the installed packages and fails on a verification error), `npm run build` (`tsc --noEmit`, ESLint with the React Compiler rules, the accessibility rules of `eslint-plugin-jsx-a11y-x` (a fork of `eslint-plugin-jsx-a11y` that supports ESLint 10) and a ban on `dangerouslySetInnerHTML`, then the Vite build, which fails unless the built `index.html` links `public/layers.css`, the cascade-layer order, before the stylesheets of the split chunks) and, in the `test` phase, `npm test` (Vitest; the component tests render into jsdom with Testing Library and fail on any axe-core violation, and a token test keeps the colour contrast of both themes at WCAG 2.2 AA).
@@ -274,7 +292,7 @@ Both agents share the same result-status contract: `FAILED` is reserved for fail
 execution error (tool exception, budget exhaustion, aborted step, a model response without a tool call) and any
 precondition failure (the test never got a fair run) yields `ERROR`.
 
-Five suites are implemented:
+Six suites are implemented:
 
 - **API agent** (`api_test_execution_agent`) — drives the real `ApiTestAgent` flow against a local WireMock
   server with a scripted `ChatModel` standing in for the LLM (see
@@ -298,6 +316,7 @@ Five suites are implemented:
   request travels HTTP → `AgentExecutionResource` → executor → the real `ApiTestAgent` with real tools →
   WireMock, asserting the streamed step and final-result events over SSE. It reuses `A2aTestClient` via
   `agent_core`'s test-jar.
+- **Procedure knowledge agent** (`procedure_knowledge_agent`) — `org.tarik.ta.smoke.KnowledgeAgentA2aSmokeTest` sends a test case as a data part over `message/stream` through the real executor, selection runs, tools and tree assembler, with the shared `ScriptedChatModel` (in `agent_core`'s test-jar) as the LLM and the Neo4j repository and embedding service mocked; it asserts the item and aggregation selections as original trees, the task's `token_usage` artifact and the `401` of a request without the bearer token.
 
 The smoke workflow is hardened with a 15-minute job timeout, a per-ref `concurrency` group that cancels
 superseded runs, `-Djacoco.skip=true` (nothing consumes the coverage data there) and `paths-ignore` for
@@ -338,6 +357,7 @@ Each agent has its own configuration file template with agent-specific settings:
 |--------------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
 | UI Test Execution Agent  | `ui_test_execution_agent/config.properties.example`  | UI-specific settings (operator panel, element locator, video recording, vision agents) |
 | API Test Execution Agent | `api_test_execution_agent/config.properties.example` | API-specific settings (HTTP client, proxy, timeouts, schema validation, authentication) |
+| Procedure Knowledge Agent | `procedure_knowledge_agent/src/main/resources/config.properties` | Graph connection, exploration and selection bounds, request limits, concurrency ([its README](procedure_knowledge_agent/README.md#configuration)) |
 
 ### Telemetry (OpenTelemetry)
 
@@ -491,6 +511,12 @@ gcloud builds submit --config=cloudbuild.yaml --substitutions=_DEPLOY_TARGET=api
 gcloud builds submit --config=cloudbuild.yaml --substitutions=_DEPLOY_TARGET=neo4j
 ```
 
+**Deploy only the procedure knowledge agent** (not part of `all`; it needs the internal Bolt URL of the Neo4j VM):
+
+```bash
+gcloud builds submit --config=cloudbuild.yaml --substitutions=_DEPLOY_TARGET=knowledge,_KNOWLEDGE_AGENT_VECTOR_DB_URL=bolt://10.128.0.5:7687
+```
+
 #### Standalone Deployment (Module-Level)
 
 Each agent and Neo4j also have their own `cloudbuild.yaml` for fully independent deployment:
@@ -505,6 +531,12 @@ gcloud builds submit --config=ui_test_execution_agent/deployment/cloud/cloudbuil
 
 ```bash
 gcloud builds submit --config=api_test_execution_agent/deployment/cloud/cloudbuild.yaml
+```
+
+**Procedure Knowledge Agent standalone deployment:**
+
+```bash
+gcloud builds submit --config=procedure_knowledge_agent/deployment/cloud/cloudbuild.yaml --substitutions=_VECTOR_DB_URL=bolt://10.128.0.5:7687
 ```
 
 **Neo4j standalone deployment:**
@@ -532,6 +564,7 @@ gcloud builds submit --config=cloudbuild.yaml \
 | UI Test Execution Agent  | GCE VM (SPOT)     | 443, 8443  | A2A (VPC only) + Operator panel (HTTPS) |
 | API Test Execution Agent | Cloud Run         | 8005       | HTTP (internal by default)          |
 | Neo4j Knowledge DB       | GCE VM (SPOT)     | 7687, 7474 | Bolt (VPC + external), HTTP Browser |
+| Procedure Knowledge Agent | Cloud Run        | 8007       | HTTP (internal ingress, bearer token); Direct VPC egress to Neo4j for private ranges only |
 
 ## Test Execution Results
 

@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import org.tarik.ta.knowledge_graph.model.MatchConfidence;
 import org.tarik.ta.config.scopes.UiAgentRequestScope;
 
 import dev.langchain4j.data.embedding.Embedding;
@@ -394,21 +395,6 @@ public class KnowledgeService {
         public ScoredProcedure(Procedure procedure, int satisfied, int totalPrereqs) {
             this(procedure, satisfied, totalPrereqs, 0.0, 0, false, List.of());
         }
-    }
-
-    /**
-     * Confidence level of a semantic match.
-     */
-    public enum MatchConfidence {
-        /**
-         * Score >= high confidence threshold — match can be auto-executed.
-         */
-        HIGH,
-        /**
-         * Score >= low but < high threshold — caller decides (e.g., ask user to
-         * confirm).\
-         */
-        LOW
     }
 
     /**

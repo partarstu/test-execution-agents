@@ -49,16 +49,33 @@
             ]
         },
         {
+            "unique-id": "procedure-knowledge-agent",
+            "node-type": "service",
+            "name": "Procedure Knowledge Agent",
+            "description": "Selects, for each precondition and test step of a test case that QuAIA sends through the orchestrator, the recorded procedures of the knowledge graph that match it and those that combine consecutive items into one workflow, and returns them as their original trees; it only reads the graph. The A2A endpoint requires an `Authorization: Bearer <AGENT_AUTH_TOKEN>` header; a missing or mismatched token is rejected with 401. If AGENT_AUTH_TOKEN is unset, the endpoint is open and a warning is logged (local development only).",
+            "interfaces": [
+                {
+                    "unique-id": "knowledge-agent-a2a",
+                    "description": "A2A endpoint called by the orchestrator. On Cloud Run the container listens behind the service's HTTPS URL with internal ingress.",
+                    "protocol": "A2A JSON-RPC over HTTP (HTTPS through Cloud Run)",
+                    "port": 8007,
+                    "port-env": "PORT",
+                    "authentication": "Bearer token (AGENT_AUTH_TOKEN)",
+                    "exposure": "internal"
+                }
+            ]
+        },
+        {
             "unique-id": "neo4j",
             "node-type": "database",
             "name": "Neo4j Knowledge Graph",
-            "description": "Knowledge graph database storing UI elements and procedures used by the UI test execution agent for element grounding, and the history of its execution runs with their step resolutions."
+            "description": "Knowledge graph database storing UI elements and procedures used by the UI test execution agent for element grounding, and the history of its execution runs with their step resolutions. The procedure knowledge agent reads its procedures and UI elements."
         },
         {
             "unique-id": "orchestrator",
             "node-type": "system",
             "name": "QuAIA Orchestrator",
-            "description": "External QuAIA orchestrator that routes test-execution tasks to both agents over the A2A protocol. Owned and operated outside this repository."
+            "description": "External QuAIA orchestrator that routes test-execution tasks to both execution agents and delegates the procedure knowledge requests of QuAIA's test case design agent to the procedure knowledge agent over the A2A protocol. Owned and operated outside this repository."
         },
         {
             "unique-id": "llm-provider",
@@ -82,13 +99,13 @@
             "unique-id": "cloud-run",
             "node-type": "system",
             "name": "Cloud Run",
-            "description": "Google Cloud Run hosting the API test execution agent and the self-hosted Holo3.1 and Qwen3.8 model services (Holo3.1 from ui_test_execution_agent/deployment/holo)."
+            "description": "Google Cloud Run hosting the API test execution agent, the procedure knowledge agent and the self-hosted Holo3.1 and Qwen3.8 model services (Holo3.1 from ui_test_execution_agent/deployment/holo)."
         },
         {
             "unique-id": "otel-collector",
             "node-type": "system",
             "name": "OpenTelemetry Collector",
-            "description": "External OpenTelemetry collector receiving the GenAI token-usage and call-duration metrics of both agents over OTLP. Configured through the standard OTEL_* environment variables and not provisioned by this repository; with no endpoint configured the agents export nothing."
+            "description": "External OpenTelemetry collector receiving the GenAI token-usage and call-duration metrics of the agents over OTLP. Configured through the standard OTEL_* environment variables and not provisioned by this repository; with no endpoint configured the agents export nothing."
         },
         {
             "unique-id": "operator",
@@ -201,6 +218,60 @@
             "relationship-type": {
                 "connects": {
                     "source": { "node": "api-test-execution-agent" },
+                    "destination": { "node": "otel-collector" }
+                }
+            }
+        },
+        {
+            "unique-id": "rel-orchestrator-knowledge-agent",
+            "description": "Orchestrator discovers and health-checks the procedure knowledge agent and sends it the procedure knowledge requests it delegates for QuAIA's test case design agent over A2A (HTTPS to Cloud Run with internal ingress), several at once up to the declared capacity.",
+            "relationship-type": {
+                "interacts": {
+                    "actor": "orchestrator",
+                    "nodes": [
+                        "procedure-knowledge-agent"
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "rel-knowledge-agent-neo4j",
+            "description": "Procedure knowledge agent reads the knowledge graph (Bolt, read-only) through the graph code it shares with the UI agent; it writes nothing.",
+            "relationship-type": {
+                "connects": {
+                    "source": { "node": "procedure-knowledge-agent" },
+                    "destination": { "node": "neo4j" }
+                }
+            }
+        },
+        {
+            "unique-id": "rel-knowledge-agent-llm",
+            "description": "Procedure knowledge agent calls the LLM provider (HTTPS).",
+            "relationship-type": {
+                "connects": {
+                    "source": { "node": "procedure-knowledge-agent" },
+                    "destination": { "node": "llm-provider" }
+                }
+            }
+        },
+        {
+            "unique-id": "rel-knowledge-deployed-cloud-run",
+            "description": "Procedure knowledge agent runs on Cloud Run with internal ingress and VPC egress to Neo4j.",
+            "relationship-type": {
+                "deployed-in": {
+                    "container": "cloud-run",
+                    "nodes": [
+                        "procedure-knowledge-agent"
+                    ]
+                }
+            }
+        },
+        {
+            "unique-id": "rel-knowledge-agent-otel",
+            "description": "Procedure knowledge agent exports its GenAI metrics to the OpenTelemetry collector (OTLP).",
+            "relationship-type": {
+                "connects": {
+                    "source": { "node": "procedure-knowledge-agent" },
                     "destination": { "node": "otel-collector" }
                 }
             }

@@ -45,6 +45,7 @@ import static dev.langchain4j.agent.tool.ToolSpecifications.toolSpecificationFro
  */
 public class InheritanceAwareToolProvider<T extends FinalResult> implements ToolProvider {
     private final List<Object> toolObjects;
+    private final List<Object> resultToolObjects;
     private final Class<T> resultClass;
 
     /**
@@ -54,7 +55,17 @@ public class InheritanceAwareToolProvider<T extends FinalResult> implements Tool
      * @param resultClass The class of the final result, which may also contain static @Tool methods. Must not be null.
      */
     public InheritanceAwareToolProvider(@NotNull Collection<?> toolObjects, @NotNull Class<T> resultClass) {
+        this(toolObjects, List.of(), resultClass);
+    }
+
+    /**
+     * Creates an InheritanceAwareToolProvider whose final result is returned by the @Tool methods of {@code resultToolObjects} (e.g. a
+     * result tool that validates the result against the state of the run) instead of static methods of the result class.
+     */
+    public InheritanceAwareToolProvider(@NotNull Collection<?> toolObjects, @NotNull Collection<?> resultToolObjects,
+                                        @NotNull Class<T> resultClass) {
         this.toolObjects = new ArrayList<>(toolObjects);
+        this.resultToolObjects = new ArrayList<>(resultToolObjects);
         this.resultClass = Objects.requireNonNull(resultClass, "resultClass must not be null");
     }
 
@@ -64,8 +75,7 @@ public class InheritanceAwareToolProvider<T extends FinalResult> implements Tool
      * @param resultClass The class of the final result, which may also contain static @Tool methods. Must not be null.
      */
     public InheritanceAwareToolProvider(@NotNull Class<T> resultClass) {
-        this.toolObjects = new ArrayList<>();
-        this.resultClass = Objects.requireNonNull(resultClass, "resultClass must not be null");
+        this(List.of(), List.of(), resultClass);
     }
 
     @Override
@@ -74,6 +84,9 @@ public class InheritanceAwareToolProvider<T extends FinalResult> implements Tool
         toolObjects.forEach(toolObject -> Arrays.stream(toolObject.getClass().getMethods())
                 .filter(method -> method.isAnnotationPresent(Tool.class))
                 .forEach(toolMethod -> addToolProvider(toolObject, toolMethod, resultBuilder, true)));
+        resultToolObjects.forEach(toolObject -> Arrays.stream(toolObject.getClass().getMethods())
+                .filter(method -> method.isAnnotationPresent(Tool.class))
+                .forEach(toolMethod -> addToolProvider(toolObject, toolMethod, resultBuilder, false)));
         Arrays.stream(resultClass.getMethods())
                 .filter(method -> method.isAnnotationPresent(Tool.class))
                 .forEach(toolMethod -> addToolProvider(resultClass, toolMethod, resultBuilder, false));

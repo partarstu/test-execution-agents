@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.knowledge_graph.execution;
 
+import org.tarik.ta.knowledge_graph.model.MatchConfidence;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -238,7 +239,7 @@ class NextAtomicPrefetchCoordinatorTest {
         ExecutionItem nextQueueItem = new ExecutionItem.TestStepItem(new TestStep("next action", List.of(), ""));
         ExecutionStateSnapshot snapshot = new ExecutionStateSnapshot(Set.of(), List.of(), List.of());
 
-        var match = new KnowledgeService.MatchResult(predicted, KnowledgeService.MatchConfidence.HIGH,
+        var match = new KnowledgeService.MatchResult(predicted, MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(predicted, 0, 0)), false, false, false);
         when(mockKnowledgeService.findBestMatch(eq("next action"), any(), any())).thenReturn(Optional.of(match));
         when(mockKnowledgeService.findTargetedUiElementId(predicted.id())).thenReturn(Optional.empty());
@@ -263,7 +264,7 @@ class NextAtomicPrefetchCoordinatorTest {
         ExecutionItem nextQueueItem = new ExecutionItem.TestStepItem(new TestStep("next action", List.of(), ""));
         ExecutionStateSnapshot snapshot = new ExecutionStateSnapshot(Set.of(), List.of(), List.of());
 
-        var match = new KnowledgeService.MatchResult(candidate, KnowledgeService.MatchConfidence.LOW,
+        var match = new KnowledgeService.MatchResult(candidate, MatchConfidence.LOW,
                 List.of(new KnowledgeService.ScoredProcedure(candidate, 0, 0)), false, false, false);
         when(mockKnowledgeService.findBestMatch(eq("next action"), any(), any())).thenReturn(Optional.of(match));
 

@@ -35,3 +35,7 @@ jobs:
       - name: Package API agent
         if: always() && steps.setup.conclusion == 'success'
         run: mvn -B package --file pom.xml -pl api_test_execution_agent -am -P linux
+
+      - name: Package procedure knowledge agent
+        if: always() && steps.setup.conclusion == 'success'
+        run: mvn -B package --file pom.xml -pl procedure_knowledge_agent -am -P linux

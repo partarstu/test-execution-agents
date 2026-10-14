@@ -22,6 +22,8 @@
 #   - 'ui': Deploy only the UI agent
 #   - 'api': Deploy only the API agent
 #   - 'neo4j': Deploy only the Neo4j knowledge persistence VM
+#   - 'knowledge': Deploy only the procedure knowledge agent, which needs the Neo4j VM's internal Bolt URL in
+#     _KNOWLEDGE_AGENT_VECTOR_DB_URL
 
 steps:
   # ============================================
@@ -107,8 +109,30 @@ steps:
     dir: '/workspace'
     waitFor: [ 'maven-build' ]
 
+  # ============================================
+  # Stage 5: Procedure Knowledge Agent (Cloud Run)
+  # Delegates to the module's own cloudbuild.yaml
+  # Runs when _DEPLOY_TARGET is 'knowledge'
+  # ============================================
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-knowledge-agent'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "$_DEPLOY_TARGET" = "knowledge" ]; then
+          echo "Deploying procedure knowledge agent..."
+          gcloud builds submit --config=procedure_knowledge_agent/deployment/cloud/cloudbuild.yaml \
+            --substitutions=_SERVICE_NAME=$_KNOWLEDGE_AGENT_SERVICE_NAME,_IMAGE_TAG=$_IMAGE_TAG,_REGION=$_REGION,_PORT=8007,_EXTERNAL_URL=$_KNOWLEDGE_AGENT_EXTERNAL_URL,_VECTOR_DB_URL=$_KNOWLEDGE_AGENT_VECTOR_DB_URL \
+            .
+        else
+          echo "Skipping procedure knowledge agent deployment (_DEPLOY_TARGET=$_DEPLOY_TARGET)"
+        fi
+    dir: '/workspace'
+    waitFor: [ 'maven-build' ]
+
 substitutions:
-  _DEPLOY_TARGET: 'all'  # Options: 'all', 'ui', 'api', 'neo4j'
+  _DEPLOY_TARGET: 'all'  # Options: 'all', 'ui', 'api', 'neo4j', 'knowledge'
   _UI_AGENT_SERVICE_NAME: 'ui-test-execution-agent'
   _FIREWALL_PANEL_SOURCE_RANGES: ''  # Required for 'all' and 'ui': CIDR ranges allowed to reach the operator panel
   _API_AGENT_SERVICE_NAME: 'api-test-execution-agent'
@@ -117,6 +141,9 @@ substitutions:
   _API_AGENT_MEMORY: '2Gi'
   _API_AGENT_CPU: '1'
   _API_AGENT_EXTERNAL_URL: ''
+  _KNOWLEDGE_AGENT_SERVICE_NAME: 'procedure-knowledge-agent'
+  _KNOWLEDGE_AGENT_EXTERNAL_URL: ''
+  _KNOWLEDGE_AGENT_VECTOR_DB_URL: ''  # Required for 'knowledge': e.g. bolt://<Neo4j VM internal IP>:7687
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -1,0 +1,34 @@
+/*
+ * procedure-knowledge-agent - Agent selecting the recorded procedures of the knowledge graph that match the items of a test case.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package org.tarik.ta.dto;
+
+import dev.langchain4j.model.output.structured.Description;
+
+import java.util.List;
+
+@Description("the recorded procedures selected for a run of consecutive items that one recorded workflow covers")
+public record AggregationSelection(
+        @Description("the IDs of the consecutive items of one kind the procedures cover, in their order, at least two, e.g. [S2, S3, S4]")
+        List<String> itemIds,
+        @Description("the IDs of the selected procedures, best match first")
+        List<String> procedureIds) {
+    public AggregationSelection {
+        itemIds = itemIds == null ? List.of() : List.copyOf(itemIds);
+        procedureIds = procedureIds == null ? List.of() : List.copyOf(procedureIds);
+    }
+}

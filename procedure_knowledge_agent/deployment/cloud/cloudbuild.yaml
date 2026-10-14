@@ -1,0 +1,115 @@
+#
+# procedure-knowledge-agent - Agent selecting the recorded procedures of the knowledge graph that match the items of a test case.
+# Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# Cloud Build configuration for deploying the Procedure Knowledge Agent to Cloud Run.
+# The service is reachable only from inside the VPC (internal ingress) and reaches the Neo4j VM through Direct VPC egress, which
+# routes only the private ranges through the VPC, so the model provider stays reachable over the internet.
+
+steps:
+  # ============================================
+  # Stage 1: Build Maven modules
+  # ============================================
+  - name: 'amazoncorretto:27-alpine'
+    id: 'maven-build'
+    dir: '/workspace'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        set -e
+        wget -qO /tmp/maven.tar.gz https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.tar.gz
+        echo "$$(wget -qO- https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.tar.gz.sha512)  /tmp/maven.tar.gz" | sha512sum -c -
+        tar xzf /tmp/maven.tar.gz -C /opt
+        /opt/apache-maven-3.9.16/bin/mvn clean install -DskipTests -pl procedure_knowledge_agent -am
+
+  # ============================================
+  # Stage 2: Build and Push Docker Image
+  # ============================================
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build-knowledge-agent'
+    dir: '/workspace'
+    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$_IMAGE_TAG', '-f', 'procedure_knowledge_agent/deployment/Dockerfile.cloud', '.' ]
+    waitFor: [ 'maven-build' ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push-knowledge-agent'
+    args: [ 'push', 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$_IMAGE_TAG' ]
+    waitFor: [ 'docker-build-knowledge-agent' ]
+
+  # ============================================
+  # Stage 3: Deploy to Cloud Run
+  # ============================================
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy-knowledge-agent-cloud-run'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '$_SERVICE_NAME'
+      - '--image=gcr.io/$PROJECT_ID/$_SERVICE_NAME:$_IMAGE_TAG'
+      - '--region=$_REGION'
+      - '--platform=managed'
+      - '--ingress=internal'
+      - '--allow-unauthenticated'
+      - '--network=$_NETWORK_NAME'
+      - '--subnet=$_SUBNET_NAME'
+      - '--vpc-egress=private-ranges-only'
+      - '--port=$_PORT'
+      - '--memory=$_MEMORY'
+      - '--cpu=$_CPU'
+      - '--timeout=$_TIMEOUT'
+      - '--concurrency=$_CONCURRENCY'
+      - '--min-instances=$_MIN_INSTANCES'
+      - '--max-instances=$_MAX_INSTANCES'
+      - '--set-env-vars=DEPLOYMENT_ENV=cloud,AGENT_HOST=0.0.0.0,EXTERNAL_URL=$_EXTERNAL_URL,VECTOR_DB_URL=$_VECTOR_DB_URL,KNOWLEDGE_TASK_CAPACITY=$_TASK_CAPACITY,LOG_FORMAT=$_LOG_FORMAT,OTEL_SERVICE_NAME=$_OTEL_SERVICE_NAME,OTEL_EXPORTER_OTLP_ENDPOINT=$_OTEL_EXPORTER_OTLP_ENDPOINT,OTEL_METRICS_EXPORTER=$_OTEL_METRICS_EXPORTER,OTEL_METRIC_EXPORT_INTERVAL=$_OTEL_METRIC_EXPORT_INTERVAL'
+      - '--set-secrets=GOOGLE_API_KEY=GOOGLE_API_KEY:latest,AGENT_AUTH_TOKEN=AGENT_AUTH_TOKEN:latest,NEO4J_USERNAME=NEO4J_USERNAME:latest,VECTOR_DB_KEY=VECTOR_DB_KEY:latest'
+    waitFor: [ 'docker-push-knowledge-agent' ]
+
+# ============================================
+# Substitutions - All configurable parameters
+# ============================================
+substitutions:
+  _SERVICE_NAME: 'procedure-knowledge-agent'
+  _IMAGE_TAG: 'latest'
+  _REGION: 'us-central1'
+  _PORT: '8007'
+  _MEMORY: '2Gi'
+  _CPU: '1'
+  # Above the agent's execution time budget (840 s), so that Cloud Run never cuts a request the agent is still bounding itself.
+  _TIMEOUT: '900'
+  # Matches _TASK_CAPACITY: the orchestrator sends at most that many tasks at once, each held open as one request.
+  _CONCURRENCY: '4'
+  _TASK_CAPACITY: '4'
+  _MIN_INSTANCES: '0'
+  _MAX_INSTANCES: '1'
+  _EXTERNAL_URL: ''
+  # The Bolt URL of the Neo4j VM's internal IP, e.g. bolt://10.128.0.5:7687 (printed by the Neo4j deployment).
+  _VECTOR_DB_URL: ''
+  _NETWORK_NAME: 'agent-network'
+  _SUBNET_NAME: 'agent-network'
+  _LOG_FORMAT: 'json'
+
+  # --- OpenTelemetry metrics export ---
+  # No endpoint means no export: the agent then keeps its instruments in memory and sends nothing.
+  _OTEL_SERVICE_NAME: 'procedure-knowledge-agent'
+  _OTEL_EXPORTER_OTLP_ENDPOINT: ''
+  _OTEL_METRICS_EXPORTER: 'none'
+  _OTEL_METRIC_EXPORT_INTERVAL: '60000'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -77,10 +77,14 @@ class ChatModelEventListenerTest {
         when(chatResponse.aiMessage()).thenReturn(aiMessage);
         when(chatResponse.metadata()).thenReturn(metadata);
 
-        listener.onResponse(responseContext);
+        budgetManager.callInTask("task-1", () -> {
+            listener.onResponse(responseContext);
+            return null;
+        });
 
-        assertThat(budgetManager.getAccumulatedInputTokens()).isEqualTo(10);
-        assertThat(budgetManager.getAccumulatedOutputTokens()).isEqualTo(20);
+        assertThat(budgetManager.releaseTask("task-1")).singleElement()
+                .satisfies(usage -> assertThat(usage.inputTokens()).isEqualTo(10))
+                .satisfies(usage -> assertThat(usage.outputTokens()).isEqualTo(20));
     }
 
     @Test

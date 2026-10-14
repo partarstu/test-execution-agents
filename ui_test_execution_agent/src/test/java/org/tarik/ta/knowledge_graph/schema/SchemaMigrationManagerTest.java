@@ -27,6 +27,7 @@ import org.neo4j.driver.Record;
 import org.neo4j.driver.Values;
 import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
 import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.knowledge_graph.model.node.SchemaVersion;
 import org.tarik.ta.knowledge_graph.model.node.UiElement;
 
 import java.util.List;
@@ -82,6 +83,16 @@ class SchemaMigrationManagerTest {
         SchemaMigrationManager.migrateOnStartup(query.driver(), "neo4j");
 
         assertThat(storedVersions(query.executableQuery())).containsExactly(9, 10, 11);
+    }
+
+    @Test
+    @DisplayName("migrateOnStartup reaches the schema version the shared graph code and the procedure knowledge agent expect")
+    void migrateOnStartup_shouldReachTheVersionTheSharedGraphCodeExpects() {
+        var query = mockQueryReturningTheCurrentVersion(0);
+
+        SchemaMigrationManager.migrateOnStartup(query.driver(), "neo4j");
+
+        assertThat(storedVersions(query.executableQuery()).getLast()).isEqualTo(SchemaVersion.CURRENT);
     }
 
     private record MockedQuery(Driver driver, ExecutableQuery executableQuery) {

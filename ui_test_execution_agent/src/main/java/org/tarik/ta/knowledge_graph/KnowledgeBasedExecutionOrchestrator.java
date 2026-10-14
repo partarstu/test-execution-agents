@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.knowledge_graph;
 
+import org.tarik.ta.knowledge_graph.model.MatchConfidence;
 import org.tarik.ta.config.scopes.UiAgentRequestScope;
 import jakarta.annotation.PreDestroy;
 import org.jetbrains.annotations.NotNull;
@@ -230,7 +231,7 @@ public class KnowledgeBasedExecutionOrchestrator {
     private void seedEffectsOfSkippedItem(@NotNull String description, @NotNull ExecutionStateTracker stateTracker) {
         // A low-confidence match may be a different procedure, and its effects would unblock steps that are not ready.
         var procedure = knowledgeService.findBestMatch(description, stateTracker.getEffectNodeIds(), stateTracker.getRecentParentIds())
-                .filter(match -> match.confidence() == KnowledgeService.MatchConfidence.HIGH)
+                .filter(match -> match.confidence() == MatchConfidence.HIGH)
                 .map(KnowledgeService.MatchResult::procedure);
         if (procedure.isEmpty()) {
             LOG.warn("No known procedure matches the skipped item '{}', its effects are not seeded", description);
@@ -434,10 +435,10 @@ public class KnowledgeBasedExecutionOrchestrator {
 
     private ProcedureLookup toProcedureLookup(@NotNull KnowledgeService.MatchResult match, @NotNull ExecutionStateTracker stateTracker) {
         var feasible = selectFeasibleProcedure(match.allMatches());
-        if (feasible.isPresent() && match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
+        if (feasible.isPresent() && match.confidence() == MatchConfidence.HIGH) {
             return new ProcedureLookup.DirectMatch(feasible.get(), match.selectedHasLowStability());
         }
-        if (match.confidence() == KnowledgeService.MatchConfidence.HIGH) {
+        if (match.confidence() == MatchConfidence.HIGH) {
             // High semantic score but no feasible procedure — prerequisites are the blocker
             var topCandidate = match.allMatches().getFirst();
             var missing = satisfiesEdgeService.findUnsatisfiedPrerequisites(
@@ -925,7 +926,7 @@ public class KnowledgeBasedExecutionOrchestrator {
                 }
             }
             // After RETRY or BROWSE, return Found if there's now a feasible high-confidence match
-            if (match != null && match.confidence() != KnowledgeService.MatchConfidence.LOW) {
+            if (match != null && match.confidence() != MatchConfidence.LOW) {
                 var feasible = selectFeasibleProcedure(match.allMatches());
                 if (feasible.isPresent()) {
                     return new UserFeedback.Found(feasible.get(), Source.OPERATOR_SELECTED);
@@ -970,7 +971,7 @@ public class KnowledgeBasedExecutionOrchestrator {
         if (res.match() == null) {
             return "No matching procedure found for '%s'. Please create a new one.".formatted(description);
         }
-        if (res.match().confidence() == KnowledgeService.MatchConfidence.LOW) {
+        if (res.match().confidence() == MatchConfidence.LOW) {
             var base = !res.match().wasDemoted()
                     ? "No high-confidence match found for %s '%s'."
                     : res.match().demotedDueToPrerequisites()

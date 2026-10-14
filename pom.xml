@@ -13,8 +13,10 @@
 
     <modules>
         <module>agent_core</module>
+        <module>knowledge_graph_core</module>
         <module>ui_test_execution_agent</module>
         <module>api_test_execution_agent</module>
+        <module>procedure_knowledge_agent</module>
     </modules>
 
     <licenses>

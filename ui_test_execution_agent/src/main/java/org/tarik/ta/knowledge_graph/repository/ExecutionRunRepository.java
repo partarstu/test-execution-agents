@@ -31,7 +31,7 @@ import org.tarik.ta.core.model.ContextEntry.StepType;
 import org.tarik.ta.knowledge_graph.model.node.ExecutionRun;
 import org.tarik.ta.knowledge_graph.model.node.StepResolution;
 import org.tarik.ta.knowledge_graph.model.node.StepResolution.Candidate;
-import org.tarik.ta.knowledge_graph.service.KnowledgeService.MatchConfidence;
+import org.tarik.ta.knowledge_graph.model.MatchConfidence;
 
 import java.time.Instant;
 import java.util.HashMap;

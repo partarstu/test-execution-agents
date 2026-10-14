@@ -21,17 +21,11 @@ import io.avaje.inject.Bean;
 import io.avaje.inject.Factory;
 import io.avaje.inject.PostConstruct;
 import jakarta.inject.Singleton;
-import org.neo4j.driver.AuthTokens;
-import org.neo4j.driver.Config;
 import org.neo4j.driver.Driver;
-import org.neo4j.driver.GraphDatabase;
-import org.neo4j.driver.exceptions.AuthenticationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tarik.ta.UiTestAgentConfig;
 import org.tarik.ta.knowledge_graph.schema.SchemaMigrationManager;
-
-import java.util.concurrent.TimeUnit;
 
 @Factory
 public class Neo4jFactory implements AutoCloseable {
@@ -50,39 +44,14 @@ public class Neo4jFactory implements AutoCloseable {
     @Bean
     @Singleton
     public Driver driver() {
-        var uri = uiTestAgentConfig.getVectorDbUrl();
-        var username = uiTestAgentConfig.getNeo4jUsername();
-        var password = uiTestAgentConfig.getVectorDbToken();
-        LOG.info("Initializing Neo4j driver connection to '{}' as user '{}'", uri, username);
-
-        if (password == null || password.isBlank()) {
-            throw new IllegalStateException(
-                    "Neo4j password is not configured. Set VECTOR_DB_KEY environment variable or vector.db.key in config.properties");
-        }
-
-        Config config = Config.builder()
-                .withMaxConnectionPoolSize(uiTestAgentConfig.getNeo4jMaxConnectionPoolSize())
-                .withConnectionAcquisitionTimeout(uiTestAgentConfig.getNeo4jConnectionAcquisitionTimeoutSeconds(), TimeUnit.SECONDS)
-                .withConnectionTimeout(uiTestAgentConfig.getNeo4jConnectionTimeoutSeconds(), TimeUnit.SECONDS)
-                // Allow the driver to retry failed managed transactions (~10 connection-timeout cycles by default)
-                .withMaxTransactionRetryTime(uiTestAgentConfig.getNeo4jMaxTransactionRetryTimeSeconds(), TimeUnit.SECONDS)
-                .build();
-
-        try {
-            this.driver = GraphDatabase.driver(uri, AuthTokens.basic(username, password), config);
-            LOG.info("Neo4j driver created for '{}' as user '{}' — connectivity will be verified during schema migration", uri, username);
-            return this.driver;
-        } catch (AuthenticationException e) {
-            throw new IllegalStateException(
-                    "Neo4j authentication failed for user '%s' at '%s'. Verify VECTOR_DB_KEY matches the server's configured password"
-                            .formatted(username, uri), e);
-        }
+        this.driver = Neo4jDrivers.create(uiTestAgentConfig);
+        return this.driver;
     }
 
     @Bean
     @Singleton
-    public Neo4jMigrationState migrationState() {
-        this.migrationState = new Neo4jMigrationState();
+    public Neo4jMigrationState migrationState(Driver driver) {
+        this.migrationState = new Neo4jMigrationState(driver, databaseName);
         return this.migrationState;
     }
 

@@ -91,12 +91,13 @@ class BudgetManagerTest {
 
     @Test
     void consumeTokens_AndCheckBudget_shouldTrackDetailedUsage() {
+        budgetManager.beginTask("task-1");
         budgetManager.consumeTokens(usage("test_step_action", 50, 30, 20));
 
-        assertThat(budgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
-        assertThat(budgetManager.getAccumulatedInputTokens()).isEqualTo(50);
-        assertThat(budgetManager.getAccumulatedOutputTokens()).isEqualTo(30);
-        assertThat(budgetManager.getAccumulatedCachedTokens()).isEqualTo(20);
+        assertThat(budgetManager.releaseTask("task-1"))
+                .extracting(TokenUsageRecord::totalTokens, TokenUsageRecord::inputTokens, TokenUsageRecord::outputTokens,
+                        TokenUsageRecord::cachedTokens)
+                .containsExactly(tuple(100, 50, 30, 20));
     }
 
     @Test
@@ -123,7 +124,6 @@ class BudgetManagerTest {
         assertThat(released).extracting(TokenUsageRecord::operationName, TokenUsageRecord::inputTokens)
                 .containsExactly(tuple("precondition_action", 7), tuple("test_step_action", 55));
         assertThat(budgetManager.releaseTask("task-1")).isEmpty();
-        assertThat(budgetManager.getAccumulatedTotalTokens()).isZero();
     }
 
     @Test
@@ -139,38 +139,73 @@ class BudgetManagerTest {
     }
 
     @Test
+    void callInTask_shouldRecordTheUsageForTheBoundTask_whenAnotherTaskIsCurrent() {
+        budgetManager.beginTask("current-task");
+
+        var result = budgetManager.callInTask("bound-task", () -> budgetManager.consumeTokens(usage("item_selection", 4, 2, 0)));
+
+        assertThat(result.totalTokens()).isEqualTo(6);
+        assertThat(budgetManager.releaseTask("bound-task")).extracting(TokenUsageRecord::totalTokens).containsExactly(6);
+        assertThat(budgetManager.releaseTask("current-task")).isEmpty();
+    }
+
+    @Test
+    void callInTask_shouldRecordForTheCurrentTaskAgain_whenTheActionHasReturned() {
+        budgetManager.beginTask("current-task");
+        budgetManager.callInTask("bound-task", () -> budgetManager.consumeTokens(usage("item_selection", 1, 0, 0)));
+
+        budgetManager.consumeTokens(usage("item_selection", 2, 0, 0));
+
+        assertThat(budgetManager.releaseTask("current-task")).extracting(TokenUsageRecord::inputTokens).containsExactly(2);
+    }
+
+    @Test
+    void checkTokenBudget_shouldCountOnlyTheUsageOfTheBoundTask() {
+        int limit = new AgentConfig().getAgentTokenBudget();
+        budgetManager.callInTask("busy-task", () -> budgetManager.consumeTokens(usage("item_selection", limit + 1, 0, 0)));
+
+        assertThatCode(() -> budgetManager.callInTask("other-task", () -> {
+            budgetManager.checkTokenBudget();
+            return null;
+        })).doesNotThrowAnyException();
+        assertThatThrownBy(() -> budgetManager.callInTask("busy-task", () -> {
+            budgetManager.checkTokenBudget();
+            return null;
+        })).hasMessageContaining("Token budget exceeded");
+    }
+
+    @Test
     void releaseTask_shouldLoseNoUsage_whenModelCallsLandWhileReleasing() throws Exception {
         int callsPerRound = 2_000;
         for (int round = 0; round < 50; round++) {
             budgetManager.reset();
-            budgetManager.beginTask("task-1");
             var released = new AtomicInteger();
             try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-                var calls = executor.submit(() -> {
+                var calls = executor.submit(() -> budgetManager.callInTask("task-1", () -> {
                     for (int call = 0; call < callsPerRound; call++) {
                         budgetManager.consumeTokens(usage("test_step_action", 1, 0, 0));
                     }
-                });
+                    return null;
+                }));
                 var release = executor.submit(() -> released.set(budgetManager.releaseTask("task-1").stream()
                         .mapToInt(TokenUsageRecord::inputTokens).sum()));
                 calls.get(10, TimeUnit.SECONDS);
                 release.get(10, TimeUnit.SECONDS);
             }
 
-            assertThat(released.get() + budgetManager.getAccumulatedInputTokens()).as("round %d", round).isEqualTo(callsPerRound);
+            int remaining = budgetManager.releaseTask("task-1").stream().mapToInt(TokenUsageRecord::inputTokens).sum();
+            assertThat(released.get() + remaining).as("round %d", round).isEqualTo(callsPerRound);
         }
     }
 
     @Test
     void reset_shouldClearDetailedUsage() {
+        budgetManager.beginTask("task-1");
         budgetManager.consumeTokens(usage("test_step_action", 50, 30, 20));
         budgetManager.consumeToolCalls(5);
         budgetManager.reset();
 
-        assertThat(budgetManager.getAccumulatedTotalTokens()).isZero();
-        assertThat(budgetManager.getAccumulatedInputTokens()).isZero();
-        assertThat(budgetManager.getAccumulatedOutputTokens()).isZero();
-        assertThat(budgetManager.getAccumulatedCachedTokens()).isZero();
+        assertThat(budgetManager.releaseTask("task-1")).isEmpty();
     }
 
     @Test
@@ -226,12 +261,13 @@ class BudgetManagerTest {
 
     @Test
     void resetToolCallUsage_shouldResetOnlyToolCalls() {
+        budgetManager.beginTask("task-1");
         budgetManager.consumeTokens(usage("test_step_action", 50, 30, 20));
         budgetManager.consumeToolCalls(5);
 
         budgetManager.resetToolCallUsage();
 
-        assertThat(budgetManager.getAccumulatedTotalTokens()).isEqualTo(100);
+        assertThat(budgetManager.releaseTask("task-1")).extracting(TokenUsageRecord::totalTokens).containsExactly(100);
         assertThatCode(budgetManager::checkToolCallBudget).doesNotThrowAnyException();
     }
 

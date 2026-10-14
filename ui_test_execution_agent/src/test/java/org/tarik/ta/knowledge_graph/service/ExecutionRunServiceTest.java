@@ -35,7 +35,7 @@ import org.tarik.ta.knowledge_graph.model.node.Procedure;
 import org.tarik.ta.knowledge_graph.model.node.StepResolution.Outcome;
 import org.tarik.ta.knowledge_graph.model.node.StepResolution.Source;
 import org.tarik.ta.knowledge_graph.repository.ExecutionRunRepository;
-import org.tarik.ta.knowledge_graph.service.KnowledgeService.MatchConfidence;
+import org.tarik.ta.knowledge_graph.model.MatchConfidence;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService.MatchResult;
 import org.tarik.ta.knowledge_graph.service.KnowledgeService.ScoredProcedure;
 
