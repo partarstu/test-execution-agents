@@ -46,10 +46,7 @@ public class Neo4jMigrationState implements GraphSchemaGuard {
         succeeded.set(true);
     }
 
-    /**
-     * Ensures schema migration has completed before any DB operation is executed.
-     * If migration failed at startup, retries it now — failure here aborts the current request thread.
-     */
+    /** Ensures the schema migration has completed, retrying it when it failed at startup; a failure here aborts the current request. */
     @Override
     public void ensureSchemaReady() {
         if (isSucceeded()) {

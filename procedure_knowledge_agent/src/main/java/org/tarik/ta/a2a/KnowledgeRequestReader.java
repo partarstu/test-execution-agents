@@ -30,8 +30,8 @@ import org.tarik.ta.dto.TestCaseItem;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
+import static java.util.Objects.requireNonNullElse;
 import static java.util.Optional.ofNullable;
 import static org.tarik.ta.knowledge.KnowledgeJson.fromData;
 
@@ -113,7 +113,7 @@ public class KnowledgeRequestReader {
         var testData = ofNullable(step.testData()).orElse(List.of()).stream()
                 .map(entry -> requireText(entry, "A test data entry of %s".formatted(label.toLowerCase())))
                 .toList();
-        var expectedResults = requireLength(Objects.requireNonNullElse(step.expectedResults(), ""),
+        var expectedResults = requireLength(requireNonNullElse(step.expectedResults(), ""),
                 "The expected results of %s".formatted(label.toLowerCase()));
         return new TestCaseItem(ItemKind.STEP, number, action, testData, expectedResults);
     }

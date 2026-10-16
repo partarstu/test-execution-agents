@@ -21,13 +21,8 @@ package org.tarik.ta.knowledge_graph.model;
  * Confidence level of a semantic match.
  */
 public enum MatchConfidence {
-    /**
-     * Score >= high confidence threshold — match can be auto-executed.
-     */
+    /** Score at or above the high confidence threshold: the match can be auto-executed. */
     HIGH,
-    /**
-     * Score >= low but < high threshold — caller decides (e.g., ask user to
-     * confirm).\
-     */
+    /** Score at or above the low but below the high threshold: the caller decides, e.g. asks the user to confirm. */
     LOW
 }
