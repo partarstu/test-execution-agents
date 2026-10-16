@@ -43,6 +43,7 @@ import org.tarik.ta.core.telemetry.GenAiMetrics;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static dev.langchain4j.model.chat.request.ToolChoice.REQUIRED;
@@ -53,6 +54,8 @@ import static org.tarik.ta.core.telemetry.GenAiAttributes.providerName;
 public class ModelFactory {
     private static final String CHAT_TEMPLATE_KWARGS = "chat_template_kwargs";
     private static final String ENABLE_THINKING = "enable_thinking";
+    private static final String OUTPUT_CONFIG = "output_config";
+    private static final String EFFORT = "effort";
     private static final Logger LOG = LoggerFactory.getLogger(ModelFactory.class);
     private static final Logger SELF_HOSTED_RESPONSE_LOG = LoggerFactory.getLogger("model.http.responses");
 
@@ -275,18 +278,27 @@ public class ModelFactory {
                 if (apiKey.isBlank()) {
                     throw new IllegalArgumentException("Anthropic API Key is missing for ANTHROPIC_API provider");
                 }
-                yield AnthropicChatModel.builder()
+                var builder = AnthropicChatModel.builder()
                         .baseUrl(agentConfig.getAnthropicEndpoint())
-                        .thinkingType("disabled")
-                        .returnThinking(false)
-                        .sendThinking(false)
                         .apiKey(apiKey)
                         .modelName(modelName)
                         .maxRetries(maxRetries)
                         .maxTokens(agentConfig.getMaxOutputTokens())
-                        .toolChoice(REQUIRED)
-                        .listeners(List.of(listener))
-                        .build();
+                        .listeners(List.of(listener));
+                // A forced tool choice makes Claude answer with the tool call and skip thinking, so a thinking model chooses its
+                // tools itself. langchain4j has no effort setting, so the effort goes out as Anthropic's own output_config.
+                yield agentConfig.isAnthropicThinkingEnabled()
+                        ? builder.thinkingType("adaptive")
+                                .returnThinking(true)
+                                .sendThinking(true)
+                                .customParameters(Map.of(OUTPUT_CONFIG, Map.of(EFFORT,
+                                        agentConfig.getAnthropicThinkingEffort().name().toLowerCase(Locale.ROOT))))
+                                .build()
+                        : builder.thinkingType("disabled")
+                                .returnThinking(false)
+                                .sendThinking(false)
+                                .toolChoice(REQUIRED)
+                                .build();
             }
             case VERTEX_AI -> VertexAiAnthropicChatModel.builder()
                     .project(agentConfig.getGoogleProject())

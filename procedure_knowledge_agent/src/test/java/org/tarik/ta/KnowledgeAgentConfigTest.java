@@ -35,10 +35,10 @@ class KnowledgeAgentConfigTest {
         assertThat(config.getExplorationMaxToolCalls()).isEqualTo(40);
         assertThat(config.getMaxTreeDepth()).isEqualTo(5);
         assertThat(config.getMaxTreeNodes()).isEqualTo(200);
-        assertThat(config.getItemSelectionAgentModelName()).isEqualTo("gemini-3.5-flash");
+        assertThat(config.getItemSelectionAgentModelName()).isEqualTo("gemini-3.8-flash");
         assertThat(config.getItemSelectionAgentModelProvider()).isEqualTo(ModelProvider.GOOGLE);
         assertThat(config.getItemSelectionAgentPromptVersion()).isEqualTo("v1.0.0");
-        assertThat(config.getAggregationSelectionAgentModelName()).isEqualTo("gemini-3.5-flash");
+        assertThat(config.getAggregationSelectionAgentModelName()).isEqualTo("gemini-3.8-flash");
         assertThat(config.getAggregationSelectionAgentModelProvider()).isEqualTo(ModelProvider.GOOGLE);
         assertThat(config.getAggregationSelectionAgentPromptVersion()).isEqualTo("v1.0.0");
     }

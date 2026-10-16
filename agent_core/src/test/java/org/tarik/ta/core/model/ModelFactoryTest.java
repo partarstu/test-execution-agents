@@ -17,6 +17,8 @@
  */
 package org.tarik.ta.core.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,10 @@ class ModelFactoryTest {
     private static final String MINIMAL_CHAT_COMPLETION = """
             {"id": "1", "object": "chat.completion", "created": 0, "model": "Qwen/Qwen3.8-27B",
              "choices": [{"index": 0, "message": {"role": "assistant", "content": "pong"}, "finish_reason": "stop"}]}""";
+    private static final String MINIMAL_ANTHROPIC_MESSAGE = """
+            {"id": "msg_1", "type": "message", "role": "assistant", "model": "claude-haiku-5-5",
+             "content": [{"type": "text", "text": "pong"}], "stop_reason": "end_turn",
+             "usage": {"input_tokens": 1, "output_tokens": 1}}""";
 
     private final AgentConfig agentConfig = new AgentConfig();
     private final BudgetManager budgetManager = new BudgetManager(agentConfig);
@@ -88,6 +94,54 @@ class ModelFactoryTest {
         var model = factory.getModel("test_operation", "claude-haiku-5-5", AgentConfig.ModelProvider.ANTHROPIC);
 
         assertThat(model.chatModel().defaultRequestParameters().temperature()).isNull();
+    }
+
+    @Test
+    void shouldAskAThinkingClaudeAdaptivelyAtTheConfiguredEffortWithoutForcingATool() throws IOException {
+        var config = spy(new AgentConfig());
+        when(config.isAnthropicThinkingEnabled()).thenReturn(true);
+        when(config.getAnthropicThinkingEffort()).thenReturn(AgentConfig.AnthropicEffort.HIGH);
+
+        var body = anthropicRequestBodyOf(config);
+
+        assertThat(body.at("/thinking/type").asText()).isEqualTo("adaptive");
+        assertThat(body.at("/output_config/effort").asText()).isEqualTo("high");
+        assertThat(body.has("tool_choice")).isFalse();
+    }
+
+    @Test
+    void shouldAskClaudeWithThinkingDisabledAndAForcedToolByDefault() throws IOException {
+        var body = anthropicRequestBodyOf(spy(new AgentConfig()));
+
+        assertThat(body.at("/thinking/type").asText()).isEqualTo("disabled");
+        assertThat(body.at("/tool_choice/type").asText()).isEqualTo("any");
+        assertThat(body.has("output_config")).isFalse();
+    }
+
+    private JsonNode anthropicRequestBodyOf(AgentConfig config) throws IOException {
+        var receivedBody = new AtomicReference<String>();
+        var server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        server.createContext("/v1/messages", exchange -> {
+            receivedBody.set(new String(exchange.getRequestBody().readAllBytes(), UTF_8));
+            var response = MINIMAL_ANTHROPIC_MESSAGE.getBytes(UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var address = server.getAddress();
+            when(config.getAnthropicEndpoint()).thenReturn("http://%s:%d/v1/".formatted(address.getHostString(), address.getPort()));
+            when(config.getAnthropicApiKey()).thenReturn("test-key");
+            var factory = new ModelFactory(config, new BudgetManager(config), new GenAiMetrics(OpenTelemetry.noop()));
+
+            assertThat(factory.getModel("test_operation", "claude-haiku-5-5", AgentConfig.ModelProvider.ANTHROPIC).chatModel()
+                    .chat("ping")).isEqualTo("pong");
+            return new ObjectMapper().readTree(receivedBody.get());
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test

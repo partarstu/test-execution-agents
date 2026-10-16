@@ -86,8 +86,10 @@ The shared settings (`port`, `agent.auth.token`, `external.url`, `vector.db.url`
 | `knowledge.request.max.text.length` | `KNOWLEDGE_REQUEST_MAX_TEXT_LENGTH` | `4000` | Characters of any single text of a request |
 | `knowledge.item.concurrency` | `KNOWLEDGE_ITEM_CONCURRENCY` | `8` | Item runs at the same time, across all tasks |
 | `knowledge.task.capacity` | `KNOWLEDGE_TASK_CAPACITY` | `4` | Tasks at the same time, declared in the agent card |
-| `procedure.item.selection.agent.model.name` / `.model.provider` / `.prompt.version` | `PROCEDURE_ITEM_SELECTION_AGENT_MODEL_NAME` / `_MODEL_PROVIDER` / `_PROMPT_VERSION` | `gemini-3.5-flash` / `google` / `v1.0.0` | Model and prompt of the item runs |
-| `procedure.aggregation.selection.agent.model.name` / `.model.provider` / `.prompt.version` | `PROCEDURE_AGGREGATION_SELECTION_AGENT_MODEL_NAME` / `_MODEL_PROVIDER` / `_PROMPT_VERSION` | `gemini-3.5-flash` / `google` / `v1.0.0` | Model and prompt of the aggregation run |
+| `model.max.output.tokens` | `MAX_OUTPUT_TOKENS` | `16000` | Output cap of one model response, thinking included |
+| `anthropic.thinking.enabled` / `anthropic.thinking.effort` | `ANTHROPIC_THINKING_ENABLED` / `ANTHROPIC_THINKING_EFFORT` | `true` / `medium` | Adaptive thinking of a Claude model before it selects; selections without it reused fewer procedures |
+| `procedure.item.selection.agent.model.name` / `.model.provider` / `.prompt.version` | `PROCEDURE_ITEM_SELECTION_AGENT_MODEL_NAME` / `_MODEL_PROVIDER` / `_PROMPT_VERSION` | `gemini-3.8-flash` / `google` / `v1.0.0` | Model and prompt of the item runs |
+| `procedure.aggregation.selection.agent.model.name` / `.model.provider` / `.prompt.version` | `PROCEDURE_AGGREGATION_SELECTION_AGENT_MODEL_NAME` / `_MODEL_PROVIDER` / `_PROMPT_VERSION` | `gemini-3.8-flash` / `google` / `v1.0.0` | Model and prompt of the aggregation run |
 
 The agent refuses to start when the graph's schema version differs from the one the shared code reads; the UI agent runs the schema migrations.
 

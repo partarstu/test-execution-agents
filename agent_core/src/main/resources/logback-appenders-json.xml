@@ -18,9 +18,11 @@
 <!--
   One JSON object per log event, used when LOG_FORMAT=json (the cloud images set it). Included by each agent's
   logback.xml. The field names are the logstash defaults, and the message goes through the "pattern" provider so that
-  the secret-redacting conversion word applies to it here exactly as it does in text mode.
+  the secret-redacting conversion word applies to it here exactly as it does in text mode. "severity" carries the level as
+  a Google Cloud Logging severity, which the cloud log collectors read; "level" stays for the existing consumers.
   -->
 <included>
+    <conversionRule conversionWord="cloudSeverity" class="org.tarik.ta.core.logging.CloudLoggingSeverityConverter"/>
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
             <providers>
@@ -37,7 +39,7 @@
                     <fieldName>thread_name</fieldName>
                 </threadName>
                 <pattern>
-                    <pattern>{"message":"%redactedMsg"}</pattern>
+                    <pattern>{"severity":"%cloudSeverity","message":"%redactedMsg"}</pattern>
                 </pattern>
                 <stackTrace>
                     <fieldName>stack_trace</fieldName>
@@ -68,7 +70,7 @@
                     <fieldName>thread_name</fieldName>
                 </threadName>
                 <pattern>
-                    <pattern>{"message":"%redactedMsg"}</pattern>
+                    <pattern>{"severity":"%cloudSeverity","message":"%redactedMsg"}</pattern>
                 </pattern>
                 <stackTrace>
                     <fieldName>stack_trace</fieldName>

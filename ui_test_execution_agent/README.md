@@ -622,6 +622,8 @@ that the default `bge-small-en-v15` model is English-only and scores unrelated G
   `anthropic_api`.
 * `anthropic.api.key` (Env: `ANTHROPIC_API_KEY`): API Key for Anthropic. Required if using Anthropic.
 * `anthropic.endpoint` (Env: `ANTHROPIC_ENDPOINT`): Endpoint URL for Anthropic. Default: `https://api.anthropic.com/v1/`.
+* `anthropic.thinking.enabled` (Env: `ANTHROPIC_THINKING_ENABLED`): Whether a Claude model on `anthropic_api` thinks adaptively before it acts. Default: `false`, which sends thinking disabled with a forced tool choice and keeps the sub-agents fast; `true` sends adaptive thinking and leaves the tool choice to the model, because a forced tool choice makes Claude skip thinking. `model.max.output.tokens` caps the thinking and the answer together.
+* `anthropic.thinking.effort` (Env: `ANTHROPIC_THINKING_EFFORT`): Effort of a thinking Claude model (`low`, `medium`, `high`, `xhigh` or `max`). Default: `medium`. Ignored while thinking is off.
 
 **Self-Hosted Model Endpoints:**
 
@@ -740,7 +742,7 @@ Available agents and their configuration prefixes:
 **Example agent configuration:**
 
 ```properties
-precondition.agent.model.name=gemini-3.5-flash
+precondition.agent.model.name=gemini-3.8-flash
 precondition.agent.model.provider=google
 precondition.agent.prompt.version=v1.1.0
 ```

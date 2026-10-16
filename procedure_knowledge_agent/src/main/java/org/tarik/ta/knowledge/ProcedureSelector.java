@@ -44,6 +44,7 @@ import org.tarik.ta.tools.AggregationSelectionResultTool;
 import org.tarik.ta.tools.ItemSelectionResultTool;
 import org.tarik.ta.tools.ProcedureKnowledgeTools;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -93,14 +94,18 @@ public class ProcedureSelector {
                 config.getItemSelectionAgentModelProvider());
         var agent = buildAgent(ItemSelectionAgent.class, model.chatModel(), itemSelectionPrompt, tools, resultTool, ItemSelection.class);
         var request = SelectionRequests.forItem(testCase, item, config.getMaxSelectionsPerItem(), config.getExplorationMaxToolCalls());
+        var startNanos = System.nanoTime();
         var outcome = agent.executeAndGetResult(() -> agent.select(userMessageContents(request)));
+        var elapsedMillis = elapsedMillisSince(startNanos);
         // A model answering in text instead of calling the result tool leaves its text as the payload, so the type is checked.
         Object payload = outcome.getResultPayload();
         if (!outcome.isSuccess() || !(payload instanceof ItemSelection selection)) {
-            LOG.warn("The item run for {} of test case '{}' ended without a selection: {}", item.id(), testCase.name(), outcome.getMessage());
+            LOG.warn("The item run for {} of test case '{}' ended without a selection after {} tool calls and {} ms: {}", item.id(),
+                    testCase.name(), tools.getToolCallCount(), elapsedMillis, outcome.getMessage());
             return new ItemProcedureSelection(item.id(), List.of());
         }
-        LOG.info("The item run for {} of test case '{}' selected {} procedures", item.id(), testCase.name(), selection.procedureIds().size());
+        LOG.info("The item run for {} of test case '{}' selected {} procedures after {} tool calls and {} ms", item.id(), testCase.name(),
+                selection.procedureIds().size(), tools.getToolCallCount(), elapsedMillis);
         return new ItemProcedureSelection(item.id(), toSelectedProcedures(selection.procedureIds(), tools));
     }
 
@@ -117,13 +122,17 @@ public class ProcedureSelector {
                 AggregationSelectionResult.class);
         var request = SelectionRequests.forAggregation(testCase, itemSelections, config.getMaxSelectionsPerItem(),
                 config.getExplorationMaxToolCalls());
+        var startNanos = System.nanoTime();
         var outcome = agent.executeAndGetResult(() -> agent.select(userMessageContents(request)));
+        var elapsedMillis = elapsedMillisSince(startNanos);
         Object payload = outcome.getResultPayload();
         if (!outcome.isSuccess() || !(payload instanceof AggregationSelectionResult result)) {
-            LOG.warn("The aggregation run of test case '{}' ended without a selection: {}", testCase.name(), outcome.getMessage());
+            LOG.warn("The aggregation run of test case '{}' ended without a selection after {} tool calls and {} ms: {}", testCase.name(),
+                    tools.getToolCallCount(), elapsedMillis, outcome.getMessage());
             return List.of();
         }
-        LOG.info("The aggregation run of test case '{}' selected {} runs of items", testCase.name(), result.aggregations().size());
+        LOG.info("The aggregation run of test case '{}' selected {} runs of items after {} tool calls and {} ms", testCase.name(),
+                result.aggregations().size(), tools.getToolCallCount(), elapsedMillis);
         return result.aggregations().stream()
                 .map(aggregation -> new AggregationProcedureSelection(aggregation.itemIds(),
                         toSelectedProcedures(aggregation.procedureIds(), tools)))
@@ -147,6 +156,10 @@ public class ProcedureSelector {
                 .toolArgumentsErrorHandler(forToolArguments(retryPolicy))
                 .maxToolCallingRoundTrips(maxRecoverableErrors() + 1)
                 .build();
+    }
+
+    private static long elapsedMillisSince(long startNanos) {
+        return Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
     }
 
     private static List<SelectedProcedure> toSelectedProcedures(List<String> procedureIds, ProcedureKnowledgeTools tools) {

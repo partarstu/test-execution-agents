@@ -88,7 +88,8 @@ public class ProcedureKnowledgeTools extends AbstractTools {
             var scores = new HashMap<UUID, Double>();
             matches.forEach(match -> scores.put(match.procedure().id(), match.score()));
             var procedures = matches.stream().map(ProcedureMatch::procedure).toList();
-            LOG.debug("Search for '{}' returned {} procedures", query, procedures.size());
+            LOG.debug("Search for '{}' returned {} procedures with the scores {}", query, procedures.size(),
+                    matches.stream().map(match -> "%.3f".formatted(match.score())).toList());
             return toJson(remember(treeAssembler.summarize(procedures, scores)));
         } catch (Exception e) {
             throw rethrowAsToolException(e, "searching the recorded procedures");
@@ -136,6 +137,10 @@ public class ProcedureKnowledgeTools extends AbstractTools {
      */
     public void rememberProcedure(@NotNull UUID procedureId, @NotNull String description) {
         returnedDescriptions.put(procedureId, description);
+    }
+
+    public int getToolCallCount() {
+        return toolCalls.get();
     }
 
     // A call beyond the cap is a terminal error, so the run ends instead of exploring on.

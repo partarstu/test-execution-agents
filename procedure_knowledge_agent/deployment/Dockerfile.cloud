@@ -16,18 +16,19 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-FROM amazoncorretto:27-alpine
+# A glibc image: the ONNX Runtime native library of the in-process embedding model is linked against glibc and libstdc++.
+FROM amazoncorretto:27-al2023-headless
 
 ARG APP_DIR=/app
 ARG APP_LOG_DIR=${APP_DIR}/log
 ARG SOURCE_JAR_PATH=procedure_knowledge_agent/target/procedure-knowledge-agent-3.1.0-SNAPSHOT.jar
 ARG DESTINATION_JAR_PATH=${APP_DIR}/app.jar
 
-RUN apk add --no-cache curl ca-certificates
+RUN dnf install -y libstdc++ shadow-utils ca-certificates && dnf clean all
 
 RUN mkdir -p ${APP_DIR} ${APP_LOG_DIR}
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
 COPY ${SOURCE_JAR_PATH} ${DESTINATION_JAR_PATH}
 

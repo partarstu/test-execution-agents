@@ -104,13 +104,13 @@ public class KnowledgeAgentConfig extends AgentConfig implements KnowledgeGraphC
         this.taskCapacity = loadPropertyAsInteger("knowledge.task.capacity", "KNOWLEDGE_TASK_CAPACITY", "4", false);
 
         this.itemSelectionAgentModelName = loadProperty("procedure.item.selection.agent.model.name",
-                "PROCEDURE_ITEM_SELECTION_AGENT_MODEL_NAME", "gemini-3.5-flash", s -> s, false);
+                "PROCEDURE_ITEM_SELECTION_AGENT_MODEL_NAME", "gemini-3.8-flash", s -> s, false);
         this.itemSelectionAgentModelProvider = getProperty("procedure.item.selection.agent.model.provider",
                 "PROCEDURE_ITEM_SELECTION_AGENT_MODEL_PROVIDER", "google", this::getModelProvider, false);
         this.itemSelectionAgentPromptVersion = loadProperty("procedure.item.selection.agent.prompt.version",
                 "PROCEDURE_ITEM_SELECTION_AGENT_PROMPT_VERSION", "v1.0.0", s -> s, false);
         this.aggregationSelectionAgentModelName = loadProperty("procedure.aggregation.selection.agent.model.name",
-                "PROCEDURE_AGGREGATION_SELECTION_AGENT_MODEL_NAME", "gemini-3.5-flash", s -> s, false);
+                "PROCEDURE_AGGREGATION_SELECTION_AGENT_MODEL_NAME", "gemini-3.8-flash", s -> s, false);
         this.aggregationSelectionAgentModelProvider = getProperty("procedure.aggregation.selection.agent.model.provider",
                 "PROCEDURE_AGGREGATION_SELECTION_AGENT_MODEL_PROVIDER", "google", this::getModelProvider, false);
         this.aggregationSelectionAgentPromptVersion = loadProperty("procedure.aggregation.selection.agent.prompt.version",
