@@ -155,6 +155,8 @@ describe('PromptFrame', () => {
     renderPrompt(promptOf('procedure-editor', false));
     await screen.findByText('Similar procedures exist');
     const edit = screen.getByRole('button', { name: 'Edit' });
+    // The similar-procedures tag can render before the call's pending state clears, and a click on the still disabled button is lost
+    await waitFor(() => expect(edit).toHaveProperty('disabled', false));
     edit.focus();
 
     fireEvent.click(edit);

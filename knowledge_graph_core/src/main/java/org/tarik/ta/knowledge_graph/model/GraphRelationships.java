@@ -1,0 +1,50 @@
+/*
+ * knowledge-graph-core - Knowledge graph model, repositories and embeddings shared by the agents that use the knowledge graph.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package org.tarik.ta.knowledge_graph.model;
+
+public final class GraphRelationships {
+
+    /** Parent-to-child procedure relationship with a {@code sequence} property for ordering. */
+    public static final String REL_CONTAINS = "CONTAINS";
+    /** Atomic procedure to UI element relationship indicating the target element for action. */
+    public static final String REL_TARGETS = "TARGETS";
+    public static final String REL_SATISFIES = "SATISFIES";
+    public static final String REL_USES_PROCEDURE = "USES_PROCEDURE";
+    public static final String REL_HAS_FAILURE_CONTEXT = "HAS_FAILURE_CONTEXT";
+    /** Procedure to PhraseEmbedding relationship for prerequisites, with {@code sequence} ordering. */
+    public static final String REL_HAS_PREREQUISITE = "HAS_PREREQUISITE";
+    /** Procedure to PhraseEmbedding relationship for effects, with {@code sequence} ordering. */
+    public static final String REL_HAS_EFFECT = "HAS_EFFECT";
+    /** Procedure to PhraseEmbedding relationship for effects the procedure makes false, with {@code sequence} ordering. */
+    public static final String REL_HAS_NEGATED_EFFECT = "HAS_NEGATED_EFFECT";
+    /** UI element to one of its expired {@code UiElementAppearance} nodes. */
+    public static final String REL_HAD_APPEARANCE = "HAD_APPEARANCE";
+    /** {@code ExecutionAnomaly} to the UI element or procedure it was observed on. */
+    public static final String REL_OBSERVED_ON = "OBSERVED_ON";
+    /** {@code TestCase} to one of its recorded {@code ExecutionRun}s. */
+    public static final String REL_HAS_RUN = "HAS_RUN";
+    /** {@code ExecutionRun} to the {@code StepResolution} of one of its items. */
+    public static final String REL_HAS_RESOLUTION = "HAS_RESOLUTION";
+    /** {@code StepResolution} to the procedure it chose. */
+    public static final String REL_CHOSE = "CHOSE";
+
+    public static final String PROP_SEQUENCE = "sequence";
+
+    private GraphRelationships() {
+    }
+}

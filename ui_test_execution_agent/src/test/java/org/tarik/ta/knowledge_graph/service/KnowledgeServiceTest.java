@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.knowledge_graph.service;
 
+import org.tarik.ta.knowledge_graph.model.MatchConfidence;
 import dev.langchain4j.data.embedding.Embedding;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -104,7 +105,7 @@ class KnowledgeServiceTest {
         var result = knowledgeService.findBestMatch(description, Set.of(), Set.of());
 
         assertThat(result).isPresent();
-        assertThat(result.get().confidence()).isEqualTo(KnowledgeService.MatchConfidence.LOW);
+        assertThat(result.get().confidence()).isEqualTo(MatchConfidence.LOW);
     }
 
     @Test
@@ -117,7 +118,7 @@ class KnowledgeServiceTest {
         var result = knowledgeService.findBestMatch(description, Set.of(), Set.of());
 
         assertThat(result).isPresent();
-        assertThat(result.get().confidence()).isEqualTo(KnowledgeService.MatchConfidence.HIGH);
+        assertThat(result.get().confidence()).isEqualTo(MatchConfidence.HIGH);
     }
 
     private void stubSemanticSearch(Procedure candidate, double score) {

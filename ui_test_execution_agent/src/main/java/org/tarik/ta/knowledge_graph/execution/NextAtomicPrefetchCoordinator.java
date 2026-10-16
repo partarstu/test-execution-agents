@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.knowledge_graph.execution;
 
+import org.tarik.ta.knowledge_graph.model.MatchConfidence;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -313,7 +314,7 @@ public class NextAtomicPrefetchCoordinator implements AutoCloseable {
                 nextQueueItem.getDescription(),
                 snapshot.effectNodeIds(),
                 snapshot.recentParentIds().isEmpty() ? Set.of() : new HashSet<>(snapshot.recentParentIds()));
-        if (matchOpt.isEmpty() || matchOpt.get().confidence() != KnowledgeService.MatchConfidence.HIGH) {
+        if (matchOpt.isEmpty() || matchOpt.get().confidence() != MatchConfidence.HIGH) {
             LOG.debug("No high-confidence match for prefetch of queue item '{}'", nextQueueItem.getDescription());
             return null;
         }

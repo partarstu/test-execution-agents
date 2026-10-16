@@ -1,0 +1,201 @@
+/*
+ * knowledge-graph-core - Knowledge graph model, repositories and embeddings shared by the agents that use the knowledge graph.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package org.tarik.ta.knowledge_graph.model.node;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.StringJoiner;
+import java.util.UUID;
+
+import static java.util.Objects.requireNonNull;
+
+/**
+ * Domain entity representing a procedure stored as a Neo4j graph node.
+ * Procedures can be either composite (containing child procedures via CONTAINS relationships)
+ * or atomic (leaf-level actions that target a specific UI element via TARGETS relationships).
+ *
+ * <p>Prerequisite, effect and negated-effect phrases are stored as plain strings. Their semantic embeddings
+ * are held in separate {@code PhraseEmbedding} Neo4j nodes linked via
+ * {@code HAS_PREREQUISITE}, {@code HAS_EFFECT} and {@code HAS_NEGATED_EFFECT} relationships.</p>
+ *
+ * <p>All fields are stored as flat Neo4j node properties (no JSON blob).
+ * TimingProfile is always populated from the same node read — no lazy DB call needed.</p>
+ */
+public record Procedure(
+        UUID id,
+        String description,
+        List<String> testData,
+        String expectedResults,
+        boolean isAtomic,
+        boolean isPrecondition,
+        boolean optional,
+        List<String> prerequisites,
+        List<String> effects,
+        List<String> negatedEffects,
+        @Nullable String additionalInfo,
+        Instant createdAt,
+        Instant updatedAt,
+        float @Nullable [] embedding,
+        @Nullable TimingProfile timingProfile
+) implements Embeddable {
+
+    public static final String LABEL = "Procedure";
+    public static final String VECTOR_INDEX = "procedure_embedding_index";
+    public static final String PROP_DESCRIPTION = "description";
+    public static final String PROP_IS_ATOMIC = "isAtomic";
+    public static final String PROP_TEST_DATA = "testData";
+    public static final String PROP_EXPECTED_RESULTS = "expectedResults";
+    public static final String PROP_IS_PRECONDITION = "isPrecondition";
+    public static final String PROP_OPTIONAL = "optional";
+    public static final String PROP_PREREQUISITES = "prerequisites";
+    public static final String PROP_EFFECTS = "effects";
+    public static final String PROP_NEGATED_EFFECTS = "negatedEffects";
+    public static final String PROP_ADDITIONAL_INFO = "additionalInfo";
+    public static final String PROP_CREATED_AT = "createdAt";
+    public static final String PROP_UPDATED_AT = "updatedAt";
+    public static final String PROP_AVG_EXECUTION_MS = "avgExecutionMs";
+    public static final String PROP_AVG_VERIFICATION_DELAY_MS = "avgVerificationDelayMs";
+    public static final String PROP_MAX_VERIFICATION_DELAY_MS = "maxVerificationDelayMs";
+    public static final String PROP_LAST_TIMING_UPDATE = "lastTimingUpdate";
+    public static final String PROP_SUCCESS_COUNT = "successCount";
+
+    public Procedure {
+        requireNonNull(id, "id");
+        requireNonNull(description, "description");
+        testData = List.copyOf(requireNonNull(testData, "testData"));
+        requireNonNull(expectedResults, "expectedResults");
+        prerequisites = List.copyOf(requireNonNull(prerequisites, "prerequisites"));
+        effects = List.copyOf(requireNonNull(effects, "effects"));
+        negatedEffects = List.copyOf(requireNonNull(negatedEffects, "negatedEffects"));
+        requireNonNull(createdAt, "createdAt");
+        requireNonNull(updatedAt, "updatedAt");
+        embedding = embedding != null ? embedding.clone() : null;
+    }
+
+    /**
+     * Creates a composite procedure that contains child procedures.
+     */
+    public static Procedure createComposite(@NotNull String description,
+                                            @NotNull List<String> testData,
+                                            @NotNull String expectedResults,
+                                            @NotNull List<String> prerequisites,
+                                            @NotNull List<String> effects,
+                                            boolean isPrecondition) {
+        var now = Instant.now();
+        return new Procedure(UUID.randomUUID(), description, testData, expectedResults,
+                false, isPrecondition, false, prerequisites, effects, List.of(), null, now, now, null, null);
+    }
+
+    /**
+     * Creates an atomic procedure representing a leaf-level action.
+     */
+    public static Procedure createAtomic(@NotNull String description,
+                                         @NotNull List<String> testData,
+                                         @NotNull String expectedResults,
+                                         @NotNull List<String> prerequisites,
+                                         @NotNull List<String> effects,
+                                         boolean isPrecondition) {
+        var now = Instant.now();
+        return new Procedure(UUID.randomUUID(), description, testData, expectedResults,
+                true, isPrecondition, false, prerequisites, effects, List.of(), null, now, now, null, null);
+    }
+
+    @Override
+    public float @Nullable [] embedding() {
+        return embedding != null ? embedding.clone() : null;
+    }
+
+    @Override
+    public @Nullable TimingProfile timingProfile() {
+        return timingProfile;
+    }
+
+    /** Returns a copy with the given embedding vector populated. */
+    public Procedure withEmbedding(float @NotNull [] newEmbedding) {
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
+                prerequisites, effects, negatedEffects, additionalInfo, createdAt, updatedAt, requireNonNull(newEmbedding, "embedding"),
+                timingProfile);
+    }
+
+    /** Returns a copy with the given timing profile populated. */
+    public Procedure withTiming(@NotNull TimingProfile newTiming) {
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
+                prerequisites, effects, negatedEffects, additionalInfo, createdAt, updatedAt, embedding, requireNonNull(newTiming, "timing"));
+    }
+
+    /** Returns a copy with the given optional flag. */
+    public Procedure withOptional(boolean newOptional) {
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, newOptional,
+                prerequisites, effects, negatedEffects, additionalInfo, createdAt, updatedAt, embedding, timingProfile);
+    }
+
+    /** Returns a copy with the given additional info. */
+    public Procedure withAdditionalInfo(@Nullable String newAdditionalInfo) {
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
+                prerequisites, effects, negatedEffects, newAdditionalInfo, createdAt, updatedAt, embedding, timingProfile);
+    }
+
+    public Procedure withNegatedEffects(@NotNull List<String> newNegatedEffects) {
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
+                prerequisites, effects, newNegatedEffects, additionalInfo, createdAt, updatedAt, embedding, timingProfile);
+    }
+
+    /** Returns a copy with prerequisites, effects and negated effects rebuilt from the authoritative phrase nodes. */
+    public Procedure withPhrases(@NotNull List<String> newPrerequisites, @NotNull List<String> newEffects,
+                                 @NotNull List<String> newNegatedEffects) {
+        return new Procedure(id, description, testData, expectedResults, isAtomic, isPrecondition, optional,
+                newPrerequisites, newEffects, newNegatedEffects, additionalInfo, createdAt, updatedAt, embedding, timingProfile);
+    }
+
+    /**
+     * Returns a copy of this procedure with a different {@code id} and {@code createdAt}, refreshing {@code updatedAt}.
+     * Used when updating an existing procedure node to preserve its original identity and creation timestamp.
+     */
+    public Procedure withId(UUID newId, Instant originalCreatedAt) {
+        return new Procedure(newId, description, testData, expectedResults, isAtomic, isPrecondition, optional,
+                prerequisites, effects, negatedEffects, additionalInfo, originalCreatedAt, Instant.now(), embedding, timingProfile);
+    }
+
+    public record TimingProfile(long avgExecutionMs, long avgVerificationDelayMs, long maxVerificationDelayMs,
+                                Instant lastTimingUpdate) {
+        public static long computeDelay(@Nullable TimingProfile profile, long minDelay, long defaultDelay) {
+            return profile != null ? Math.max(minDelay, profile.avgVerificationDelayMs()) : defaultDelay;
+        }
+    }
+
+    @Override
+    public @NonNull String toString() {
+        return new StringJoiner(", ", Procedure.class.getSimpleName() + "[", "]")
+                .add("id=" + id)
+                .add("isAtomic=" + isAtomic)
+                .add("isPrecondition=" + isPrecondition)
+                .add("optional=" + optional)
+                .add("prerequisites=" + prerequisites)
+                .add("effects=" + effects)
+                .add("negatedEffects=" + negatedEffects)
+                .add("testData=" + testData)
+                .add("expectedResults='%s'".formatted(this.expectedResults))
+                .add("additionalInfo='%s'".formatted(additionalInfo))
+                .add("description='%s'".formatted(description))
+                .toString();
+    }
+}

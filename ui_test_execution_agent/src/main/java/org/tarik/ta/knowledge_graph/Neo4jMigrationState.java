@@ -17,10 +17,26 @@
  */
 package org.tarik.ta.knowledge_graph;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import org.neo4j.driver.Driver;
+import org.tarik.ta.exceptions.DatabaseConnectionException;
+import org.tarik.ta.knowledge_graph.schema.SchemaMigrationManager;
 
-public class Neo4jMigrationState {
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
+
+/**
+ * Tracks whether the schema migration succeeded and retries it before a query when it failed at startup.
+ */
+public class Neo4jMigrationState implements GraphSchemaGuard {
     private final AtomicBoolean succeeded = new AtomicBoolean(false);
+    private final ReentrantLock migrationRetryLock = new ReentrantLock();
+    private final Driver driver;
+    private final String databaseName;
+
+    public Neo4jMigrationState(Driver driver, String databaseName) {
+        this.driver = driver;
+        this.databaseName = databaseName;
+    }
 
     public boolean isSucceeded() {
         return succeeded.get();
@@ -28,5 +44,28 @@ public class Neo4jMigrationState {
 
     public void markSucceeded() {
         succeeded.set(true);
+    }
+
+    /** Ensures the schema migration has completed, retrying it when it failed at startup; a failure here aborts the current request. */
+    @Override
+    public void ensureSchemaReady() {
+        if (isSucceeded()) {
+            return;
+        }
+        migrationRetryLock.lock();
+        try {
+            // Double-check after acquiring the lock to avoid duplicate migration attempts
+            if (isSucceeded()) {
+                return;
+            }
+            try {
+                SchemaMigrationManager.migrateOnStartup(driver, databaseName);
+                markSucceeded();
+            } catch (Exception e) {
+                throw new DatabaseConnectionException("Schema migration failed during request — cannot proceed without DB", e);
+            }
+        } finally {
+            migrationRetryLock.unlock();
+        }
     }
 }

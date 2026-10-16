@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.knowledge_graph;
 
+import org.tarik.ta.knowledge_graph.model.MatchConfidence;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -169,7 +170,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
                 List.of(new TestStep("action", List.of(), "results")));
         Procedure lowConfidenceProcedure = Procedure.createAtomic("other step", List.of(), "", List.of(), List.of(), false);
         when(mockKnowledgeService.findBestMatch(eq("logged in"), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(lowConfidenceProcedure, KnowledgeService.MatchConfidence.LOW,
+                new KnowledgeService.MatchResult(lowConfidenceProcedure, MatchConfidence.LOW,
                         List.of(new KnowledgeService.ScoredProcedure(lowConfidenceProcedure, 0, 0)), false, false, false)));
 
         try (var utils = mockStatic(UiCommonUtils.class)) {
@@ -193,7 +194,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         Procedure proc = Procedure.createAtomic("action", List.of(), "", List.of(), List.of(), false);
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
         
-        var match = new KnowledgeService.MatchResult(proc, KnowledgeService.MatchConfidence.HIGH, 
+        var match = new KnowledgeService.MatchResult(proc, MatchConfidence.HIGH, 
                 List.of(new KnowledgeService.ScoredProcedure(proc, 0, 0)), false, false, false);
                 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(match));
@@ -228,9 +229,9 @@ class KnowledgeBasedExecutionOrchestratorTest {
         
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
         
-        var match1 = new KnowledgeService.MatchResult(proc1, KnowledgeService.MatchConfidence.HIGH, 
+        var match1 = new KnowledgeService.MatchResult(proc1, MatchConfidence.HIGH, 
                 List.of(new KnowledgeService.ScoredProcedure(proc1, 0, 0)), false, false, false);
-        var match2 = new KnowledgeService.MatchResult(proc2, KnowledgeService.MatchConfidence.HIGH, 
+        var match2 = new KnowledgeService.MatchResult(proc2, MatchConfidence.HIGH, 
                 List.of(new KnowledgeService.ScoredProcedure(proc2, 0, 0)), false, false, false);
         
         when(mockKnowledgeService.findBestMatch("step1", Set.of(), Set.of())).thenReturn(Optional.of(match1));
@@ -298,7 +299,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
     }
 
     private static KnowledgeService.MatchResult highMatch(Procedure procedure) {
-        return new KnowledgeService.MatchResult(procedure, KnowledgeService.MatchConfidence.HIGH,
+        return new KnowledgeService.MatchResult(procedure, MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(procedure, 0, 0)), false, false, false);
     }
 
@@ -322,7 +323,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         Procedure proc = Procedure.createAtomic("action", List.of(), "", List.of(), List.of(), false);
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
-        var match = new KnowledgeService.MatchResult(proc, KnowledgeService.MatchConfidence.HIGH,
+        var match = new KnowledgeService.MatchResult(proc, MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(proc, 0, 0)), false, false, false);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(match));
@@ -354,7 +355,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         
         when(configMock.isAtomicVerificationEnabled()).thenReturn(false);
         
-        var match = new KnowledgeService.MatchResult(composite, KnowledgeService.MatchConfidence.HIGH, 
+        var match = new KnowledgeService.MatchResult(composite, MatchConfidence.HIGH, 
                 List.of(new KnowledgeService.ScoredProcedure(composite, 0, 0)), false, false, false);
                 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(match));
@@ -482,7 +483,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         Procedure atomic1 = Procedure.createAtomic("atomic1", List.of(), "", List.of(), List.of(), false);
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
-        var match = new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+        var match = new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(match));
@@ -565,7 +566,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         Procedure createdAtomic = Procedure.createAtomic("created atomic", List.of(), "", List.of(), List.of(), false);
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
-        var match = new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+        var match = new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(match));
@@ -612,7 +613,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
 
         when(configMock.isFullyUnattended()).thenReturn(false);
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockKnowledgeService.findById(root.id())).thenReturn(Optional.empty());
         when(mockKnowledgeService.findEffectsForProcedure(any())).thenReturn(List.of());
@@ -641,7 +642,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         Procedure atomic2 = Procedure.createAtomic("atomic2", List.of(), "", List.of(), List.of(), false);
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
-        var match = new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+        var match = new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(match));
@@ -685,7 +686,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         Procedure atomic1 = Procedure.createAtomic("atomic1", List.of(), "", List.of(), List.of(), false);
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
-        var match = new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+        var match = new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(match));
@@ -726,7 +727,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockKnowledgeService.resolveToAtomicSteps(root.id()))
                 .thenThrow(new IllegalStateException("Composite procedure has no child steps to execute"));
@@ -746,7 +747,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockKnowledgeService.resolveToAtomicSteps(root.id()))
                 .thenThrow(new IllegalStateException("Composite procedure has no child steps to execute"));
@@ -771,7 +772,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockKnowledgeService.resolveToAtomicSteps(root.id()))
                 .thenThrow(new IllegalStateException("Composite procedure has no child steps to execute"));
@@ -798,7 +799,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockKnowledgeService.resolveToAtomicSteps(root.id()))
                 .thenThrow(new IllegalStateException("Composite procedure has no child steps to execute"));
@@ -820,7 +821,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockKnowledgeService.findEffectsForProcedure(any())).thenReturn(List.of());
         when(mockKnowledgeService.findTargetedUiElementId(any())).thenReturn(Optional.empty());
@@ -882,7 +883,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
     }
 
     private static KnowledgeService.MatchResult highConfidenceMatch(Procedure procedure) {
-        return new KnowledgeService.MatchResult(procedure, KnowledgeService.MatchConfidence.HIGH,
+        return new KnowledgeService.MatchResult(procedure, MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(procedure, 0, 0)), false, false, false);
     }
 
@@ -895,7 +896,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         var executionContexts = new ArrayList<AtomicStepExecutionContext>();
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockKnowledgeService.findEffectsForProcedure(any())).thenReturn(List.of());
         when(mockKnowledgeService.findTargetedUiElementId(any())).thenReturn(Optional.empty());
@@ -923,7 +924,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockKnowledgeService.findEffectsForProcedure(any())).thenReturn(List.of());
         when(mockKnowledgeService.findTargetedUiElementId(any())).thenReturn(Optional.empty());
@@ -949,7 +950,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockKnowledgeService.findEffectsForProcedure(any())).thenReturn(List.of());
         when(mockKnowledgeService.findTargetedUiElementId(any())).thenReturn(Optional.empty());
@@ -978,7 +979,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockSatisfiesEdgeService.findUnsatisfiedPrerequisites(any(), any()))
                 .thenReturn(List.of(new UnsatisfiedPrerequisite("missing effect", 0.1, "effect phrase")));
@@ -1001,7 +1002,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockSatisfiesEdgeService.findUnsatisfiedPrerequisites(any(), any()))
                 .thenReturn(List.of(new UnsatisfiedPrerequisite("missing effect", 0.1, "effect phrase")));
@@ -1025,7 +1026,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockSatisfiesEdgeService.findUnsatisfiedPrerequisites(any(), any()))
                 .thenReturn(List.of(new UnsatisfiedPrerequisite("missing effect", 0.1, "effect phrase")));
@@ -1053,7 +1054,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockSatisfiesEdgeService.findUnsatisfiedPrerequisites(any(), any()))
                 .thenReturn(List.of(new UnsatisfiedPrerequisite("missing effect", 0.1, "effect phrase")))
@@ -1085,7 +1086,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         ExecutionStateTracker stateTracker = new ExecutionStateTracker(configMock);
 
         when(mockKnowledgeService.findBestMatch(anyString(), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(root, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(root, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(root, 0, 0)), false, false, false)));
         when(mockKnowledgeService.findById(root.id())).thenReturn(Optional.of(root));
         when(mockSatisfiesEdgeService.findUnsatisfiedPrerequisites(any(), any()))
@@ -1180,7 +1181,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
         Procedure selectedProcedure = Procedure.createAtomic("selected", List.of(), "", List.of(), List.of(), false);
         when(mockKnowledgeService.findBestMatch(eq("unknown precondition"), any(), any())).thenReturn(Optional.empty());
         when(mockKnowledgeService.findBestMatch(eq("vague step"), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(lowConfidenceProcedure, KnowledgeService.MatchConfidence.LOW,
+                new KnowledgeService.MatchResult(lowConfidenceProcedure, MatchConfidence.LOW,
                         List.of(new KnowledgeService.ScoredProcedure(lowConfidenceProcedure, 0, 0)), false, false, false)));
         stubHighConfidenceMatch("selected", selectedProcedure);
         when(mockKnowledgeService.findEffectsForProcedure(selectedProcedure.id())).thenReturn(List.of());
@@ -1280,7 +1281,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
 
     private void stubHighConfidenceMatch(String description, Procedure procedure) {
         when(mockKnowledgeService.findBestMatch(eq(description), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(procedure, KnowledgeService.MatchConfidence.HIGH,
+                new KnowledgeService.MatchResult(procedure, MatchConfidence.HIGH,
                         List.of(new KnowledgeService.ScoredProcedure(procedure, 0, 0)), false, false, false)));
     }
 
@@ -1413,7 +1414,7 @@ class KnowledgeBasedExecutionOrchestratorTest {
     void executeBasedOnKnowledge_shouldRecordAnUnresolvedFailedItem_whenUnattendedSelectionFails() {
         TestCase testCase = new TestCase("tc", List.of(), List.of(), List.of(new TestStep("action", List.of(), "results")));
         Procedure lowConfidenceProcedure = Procedure.createAtomic("other step", List.of(), "", List.of(), List.of(), false);
-        var match = new KnowledgeService.MatchResult(lowConfidenceProcedure, KnowledgeService.MatchConfidence.LOW,
+        var match = new KnowledgeService.MatchResult(lowConfidenceProcedure, MatchConfidence.LOW,
                 List.of(new KnowledgeService.ScoredProcedure(lowConfidenceProcedure, 0, 0)), false, false, false);
         when(mockKnowledgeService.findBestMatch(eq("action"), any(), any())).thenReturn(Optional.of(match));
         var failed = new UiTestStepResult(new TestStep("", List.of(), ""), TestStepResultStatus.ERROR, "none", null, null,

@@ -17,6 +17,7 @@
  */
 package org.tarik.ta.smoke;
 
+import org.tarik.ta.knowledge_graph.model.MatchConfidence;
 import org.bytedeco.javacpp.Loader;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
@@ -1024,7 +1025,7 @@ class UiAgentSmokeTest {
         var testCase = new TestCase("Selection failure", List.of(), List.of(), List.of(step));
         var procedure = Procedure.createAtomic("Delete the order", List.of(), "", List.of(), List.of(), false);
         when(knowledgeService.findBestMatch(eq(step.stepDescription()), any(), any())).thenReturn(Optional.of(
-                new KnowledgeService.MatchResult(procedure, KnowledgeService.MatchConfidence.LOW,
+                new KnowledgeService.MatchResult(procedure, MatchConfidence.LOW,
                         List.of(new KnowledgeService.ScoredProcedure(procedure, 0, 0)), false, false, false)));
         when(config.isAnomalyRecordingEnabled()).thenReturn(true);
         var anomalyRepository = mock(ExecutionAnomalyRepository.class);
@@ -1212,7 +1213,7 @@ class UiAgentSmokeTest {
         var step = new TestStep("Open the reports page", List.of(), "The reports page is shown");
         var testCase = new TestCase("Created procedure", List.of(), List.of(), List.of(step));
         var procedure = Procedure.createAtomic(step.stepDescription(), List.of(), "", List.of(), List.of(), false);
-        var match = new KnowledgeService.MatchResult(procedure, KnowledgeService.MatchConfidence.HIGH,
+        var match = new KnowledgeService.MatchResult(procedure, MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(procedure, 0, 0)), false, false, false);
         when(knowledgeService.findBestMatch(eq(step.stepDescription()), any(), any())).thenReturn(Optional.empty(), Optional.of(match));
         when(procedureKnowledgeCollectionService.triggerNewProcedureFlow(anyString(), any(), any(), anyBoolean(), any()))
@@ -1413,7 +1414,7 @@ class UiAgentSmokeTest {
 
     /** Makes {@link KnowledgeService#findBestMatch} return the given procedure as a direct, high-confidence match. */
     private void matchProcedure(@NotNull String description, @NotNull Procedure procedure) {
-        var match = new KnowledgeService.MatchResult(procedure, KnowledgeService.MatchConfidence.HIGH,
+        var match = new KnowledgeService.MatchResult(procedure, MatchConfidence.HIGH,
                 List.of(new KnowledgeService.ScoredProcedure(procedure, 0, 0)), false, false, false);
         when(knowledgeService.findBestMatch(eq(description), any(), any())).thenReturn(Optional.of(match));
     }

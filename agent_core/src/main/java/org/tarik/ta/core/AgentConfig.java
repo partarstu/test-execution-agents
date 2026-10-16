@@ -87,6 +87,8 @@ public class AgentConfig {
     private final ConfigProperty<AnthropicApiProvider> anthropicApiProvider;
     private final ConfigProperty<String> anthropicApiKey;
     private final ConfigProperty<String> anthropicApiEndpoint;
+    private final ConfigProperty<Boolean> anthropicThinkingEnabled;
+    private final ConfigProperty<AnthropicEffort> anthropicThinkingEffort;
 
     // H Company (Holo) API Config
     private final ConfigProperty<String> hcompanyApiKey;
@@ -159,6 +161,10 @@ public class AgentConfig {
         ANTHROPIC_API, VERTEX_AI
     }
 
+    public enum AnthropicEffort {
+        LOW, MEDIUM, HIGH, XHIGH, MAX
+    }
+
     public enum RagDbProvider {
         CHROMA, QDRANT, NEO4J
     }
@@ -211,6 +217,10 @@ public class AgentConfig {
         this.anthropicApiKey = loadProperty("anthropic.api.key", "ANTHROPIC_API_KEY", "", s -> s, true);
         this.anthropicApiEndpoint = loadProperty("anthropic.endpoint", "ANTHROPIC_ENDPOINT",
                 "https://api.anthropic.com/v1/", s -> s, false);
+        this.anthropicThinkingEnabled = loadProperty("anthropic.thinking.enabled", "ANTHROPIC_THINKING_ENABLED", "false",
+                Boolean::parseBoolean, false);
+        this.anthropicThinkingEffort = getProperty("anthropic.thinking.effort", "ANTHROPIC_THINKING_EFFORT", "medium",
+                s -> parseEnum(AnthropicEffort.class, s), false);
 
         // H Company (Holo) API Config
         this.hcompanyApiKey = loadProperty("hcompany.api.key", "HCOMPANY_API_KEY", "", s -> s, true);
@@ -421,6 +431,16 @@ public class AgentConfig {
 
     public String getAnthropicEndpoint() {
         return anthropicApiEndpoint.value();
+    }
+
+    /** Whether a Claude model on the Anthropic API thinks adaptively before it acts instead of running with thinking disabled. */
+    public boolean isAnthropicThinkingEnabled() {
+        return anthropicThinkingEnabled.value();
+    }
+
+    /** The effort a thinking Claude model runs at. */
+    public AnthropicEffort getAnthropicThinkingEffort() {
+        return anthropicThinkingEffort.value();
     }
 
     // -----------------------------------------------------

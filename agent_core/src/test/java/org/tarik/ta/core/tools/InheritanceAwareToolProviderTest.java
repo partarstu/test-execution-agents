@@ -143,8 +143,35 @@ class InheritanceAwareToolProviderTest {
                 .satisfies(execution -> assertThat(execution.resultObject()).isEqualTo(new EmptyExecutionResult(true, "done")));
     }
 
+    @Test
+    void provideTools_shouldKeepTheResultOfAnInstanceResultTool_whenTheTokenBudgetIsExhaustedBeforeIt() {
+        BudgetManager.getInstance().consumeTokens(new TokenUsageRecord("test_step_action", "openai", "gpt-test", "gpt-test", null,
+                2_000_000, 0, 0, 0));
+        var agent = AiServices.builder(ResultAgent.class)
+                .chatModel(new FinalResultOnlyChatModel())
+                .toolProvider(new InheritanceAwareToolProvider<>(List.of(new CountingChildTool()), List.of(new InstanceResultTool()),
+                        ResultWithoutTools.class))
+                .toolExecutionErrorHandler(new DefaultToolErrorHandler(new RetryPolicy(1, 0, 1000)))
+                .build();
+
+        Result<String> result = agent.run("act");
+
+        assertThat(result.toolExecutions()).singleElement()
+                .satisfies(execution -> assertThat(execution.resultObject()).isEqualTo(new EmptyExecutionResult(true, "done")));
+    }
+
     interface ResultAgent {
         Result<String> run(String input);
+    }
+
+    static final class ResultWithoutTools implements FinalResult {
+    }
+
+    static class InstanceResultTool {
+        @Tool(value = "Result method", returnBehavior = IMMEDIATE_IF_LAST)
+        public EmptyExecutionResult endExecutionAndGetFinalResult(EmptyExecutionResult result) {
+            return result;
+        }
     }
 
     static class CountingChildTool {

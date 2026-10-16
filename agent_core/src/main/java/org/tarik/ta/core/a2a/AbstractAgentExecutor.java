@@ -66,7 +66,6 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
     private static final String PRECONDITION_RESULT_ARTIFACT = "precondition_result";
     private static final String FINAL_RESULT_ARTIFACT = "final_result";
     private static final String LOG_ARTIFACT = "execution_log";
-    private static final String TOKEN_USAGE_ARTIFACT = "token_usage";
     private static final String STREAMED_LOG_FILE_NAME = "execution_log.log";
 
     private final ExecutorService taskExecutor = newSingleThreadExecutor();
@@ -153,14 +152,8 @@ public abstract class AbstractAgentExecutor implements AgentExecutor {
      */
     private void emitTokenUsage(AgentEmitter emitter, String taskId) {
         var usage = BudgetManager.getInstance().releaseTask(taskId);
-        if (cancelled || usage.isEmpty()) {
-            return;
-        }
-        try {
-            usage.forEach(record -> LOG.info("Token usage of task {}: {}", taskId, record.toLogLine()));
-            emitter.addArtifact(List.of(new TextPart(OBJECT_MAPPER.writeValueAsString(usage))), null, TOKEN_USAGE_ARTIFACT, null);
-        } catch (Exception e) {
-            LOG.error("Failed to report the token usage of task {}.", taskId, e);
+        if (!cancelled) {
+            TaskTokenUsage.emit(emitter, taskId, usage);
         }
     }
 

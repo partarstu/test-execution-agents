@@ -54,8 +54,9 @@ import org.tarik.ta.core.tools.TestContextDataTools;
 import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 import org.tarik.ta.model.AuthType;
-import org.tarik.ta.smoke.ScriptedChatModel.Script;
-import org.tarik.ta.smoke.ScriptedChatModel.ScriptedToolCall;
+import org.tarik.ta.core.smoke.ScriptedChatModel;
+import org.tarik.ta.core.smoke.ScriptedChatModel.Script;
+import org.tarik.ta.core.smoke.ScriptedChatModel.ScriptedToolCall;
 import org.tarik.ta.tools.ApiAssertionTools;
 import org.tarik.ta.tools.ApiRequestTools;
 

@@ -1,0 +1,292 @@
+/*
+ * knowledge-graph-core - Knowledge graph model, repositories and embeddings shared by the agents that use the knowledge graph.
+ * Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package org.tarik.ta.knowledge_graph.repository;
+
+import jakarta.inject.Singleton;
+import org.apache.commons.text.StringSubstitutor;
+import org.neo4j.driver.Driver;
+import org.neo4j.driver.QueryConfig;
+import org.neo4j.driver.Record;
+import org.neo4j.driver.RoutingControl;
+import org.neo4j.driver.SessionConfig;
+import org.neo4j.driver.TransactionCallback;
+import org.neo4j.driver.TransactionContext;
+import org.tarik.ta.knowledge_graph.GraphSchemaGuard;
+import org.tarik.ta.knowledge_graph.KnowledgeGraphConfig;
+import org.tarik.ta.knowledge_graph.model.node.ExecutionAnomaly;
+import org.tarik.ta.knowledge_graph.model.node.ExecutionRun;
+import org.tarik.ta.knowledge_graph.model.node.StepResolution;
+import org.tarik.ta.knowledge_graph.model.node.FailureContext;
+import org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding;
+import org.tarik.ta.knowledge_graph.model.node.Procedure;
+import org.tarik.ta.knowledge_graph.model.node.SchemaVersion;
+import org.tarik.ta.knowledge_graph.model.node.TestCase;
+import org.tarik.ta.knowledge_graph.model.node.UiElement;
+import org.tarik.ta.knowledge_graph.model.node.UiElementAppearance;
+
+import org.neo4j.driver.exceptions.ServiceUnavailableException;
+import org.neo4j.driver.exceptions.SessionExpiredException;
+import org.tarik.ta.exceptions.DatabaseConnectionException;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import static org.tarik.ta.knowledge_graph.model.GraphRelationships.*;
+import static org.tarik.ta.knowledge_graph.model.node.IEntity.PROP_ID;
+import static org.tarik.ta.knowledge_graph.model.node.Embeddable.PROP_EMBEDDING;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_DESCRIPTION;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_IS_ATOMIC;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_TEST_DATA;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_EXPECTED_RESULTS;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_IS_PRECONDITION;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_OPTIONAL;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_PREREQUISITES;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_EFFECTS;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_NEGATED_EFFECTS;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_CREATED_AT;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_UPDATED_AT;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_AVG_EXECUTION_MS;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_AVG_VERIFICATION_DELAY_MS;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_MAX_VERIFICATION_DELAY_MS;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_ADDITIONAL_INFO;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_LAST_TIMING_UPDATE;
+import static org.tarik.ta.knowledge_graph.model.node.Procedure.PROP_SUCCESS_COUNT;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_NAME;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_OWN_DESCRIPTION;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_ANCHORS_DESCRIPTION;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_PARENT_ELEMENT_SUMMARY;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_SCREENSHOT_FILE_EXTENSION;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_SCREENSHOT_MIME_TYPE;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_SCREENSHOT_IMAGE;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_IS_DATA_DEPENDENT;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_STABILITY_SCORE;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_AVG_LOCATION_TIME_MS;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_FAILED_LOCATION_COUNT;
+import static org.tarik.ta.knowledge_graph.model.node.UiElement.PROP_LAST_LOCATED_AT;
+import static org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PROP_PHRASE;
+import static org.tarik.ta.knowledge_graph.model.node.PhraseEmbedding.PROP_TYPE;
+import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_SYMPTOM;
+import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_SYMPTOM_NORMALIZED;
+import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_CATEGORY;
+import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_RESOLUTION;
+import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_OCCURRENCES;
+import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_LAST_OCCURRED;
+import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_MODE;
+import static org.tarik.ta.knowledge_graph.model.node.FailureContext.PROP_EXPIRED_AT;
+import static org.tarik.ta.knowledge_graph.model.node.UiElementAppearance.PROP_VALID_FROM;
+import static org.tarik.ta.knowledge_graph.model.node.UiElementAppearance.PROP_VALID_TO;
+import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_SCORE;
+import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_EFFECT_PHRASE;
+import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_PREREQUISITE_PHRASE;
+import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_PREREQUISITE_NODE_ID;
+import static org.tarik.ta.knowledge_graph.model.edge.SatisfiesEdge.PROP_LAST_VERIFIED_AT;
+
+/**
+ * Shared query-execution helpers for all Neo4j repositories.
+ * <p>Two execution strategies are provided:
+ * <ul>
+ *   <li><b>Single-query</b> ({@code executeSingleReadQuery}/{@code executeSingleWriteQuery}) — uses
+ *       {@code driver.executableQuery()} with explicit routing. Use for any operation that fits in
+ *       one Cypher statement.</li>
+ *   <li><b>Complex-query</b> ({@code executeComplexReadQuery}/{@code executeComplexWriteQuery}) — uses a
+ *       managed session transaction. Use only when multiple queries must share a single transaction
+ *       with client-side logic between them.</li>
+ * </ul>
+ */
+@Singleton
+public class Neo4jRepositorySupport {
+    /** Selects Cypher 25 regardless of the database default language, which stays Cypher 5 for databases created with it. */
+    public static final String CYPHER_VERSION_PREFIX = "CYPHER 25 ";
+
+    /**
+     * Maps node/relationship constant names to their values for use in {@link #cypher(String)} templates.
+     */
+    private static final Map<String, String> QUERY_TOKENS = Map.<String, String>ofEntries(
+            Map.entry("LABEL_PROCEDURE", Procedure.LABEL),
+            Map.entry("LABEL_UI_ELEMENT", UiElement.LABEL),
+            Map.entry("LABEL_SCHEMA_VERSION", SchemaVersion.LABEL),
+            Map.entry("LABEL_FAILURE_CONTEXT", FailureContext.LABEL),
+            Map.entry("LABEL_TEST_CASE", TestCase.LABEL),
+            Map.entry("LABEL_PHRASE_EMBEDDING", PhraseEmbedding.LABEL),
+            Map.entry("LABEL_UI_ELEMENT_APPEARANCE", UiElementAppearance.LABEL),
+            Map.entry("LABEL_EXECUTION_ANOMALY", ExecutionAnomaly.LABEL),
+            Map.entry("LABEL_EXECUTION_RUN", ExecutionRun.LABEL),
+            Map.entry("LABEL_STEP_RESOLUTION", StepResolution.LABEL),
+            Map.entry("INDEX_PHRASE_EMBEDDING", PhraseEmbedding.VECTOR_INDEX),
+            Map.entry("INDEX_PROCEDURE_EMBEDDING", Procedure.VECTOR_INDEX),
+            Map.entry("INDEX_UI_ELEMENT_EMBEDDING", UiElement.VECTOR_INDEX),
+            Map.entry("REL_CONTAINS", REL_CONTAINS),
+            Map.entry("REL_TARGETS", REL_TARGETS),
+            Map.entry("REL_SATISFIES", REL_SATISFIES),
+            Map.entry("REL_USES_PROCEDURE", REL_USES_PROCEDURE),
+            Map.entry("REL_HAS_FAILURE_CONTEXT", REL_HAS_FAILURE_CONTEXT),
+            Map.entry("REL_HAS_PREREQUISITE", REL_HAS_PREREQUISITE),
+            Map.entry("REL_HAS_EFFECT", REL_HAS_EFFECT),
+            Map.entry("REL_HAS_NEGATED_EFFECT", REL_HAS_NEGATED_EFFECT),
+            Map.entry("REL_HAD_APPEARANCE", REL_HAD_APPEARANCE),
+            Map.entry("REL_OBSERVED_ON", REL_OBSERVED_ON),
+            Map.entry("REL_HAS_RUN", REL_HAS_RUN),
+            Map.entry("REL_HAS_RESOLUTION", REL_HAS_RESOLUTION),
+            Map.entry("REL_CHOSE", REL_CHOSE),
+            Map.entry("PROP_ID", PROP_ID),
+            Map.entry("PROP_EMBEDDING", PROP_EMBEDDING),
+            Map.entry("PROP_NAME", PROP_NAME),
+            Map.entry("PROP_DESCRIPTION", PROP_DESCRIPTION),
+            Map.entry("PROP_IS_ATOMIC", PROP_IS_ATOMIC),
+            Map.entry("PROP_TEST_DATA", PROP_TEST_DATA),
+            Map.entry("PROP_EXPECTED_RESULTS", PROP_EXPECTED_RESULTS),
+            Map.entry("PROP_IS_PRECONDITION", PROP_IS_PRECONDITION),
+            Map.entry("PROP_OPTIONAL", PROP_OPTIONAL),
+            Map.entry("PROP_PREREQUISITES", PROP_PREREQUISITES),
+            Map.entry("PROP_EFFECTS", PROP_EFFECTS),
+            Map.entry("PROP_NEGATED_EFFECTS", PROP_NEGATED_EFFECTS),
+            Map.entry("PROP_ADDITIONAL_INFO", PROP_ADDITIONAL_INFO),
+            Map.entry("PROP_CREATED_AT", PROP_CREATED_AT),
+            Map.entry("PROP_UPDATED_AT", PROP_UPDATED_AT),
+            Map.entry("PROP_AVG_EXECUTION_MS", PROP_AVG_EXECUTION_MS),
+            Map.entry("PROP_AVG_VERIFICATION_DELAY_MS", PROP_AVG_VERIFICATION_DELAY_MS),
+            Map.entry("PROP_MAX_VERIFICATION_DELAY_MS", PROP_MAX_VERIFICATION_DELAY_MS),
+            Map.entry("PROP_LAST_TIMING_UPDATE", PROP_LAST_TIMING_UPDATE),
+            Map.entry("PROP_SUCCESS_COUNT", PROP_SUCCESS_COUNT),
+            Map.entry("PROP_OWN_DESCRIPTION", PROP_OWN_DESCRIPTION),
+            Map.entry("PROP_ANCHORS_DESCRIPTION", PROP_ANCHORS_DESCRIPTION),
+            Map.entry("PROP_PARENT_ELEMENT_SUMMARY", PROP_PARENT_ELEMENT_SUMMARY),
+            Map.entry("PROP_SCREENSHOT_FILE_EXTENSION", PROP_SCREENSHOT_FILE_EXTENSION),
+            Map.entry("PROP_SCREENSHOT_MIME_TYPE", PROP_SCREENSHOT_MIME_TYPE),
+            Map.entry("PROP_SCREENSHOT_IMAGE", PROP_SCREENSHOT_IMAGE),
+            Map.entry("PROP_IS_DATA_DEPENDENT", PROP_IS_DATA_DEPENDENT),
+            Map.entry("PROP_STABILITY_SCORE", PROP_STABILITY_SCORE),
+            Map.entry("PROP_AVG_LOCATION_TIME_MS", PROP_AVG_LOCATION_TIME_MS),
+            Map.entry("PROP_FAILED_LOCATION_COUNT", PROP_FAILED_LOCATION_COUNT),
+            Map.entry("PROP_LAST_LOCATED_AT", PROP_LAST_LOCATED_AT),
+            Map.entry("PROP_PHRASE", PROP_PHRASE),
+            Map.entry("PROP_TYPE", PROP_TYPE),
+            Map.entry("PROP_SEQUENCE", PROP_SEQUENCE),
+            Map.entry("PROP_SYMPTOM", PROP_SYMPTOM),
+            Map.entry("PROP_SYMPTOM_NORMALIZED", PROP_SYMPTOM_NORMALIZED),
+            Map.entry("PROP_CATEGORY", PROP_CATEGORY),
+            Map.entry("PROP_RESOLUTION", PROP_RESOLUTION),
+            Map.entry("PROP_OCCURRENCES", PROP_OCCURRENCES),
+            Map.entry("PROP_LAST_OCCURRED", PROP_LAST_OCCURRED),
+            Map.entry("PROP_MODE", PROP_MODE),
+            Map.entry("PROP_EXPIRED_AT", PROP_EXPIRED_AT),
+            Map.entry("PROP_VALID_FROM", PROP_VALID_FROM),
+            Map.entry("PROP_VALID_TO", PROP_VALID_TO),
+            Map.entry("PROP_KIND", ExecutionAnomaly.PROP_KIND),
+            Map.entry("PROP_SUBJECT_ID", ExecutionAnomaly.PROP_SUBJECT_ID),
+            Map.entry("PROP_OCCURRED_AT", ExecutionAnomaly.PROP_OCCURRED_AT),
+            Map.entry("PROP_TEST_CASE_NAME", ExecutionAnomaly.PROP_TEST_CASE_NAME),
+            Map.entry("PROP_DETAILS", ExecutionAnomaly.PROP_DETAILS),
+            Map.entry("PROP_SCORE", PROP_SCORE),
+            Map.entry("PROP_EFFECT_PHRASE", PROP_EFFECT_PHRASE),
+            Map.entry("PROP_PREREQUISITE_PHRASE", PROP_PREREQUISITE_PHRASE),
+            Map.entry("PROP_PREREQUISITE_NODE_ID", PROP_PREREQUISITE_NODE_ID),
+            Map.entry("PROP_LAST_VERIFIED_AT", PROP_LAST_VERIFIED_AT),
+            Map.entry("PROP_STARTED_AT", ExecutionRun.PROP_STARTED_AT),
+            Map.entry("PROP_FINISHED_AT", ExecutionRun.PROP_FINISHED_AT),
+            Map.entry("PROP_STATUS", ExecutionRun.PROP_STATUS),
+            Map.entry("PROP_ITEM_TYPE", StepResolution.PROP_ITEM_TYPE),
+            Map.entry("PROP_ITEM_DESCRIPTION", StepResolution.PROP_ITEM_DESCRIPTION),
+            Map.entry("PROP_SOURCE", StepResolution.PROP_SOURCE),
+            Map.entry("PROP_CONFIDENCE", StepResolution.PROP_CONFIDENCE),
+            Map.entry("PROP_CANDIDATES", StepResolution.PROP_CANDIDATES),
+            Map.entry("PROP_WAS_DEMOTED", StepResolution.PROP_WAS_DEMOTED),
+            Map.entry("PROP_DEMOTED_DUE_TO_PREREQUISITES", StepResolution.PROP_DEMOTED_DUE_TO_PREREQUISITES),
+            Map.entry("PROP_OUTCOME", StepResolution.PROP_OUTCOME),
+            Map.entry("PROP_DURATION_MS", StepResolution.PROP_DURATION_MS)
+    );
+
+    private final Driver driver;
+    private final String databaseName;
+    private final GraphSchemaGuard schemaGuard;
+
+    public Neo4jRepositorySupport(Driver driver, KnowledgeGraphConfig config, GraphSchemaGuard schemaGuard) {
+        this.driver = driver;
+        this.databaseName = config.getNeo4jDatabase();
+        this.schemaGuard = schemaGuard;
+    }
+
+    /**
+     * Resolves {@code ${CONSTANT_NAME}} tokens in a Cypher query template using the graph schema constants
+     * from node classes and {@link org.tarik.ta.knowledge_graph.model.GraphRelationships}, and selects Cypher 25.
+     * Unresolved tokens are left unchanged.
+     */
+    public String cypher(String template) {
+        return CYPHER_VERSION_PREFIX + StringSubstitutor.replace(template, QUERY_TOKENS);
+    }
+
+    public List<Record> executeSingleReadQuery(String cypher, Map<String, Object> params) {
+        schemaGuard.ensureSchemaReady();
+        try {
+            return driver.executableQuery(cypher)
+                    .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.READ).build())
+                    .withParameters(params)
+                    .execute().records();
+        } catch (ServiceUnavailableException | SessionExpiredException e) {
+            throw new DatabaseConnectionException("Neo4j connection failed during read query execution", e);
+        }
+    }
+
+    public List<Record> executeSingleReadQuery(String cypher) {
+        return executeSingleReadQuery(cypher, Map.of());
+    }
+
+    public List<Record> executeSingleWriteQuery(String cypher, Map<String, Object> params) {
+        schemaGuard.ensureSchemaReady();
+        try {
+            return driver.executableQuery(cypher)
+                    .withConfig(QueryConfig.builder().withDatabase(databaseName).withRouting(RoutingControl.WRITE).build())
+                    .withParameters(params)
+                    .execute().records();
+        } catch (ServiceUnavailableException | SessionExpiredException e) {
+            throw new DatabaseConnectionException("Neo4j connection failed during write query execution", e);
+        }
+    }
+
+    public List<Record> executeSingleWriteQuery(String cypher) {
+        return executeSingleWriteQuery(cypher, Map.of());
+    }
+
+    public <T> T executeComplexReadQuery(TransactionCallback<T> action) {
+        schemaGuard.ensureSchemaReady();
+        try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
+            return session.executeRead(action);
+        } catch (ServiceUnavailableException | SessionExpiredException e) {
+            throw new DatabaseConnectionException("Neo4j connection failed during complex read query execution", e);
+        }
+    }
+
+    public void executeComplexWriteQuery(Consumer<TransactionContext> action) {
+        schemaGuard.ensureSchemaReady();
+        try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
+            session.executeWriteWithoutResult(action);
+        } catch (ServiceUnavailableException | SessionExpiredException e) {
+            throw new DatabaseConnectionException("Neo4j connection failed during complex write query execution", e);
+        }
+    }
+
+    public <T> T executeComplexWriteQuery(TransactionCallback<T> action) {
+        schemaGuard.ensureSchemaReady();
+        try (var session = driver.session(SessionConfig.forDatabase(databaseName))) {
+            return session.executeWrite(action);
+        } catch (ServiceUnavailableException | SessionExpiredException e) {
+            throw new DatabaseConnectionException("Neo4j connection failed during complex write query execution", e);
+        }
+    }
+}
