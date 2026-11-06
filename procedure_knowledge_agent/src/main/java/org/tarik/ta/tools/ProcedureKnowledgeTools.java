@@ -171,7 +171,7 @@ public class ProcedureKnowledgeTools extends AbstractTools {
         node.children().forEach(this::rememberTree);
     }
 
-    private static Optional<UUID> parseUuid(@Nullable String value) {
+    static Optional<UUID> parseUuid(@Nullable String value) {
         if (isBlank(value)) {
             return Optional.empty();
         }

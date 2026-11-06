@@ -97,7 +97,7 @@ public class ProcedureSelector {
         var startNanos = System.nanoTime();
         var outcome = agent.executeAndGetResult(() -> agent.select(userMessageContents(request)));
         var elapsedMillis = elapsedMillisSince(startNanos);
-        // A model answering in text instead of calling the result tool leaves its text as the payload, so the type is checked.
+        // The payload may be missing or of another result type, so the type is checked.
         Object payload = outcome.getResultPayload();
         if (!outcome.isSuccess() || !(payload instanceof ItemSelection selection)) {
             LOG.warn("The item run for {} of test case '{}' ended without a selection after {} tool calls and {} ms: {}", item.id(),

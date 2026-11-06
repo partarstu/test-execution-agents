@@ -22,7 +22,7 @@ package org.tarik.ta.knowledge_graph;
  */
 public interface GraphSchemaGuard {
     /**
-     * Returns when the schema is ready and throws {@link org.tarik.ta.exceptions.DatabaseConnectionException} when it cannot be made ready.
+     * Returns when the schema is ready and throws when the schema is not ready.
      */
     void ensureSchemaReady();
 }

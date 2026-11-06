@@ -19,8 +19,8 @@ package org.tarik.ta.tools;
 
 import org.tarik.ta.core.exceptions.ToolExecutionException;
 
-import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.tarik.ta.core.error.ErrorCategory.NON_RETRYABLE_ERROR;
@@ -50,14 +50,15 @@ final class SelectionValidation {
         if (procedureIds.size() > maxSelections) {
             throw invalid("%s has %d procedures, but at most %d may be selected".formatted(owner, procedureIds.size(), maxSelections));
         }
-        if (new HashSet<>(procedureIds).size() != procedureIds.size()) {
-            throw invalid("%s lists a procedure more than once".formatted(owner));
-        }
         for (var procedureId : procedureIds) {
             if (explorationTools.findReturnedDescription(procedureId).isEmpty()) {
                 throw invalid(("%s selects '%s', which no tool returned in this run; select only IDs exactly as the tools returned " +
                         "them").formatted(owner, procedureId));
             }
+        }
+        var distinctCount = procedureIds.stream().map(ProcedureKnowledgeTools::parseUuid).flatMap(Optional::stream).distinct().count();
+        if (distinctCount != procedureIds.size()) {
+            throw invalid("%s lists a procedure more than once".formatted(owner));
         }
     }
 

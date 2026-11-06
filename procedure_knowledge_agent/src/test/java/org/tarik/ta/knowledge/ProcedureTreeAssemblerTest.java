@@ -130,6 +130,59 @@ class ProcedureTreeAssemblerTest {
     }
 
     @Test
+    void assembleTree_shouldOmitTheChildrenBeyondTheNodeCap_andMarkTheCompositeTruncated() {
+        lenient().when(config.getMaxTreeNodes()).thenReturn(3);
+        var login = composite("Log in");
+        var first = atomic("First");
+        var second = atomic("Second");
+        var third = atomic("Third");
+        var fourth = atomic("Fourth");
+        when(procedureRepository.findSubtree(eq(login.id()), anyInt(), anyInt())).thenReturn(List.of(root(login, 4), child(first, login, 0, 0),
+                child(second, login, 1, 0), child(third, login, 2, 0), child(fourth, login, 3, 0)));
+
+        var tree = assembler.assembleTree(login.id()).orElseThrow();
+
+        assertThat(tree.children()).extracting(ProcedureNode::description).containsExactly("First", "Second");
+        assertThat(tree.childrenTruncated()).isTrue();
+    }
+
+    @Test
+    void assembleTree_shouldNotExpandBelowTheDepthCap_andMarkTheCompositeTruncated() {
+        lenient().when(config.getMaxTreeDepth()).thenReturn(1);
+        var top = composite("Top");
+        var middle = composite("Middle");
+        var bottom = atomic("Bottom");
+        when(procedureRepository.findSubtree(eq(top.id()), anyInt(), anyInt()))
+                .thenReturn(List.of(root(top, 1), child(middle, top, 0, 1), child(bottom, middle, 0, 0)));
+
+        var tree = assembler.assembleTree(top.id()).orElseThrow();
+
+        var middleNode = tree.children().getFirst();
+        assertThat(middleNode.children()).isEmpty();
+        assertThat(middleNode.childrenTruncated()).isTrue();
+        assertThat(tree.childrenTruncated()).isFalse();
+    }
+
+    @Test
+    void assembleTree_shouldApplyTheDepthCapPerPath_whenAProcedureIsReusedAtTwoDepths() {
+        lenient().when(config.getMaxTreeDepth()).thenReturn(2);
+        var top = composite("Top");
+        var middle = composite("Middle");
+        var shared = composite("Shared");
+        var leaf = atomic("Leaf");
+        when(procedureRepository.findSubtree(eq(top.id()), anyInt(), anyInt())).thenReturn(List.of(root(top, 2), child(shared, top, 0, 1),
+                child(middle, top, 1, 1), child(shared, middle, 0, 1), child(leaf, shared, 0, 0)));
+
+        var tree = assembler.assembleTree(top.id()).orElseThrow();
+
+        var sharedNearTop = tree.children().getFirst();
+        var sharedUnderMiddle = tree.children().get(1).children().getFirst();
+        assertThat(sharedNearTop.children()).extracting(ProcedureNode::description).containsExactly("Leaf");
+        assertThat(sharedUnderMiddle.children()).isEmpty();
+        assertThat(sharedUnderMiddle.childrenTruncated()).isTrue();
+    }
+
+    @Test
     void assembleTree_shouldReturnNothing_whenTheProcedureDoesNotExist() {
         var unknownId = UUID.randomUUID();
         when(procedureRepository.findSubtree(eq(unknownId), anyInt(), anyInt())).thenReturn(List.of());

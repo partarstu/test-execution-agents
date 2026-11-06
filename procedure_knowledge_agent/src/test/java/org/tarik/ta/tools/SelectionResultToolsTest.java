@@ -93,6 +93,20 @@ class SelectionResultToolsTest {
     }
 
     @Test
+    void returnItemSelection_shouldAskForACorrection_whenAProcedureIsListedTwiceWithPaddingOrAnotherCase() {
+        var id = knownIds.getFirst();
+
+        assertRetried(() -> itemTool("S2").returnItemSelection(new ItemSelection("S2", List.of(id, "  " + id + " "))), "more than once");
+        assertRetried(() -> itemTool("S2").returnItemSelection(new ItemSelection("S2", List.of(id, id.toUpperCase()))), "more than once");
+    }
+
+    @Test
+    void returnItemSelection_shouldAskForACorrection_whenAnIdIsBlankOrNotAUuid() {
+        assertRetried(() -> itemTool("S2").returnItemSelection(new ItemSelection("S2", List.of(" "))), "which no tool returned");
+        assertRetried(() -> itemTool("S2").returnItemSelection(new ItemSelection("S2", List.of("not-a-uuid"))), "not-a-uuid");
+    }
+
+    @Test
     void returnAggregationSelections_shouldReturnTheSelections_whenEachCoversConsecutiveItemsOfOneKind() {
         var result = new AggregationSelectionResult(List.of(
                 new AggregationSelection(List.of("S1", "S2", "S3"), List.of(knownIds.getFirst())),

@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Comparator.comparingInt;
 
@@ -64,7 +65,7 @@ public class ProcedureTreeAssembler {
         }
         var childrenByParent = groupChildrenByParent(entries);
         var root = entries.stream().filter(entry -> entry.parentId() == null).findFirst().orElse(entries.getFirst());
-        return Optional.of(toNode(root, childrenByParent, new HashSet<>()));
+        return Optional.of(toNode(root, childrenByParent, new HashSet<>(), 0, new AtomicInteger(1)));
     }
 
     /**
@@ -94,14 +95,19 @@ public class ProcedureTreeAssembler {
         return childrenByParent;
     }
 
-    // The ancestors on the current path guard against a CONTAINS cycle, which would otherwise expand without end.
-    private static ProcedureNode toNode(SubtreeEntry entry, Map<UUID, List<SubtreeEntry>> childrenByParent, Set<UUID> ancestors) {
+    // The ancestors on the current path guard against a CONTAINS cycle, which would otherwise expand without end. The caps are enforced
+    // here too, because a procedure reached through several paths can appear at different depths and add rows to the same tree.
+    private ProcedureNode toNode(SubtreeEntry entry, Map<UUID, List<SubtreeEntry>> childrenByParent, Set<UUID> ancestors, int depth,
+                                 AtomicInteger nodeCount) {
         var procedure = entry.procedure();
         ancestors.add(procedure.id());
         var children = new ArrayList<ProcedureNode>();
-        for (var child : childrenByParent.getOrDefault(procedure.id(), List.of())) {
-            if (!ancestors.contains(child.procedure().id())) {
-                children.add(toNode(child, childrenByParent, ancestors));
+        if (depth < config.getMaxTreeDepth()) {
+            for (var child : childrenByParent.getOrDefault(procedure.id(), List.of())) {
+                if (!ancestors.contains(child.procedure().id()) && nodeCount.get() < config.getMaxTreeNodes()) {
+                    nodeCount.incrementAndGet();
+                    children.add(toNode(child, childrenByParent, ancestors, depth + 1, nodeCount));
+                }
             }
         }
         ancestors.remove(procedure.id());
