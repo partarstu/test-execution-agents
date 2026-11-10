@@ -18,5 +18,18 @@ Please add unit tests for the implemented feature or bug fix, unless you pull re
 
 We follow the [Contributor Covenant Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md).
 
-The code in this repository is released under the GNU Affero General Public License v3.0 (AGPL-3.0), and by contributing to this repository, you
-agree to release that contribution under that same license.
+## Contributor License Agreement
+
+This project is part of QuAIA™ and is dual-licensed: it is open source under the GNU Affero General Public License v3.0 (AGPL-3.0),
+and it is also offered under commercial licenses. To make this possible, every contributor must sign the
+[QuAIA™ Individual Contributor License Agreement](CLA_GIST_URL) (CLA) before their first pull request can be merged.
+
+* When you open your first pull request, the CLA assistant bot comments on it with a link. Sign in with your GitHub account and accept
+  the agreement; it takes about a minute and covers all your future contributions to this repository and to the
+  [QuAIA™ framework](https://github.com/partarstu/agentic-qa-framework).
+* You keep the copyright in your contributions. The CLA grants the maintainer a license to them, including the right to license them
+  under the AGPL-3.0 and under commercial terms.
+* Every contribution that is merged stays publicly available under the AGPL-3.0.
+* If you contribute on behalf of your employer, make sure you are allowed to do so before signing.
+
+Pull requests from contributors who have not signed the CLA cannot be merged.

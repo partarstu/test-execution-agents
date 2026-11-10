@@ -866,6 +866,14 @@ This is the exact command run by the blocking `Architecture (CALM)` CI job (`.gi
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 See the [LICENSE](LICENSE) file for the full license text.
 
+### Commercial license
+
+As part of QuAIA™, this project is also available under a commercial license for organizations that want to use, modify or embed
+it without the obligations of the AGPL-3.0, for example without publishing the source code of their changes. For commercial
+licensing, support or a demo, contact partarstu@gmail.com or use the form on [quaia.dev](https://quaia.dev).
+
+Contributions are accepted under the [Contributor License Agreement](CONTRIBUTING.md#contributor-license-agreement).
+
 The third-party components it uses, bundles or installs, and their licenses, are listed in the [NOTICE](NOTICE) file.
 
 Copyright © 2025-2026 Taras Paruta (partarstu@gmail.com)
