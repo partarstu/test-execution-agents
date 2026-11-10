@@ -4,8 +4,7 @@
 @REM
 @REM This program is free software: you can redistribute it and/or modify
 @REM it under the terms of the GNU Affero General Public License as published by
-@REM the Free Software Foundation, either version 3 of the License, or
-@REM (at your option) any later version.
+@REM the Free Software Foundation, version 3 of the License only.
 @REM
 @REM This program is distributed in the hope that it will be useful,
 @REM but WITHOUT ANY WARRANTY; without even the implied warranty of

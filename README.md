@@ -863,7 +863,7 @@ This is the exact command run by the blocking `Architecture (CALM)` CI job (`.gi
 
 ## License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+This project is licensed under the **GNU Affero General Public License v3.0 only (AGPL-3.0-only)**.
 See the [LICENSE](LICENSE) file for the full license text.
 
 ### Commercial license
