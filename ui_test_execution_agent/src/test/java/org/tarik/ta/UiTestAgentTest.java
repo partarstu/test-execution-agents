@@ -58,6 +58,7 @@ import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -121,6 +122,7 @@ class UiTestAgentTest {
         lenient().when(configMock.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
         lenient().when(configMock.getActionRetryPolicy()).thenReturn(new RetryPolicy(3, 100, 5000));
         lenient().when(configMock.getVerificationRetryPolicy()).thenReturn(new RetryPolicy(3, 100, 5000));
+        lenient().when(configMock.getSensitiveDataKeyPattern()).thenReturn(Pattern.compile("(?!)"));
 
         commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(screenshot);
         coreUtilsMockedStatic.when(() -> CommonUtils.sleepMillis(anyLong())).thenAnswer(invocation -> null);

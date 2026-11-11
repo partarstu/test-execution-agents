@@ -17,6 +17,7 @@
 package org.tarik.ta;
 
 import jakarta.inject.Provider;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.agents.ApiPreconditionActionAgent;
 import org.tarik.ta.agents.ApiTestStepActionAgent;
@@ -27,11 +28,13 @@ import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.core.model.TestExecutionContext;
+import org.tarik.ta.core.security.SecretRegistry;
 import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.inOrder;
@@ -42,6 +45,11 @@ import static org.tarik.ta.core.model.ContextEntry.StepType.PRECONDITION;
 import static org.tarik.ta.core.model.ContextEntry.StepType.TEST_STEP;
 
 class ApiTestAgentTest {
+
+    @AfterEach
+    void resetSecretRegistry() {
+        SecretRegistry.global().reset(Pattern.compile("(?!)"));
+    }
 
     @Test
     void executeTestCase_shouldReturnError_whenTestCaseCannotBeExtracted() {
