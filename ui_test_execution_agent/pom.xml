@@ -296,6 +296,16 @@
                         </configuration>
                     </execution>
                     <execution>
+                        <id>npm-audit</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>audit --audit-level=high --omit=dev</arguments>
+                            <skip>${frontend.build.skip}</skip>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>npm-build</id>
                         <goals>
                             <goal>npm</goal>

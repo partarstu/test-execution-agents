@@ -21,7 +21,7 @@
 
     <licenses>
         <license>
-            <name>GNU Affero General Public License v3.0</name>
+            <name>AGPL-3.0-only</name>
             <url>https://www.gnu.org/licenses/agpl-3.0.html</url>
             <distribution>repo</distribution>
         </license>
@@ -45,6 +45,21 @@
         <google.auth.library.version>1.37.1</google.auth.library.version>
         <junit.version>6.1.3</junit.version>
         <license.maven.plugin.version>5.1.2</license.maven.plugin.version>
+        <!-- File header of the license-maven-plugin (AGPL-3.0-only); ${year}, ${owner} and ${email} are the plugin's properties. -->
+        <agpl.only.license.header>${project.name} - ${project.description}
+Copyright © ${year} ${owner} (${email})
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, version 3 of the License only.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see &lt;http://www.gnu.org/licenses/&gt;.</agpl.only.license.header>
         <assertj.version>4.0.0-M1</assertj.version>
         <maven.shade.plugin.version>3.6.2</maven.shade.plugin.version>
         <maven.compiler.plugin.version>3.16.0</maven.compiler.plugin.version>
@@ -407,7 +422,8 @@
                         </mapping>
                          <licenseSets>
                             <licenseSet>
-                                <header>com/mycila/maven/plugin/license/templates/AGPL-3.txt</header>
+                                <!-- AGPL-3.0-only: the plugin's bundled AGPL-3.txt template says "or any later version". -->
+                                <inlineHeader>${agpl.only.license.header}</inlineHeader>
                                 <excludes>
                                     <exclude>**/README</exclude>
                                     <exclude>src/test/resources/**</exclude>
@@ -422,7 +438,7 @@
                             <!-- The plugin's default excludes skip every "node" directory (meant for a Node.js install),
                                  which would leave the knowledge graph's model.node package unchecked. -->
                             <licenseSet>
-                                <header>com/mycila/maven/plugin/license/templates/AGPL-3.txt</header>
+                                <inlineHeader>${agpl.only.license.header}</inlineHeader>
                                 <useDefaultExcludes>false</useDefaultExcludes>
                                 <includes>
                                     <include>src/*/java/**/node/**/*.java</include>

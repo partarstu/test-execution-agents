@@ -271,7 +271,7 @@ The UI agent's operator panel is a React + TypeScript app in `ui_test_execution_
 
 - The build is skipped when `target/classes/panel/index.html` is newer than every frontend source and build file (`build-helper-maven-plugin`'s `uptodate-property`), so a backend-only change does not rebuild the bundle; `mvn clean` or any change under `src/main/frontend` rebuilds it. `npm test` still runs on every build.
 - `-Dskip.installnodenpm -Dskip.npm` skips the frontend entirely, for a backend-only build; `-DskipTests` skips `npm test`.
-- `src/main/frontend/.npmrc` sets `ignore-scripts=true` (no dependency lifecycle scripts run) and `min-release-age=3` (an `npm install` or `npm update` that writes the lockfile skips versions published less than three days ago); Dependabot (`.github/dependabot.yml`) uses the same three-day cooldown. The Maven build installs the committed `package-lock.json` as pinned.
+- `src/main/frontend/.npmrc` sets `ignore-scripts=true` (no dependency lifecycle scripts run) and `min-release-age=3` (an `npm install` or `npm update` that writes the lockfile skips versions published less than three days ago). The Maven build installs the committed `package-lock.json` as pinned.
 - The Cloud Build Maven steps that build the UI module (`cloudbuild.yaml`, `ui_test_execution_agent/deployment/cloud/cloudbuild.yaml`) run on `amazoncorretto:27-al2023` with `libatomic` installed, because the Node binaries the plugin downloads need glibc and `libatomic` and do not run on Alpine; the API agent's standalone build builds only its own module and stays on Alpine.
 - The bundled third-party licences are written to `panel/licenses.md` next to the bundle.
 - noVNC (`@novnc/novnc`) is a runtime dependency loaded through a dynamic `import()`, so it lands in its own chunk and the panel downloads it only when it shows a live view.
@@ -601,9 +601,10 @@ remember procedures (reusable test action sequences) across sessions.
 ### Features
 
 - **Procedure Graph**: Stores hierarchical procedures (composite and atomic) as a Neo4j graph with CONTAINS (parent-child) and TARGETS (step-to-UI-element) relationships. To ensure data integrity, each procedure is restricted to target at most/exactly one `UiElement` by automatically deleting any previous target relationship before linking a new one.
-- **PDDL-Lite Planning**: Prerequisite/effect state tracking enables automatic prerequisite resolution during test execution.
-- **Queue-Based Execution**: Replaces the sequential for-loop with a dynamic execution queue that injects prerequisite steps when
-  prerequisites are unmet.
+- **PDDL-Lite Planning**: Prerequisite/effect state tracking checks each procedure's prerequisites against the current execution state,
+  so that among similar procedures the one whose prerequisites are met is chosen. Unmet prerequisites are not resolved by running
+  other procedures (see *Unsatisfied Prerequisites*).
+- **Queue-Based Execution**: The preconditions and test steps are processed in test case order from an execution queue.
 - **Start From A Later Step**: When the operator starts the run from a later test step in the start-step prompt, the preconditions and the earlier test steps are treated as already executed: the effects of the procedure that matches each of them with high confidence are seeded into the execution state before the first selected step, so its prerequisites are satisfied. A skipped item without a high-confidence match is logged and seeds nothing.
 - **Unsatisfied Prerequisites**: When a mandatory atomic step's prerequisites are not satisfied, UNATTENDED mode fails the item and stops. In SUPERVISED mode, the "Prerequisites Not Satisfied" warning is followed by the standard next-action prompt: browse or create procedures, rerun the whole test step, rerun the atomic procedure (reloaded from the DB and checked against its prerequisites again, so an edit of its prerequisites takes effect), or terminate.
 - **Human-in-the-Loop Collecting knowledge**: In SUPERVISED mode, the agent opens the procedure editor prompt of the operator panel for operators to collect new
@@ -862,8 +863,16 @@ This is the exact command run by the blocking `Architecture (CALM)` CI job (`.gi
 
 ## License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+This project is licensed under the **GNU Affero General Public License v3.0 only (AGPL-3.0-only)**.
 See the [LICENSE](LICENSE) file for the full license text.
+
+### Commercial license
+
+As part of QuAIA™, this project is also available under a commercial license for organizations that want to use, modify or embed
+it without the obligations of the AGPL-3.0, for example without publishing the source code of their changes. For commercial
+licensing, support or a demo, contact partarstu@gmail.com or use the form on [quaia.dev](https://quaia.dev).
+
+Contributions are accepted under the [Contributor License Agreement](CONTRIBUTING.md#contributor-license-agreement).
 
 The third-party components it uses, bundles or installs, and their licenses, are listed in the [NOTICE](NOTICE) file.
 

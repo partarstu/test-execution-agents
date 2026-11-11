@@ -4,8 +4,7 @@
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * the Free Software Foundation, version 3 of the License only.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -97,7 +96,7 @@ public class ProcedureSelector {
         var startNanos = System.nanoTime();
         var outcome = agent.executeAndGetResult(() -> agent.select(userMessageContents(request)));
         var elapsedMillis = elapsedMillisSince(startNanos);
-        // A model answering in text instead of calling the result tool leaves its text as the payload, so the type is checked.
+        // The payload may be missing or of another result type, so the type is checked.
         Object payload = outcome.getResultPayload();
         if (!outcome.isSuccess() || !(payload instanceof ItemSelection selection)) {
             LOG.warn("The item run for {} of test case '{}' ended without a selection after {} tool calls and {} ms: {}", item.id(),

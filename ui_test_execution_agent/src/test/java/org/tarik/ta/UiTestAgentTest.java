@@ -4,8 +4,7 @@
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * the Free Software Foundation, version 3 of the License only.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -59,6 +58,7 @@ import java.awt.image.BufferedImage;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -122,6 +122,7 @@ class UiTestAgentTest {
         lenient().when(configMock.getExecutionMode()).thenReturn(ExecutionMode.UNATTENDED);
         lenient().when(configMock.getActionRetryPolicy()).thenReturn(new RetryPolicy(3, 100, 5000));
         lenient().when(configMock.getVerificationRetryPolicy()).thenReturn(new RetryPolicy(3, 100, 5000));
+        lenient().when(configMock.getSensitiveDataKeyPattern()).thenReturn(Pattern.compile("(?!)"));
 
         commonUtilsMockedStatic.when(UiCommonUtils::captureScreen).thenReturn(screenshot);
         coreUtilsMockedStatic.when(() -> CommonUtils.sleepMillis(anyLong())).thenAnswer(invocation -> null);

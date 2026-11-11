@@ -4,8 +4,7 @@
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * the Free Software Foundation, version 3 of the License only.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -90,6 +89,20 @@ class SelectionResultToolsTest {
         var id = knownIds.getFirst();
 
         assertRetried(() -> itemTool("S2").returnItemSelection(new ItemSelection("S2", List.of(id, id))), "more than once");
+    }
+
+    @Test
+    void returnItemSelection_shouldAskForACorrection_whenAProcedureIsListedTwiceWithPaddingOrAnotherCase() {
+        var id = knownIds.getFirst();
+
+        assertRetried(() -> itemTool("S2").returnItemSelection(new ItemSelection("S2", List.of(id, "  " + id + " "))), "more than once");
+        assertRetried(() -> itemTool("S2").returnItemSelection(new ItemSelection("S2", List.of(id, id.toUpperCase()))), "more than once");
+    }
+
+    @Test
+    void returnItemSelection_shouldAskForACorrection_whenAnIdIsBlankOrNotAUuid() {
+        assertRetried(() -> itemTool("S2").returnItemSelection(new ItemSelection("S2", List.of(" "))), "which no tool returned");
+        assertRetried(() -> itemTool("S2").returnItemSelection(new ItemSelection("S2", List.of("not-a-uuid"))), "not-a-uuid");
     }
 
     @Test

@@ -64,7 +64,7 @@ The shared settings (`port`, `agent.auth.token`, `external.url`, `vector.db.url`
 | Property | Environment variable | Default | Description |
 |----------|----------------------|---------|-------------|
 | `port` | `PORT` | `8007` | Server port |
-| `agent.version` | `AGENT_VERSION` | `1.0.0` | Version advertised in the agent card |
+| `agent.version` | `AGENT_VERSION` | `1.0.1` | Version advertised in the agent card |
 | `agent.token.budget` | `AGENT_TOKEN_BUDGET` | `5000000` | Tokens one task may use across all its runs |
 | `agent.execution.time.budget.seconds` | `AGENT_EXECUTION_TIME_BUDGET_SECONDS` | `840` | Time the item and aggregation runs of a task may take together; below the design agent's request timeout (900 s) |
 | `neo4j.username` | `NEO4J_USERNAME` | `neo4j` | Graph user |

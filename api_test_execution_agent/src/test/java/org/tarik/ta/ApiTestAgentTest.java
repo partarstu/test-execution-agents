@@ -4,8 +4,7 @@
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * the Free Software Foundation, version 3 of the License only.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,6 +17,7 @@
 package org.tarik.ta;
 
 import jakarta.inject.Provider;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.tarik.ta.agents.ApiPreconditionActionAgent;
 import org.tarik.ta.agents.ApiTestStepActionAgent;
@@ -28,11 +28,13 @@ import org.tarik.ta.core.dto.TestExecutionResult;
 import org.tarik.ta.core.dto.TestStep;
 import org.tarik.ta.core.manager.BudgetManager;
 import org.tarik.ta.core.model.TestExecutionContext;
+import org.tarik.ta.core.security.SecretRegistry;
 import org.tarik.ta.core.utils.LogCapture;
 import org.tarik.ta.core.utils.TestCaseExtractor;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.inOrder;
@@ -43,6 +45,11 @@ import static org.tarik.ta.core.model.ContextEntry.StepType.PRECONDITION;
 import static org.tarik.ta.core.model.ContextEntry.StepType.TEST_STEP;
 
 class ApiTestAgentTest {
+
+    @AfterEach
+    void resetSecretRegistry() {
+        SecretRegistry.global().reset(Pattern.compile("(?!)"));
+    }
 
     @Test
     void executeTestCase_shouldReturnError_whenTestCaseCannotBeExtracted() {

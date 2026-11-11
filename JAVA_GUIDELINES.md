@@ -224,7 +224,7 @@ The rule is the *Comments and docstrings* section of `AGENTS.md`; this section o
 
 - Maven is the build tool. The parent `pom.xml` is the single source of truth for versions: declare them as properties and in `<dependencyManagement>`/`<pluginManagement>`; modules declare dependencies without versions.
 - Use only dependencies declared directly in the module's `pom.xml`, never a transitive one. Check with `mvn dependency:tree` and `mvn dependency:analyze`.
-- Before adding a dependency, prefer the JDK or an existing dependency. A new one must be actively maintained, license-compatible with AGPL-3.0 and free of known vulnerabilities.
+- Before adding a dependency, prefer the JDK or an existing dependency. A new one must be actively maintained, license-compatible with AGPL-3.0-only and free of known vulnerabilities.
 - Every source file carries the AGPL license header; `mvn license:format` adds it.
 - Native libraries (OpenCV, JavaCV) are selected by the `windows`/`linux` Maven profiles; build and test the UI agent with the profile of the target OS.
 
